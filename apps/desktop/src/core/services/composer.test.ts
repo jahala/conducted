@@ -2,11 +2,11 @@ import { appError, err, ok, type SessionId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { FileStat, FileSystem, Platform } from "../../platform/platform.ts";
 import { draftFile } from "../app-paths.ts";
+import { convertsToAttachment } from "../composer-files.ts";
 import {
 	ComposerService,
 	type ComposerServiceDeps,
 	classifyAttachment,
-	convertsToAttachment,
 	DRAFT_STORE_LIMIT_BYTES,
 } from "./composer.ts";
 

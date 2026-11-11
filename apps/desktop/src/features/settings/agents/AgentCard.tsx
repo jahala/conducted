@@ -28,7 +28,7 @@
  */
 import type { AgentInstall } from "@conducted/protocol";
 import type { ReactNode } from "react";
-import { agentDisplayName } from "../../../core/services/agent-catalog.ts";
+import { agentDisplayName } from "../../../core/agent-catalog.ts";
 import { Badge, type BadgeTone } from "../../../ui/Badge.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { cn } from "../../../ui/cn.ts";

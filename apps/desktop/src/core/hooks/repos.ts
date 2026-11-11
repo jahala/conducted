@@ -5,11 +5,13 @@
  * Must handle: a store that has not loaded, a reload that fails.
  * Test first: the test for a hook body lives with the feature that implements it.
  */
+import type { RepoId, Result } from "@conducted/shared";
 import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
 import type { Loadable, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
 import type { Repo } from "../model.ts";
+import { readHiddenRunActions } from "../services/repo.ts";
 
 export const useRepos: Queries["useRepos"] = () => {
 	const store = useServices().services.repo.store;
@@ -36,3 +38,8 @@ export const useRepoConfig: Queries["useRepoConfig"] = (repoId) => {
 	if (config === undefined) return { state: "loading" };
 	return { state: "ready", data: config };
 };
+
+/** The shared run actions this user hid for one repository, read from local storage. */
+export function useHiddenRunActions(repoId: RepoId): Result<readonly string[]> {
+	return useMemo(() => readHiddenRunActions(repoId), [repoId]);
+}

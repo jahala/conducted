@@ -6,12 +6,15 @@
  * fixed width with status icon, title and unread dot; '+' menu 'New chat', 'Browser', 'Local
  * terminal'; the tab limit; 'View chat history'; chat tab menu 'Fork to new tab'), 5.4 (previous,
  * next, close, reopen and fork shortcuts).
- * Our design choice: The open chats and workspace terminals are the tabs. A file, comment, PR or
+ * Our design choice: The open chats and the workspace's centre terminals are the tabs. A terminal
+ * made in the right panel is listed there, not here (issue #482). A file, comment, PR or
  * browser tab is the tab the URL names, so the URL stays the one source of truth for the open tab.
  * The tab limit is five, or ten with Tab Freak Mode. A browser URL that does not parse is shown as-is.
  * Must handle: Many tabs (scroll); at the tab limit (new-tab menu disabled); closing the active tab
- * opens its neighbour while closing another keeps the current tab; 'Close others' closes the other
- * chats and terminals and keeps the chosen tab; error card 'Tabs failed to load'
+ * opens its neighbour while closing another keeps the current tab; a working chat asks before it
+ * closes (CloseChatDialog), then its agent stops and the next chat opens, with a new chat when it
+ * was the last; 'Close others' asks once for the working chats and closes the other chats and
+ * terminals, keeping the chosen tab; error card 'Tabs failed to load'
  * with Retry; reopening the last closed chat; a split group's tabs are left out of the main strip.
  * Test first: Closing the active middle tab selects the tab to its right; at the limit the '+'
  * menu is disabled.
@@ -31,12 +34,14 @@ import {
 	useWorkspace,
 } from "../../core/hooks.ts";
 import type { DiffComment, Session, Terminal } from "../../core/model.ts";
+import { chatIsWorking } from "../../core/sessions.ts";
 import { deriveWorkspaceStatus } from "../../core/status/workspace-status.ts";
 import { Button } from "../../ui/Button.tsx";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { activeTabFromDescriptor, resolveActiveTab, searchPatchFor, tabRef } from "./active-tab.ts";
 import { ChatHistoryButton } from "./ChatHistoryButton.tsx";
+import { CloseChatDialog } from "./CloseChatDialog.tsx";
 import { NewTabMenu } from "./NewTabMenu.tsx";
 import { TabContextMenu } from "./TabContextMenu.tsx";
 import { TabItem } from "./TabItem.tsx";
@@ -140,13 +145,13 @@ export function chatTabs(
 	});
 }
 
-/** A workspace's terminal tabs. A cloud workspace shows each terminal's host (CLOUD-09). */
+/** A workspace's centre terminal tabs. A terminal made in the panel is listed there instead. */
 export function terminalTabs(
 	terminals: readonly Terminal[],
 	hostKind?: "local" | "cloud",
 ): TabDescriptor[] {
 	return terminals
-		.filter((terminal) => terminal.kind === "terminal")
+		.filter((terminal) => terminal.kind === "terminal" && terminal.placement === "centre")
 		.map((terminal, index) => ({
 			kind: "terminal",
 			ref: tabRef({ kind: "terminal", terminalId: terminal.id }) ?? "",
@@ -240,39 +245,97 @@ export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: T
 		else select(neighbour);
 	};
 
+	/** A close the dialog is asking about: one chat, or every other chat of the strip. */
+	type PendingClose =
+		| { kind: "chat"; tab: TabDescriptor; session: Session }
+		| { kind: "others"; keep: TabDescriptor; sessions: readonly Session[] };
+	const [pendingClose, setPendingClose] = useState<PendingClose | null>(null);
+
+	const isWorking = (sessionId: SessionId): boolean =>
+		chatIsWorking({ liveStates, cancelling }, sessionId);
+
 	/** Closes the chat or terminal behind a tab. Other tab kinds close by leaving the URL. */
-	const closeBacking = async (tab: TabDescriptor): Promise<boolean> => {
+	const closeBacking = async (
+		tab: TabDescriptor,
+	): Promise<{ ok: true; next?: Session } | { ok: false }> => {
 		if (tab.kind === "session" && tab.sessionId !== undefined) {
 			const result = await actions.sessions.close(tab.sessionId);
 			if (!result.ok) {
 				toastError("Couldn't close the chat", result.error);
-				return false;
+				return { ok: false };
 			}
+			return { ok: true, next: result.value };
 		}
 		if (tab.kind === "terminal" && tab.terminalId !== undefined) {
 			const result = await actions.terminals.close(tab.terminalId);
 			if (!result.ok) {
 				toastError("Couldn't close the terminal", result.error);
-				return false;
+				return { ok: false };
 			}
 		}
-		return true;
+		return { ok: true };
 	};
 
-	const close = async (tab: TabDescriptor) => {
-		if (!(await closeBacking(tab))) return;
+	const closeNow = async (tab: TabDescriptor) => {
+		const result = await closeBacking(tab);
+		if (!result.ok) return;
 		lastClosed.current = tab;
-		if (tab.ref === activeRef) showNeighbour(tab);
+		if (tab.ref !== activeRef) return;
+		// Conductor's close makes the next chat active and opens it. A replacement chat is opened
+		// the same way when the last chat closed.
+		if (result.next !== undefined) {
+			onSearchChange(searchPatchFor({ kind: "session", sessionId: result.next.id }));
+			return;
+		}
+		showNeighbour(tab);
 	};
 
-	const closeOthers = async (keep: TabDescriptor) => {
-		for (const other of tabs) {
-			if (other.ref === keep.ref) continue;
-			if (other.kind !== "session" && other.kind !== "terminal") continue;
-			if (!(await closeBacking(other))) return;
+	/** Asks first when the chat is working, as Conductor does; otherwise closes it at once. */
+	const close = async (tab: TabDescriptor) => {
+		if (tab.kind === "session" && tab.sessionId !== undefined) {
+			const session = openSessions.find((candidate) => candidate.id === tab.sessionId);
+			if (session !== undefined && isWorking(session.id)) {
+				setPendingClose({ kind: "chat", tab, session });
+				return;
+			}
+		}
+		await closeNow(tab);
+	};
+
+	const othersClosable = (keep: TabDescriptor): TabDescriptor[] =>
+		tabs.filter(
+			(other) => other.ref !== keep.ref && (other.kind === "session" || other.kind === "terminal"),
+		);
+
+	const closeOthersNow = async (keep: TabDescriptor) => {
+		for (const other of othersClosable(keep)) {
+			const result = await closeBacking(other);
+			if (!result.ok) return;
 			lastClosed.current = other;
 		}
 		if (keep.ref !== activeRef) select(keep);
+	};
+
+	/** "Close others" asks once for all the working chats, as Conductor's dialog does. */
+	const closeOthers = async (keep: TabDescriptor) => {
+		const working = othersClosable(keep).flatMap((tab) => {
+			if (tab.kind !== "session" || tab.sessionId === undefined) return [];
+			const session = openSessions.find((candidate) => candidate.id === tab.sessionId);
+			return session !== undefined && isWorking(session.id) ? [session] : [];
+		});
+		if (working.length > 0) {
+			setPendingClose({ kind: "others", keep, sessions: working });
+			return;
+		}
+		await closeOthersNow(keep);
+	};
+
+	const confirmPendingClose = () => {
+		const pending = pendingClose;
+		if (pending === null) return;
+		setPendingClose(null);
+		if (pending.kind === "chat") void closeNow(pending.tab);
+		else void closeOthersNow(pending.keep);
 	};
 
 	const go = (offset: number) => {
@@ -408,61 +471,83 @@ export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: T
 	}
 
 	const loading = sessions.state === "loading" || terminals.state === "loading";
+	const representative =
+		pendingClose === null
+			? null
+			: pendingClose.kind === "chat"
+				? pendingClose.session
+				: (pendingClose.sessions[0] ?? null);
+	const runningCount =
+		pendingClose === null ? 0 : pendingClose.kind === "chat" ? 1 : pendingClose.sessions.length;
 
 	return (
-		<div
-			role="tablist"
-			aria-label="Workspace tabs"
-			className="flex h-10 shrink-0 items-center gap-2 overflow-x-auto border-b border-separator bg-surface px-4"
-		>
-			{tabs.map((tab) => {
-				const item = (
-					<TabItem
-						key={tab.ref}
-						tab={tab}
-						active={tab.ref === activeRef}
-						onSelect={() => select(tab)}
-						onClose={() => void close(tab)}
-						onDragStart={(event) => {
-							event.dataTransfer.setData("application/x-conducted-tab", tab.ref);
-							event.dataTransfer.effectAllowed = "move";
-							if (typeof event.dataTransfer.setDragImage === "function") {
-								event.dataTransfer.setDragImage(event.currentTarget, 0, 0);
-							}
-						}}
-					/>
-				);
-				const session =
-					tab.kind === "session" && tab.sessionId !== undefined
-						? openSessions.find((candidate) => candidate.id === tab.sessionId)
-						: undefined;
-				if (session === undefined) return item;
-				return (
-					<TabContextMenu
-						key={tab.ref}
-						sessionId={session.id}
-						session={session}
-						workspaceId={workspaceId}
-						onClose={() => void close(tab)}
-						onCloseOthers={hasOtherClosable ? () => void closeOthers(tab) : undefined}
-						forkEnabled={forkEnabled}
-						onFork={() => fork(session.id)}
-					>
-						<div className="flex shrink-0">{item}</div>
-					</TabContextMenu>
-				);
-			})}
-			{loading && tabs.length === 0 ? (
-				<span role="status" className="px-2 text-xs text-fg-subtle">
-					Loading tabs
-				</span>
-			) : null}
-			<NewTabMenu
-				workspaceId={workspaceId}
-				atTabLimit={atTabLimit}
-				onSearchChange={onSearchChange}
+		<>
+			<div
+				role="tablist"
+				aria-label="Workspace tabs"
+				className="flex h-10 shrink-0 items-center gap-2 overflow-x-auto border-b border-separator bg-surface px-4"
+			>
+				{tabs.map((tab) => {
+					const item = (
+						<TabItem
+							key={tab.ref}
+							tab={tab}
+							active={tab.ref === activeRef}
+							onSelect={() => select(tab)}
+							onClose={() => void close(tab)}
+							onDragStart={(event) => {
+								event.dataTransfer.setData("application/x-conducted-tab", tab.ref);
+								event.dataTransfer.effectAllowed = "move";
+								if (typeof event.dataTransfer.setDragImage === "function") {
+									event.dataTransfer.setDragImage(event.currentTarget, 0, 0);
+								}
+							}}
+						/>
+					);
+					const session =
+						tab.kind === "session" && tab.sessionId !== undefined
+							? openSessions.find((candidate) => candidate.id === tab.sessionId)
+							: undefined;
+					if (session === undefined) return item;
+					return (
+						<TabContextMenu
+							key={tab.ref}
+							sessionId={session.id}
+							session={session}
+							workspaceId={workspaceId}
+							onClose={() => void close(tab)}
+							onCloseOthers={hasOtherClosable ? () => void closeOthers(tab) : undefined}
+							forkEnabled={forkEnabled}
+							onFork={() => fork(session.id)}
+						>
+							<div className="flex shrink-0">{item}</div>
+						</TabContextMenu>
+					);
+				})}
+				{loading && tabs.length === 0 ? (
+					<span role="status" className="px-2 text-xs text-fg-subtle">
+						Loading tabs
+					</span>
+				) : null}
+				<NewTabMenu
+					workspaceId={workspaceId}
+					atTabLimit={atTabLimit}
+					onSearchChange={onSearchChange}
+				/>
+				<ChatHistoryButton workspaceId={workspaceId} onSearchChange={onSearchChange} />
+			</div>
+			<CloseChatDialog
+				open={pendingClose !== null}
+				onOpenChange={(open) => {
+					if (!open) setPendingClose(null);
+				}}
+				runningCount={runningCount}
+				session={representative}
+				waiting={
+					representative !== null && liveStates[representative.id]?.waitingSince !== undefined
+				}
+				onConfirm={confirmPendingClose}
 			/>
-			<ChatHistoryButton workspaceId={workspaceId} onSearchChange={onSearchChange} />
-		</div>
+		</>
 	);
 }

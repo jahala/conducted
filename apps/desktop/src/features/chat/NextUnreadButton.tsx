@@ -20,7 +20,7 @@ import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
 import { useLiveShortcut } from "../../core/hooks.ts";
 import type { Workspace } from "../../core/model.ts";
-import { sessionWaitsForUser } from "../../core/services/sessions.ts";
+import { sessionWaitsForUser } from "../../core/sessions.ts";
 import { Button } from "../../ui/Button.tsx";
 import { ChevronRightIcon } from "../../ui/icons.tsx";
 import {

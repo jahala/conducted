@@ -23,11 +23,10 @@ import { ok, type Result, type SessionId } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import { collectResults, parseJsonColumn, selectRows } from "../db/row-codec.ts";
 import type { ChatBlock, ChatTurn, PlanEntry } from "../model.ts";
+import { HISTORY_SEARCH_MIN_QUERY, type HistoryHit } from "../transcript.ts";
 
 /** Matches `%`, `_` and the escape character itself so the query is searched literally. */
 export const escapeLike = (query: string): string => query.replace(/[\\%_]/g, (ch) => `\\${ch}`);
-
-export const HISTORY_SEARCH_MIN_QUERY = 2;
 
 /**
  * `$1` is `%<escaped query>%`, `$2` the row limit. Reverted events are not searched. The LIKE
@@ -50,13 +49,6 @@ LIMIT $2`;
 
 /** How much of one tool output the full transcript keeps before it adds a note. */
 export const TRANSCRIPT_TOOL_OUTPUT_LIMIT = 2000;
-
-export interface HistoryHit {
-	sessionId: SessionId;
-	turnId: string;
-	excerpt: string;
-	at: number;
-}
 
 interface HistoryRow {
 	session_id: SessionId;

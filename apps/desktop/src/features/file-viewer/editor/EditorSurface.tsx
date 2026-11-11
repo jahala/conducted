@@ -5,7 +5,8 @@
  * Behaviour: ui-map.md 3.2 and 8 (CodeMirror 6 for file editing; ligatures setting applies to
  * editors and diffs), 5.3 (the editor's right-click menu has Cut, Copy and Paste with key hints).
  * Library reference: `EditorView` from "@codemirror/view" and `StateEffect` from
- * "@codemirror/state". Language packages are not installed, so the document is plain text.
+ * "@codemirror/state". Syntax colours come from Shiki (shiki-highlight.ts), with the user's code
+ * theme; undo and the default keys come from "@codemirror/commands" (codemirror-setup.ts).
  * Must handle: the document being replaced from outside (disk reload, discard) without losing the
  * cursor when possible and without calling `onChange`, destroy on unmount, focus on open,
  * read-only mode, the find bar's current match (selected and scrolled into view), "Select all

@@ -42,8 +42,9 @@
  * a command the agent lists is sent to it, and any other says it is not available. A
  * terminal-effect command opens a terminal that runs it and shows the terminal command bar above
  * the composer; the bar follows
- * that terminal (closed, finished, failed) and
- * restarts the agent when the user clicks Done. Attachments are added from the '+' menu, a drop or
+ * that terminal (closed, finished, failed); Done
+ * restarts the agent, forgets the chat's cached MCP list (SET-05) and says "Configuration
+ * refreshed." (ui-map.md 3.5). Attachments are added from the '+' menu, a drop or
  * a paste by the COMP-07 hook, shown in AttachmentBar, and materialised when the message is sent.
  * The '+' menu's "Link issue", Cmd+I and the palette's "Link issue" open the Link issue dialog
  * (PR-09) of the chat on screen; the issue it links joins the same attachment list.
@@ -76,12 +77,14 @@ import { useStore } from "zustand";
 import { useCommandHandler, useRunCommandHandlers } from "../../app/command-dispatcher.ts";
 import type { Draft } from "../../core/api.ts";
 import { useServices } from "../../core/context.tsx";
-import { useActions, useLiveShortcut, useSlashCommands, useWorkspace } from "../../core/hooks.ts";
 import {
-	attachPrMention,
-	type PrMentionItem,
-	searchPrMentions,
-} from "../../core/services/mention-search.ts";
+	useActions,
+	useLiveShortcut,
+	usePrMentionQueries,
+	useSlashCommands,
+	useWorkspace,
+} from "../../core/hooks.ts";
+import type { PrMentionItem } from "../../core/mention-search.ts";
 import { IconButton } from "../../ui/IconButton.tsx";
 import { BlocksIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
@@ -211,6 +214,7 @@ function TerminalCommandStatus({
 export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProps) {
 	const actions = useActions();
 	const { services } = useServices();
+	const prMentions = usePrMentionQueries();
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const narrow = useNarrowLayout(containerRef);
 	const [editor, setEditorState] = useState<Editor | null>(null);
@@ -318,13 +322,13 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	}, [services, workspaceId]);
 
 	const searchMentionRows = useCallback(
-		(query: string) => searchPrMentions(services, workspaceId, query),
-		[services, workspaceId],
+		(query: string) => prMentions.search(workspaceId, query),
+		[prMentions, workspaceId],
 	);
 
 	const attachMentionRow = useCallback(
-		(item: PrMentionItem) => attachPrMention(services, workspaceId, item),
-		[services, workspaceId],
+		(item: PrMentionItem) => prMentions.attach(workspaceId, item),
+		[prMentions, workspaceId],
 	);
 
 	const reportPrMentionError = useCallback((error: AppError) => {
@@ -367,12 +371,8 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					void startTerminalCommand(command);
 					return;
 				case "clear":
-					// The tab strip's own new-chat handler opens the fresh chat and shows it.
-					if (!runCommand("chat.newTab")) {
-						toast.error(COMMAND_UNAVAILABLE);
-						return;
-					}
-					void actions.sessions.close(sessionId).then((result) => {
+					// The clear action starts a replacement chat, shows it and stops the old agent.
+					void actions.sessions.clear(sessionId).then((result) => {
 						if (!result.ok) toastError("Couldn't close the chat", result.error);
 					});
 					return;
@@ -418,9 +418,23 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 
 	const finishTerminalCommand = useCallback(() => {
 		setTerminalRun(null);
-		void actions.sessions.restartAgent(sessionId).then((result) => {
-			if (!result.ok) toastError("Couldn't restart the agent", result.error);
-		});
+		void (async () => {
+			const restarted = await actions.sessions.restartAgent(sessionId);
+			if (!restarted.ok) {
+				toastError("Couldn't restart the agent", restarted.error);
+				return;
+			}
+			// The command may have edited the agent's own files (/mcp adds or removes a server), so
+			// the chat's cached MCP list is out of date until the next look reads the config again.
+			// Conductor clears its list and has no wording of its own for a failure, so the error's
+			// own message is shown, as Conductor does for its other command-bar errors.
+			const forgotten = await actions.mcp.forget(sessionId);
+			if (!forgotten.ok) {
+				toast.error(forgotten.error.message);
+				return;
+			}
+			toast.success("Configuration refreshed.");
+		})();
 	}, [actions, sessionId]);
 
 	const extensions = useMemo(

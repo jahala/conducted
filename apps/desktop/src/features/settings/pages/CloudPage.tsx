@@ -17,13 +17,12 @@
  * Test first: a refused name keeps the add panel open and shows the Worker's reason.
  */
 import { useEffect, useMemo, useState } from "react";
+import { CLOUD_ENV_SAVE_FAILED, CLOUD_SETTINGS_UNREACHABLE } from "../../../core/cloud-messages.ts";
 import type { CloudMcpServer } from "../../../core/cloud/settings.ts";
 import {
-	CLOUD_ENV_SAVE_FAILED,
 	CLOUD_MCP_ADD_FAILED,
 	CLOUD_MCP_DELETE_FAILED,
 	CLOUD_MCP_UPDATE_FAILED,
-	CLOUD_SETTINGS_UNREACHABLE,
 } from "../../../core/cloud/settings.ts";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useCloudSettings, useSetting } from "../../../core/hooks.ts";

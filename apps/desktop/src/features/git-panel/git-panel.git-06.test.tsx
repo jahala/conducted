@@ -20,8 +20,8 @@ import { createQueryClient } from "../../app/providers.tsx";
 import { createShellContainer } from "../../app/shell-test-support.ts";
 import type { Loadable } from "../../core/api.ts";
 import { ServicesProvider } from "../../core/context.tsx";
+import { PULL_UP_TO_DATE_MESSAGE, PULLED_LATEST_MESSAGE } from "../../core/git-text.ts";
 import type { GitState } from "../../core/model.ts";
-import { PULL_UP_TO_DATE_MESSAGE, PULLED_LATEST_MESSAGE } from "../../core/services/git.ts";
 
 const workspaceId = "w1" as WorkspaceId;
 

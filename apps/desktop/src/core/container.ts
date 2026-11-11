@@ -33,7 +33,7 @@
  * the `Services` interface, and builds without calling any placeholder.
  */
 
-import { type AgentLaunch, type Host, idleLiveState } from "@conducted/protocol";
+import { type AgentLaunch, type Host, idleLiveState, LOCAL_HOST } from "@conducted/protocol";
 import {
 	type AcpAgent,
 	type AgentKind,
@@ -71,14 +71,17 @@ import {
 import { createHostRoutedSidecar } from "./cloud/router.ts";
 import { type CloudSettingsService, createCloudSettings } from "./cloud/settings.ts";
 import { type CloudTransport, createCloudTransport } from "./cloud/transport.ts";
+import type { OfferedModels } from "./conductor-import/plan.ts";
+import { ConductorImportService } from "./conductor-import/service.ts";
 import { DEFAULT_LIFETIME_LIMITS, lifetimeJobResult, runDataLifetimeJob } from "./db/lifetime.ts";
 import { runStartupRepair } from "./db/repair.ts";
 import { createRepositories } from "./db/repositories.ts";
 import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { checkHost } from "./host.ts";
-import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
+import { createLookups, defaultSessionConfig, type Lookups, newChatConfig } from "./lookups.ts";
 import type { DiagnosticsCapture, Session, Workspace } from "./model.ts";
+import { buildDeepLink } from "./notifications.ts";
 import { AgentCatalogService, launchTakesKey, modelsKey } from "./services/agent-catalog.ts";
 import { ChatTitleService } from "./services/chat-titles.ts";
 import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
@@ -92,7 +95,7 @@ import { FileDiffService } from "./services/file-diff.ts";
 import { FollowUpQueue } from "./services/follow-up-queue.ts";
 import { GitService } from "./services/git.ts";
 import { connectGitCache, createGitCache, type GitCache } from "./services/git-cache.ts";
-import { GithubService } from "./services/github.ts";
+import { GithubService, type MergedPullRequest } from "./services/github.ts";
 import { GraphiteService } from "./services/graphite.ts";
 import {
 	KEEP_AWAKE_SCAN_MS,
@@ -104,7 +107,7 @@ import { createLinearHttp, LinearService } from "./services/linear.ts";
 import { LocalCommandService } from "./services/local-command.ts";
 import { LocalGitForge } from "./services/local-git-forge.ts";
 import { McpService } from "./services/mcp.ts";
-import { buildDeepLink, NotificationService, type SoundPlayer } from "./services/notifications.ts";
+import { NotificationService, type SoundPlayer } from "./services/notifications.ts";
 import { PortForwardsService } from "./services/port-forwards.ts";
 import { PortService } from "./services/ports.ts";
 import { RepoService } from "./services/repo.ts";
@@ -119,7 +122,6 @@ import {
 	DEFAULT_TERMINAL_OUTPUT_LINES,
 	NO_TERMINAL_OUTPUT,
 	TerminalsService,
-	terminalLimit,
 } from "./services/terminals.ts";
 import { UPDATE_CHECK_INTERVAL_MS, UpdatesService } from "./services/updates.ts";
 import { expandHome, type PlaceNames, WorkspaceService } from "./services/workspace.ts";
@@ -135,6 +137,7 @@ import { EventIngest } from "./sidecar/ingest.ts";
 import { SessionResume } from "./sidecar/resume.ts";
 import { type SidecarClient, SidecarTunnel } from "./sidecar/tunnel.ts";
 import { isArchivedWorkspace } from "./status/archived.ts";
+import { terminalLimit } from "./terminals.ts";
 
 /**
  * How long a quit waits for the container to stop before the app quits anyway. Our choice (D064):
@@ -160,6 +163,11 @@ export interface ContainerInputs {
 	 */
 	reportFailure: (title: string, error: { message: string }) => void;
 	/**
+	 * Shows a toast the composition root decides on, with the buttons Conductor offers. The app
+	 * entry passes the toast host, because no core module may draw one.
+	 */
+	showToast: (toast: UiToast) => void;
+	/**
 	 * Writes the redacted diagnostics report for a new chat and returns its path (APP-03). The app
 	 * entry passes the writer, because redaction lives with the diagnostics screen.
 	 */
@@ -171,6 +179,7 @@ export interface ContainerInputs {
 
 export interface Services {
 	settings: SettingsService;
+	conductorImport: ConductorImportService;
 	repo: RepoService;
 	workspace: WorkspaceService;
 	sections: SectionsService;
@@ -251,31 +260,93 @@ interface StartStep {
 	run: () => Promise<Result<unknown>>;
 }
 
+/** One button on a toast the app shows outside a screen's own call. */
+export interface UiToastAction {
+	label: string;
+	onClick: () => void;
+}
+
+/** A toast the composition root shows when a background success needs the user's next move. */
+export interface UiToast {
+	message: string;
+	tone: "success" | "error" | "warning";
+	action: UiToastAction | null;
+	secondaryAction: UiToastAction | null;
+}
+
 /** What archive-on-merge needs to archive and, when that fails, tell the user why. */
 export interface ArchiveOnMergedPorts {
 	archive: (workspaceId: WorkspaceId, prNumber: number) => Promise<Result<void>>;
+	/** Reads `archive_on_merge` when a merge is noticed, so an off setting shows nothing. */
+	archiveOnMerge: () => boolean;
+	unarchive: (workspaceId: WorkspaceId) => void;
+	openUrl: (url: string) => void;
+	showToast: (toast: UiToast) => void;
 	notify: (input: { title: string; body: string; deepLink?: string }) => Promise<void>;
 	/** Reports a failure of the notification itself, so it is not dropped. */
 	reportError: (message: string) => void;
 }
 
 /**
- * Handles a merged pull request without waiting for the poll. A failed archive (a running chat, a
- * corrupted workspace, a snapshot or script failure) reaches the user as a notification; the
- * Result is never dropped.
+ * Handles a merged pull request without waiting for the poll that noticed it. Conductor's words
+ * and actions: a stack with open work keeps the workspace, a finished one archives it and offers
+ * Open PR and Unarchive, a running chat is named, and a corrupt workspace points to its list.
  */
 export function createArchiveOnMerged(
 	ports: ArchiveOnMergedPorts,
-): (workspaceId: WorkspaceId, prNumber: number) => void {
-	return (workspaceId, prNumber) => {
+): (workspaceId: WorkspaceId, merged: MergedPullRequest) => void {
+	return (workspaceId, merged) => {
 		fireAndForget(
 			async () => {
-				const archived = await ports.archive(workspaceId, prNumber);
-				if (archived.ok) return;
-				await ports.notify({
-					title: "Couldn't archive the workspace",
-					body: archived.error.message,
-					deepLink: buildDeepLink(workspaceId, null),
+				if (!ports.archiveOnMerge()) return;
+				const openPullRequest = {
+					label: "Open PR",
+					onClick: () => ports.openUrl(merged.url),
+				};
+				if (merged.stackHasOpenPrs) {
+					ports.showToast({
+						tone: "success",
+						message: `PR #${merged.number} merged. Workspace kept for the rest of the stack.`,
+						action: openPullRequest,
+						secondaryAction: null,
+					});
+					return;
+				}
+				const archived = await ports.archive(workspaceId, merged.number);
+				if (archived.ok) {
+					ports.showToast({
+						tone: "success",
+						message: `PR #${merged.number} merged and workspace archived`,
+						action: openPullRequest,
+						secondaryAction: {
+							label: "Unarchive",
+							onClick: () => ports.unarchive(workspaceId),
+						},
+					});
+					return;
+				}
+				if (archived.error.code === "workspace_has_running_sessions") {
+					ports.showToast({
+						tone: "error",
+						message: "Merged PR, but workspace was not archived because agents are still running",
+						action: null,
+						secondaryAction: null,
+					});
+					return;
+				}
+				if (archived.error.code === "workspace_corrupted") {
+					await ports.notify({
+						title: "Couldn't archive the workspace",
+						body: "Archiving failed. This workspace might be corrupted. Delete it manually from the workspace list.",
+						deepLink: buildDeepLink(workspaceId, null),
+					});
+					return;
+				}
+				ports.showToast({
+					tone: "error",
+					message: `Merged PR, but failed to archive workspace: ${archived.error.message}`,
+					action: null,
+					secondaryAction: null,
 				});
 			},
 			(error) => ports.reportError(`Could not report a failed archive: ${String(error)}`),
@@ -924,6 +995,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 			}
 		},
 		touchWorkspaceActivity: (workspaceId, at) => workspace.touchActivity(workspaceId, at),
+		setActiveSession: (workspaceId, sessionId) =>
+			workspace.setActiveSession(workspaceId, sessionId),
+		activeSessionOf: (workspaceId) =>
+			workspace.store.getState().workspacesById[workspaceId]?.activeSessionId ?? null,
 		log,
 		setting,
 		copyText: (text) => system.copyText(text),
@@ -1011,6 +1086,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 	const workspace: WorkspaceService = new WorkspaceService({
 		platform,
 		cloud: platform.cloud,
+		ids,
 		git: gitRunner,
 		repos: repositories,
 		placeNames: inputs.placeNames,
@@ -1104,6 +1180,29 @@ export function createContainer(inputs: ContainerInputs): Container {
 		contextOf: (id) => ready(lookups.prContext(id)),
 		onMerged: createArchiveOnMerged({
 			archive: (id, prNumber) => workspace.onPullRequestMerged(id, prNumber),
+			archiveOnMerge: () => setting<boolean>("archive_on_merge") === true,
+			unarchive: (id) => {
+				fireAndForget(
+					async () => {
+						const result = await workspace.unarchive(id, {
+							branchName: null,
+							clearChats: false,
+						});
+						if (!result.ok) {
+							inputs.reportFailure("Couldn't unarchive the workspace", result.error);
+						} else if (result.value.needsBranchName) {
+							log("warn", "Unarchive needs a branch name; use the workspace's menu.");
+						}
+					},
+					(error) => log("warn", `Could not unarchive the workspace: ${String(error)}`),
+				);
+			},
+			openUrl: (url) => {
+				platform.opener.openUrl(url).catch((error) => {
+					log("warn", `Could not open the pull request: ${String(error)}`);
+				});
+			},
+			showToast: inputs.showToast,
 			notify: (input) => platform.notifications.notify(input),
 			reportError: (message) => log("warn", message),
 		}),
@@ -1268,6 +1367,48 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 	});
 
+	// APP-17: the import from Conductor. It starts imported chats from a new chat's config and
+	// reloads the stores that show imported rows once it has written them.
+	const conductorImport = new ConductorImportService({
+		platform,
+		db: platform.db,
+		repositories: () => repositories,
+		repositoriesOn: (tx) => createRepositories(tx, repositoryDeps),
+		git: gitRunner,
+		toml: inputs.toml,
+		settings,
+		chatDefaults: () => newChatConfig(LOCAL_HOST, setting),
+		offeredModels: async () => {
+			const offered: OfferedModels = {};
+			for (const agent of ["claude", "codex", "cursor"] as const) {
+				const listed = await agentCatalog.loadModels(agent);
+				offered[agent] = listed.ok ? listed.value.map((model) => model.id) : null;
+			}
+			return offered;
+		},
+		workspacesRoot: () =>
+			expandHome(setting<string>("conductor_root_path"), platform.fs.paths.home),
+		withPorts: (count, use) => ports.withPorts(count, use),
+		reload: async () => {
+			const steps = [
+				() => repo.start(),
+				() => workspace.start(),
+				() => sessions.start(),
+				() => sections.start(),
+				() => favoriteModels.start(),
+				() => settings.reloadFromDisk(),
+				() => settings.loadEnvVars("global"),
+			];
+			for (const step of steps) {
+				const done = await step();
+				if (!done.ok) return done;
+			}
+			return ok(undefined);
+		},
+		log,
+		now: () => clock.now(),
+	});
+
 	const services: Services = {
 		settings,
 		repo,
@@ -1305,6 +1446,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		updates,
 		system,
 		commands,
+		conductorImport,
 	};
 	const actions = createActions(services, platform, { requestQuit: () => requestQuit() });
 
@@ -1349,6 +1491,13 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		{ name: "sections", phase: "services", fatal: false, run: () => sections.start() },
 		{ name: "favorite models", phase: "services", fatal: false, run: () => favoriteModels.start() },
+		{
+			name: "import copies",
+			phase: "services",
+			fatal: false,
+			// Removes a copy a crashed import left, and looks for Conductor's database (APP-17).
+			run: () => conductorImport.start(),
+		},
 		{ name: "context windows", phase: "services", fatal: false, run: () => contextWindows.start() },
 		{ name: "terminals", phase: "services", fatal: false, run: () => terminals.start() },
 		{ name: "chats", phase: "services", fatal: true, run: () => sessions.start() },

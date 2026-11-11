@@ -11,10 +11,11 @@
  * Our design choice: Cloud items (follow, reassign, share) are left out. Shortcut hints come from
  * the command registry. The items mount only while the menu is open, so a long sidebar pays for
  * one row's hooks, not every row's.
- * Must handle: Archived workspace (Unarchive instead of Archive, no Rename); unarchive that needs a
- * new branch name (a small dialog asks for one); a restore that lost uncommitted changes (the
- * warning from `runUnarchive`); mark as read or unread follows the chats' unread
- * count; move to section lists the known sections and 'New section...'; a failed action shows a toast.
+ * Must handle: Archived workspace (Unarchive instead of Archive, no Rename); Archive asks first
+ * when agents run and offers Conductor's recovery actions (`useArchiveWorkspace`); unarchive that
+ * needs a new branch name (a small dialog asks for one); a restore that lost uncommitted changes
+ * (the warning from `runUnarchive`); mark as read or unread follows the chats' unread count; move
+ * to section lists the known sections and 'New section...'; a failed action shows a toast.
  * Test first: Choosing Pin calls workspaces.setPinned(id, true); for a pinned workspace the item
  * reads Unpin.
  */
@@ -34,7 +35,7 @@ import {
 	useWorkspace,
 } from "../../core/hooks.ts";
 import type { KanbanStatus, Section } from "../../core/model.ts";
-import { buildDeepLink } from "../../core/services/notifications.ts";
+import { buildDeepLink } from "../../core/notifications.ts";
 import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { AlertDialog, AlertDialogContent } from "../../ui/AlertDialog.tsx";
 import {
@@ -50,6 +51,7 @@ import {
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { KANBAN_COLUMNS, KANBAN_STATUSES } from "../dashboard/kanban.ts";
 import { SectionDialog } from "../sidebar/SectionDialog.tsx";
+import { ArchiveWorkspaceDialog, useArchiveWorkspace } from "./archive-workspace.tsx";
 import { RenameDialog } from "./RenameDialog.tsx";
 import { WorkspaceRenameDialog } from "./WorkspaceRenameDialog.tsx";
 import { runUnarchive } from "./workspace-actions.ts";
@@ -65,9 +67,8 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 	const [newSection, setNewSection] = useState(false);
 	const [branchPrompt, setBranchPrompt] = useState(false);
 	const [pausingForwarding, setPausingForwarding] = useState(false);
-	const workspace = useWorkspace(workspaceId);
-	const forwarding = usePortForwards(workspaceId);
 	const actions = useActions();
+	const archive = useArchiveWorkspace(workspaceId);
 
 	return (
 		<>
@@ -79,11 +80,13 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 						onNewSection={() => setNewSection(true)}
 						onNeedsBranchName={() => setBranchPrompt(true)}
 						onPauseForwarding={() => setPausingForwarding(true)}
+						onArchive={archive.archive}
 					/>
 				}
 			>
 				{children}
 			</ContextMenu>
+			<ArchiveWorkspaceDialog control={archive} />
 			{renaming ? (
 				<WorkspaceRenameDialog workspaceId={workspaceId} open onOpenChange={setRenaming} />
 			) : null}
@@ -140,6 +143,7 @@ interface WorkspaceActionItemsProps {
 	onNewSection: () => void;
 	onNeedsBranchName: () => void;
 	onPauseForwarding: () => void;
+	onArchive: () => void;
 }
 
 function WorkspaceActionItems({
@@ -148,6 +152,7 @@ function WorkspaceActionItems({
 	onNewSection,
 	onNeedsBranchName,
 	onPauseForwarding,
+	onArchive,
 }: WorkspaceActionItemsProps) {
 	const actions = useActions();
 	const forwarding = usePortForwards(workspaceId);
@@ -302,15 +307,7 @@ function WorkspaceActionItems({
 						<ContextMenuItem onSelect={onPauseForwarding}>Pause port forwarding</ContextMenuItem>
 					) : null}
 					<ContextMenuSeparator />
-					<ContextMenuItem
-						destructive
-						shortcut={archiveShortcut ?? undefined}
-						onSelect={() =>
-							void run("Couldn't archive the workspace", () =>
-								actions.workspaces.archive(workspaceId, { deleteBranch: false }),
-							)
-						}
-					>
+					<ContextMenuItem destructive shortcut={archiveShortcut ?? undefined} onSelect={onArchive}>
 						Archive
 					</ContextMenuItem>
 				</>

@@ -1625,6 +1625,23 @@ const SETTINGS_TABLE = [
 		min: 1000000,
 		max: 1000000000,
 	},
+	// CLOUD-19: the organisation switcher's choice, this Mac or the paired Worker. A stored "cloud"
+	// on a Mac that is not paired reads as this Mac (core/organization.ts).
+	{
+		key: "active_organization",
+		page: "state",
+		scopes: ["user"],
+		title: "Organization",
+		description: "Where new workspaces are created: this Mac or your cloud Worker.",
+		searchTerms: ["organization", "cloud", "worker", "local", "mac"],
+		feature: "CLOUD-19",
+		type: "enum",
+		default: "local",
+		options: [
+			{ value: "local", label: "This Mac" },
+			{ value: "cloud", label: "Cloud" },
+		],
+	},
 	{
 		key: "left_panel_visible",
 		page: "state",
@@ -1658,6 +1675,18 @@ const SETTINGS_TABLE = [
 		type: "number",
 		default: 256,
 		min: 0,
+	},
+	// Our design choice: Conductor keeps this fold in its sidebar route state, keyed "team-org-assigned".
+	{
+		key: "sidebar_my_workspaces_collapsed",
+		page: "state",
+		scopes: ["user"],
+		title: "Fold My workspaces",
+		description: "Whether the My workspaces list is folded.",
+		searchTerms: ["fold", "collapse", "sidebar", "workspaces"],
+		feature: "NAV-03",
+		type: "bool",
+		default: false,
 	},
 	{
 		key: "sidebar_group_by",

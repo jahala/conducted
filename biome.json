@@ -182,12 +182,41 @@
 										"message": "Only src/platform may import Tauri. Use the Platform interface."
 									},
 									{
-										"group": ["**/core/db/**", "**/core/db"],
-										"message": "Screens get data from services, never from the database."
+										"group": [
+											"**/core/services/**",
+											"**/core/services",
+											"**/core/container.ts",
+											"**/core/container",
+											"**/core/db/**",
+											"**/core/db",
+											"**/core/cloud/**",
+											"**/core/cloud",
+											"**/core/git/**",
+											"**/core/git",
+											"**/core/conductor-import/**",
+											"**/core/conductor-import"
+										],
+										"message": "Screens may import only the core API, hooks, models, registries, status, async, context and pure helpers. Services, the container, the database, cloud, git and the import are reached through Actions or a hook (D126)."
 									}
 								]
 							}
 						}
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"apps/desktop/src/features/**/*.test.ts",
+				"apps/desktop/src/features/**/*.test.tsx",
+				"apps/desktop/src/ui/**/*.test.ts",
+				"apps/desktop/src/ui/**/*.test.tsx",
+				"apps/desktop/src/test/**"
+			],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": "off"
 					}
 				}
 			}

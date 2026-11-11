@@ -4,7 +4,7 @@
  * the update notice above one row holding Help and Settings.
  * Behaviour: ui-map.md 4 (top to bottom: window controls row, organization switcher, nav rows, Pinned, sections,
  * main list, footer). The window controls row is the floating <ShellControls> in app/. The organization
- * switcher is cloud only and is left out.
+ * switcher is the first row of <SidebarNav> (CLOUD-19).
  * Our design choice: each region fails on its own inside <NotBuiltYet>, so a missing hook shows one line of text,
  * not a broken sidebar. A footer region whose feature is not built (the update notice, APP-06) shows its
  * one-line "Not built yet" note until it is. The resource usage chip lives in the top strip

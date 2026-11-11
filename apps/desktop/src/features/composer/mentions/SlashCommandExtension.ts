@@ -31,7 +31,7 @@ import { type EditorState, Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { type Editor, Extension, ReactRenderer } from "@tiptap/react";
 import { createElement } from "react";
-import { GOAL_UNAVAILABLE } from "../../../core/services/sessions.ts";
+import { GOAL_UNAVAILABLE } from "../../../core/sessions.ts";
 import { toast } from "../../../ui/Toast.tsx";
 import { SuggestionPopup, type SuggestionRow } from "./SuggestionPopup.tsx";
 import type { TriggerMenuSpec } from "./trigger-menu.ts";

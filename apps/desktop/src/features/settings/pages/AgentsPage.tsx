@@ -26,15 +26,18 @@
  * page to check a path (a new hook or action, listed in docs/reports/parity-gaps-2026-11-07.md).
  * Must handle: a retry after a failed sign-in (the first one is cancelled first), loading and error, a provider filter with no match ("No providers match your
  * search."), nothing installed (the page leads with install help), a program found but failing its
- * version check ("Validation failed" with its warning), a sign-in in progress, and a refresh after
+ * version check ("Validation failed" with its warning), a sign-in in progress, a finished sign-in
+ * that toasts Conductor's success sentence and restarts the agent's idle chats, and a refresh after
  * the user installs a program in a terminal.
  * Test first: with Codex not installed its card shows install help and no sign-in button.
  */
 import type { AgentInstall } from "@conducted/protocol";
 import type { AcpAgent, AgentKind } from "@conducted/shared";
 import { useEffect, useRef, useState } from "react";
+import { agentDisplayName, agentKey } from "../../../core/agent-catalog.ts";
+import { useServices } from "../../../core/context.tsx";
 import { useActions, useAgentInstalls } from "../../../core/hooks.ts";
-import { agentDisplayName, agentKey } from "../../../core/services/agent-catalog.ts";
+import { agentLoginSuccessMessage, restartIdleAgentChats } from "../../../core/use-agent-login.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Input } from "../../../ui/Input.tsx";
@@ -80,6 +83,7 @@ const needsPastedCode = (agent: AgentKind): boolean => agent === "claude";
 export function AgentsPage() {
 	const value = useAgentInstalls();
 	const actions = useActions();
+	const services = useServices();
 	const [query, setQuery] = useState("");
 	const [busyKey, setBusyKey] = useState<string | null>(null);
 	const [login, setLogin] = useState<LoginState | null>(null);
@@ -160,11 +164,11 @@ export function AgentsPage() {
 			requiresCode: needsPastedCode(selector.agent),
 		});
 		if (selector.agent === "codex" || selector.agent === "cursor") {
-			void finishLogin(started.value.loginId);
+			void finishLogin(started.value.loginId, undefined, selector);
 		}
 	};
 
-	const finishLogin = async (loginId: string, code?: string) => {
+	const finishLogin = async (loginId: string, code?: string, selection?: AgentSelector) => {
 		setLogin((current) =>
 			current?.loginId === loginId ? { ...current, finishing: true, error: null } : current,
 		);
@@ -198,6 +202,11 @@ export function AgentsPage() {
 		);
 		const refreshed = await actions.agents.refresh();
 		if (!refreshed.ok) toastError("Couldn't check the sign-in", refreshed.error);
+		if (selection !== undefined) {
+			// Conductor's success sentence, then its idle chats restart so they pick up the login.
+			const restart = await restartIdleAgentChats(services.services, actions, selection);
+			toast.success(agentLoginSuccessMessage(selection, restart));
+		}
 	};
 
 	const closeLogin = (open: boolean) => {
@@ -384,7 +393,12 @@ export function AgentsPage() {
 					onOpenChange={closeLogin}
 					onRetry={() => void retryLogin()}
 					onFinish={(code) => {
-						if (login.loginId !== null) void finishLogin(login.loginId, code);
+						if (login.loginId !== null) {
+							void finishLogin(login.loginId, code, {
+								agent: login.agent,
+								acpAgent: login.acpAgent,
+							});
+						}
 					}}
 					onCopy={(text) =>
 						void copy(

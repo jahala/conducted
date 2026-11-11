@@ -8,6 +8,7 @@
  * @feature WS-11 Backlog workspaces: save now, start later
  * @feature PR-10 Link a pull request by URL or number: storing the linked pull request on the
  * workspace.
+ * @feature CLOUD-19 Create cloud workspaces: the organisation switcher and the new-workspace page in cloud mode
  * Owns: the list of workspaces and their lifecycle as far as it is built: creating a worktree and
  * its first chat from the default branch, an existing local branch, a pull request or an issue,
  * creating one at a commit another feature resolved (CHAT-21), running the setup script,
@@ -46,21 +47,25 @@
  * viewed-files file, Cursor run store and git cache files (DATA-07) to the Trash, deletes its chats with their
  * attachment files, then deletes the row and forgets it in the store. A repository removal stops
  * every workspace's processes first.
- * Built now (WS-05): archive. It refuses while a chat is running, stops a setup or run process
+ * Built now (WS-05): archive. It refuses while a chat is running unless the caller has asked to
+ * stop the agents (`stopRunningAgents`), refuses a folder that is missing as `workspace_corrupted`,
+ * stops a setup or run process
  * that is still running and clears the workspace's run state, cancels the remaining chats, saves
  * the archive snapshot, reads the branch git reports (a detached HEAD or a failed read stops the
  * archive), pins HEAD under the archive ref, runs the archive script, removes the worktree,
  * optionally deletes the branch (never the default branch; a failed delete is recorded as a
  * warning because the archive already finished), and records the archive commit and time.
  * Archive-on-merge is refused for a corrupted workspace and ignores a merged PR that is not the
- * workspace's own. The stack rule for archive-on-merge, the open-PR check, the write-access
- * refusal, the screen's discard confirmation and the screen that shows the branch-delete warning
- * are not built; the service refuses a busy checkout and accepts `discardGitOperationState` from
- * a caller that has already asked.
+ * workspace's own. The open-PR check and the write-access refusal are not built (they exist only
+ * for cloud workspaces, which have no linked-PR rows here); the stack rule is decided by the
+ * GitHub poll before this call. The service refuses a busy checkout and accepts
+ * `discardGitOperationState` from a caller that has already asked.
  * Built now (WS-06): unarchive. It classifies the branch as gone, taken, moved or fine, re-adds
  * the worktree (creating a missing branch from the archive commit), restores the archive
  * checkpoint, and sets the branch, folder, path and ready state while clearing the archive time
- * and moving the workspace's recent activity to the restore time (services-map.md 3.10).
+ * and moving the workspace's recent activity to the restore time (services-map.md 3.10). A
+ * complete restore then runs the setup script again, as Conductor does, and a setup failure is
+ * left to the Setup tab rather than failing the unarchive.
  * A branch open in another worktree or moved since the archive returns `needsBranchName` and
  * changes nothing. A checkpoint restore that fails only sets `uncommittedChangesLost`. A worktree
  * that cannot be restored is rolled back: the re-added folder and a branch the call created are
@@ -79,7 +84,7 @@
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
  * (`initializing`) and the slow git work happens after the row exists. Place names come from our
  * own tiered source in this file (`createPlaceNames`, D002), drawn from the gazetteer the Passport
- * map reads (core/services/place-gazetteer.ts), and the composition root passes it. Creation copies the repository's included files, counts the
+ * map reads (core/place-gazetteer.ts), and the composition root passes it. Creation copies the repository's included files, counts the
  * worktree files, then runs setup in a terminal. Warnings and the first message of a failed
  * creation live in the service's in-memory store: the contract's `Workspace` row has no field for
  * them, and the create page reads them back after the action returns. The composition root
@@ -87,7 +92,14 @@
  * composition root passes it.
  * CLOUD-01: setup, the first-message branch rename, archive, unarchive, delete and Open in check
  * the workspace's host before they touch its folder (core/host.ts). Creating a workspace makes a
- * worktree on this Mac, so it stores the local host.
+ * worktree on this Mac and stores the local host, unless the page names the paired Worker.
+ * CLOUD-19: a create that names a Worker (`cloudUrl`) runs the same path with a cloud host: the
+ * row gets its own sandbox name and the folder `/workspace/<name>` in it, then the sandbox is
+ * started, the project's GitHub repository is cloned into that folder and the new branch is
+ * checked out from `origin/<base>` (a pull request's head is fetched first). The worktree config,
+ * the copy of the Mac's included files and the Mac's base fetch do not apply in a sandbox; the
+ * file count, setup, section and first chat are shared. A project with no GitHub remote is refused
+ * before the Worker is asked anything, because the Worker clones from GitHub only (D104). D127.
  * CLOUD-10: archive and delete stop the workspace's port forwards first, since its sandbox sleeps
  * (D110). Every path that archives or deletes one does this: the menu, archive-on-merge and a
  * repository removal.
@@ -98,12 +110,13 @@
  * unarchive re-adds the worktree on the same branch, restores the archive checkpoint, and clears
  * the archive time; a branch checked out elsewhere asks for a new name.
  */
-import { LOCAL_HOST, type SessionConfig } from "@conducted/protocol";
+import { type Host, LOCAL_HOST, type SessionConfig } from "@conducted/protocol";
 import {
 	type AppError,
 	appError,
 	createKeyedQueue,
 	err,
+	type IdSource,
 	ok,
 	type RepoId,
 	type Result,
@@ -119,8 +132,11 @@ import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
 import { cursorStoreFolder, setupLogFile, viewedFilesFile } from "../app-paths.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import {
+	cloudWorkspaceFolder,
+	cloudWorkspaceName,
 	removeCloudWorkspace,
 	restartCloudWorkspace,
+	startCloudWorkspace,
 	stopCloudWorkspace,
 } from "../cloud/lifecycle.ts";
 import { ensureSshSession, openRemoteWorkspace, type SshDeps, sshCommand } from "../cloud/ssh.ts";
@@ -130,6 +146,9 @@ import { copyFileKeepingMode, FILE_COPY_FAILED, trashIfPresent } from "../fs-hel
 import {
 	branchDeleteForce,
 	branchShowCurrent,
+	checkoutNewBranch,
+	cloneWithProgress,
+	configSet,
 	diffQuietHead,
 	diffToolKsdiff,
 	fetch,
@@ -145,6 +164,7 @@ import { archiveRef } from "../git/refs.ts";
 import { renameBranchInWorktree } from "../git/rename.ts";
 import type { GitRunner } from "../git/runner.ts";
 import {
+	addContextFolder,
 	addWorktreeOnBranch,
 	branchNameIsTaken,
 	createWorktree,
@@ -156,6 +176,7 @@ import {
 	resolveBaseCommit,
 	restoreArchiveCheckpoint,
 	saveArchiveSnapshot,
+	WORKTREE_CONFIG_SKIPPED_MESSAGE,
 } from "../git/worktree.ts";
 import { checkHost } from "../host.ts";
 import type {
@@ -167,9 +188,22 @@ import type {
 	Session,
 	Workspace,
 } from "../model.ts";
+import { cloudRepositories } from "../organization.ts";
+import { PLACE_GAZETTEER, type PlaceTier, placeFolderName } from "../place-gazetteer.ts";
 import { isArchivedWorkspace } from "../status/archived.ts";
+import {
+	branchPrefixFor,
+	invalidRefNameError,
+	isSafeRefName,
+	NEW_CHAT_EFFORT_FALLBACK,
+	NEW_CHAT_MODEL_FALLBACK,
+	NO_READY_REPOSITORY_MESSAGE,
+	normaliseLinkedPaths,
+	remoteNameFromConfig,
+	SETUP_FAILED_MESSAGE,
+	SETUP_LOG_MISSING_MESSAGE,
+} from "../workspace-helpers.ts";
 import type { GitCache } from "./git-cache.ts";
-import { PLACE_GAZETTEER, type PlaceTier, placeFolderName } from "./place-gazetteer.ts";
 import type { SetupRunResult } from "./run-scripts.ts";
 
 export interface PlaceNames {
@@ -250,15 +284,6 @@ export const FIRST_CHAT_APP_TOOLS = {
 	setTargetBranch: true,
 } as const;
 
-/** A new chat's model when the setting is empty: the agent's own default. */
-export const NEW_CHAT_MODEL_FALLBACK = "default";
-
-/**
- * A new chat's effort when the setting is empty ("Model default"). A chat config needs a level, so
- * it opens at "high" until the protocol can say "the model's own default".
- */
-export const NEW_CHAT_EFFORT_FALLBACK = "high";
-
 /** The settings a new workspace's first chat takes from the create form or a deep link. */
 export interface NewWorkspaceSessionDefaults {
 	model: string;
@@ -334,16 +359,6 @@ export function classifyUnarchive(facts: {
 	if (facts.archiveCommit !== null && facts.branchTip !== facts.archiveCommit)
 		return "branchDiverged";
 	return "happy";
-}
-
-/** The branch prefix Conductor's Git setting chooses (ui-map 6): GitHub login, custom text, or none. */
-export function branchPrefixFor(type: string, custom: string, githubLogin: string | null): string {
-	if (type === "none") return "";
-	if (type === "custom") return custom;
-	if (type === "github_username") {
-		return githubLogin === null || githubLogin === "" ? "" : `${githubLogin}/`;
-	}
-	return "";
 }
 
 /** Expands a leading `~` in the configured root folder, so no shell is needed to read it. */
@@ -521,71 +536,6 @@ async function copyDirectory(
 	return ok(undefined);
 }
 
-/**
- * True when git accepts `name` as a branch name (or a remote name) and no git or gh command can
- * read it as an option. A name that starts with `-` is refused for that reason.
- */
-export function isSafeRefName(name: string): boolean {
-	if (name === "" || name === "@" || name.startsWith("-") || name.startsWith("/")) return false;
-	if (name.endsWith("/") || name.endsWith(".") || name.includes("..") || name.includes("//")) {
-		return false;
-	}
-	if (name.includes("@{")) return false;
-	for (const char of name) {
-		const code = char.charCodeAt(0);
-		if (code <= 0x20 || code === 0x7f || "~^:?*[\\".includes(char)) return false;
-	}
-	return !name.split("/").some((part) => part.startsWith(".") || part.endsWith(".lock"));
-}
-
-/** The message for a branch, prefix or remote name that git would refuse. */
-export const invalidRefNameError = (name: string): AppError =>
-	appError(
-		"workspace_branch_invalid",
-		`"${name}" can't be used as a Git branch or remote name. Check the branch prefix in settings.`,
-	);
-
-/** The remote a repository uses when its config names none (ui-map 6 Git, services-map 3.1). */
-export const DEFAULT_REMOTE_NAME = "origin";
-
-/**
- * The remote name the repository config picks, or `DEFAULT_REMOTE_NAME` when it names none. One
- * rule for creation and for every git and pull request caller (DATA-09). A configured name git
- * could read as an option is an error, never passed to a command.
- */
-export function remoteNameFromConfig(config: RepoConfig): Result<string> {
-	const name = config.remoteName?.trim() ?? "";
-	if (name === "") return ok(DEFAULT_REMOTE_NAME);
-	return isSafeRefName(name) ? ok(name) : err(invalidRefNameError(name));
-}
-
-/**
- * The folders a workspace may link, as one clean list: empty entries and duplicates are dropped,
- * and a path that is not absolute is refused because the agents and the sidecar need absolute
- * paths. A trailing slash is removed, except on the root folder.
- */
-export function normaliseLinkedPaths(paths: readonly string[]): Result<string[]> {
-	const cleaned: string[] = [];
-	const seen = new Set<string>();
-	for (const raw of paths) {
-		const trimmed = raw.trim();
-		if (trimmed === "") continue;
-		if (!trimmed.startsWith("/")) {
-			return err(
-				appError(
-					"linked_path_invalid",
-					`"${trimmed}" is not an absolute folder path, so it can't be linked.`,
-				),
-			);
-		}
-		const path = trimmed.length > 1 ? trimmed.replace(/\/+$/, "") : trimmed;
-		if (seen.has(path)) continue;
-		seen.add(path);
-		cleaned.push(path);
-	}
-	return ok(cleaned);
-}
-
 /** Resolves `NewWorkspaceInput.from` to the branch the worktree starts from. */
 export function baseBranchFor(
 	defaultBranch: string,
@@ -619,12 +569,6 @@ export type SetupState =
 export const SETUP_INTERRUPTED_MESSAGE =
 	"The app quit while setup was running. Run setup again to finish it.";
 
-/** The words for a setup script that failed (inventory:toast main row 463). */
-export const SETUP_FAILED_MESSAGE = "Setup script failed. Check the setup tab for logs.";
-
-/** Shown when a saved setup transcript cannot be read (ui-map.md 3.7). */
-export const SETUP_LOG_MISSING_MESSAGE = "No logs were recorded, or they have expired.";
-
 /** Shown when archive is asked for while a chat is still running (inventory:toast). */
 export const ARCHIVE_RUNNING_CHATS_MESSAGE =
 	"Stop the running chats before archiving this workspace.";
@@ -635,6 +579,16 @@ export const ARCHIVE_NOT_READY_MESSAGE = "This workspace is still being created.
 /** Shown when the worktree is not on a branch, so archive cannot record which branch it keeps. */
 export const ARCHIVE_DETACHED_HEAD_MESSAGE =
 	"Git is not on a branch in this workspace. Check out its branch, then archive it again.";
+
+/** Why a project cannot become a cloud workspace: the Worker clones from GitHub only (D104). */
+export const CLOUD_REPO_NOT_GITHUB_MESSAGE =
+	"A cloud workspace is cloned from GitHub, and this project has no GitHub remote.";
+
+const cloudRepoNotGithub = (): AppError =>
+	appError("cloud_repo_not_github", CLOUD_REPO_NOT_GITHUB_MESSAGE);
+
+const cloudCreateUnavailable = (): AppError =>
+	appError("cloud_unavailable", "Cloud workspaces cannot be created in this window.");
 
 /** Shown when archive-on-merge finds a ready workspace whose folder is gone (services-map 5B.1.9). */
 export const WORKSPACE_CORRUPTED_MESSAGE =
@@ -702,8 +656,10 @@ export interface BranchNameSuggester {
 
 export interface WorkspaceServiceDeps {
 	platform: Pick<Platform, "fs" | "opener" | "shell" | "portForward">;
-	/** The Worker door a cloud workspace's archive and delete use (CLOUD-08). */
+	/** The Worker door a cloud workspace's creation, archive and delete use (CLOUD-08, CLOUD-19). */
 	cloud?: Cloud;
+	/** Names a new cloud workspace's sandbox (CLOUD-19). The composition root passes its ids. */
+	ids?: IdSource;
 	/**
 	 * The restart cache of each workspace's changes and pull request info (DATA-07). Deleting a
 	 * workspace removes its entries. The composition root supplies it.
@@ -772,6 +728,11 @@ export class WorkspaceService {
 	readonly #setupStarting = new Map<WorkspaceId, number>();
 	/** A commit resolved for a workspace before its row existed, so Retry setup reuses it. */
 	readonly #baseShas = new Map<WorkspaceId, string>();
+	/**
+	 * Where a cloud workspace's branch starts in its sandbox, and the ref to fetch first, kept until
+	 * its checkout is made so Retry setup reuses it (CLOUD-19).
+	 */
+	readonly #cloudStarts = new Map<WorkspaceId, { fetch: string | null; startPoint: string }>();
 
 	constructor(deps: WorkspaceServiceDeps) {
 		this.#deps = deps;
@@ -926,6 +887,11 @@ export class WorkspaceService {
 			);
 		}
 
+		// A cloud workspace is cloned from the project's GitHub repository in its own sandbox, so a
+		// project the Worker cannot clone is refused before anything is asked of it (CLOUD-19).
+		const cloud = input.cloudUrl === undefined ? null : this.#cloudTarget(repo, input.cloudUrl);
+		if (cloud !== null && !cloud.ok) return cloud;
+
 		const remoteRead = await this.#remoteFor(repo);
 		if (!remoteRead.ok) return remoteRead;
 		const remote = remoteRead.value;
@@ -933,6 +899,7 @@ export class WorkspaceService {
 		let targetBranch: string;
 		let baseSha: string | null = presetBaseSha;
 		let baseWarning: string | null = null;
+		let cloudStart: { fetch: string | null; startPoint: string } | null = null;
 		// A preset commit (a fork's checkpoint head) is already known, so its branch is only named.
 		// Resolving it would read or fetch the branch for nothing, and fail offline or when the
 		// branch is gone.
@@ -940,6 +907,21 @@ export class WorkspaceService {
 			const target = baseBranchFor(repo.defaultBranch, input.from);
 			if (!target.ok) return target;
 			targetBranch = target.value;
+		} else if (cloud !== null) {
+			// The sandbox's clone has the remote's branches; a pull request's head is fetched there.
+			const target =
+				input.from.kind === "branch"
+					? baseBranchFor(repo.defaultBranch, input.from)
+					: ok(repo.defaultBranch);
+			if (!target.ok) return target;
+			targetBranch = target.value;
+			if (input.from.kind === "pull_request") {
+				if (!Number.isSafeInteger(input.from.number) || input.from.number <= 0) {
+					return err(appError("pull_request_unavailable", "Could not load that pull request"));
+				}
+				const ref = `refs/conducted/pull/${input.from.number}`;
+				cloudStart = { fetch: `refs/pull/${input.from.number}/head:${ref}`, startPoint: ref };
+			}
 		} else {
 			const resolved = await this.resolveBase(repo.id, input.from);
 			if (!resolved.ok) return resolved;
@@ -989,7 +971,14 @@ export class WorkspaceService {
 		const port = await portService.allocateForNewWorkspace();
 		if (!port.ok) return port;
 
-		const worktreePath = worktreeFolderFor(root, repo.name, folder.value);
+		let host: Host = LOCAL_HOST;
+		let worktreePath = worktreeFolderFor(root, repo.name, folder.value);
+		if (cloud !== null) {
+			const vmId = cloudWorkspaceName(cloud.value.ids.uuid());
+			host = { kind: "cloud", url: cloud.value.url, vmId };
+			worktreePath = cloudWorkspaceFolder(vmId);
+			cloudStart ??= { fetch: null, startPoint: baseSha ?? `origin/${targetBranch}` };
+		}
 		const row = await this.#deps.repos.workspaces.create({
 			repoId: repo.id,
 			directoryName: folder.value,
@@ -1000,15 +989,15 @@ export class WorkspaceService {
 			port: port.value,
 			linkedPaths: [],
 			setupLogPath: null,
-			// Creating a workspace makes a worktree on this Mac. A cloud workspace is made by its
-			// Worker (CLOUD-03).
-			host: LOCAL_HOST,
+			// A worktree on this Mac, or the named Worker's sandbox (CLOUD-19).
+			host,
 		});
 		if (!row.ok) return row;
 		this.#upsert(row.value);
 		const wantsChat = input.prompt.trim() !== "" || input.attachmentPaths.length > 0;
 		if (wantsChat) this.#rememberFirstInput(row.value.id, input);
-		if (baseSha !== null) this.#baseShas.set(row.value.id, baseSha);
+		if (baseSha !== null && cloudStart === null) this.#baseShas.set(row.value.id, baseSha);
+		if (cloudStart !== null) this.#cloudStarts.set(row.value.id, cloudStart);
 
 		const materialised = await this.#materialise(row.value, repo, remote);
 		if (!materialised.ok) {
@@ -1037,44 +1026,12 @@ export class WorkspaceService {
 		repo: Repo,
 		remote: string,
 	): Promise<Result<{ workspace: Workspace; warnings: string[] }>> {
-		const warnings: string[] = [];
-		const exists = await this.#deps.platform.fs.exists(workspace.path);
-		if (!exists) {
-			const baseSha = this.#baseShas.get(workspace.id);
-			const created = await createWorktree(this.#deps.git, {
-				repoRootPath: repo.rootPath,
-				remote,
-				baseBranch: workspace.targetBranch,
-				newBranch: workspace.branch,
-				worktreePath: workspace.path,
-				allowLocalBase: repo.remoteUrl === null,
-				...(baseSha === undefined ? {} : { baseSha }),
-			});
-			if (!created.ok) return this.#fail(workspace, created.error);
-			if (created.value.warning !== null) warnings.push(created.value.warning);
-		}
-
-		const prepared = await prepareWorktree(this.#deps.git, {
-			repoRootPath: repo.rootPath,
-			worktreePath: workspace.path,
-			autoSetupUpstream: this.#deps.setting<boolean>("worktree_push_auto_setup_remote"),
-			fs: this.#deps.platform.fs,
-		});
-		if (!prepared.ok) return this.#fail(workspace, prepared.error);
-		if (prepared.value.warning !== null) warnings.push(prepared.value.warning);
-
-		const copied = await copyIncludedFiles(
-			{
-				fs: this.#deps.platform.fs,
-				shell: this.#deps.platform.shell,
-				git: this.#deps.git,
-				repoConfig: this.#deps.repoConfig,
-			},
-			repo,
-			workspace,
-		);
-		if (!copied.ok) return this.#fail(workspace, copied.error);
-		warnings.push(...copied.value);
+		const placed =
+			workspace.host.kind === "cloud"
+				? await this.#placeInSandbox(workspace, workspace.host, repo)
+				: await this.#placeWorktree(workspace, repo, remote);
+		if (!placed.ok) return this.#fail(workspace, placed.error);
+		const warnings = placed.value;
 
 		const counted = await this.#countWorktreeFiles(workspace);
 		if (!counted.ok) return this.#fail(workspace, counted.error);
@@ -1091,6 +1048,124 @@ export class WorkspaceService {
 			);
 		}
 		return ok({ workspace: final.value, warnings });
+	}
+
+	/**
+	 * A Mac workspace's folder: the worktree when it is missing, its config, and the copy of the
+	 * repository's included files. Returns the warnings to show.
+	 */
+	async #placeWorktree(
+		workspace: Workspace,
+		repo: Repo,
+		remote: string,
+	): Promise<Result<string[]>> {
+		const warnings: string[] = [];
+		const exists = await this.#deps.platform.fs.exists(workspace.path);
+		if (!exists) {
+			const baseSha = this.#baseShas.get(workspace.id);
+			const created = await createWorktree(this.#deps.git, {
+				repoRootPath: repo.rootPath,
+				remote,
+				baseBranch: workspace.targetBranch,
+				newBranch: workspace.branch,
+				worktreePath: workspace.path,
+				allowLocalBase: repo.remoteUrl === null,
+				...(baseSha === undefined ? {} : { baseSha }),
+			});
+			if (!created.ok) return created;
+			if (created.value.warning !== null) warnings.push(created.value.warning);
+		}
+
+		const prepared = await prepareWorktree(this.#deps.git, {
+			repoRootPath: repo.rootPath,
+			worktreePath: workspace.path,
+			autoSetupUpstream: this.#deps.setting<boolean>("worktree_push_auto_setup_remote"),
+			fs: this.#deps.platform.fs,
+		});
+		if (!prepared.ok) return prepared;
+		if (prepared.value.warning !== null) warnings.push(prepared.value.warning);
+
+		const copied = await copyIncludedFiles(
+			{
+				fs: this.#deps.platform.fs,
+				shell: this.#deps.platform.shell,
+				git: this.#deps.git,
+				repoConfig: this.#deps.repoConfig,
+			},
+			repo,
+			workspace,
+		);
+		if (!copied.ok) return copied;
+		warnings.push(...copied.value);
+		return ok(warnings);
+	}
+
+	/**
+	 * A cloud workspace's folder (CLOUD-19): the sandbox is started, the project is cloned into the
+	 * workspace's folder when it is not there yet, the new branch is checked out when it is not the
+	 * current one, and the `.context` folder is kept out of git. The workspace's folder belongs to
+	 * its sandbox, so these git and file calls reach the Worker. Returns the warnings to show.
+	 */
+	async #placeInSandbox(
+		workspace: Workspace,
+		host: Extract<Host, { kind: "cloud" }>,
+		repo: Repo,
+	): Promise<Result<string[]>> {
+		const cloud = this.#deps.cloud;
+		if (cloud === undefined) return err(cloudCreateUnavailable());
+		const warnings: string[] = [];
+		const started = await startCloudWorkspace(cloud, host);
+		if (!started.ok) return started;
+
+		const fs = this.#deps.platform.fs;
+		const git = this.#deps.git;
+		const cwd = workspace.path;
+		const start = this.#cloudStarts.get(workspace.id) ?? {
+			fetch: null,
+			startPoint: `origin/${workspace.targetBranch}`,
+		};
+		if (!(await fs.exists(cwd))) {
+			const source = cloudRepositories([repo])[0];
+			if (source === undefined) return err(cloudRepoNotGithub());
+			const made = await fs.mkdirp(cwd);
+			if (!made.ok) return made;
+			const cloned = await git.runChecked(cloneWithProgress(source.cloneUrl, "."), { cwd });
+			if (!cloned.ok) return cloned;
+		}
+		const current = await git.stdout(branchShowCurrent(), { cwd });
+		if (!current.ok) return current;
+		if (current.value !== workspace.branch) {
+			if (start.fetch !== null) {
+				const fetched = await git.runChecked(fetch("origin", [start.fetch]), { cwd });
+				if (!fetched.ok) {
+					return err(
+						appError("pull_request_unavailable", "Could not load that pull request", fetched.error),
+					);
+				}
+			}
+			const checkedOut = await git.runChecked(
+				checkoutNewBranch(workspace.branch, start.startPoint),
+				{ cwd },
+			);
+			if (!checkedOut.ok) return checkedOut;
+		}
+		this.#cloudStarts.delete(workspace.id);
+
+		if (this.#deps.setting<boolean>("worktree_push_auto_setup_remote")) {
+			const upstream = await git.runChecked(configSet("push.autoSetupRemote", "true"), { cwd });
+			if (!upstream.ok) warnings.push(WORKTREE_CONFIG_SKIPPED_MESSAGE);
+		}
+		const context = await addContextFolder(git, { worktreePath: cwd, fs });
+		if (!context.ok) return context;
+		return ok(warnings);
+	}
+
+	/** The Worker and ids a cloud create needs, or the refusal when the project cannot go there. */
+	#cloudTarget(repo: Repo, url: string): Result<{ url: string; ids: IdSource }> {
+		if (cloudRepositories([repo]).length === 0) return err(cloudRepoNotGithub());
+		const ids = this.#deps.ids;
+		if (ids === undefined || this.#deps.cloud === undefined) return err(cloudCreateUnavailable());
+		return ok({ url, ids });
 	}
 
 	/** Counts the files in the new worktree with `git ls-files`, for the Setup tab (3.1). */
@@ -1205,8 +1280,15 @@ export class WorkspaceService {
 		return ok({ ...resolved.value, branchName: branch });
 	}
 
-	/** Runs the repo's setup script in a terminal and moves the workspace to ready or failed. */
-	async runSetup(workspaceId: WorkspaceId): Promise<Result<void>> {
+	/**
+	 * Runs the repo's setup script in a terminal and moves the workspace to ready or failed. An
+	 * unarchive that reruns setup keeps the restored workspace ready when the script fails, as
+	 * Conductor does; the Setup tab carries the failure.
+	 */
+	async runSetup(
+		workspaceId: WorkspaceId,
+		options: { keepStateOnFailure?: boolean } = {},
+	): Promise<Result<void>> {
 		// Register the start and its nonce before the first await. A second start or a cancel in
 		// the same tick then sees this run instead of slipping past a check that waits on the row.
 		if (this.#setupStarting.has(workspaceId)) return ok(undefined);
@@ -1252,6 +1334,7 @@ export class WorkspaceService {
 
 			if (!result.ok) {
 				this.#setSetupRun(workspaceId, { state: "failed", exitCode: null, log: "missing" });
+				if (options.keepStateOnFailure === true) return err(result.error);
 				const moved = await this.#finishSetup(workspaceId, false);
 				return moved.ok ? err(result.error) : moved;
 			}
@@ -1272,6 +1355,9 @@ export class WorkspaceService {
 				logPath: run.scriptFound ? (run.logPath ?? null) : null,
 				log: run.log ?? "missing",
 			});
+			if (!succeeded && options.keepStateOnFailure === true) {
+				return err(appError("setup_failed", SETUP_FAILED_MESSAGE));
+			}
 			const moved = await this.#finishSetup(workspaceId, succeeded);
 			if (!moved.ok) return moved;
 			return succeeded ? ok(undefined) : err(appError("setup_failed", SETUP_FAILED_MESSAGE));
@@ -1465,14 +1551,22 @@ export class WorkspaceService {
 	/** Backs `Actions.workspaces.archive`: the six steps of services-map 3.10, then the row. */
 	archive(
 		id: WorkspaceId,
-		options: { deleteBranch: boolean; discardGitOperationState?: boolean },
+		options: {
+			deleteBranch: boolean;
+			discardGitOperationState?: boolean;
+			stopRunningAgents?: boolean;
+		},
 	): Promise<Result<void>> {
 		return this.#archives.run(`archive:${id}`, () => this.#archiveNow(id, options));
 	}
 
 	async #archiveNow(
 		id: WorkspaceId,
-		options: { deleteBranch: boolean; discardGitOperationState?: boolean },
+		options: {
+			deleteBranch: boolean;
+			discardGitOperationState?: boolean;
+			stopRunningAgents?: boolean;
+		},
 	): Promise<Result<void>> {
 		// CLOUD-10: the sandbox sleeps with the archive, so its forwards stop first (D110).
 		await this.#deps.portForwards?.pauseWorkspace(id);
@@ -1491,7 +1585,10 @@ export class WorkspaceService {
 		if (workspace.state === "initializing") {
 			return err(appError("workspace_not_ready", ARCHIVE_NOT_READY_MESSAGE));
 		}
-		if (this.#deps.sessions.hasWorkingChats(id)) {
+		if (!(await this.#deps.platform.fs.exists(workspace.path))) {
+			return err(appError("workspace_corrupted", WORKSPACE_CORRUPTED_MESSAGE));
+		}
+		if (this.#deps.sessions.hasWorkingChats(id) && options.stopRunningAgents !== true) {
 			return err(appError("workspace_has_running_sessions", ARCHIVE_RUNNING_CHATS_MESSAGE));
 		}
 
@@ -1976,6 +2073,10 @@ export class WorkspaceService {
 			if (!cleared.ok) return cleared;
 		}
 
+		// A complete restore was archived with its dependencies in place. Conductor runs the setup
+		// script again here; a setup failure belongs to the Setup tab, not to the unarchive.
+		await this.runSetup(id, { keepStateOnFailure: true });
+
 		return ok({ needsBranchName: false, uncommittedChangesLost });
 	}
 
@@ -2198,7 +2299,8 @@ export class WorkspaceService {
 
 	/**
 	 * Called by the GitHub service when a PR merges; archives when `archive_on_merge` asks for it.
-	 * The stack rule is not built: without its open-PR data a stacked workspace archives too early.
+	 * The stack exception is decided by the poll before this call, because the stack belongs to
+	 * GitHub.
 	 */
 	async onPullRequestMerged(id: WorkspaceId, prNumber: number): Promise<Result<void>> {
 		if (!this.#deps.setting<boolean>("archive_on_merge")) return ok(undefined);
@@ -2454,10 +2556,6 @@ export class WorkspaceService {
 		return this.#deps.sessions.firstDraftOf(id);
 	}
 
-	/** Shown when a backlog workspace is started but its repository is gone (ui-map 3.9). */
-	static readonly NO_READY_REPOSITORY_MESSAGE =
-		"No ready repository. Pick one to start this workspace.";
-
 	/**
 	 * Backs `Actions.workspaces.addToBacklog`: saves the draft without making a worktree. Refused
 	 * while the "Unstarted workspaces" setting is off, which is where the rule lives; screens only
@@ -2507,13 +2605,13 @@ export class WorkspaceService {
 			return err(appError("workspace_unknown", "That backlog workspace no longer exists."));
 		}
 		if (entry.repoId === null) {
-			return err(appError("repo_unknown", WorkspaceService.NO_READY_REPOSITORY_MESSAGE));
+			return err(appError("repo_unknown", NO_READY_REPOSITORY_MESSAGE));
 		}
 		const repoId = entry.repoId;
 		const repo = await this.#deps.repos.repos.get(repoId);
 		if (!repo.ok) return repo;
 		if (repo.value === null) {
-			return err(appError("repo_unknown", WorkspaceService.NO_READY_REPOSITORY_MESSAGE));
+			return err(appError("repo_unknown", NO_READY_REPOSITORY_MESSAGE));
 		}
 		// The entry goes first: a removal that fails starts nothing, so a second Start can never
 		// make a second workspace from the same draft.

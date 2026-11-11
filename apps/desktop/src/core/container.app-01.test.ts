@@ -73,6 +73,7 @@ const SERVICE_NAMES = Object.keys({
 	updates: true,
 	system: true,
 	commands: true,
+	conductorImport: true,
 } satisfies Record<keyof Services, true>);
 
 function recordingDatabase(events: string[]): Database {
@@ -110,6 +111,7 @@ function build(options: { openLink?: (url: string) => void } = {}): Harness {
 		windowFocused: () => true,
 		// This test starts no background work, so nothing is reported.
 		reportFailure: () => undefined,
+		showToast: () => undefined,
 		...(options.openLink === undefined ? {} : { openLink: options.openLink }),
 	});
 	return { container, memory, events };
@@ -181,6 +183,7 @@ describe("APP-01 container", () => {
 			windowFocused: () => true,
 			// This test starts no background work, so nothing is reported.
 			reportFailure: () => undefined,
+			showToast: () => undefined,
 		});
 
 		expect(Object.keys(container.services).sort()).toEqual([...SERVICE_NAMES].sort());

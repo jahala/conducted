@@ -28,7 +28,13 @@
  */
 import { type AppError, ok, type Result } from "@conducted/shared";
 import type { CloudScript } from "../platform/memory.ts";
-import type { Platform, ProgramStatus, SpeechEvent, Unsubscribe } from "../platform/platform.ts";
+import {
+	type Platform,
+	type ProgramStatus,
+	type SpeechEvent,
+	type Unsubscribe,
+	VISUALIZATION_MAX_STORE_BYTES,
+} from "../platform/platform.ts";
 
 export type ContractGroup = keyof Platform;
 
@@ -544,6 +550,38 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"controls",
 	),
 	c(
+		"conductorImport",
+		"copy-read",
+		"a copy reads back Conductor's rows and leaves its files as they were",
+		"find answers the database's size and null for none; copy then read gives the seeded rows, env_vars without their values and the counted tables' row counts; the source's files keep their size, time and bytes; only a copy the import made can be read, and discardCopies removes it.",
+		"controls",
+	),
+	c(
+		"conductorImport",
+		"missing",
+		"copying a database that is not there is its own error",
+		"copy of a path with no file returns Err with conductor_import_missing.",
+	),
+	c(
+		"conductorImport",
+		"move-secrets",
+		"secrets move into the Keychain all or nothing",
+		"moveSecrets writes each value under its key and returns the keys; a missing value or a key the Keychain holds fails the call and leaves the Keychain as it was.",
+		"controls",
+	),
+	c(
+		"visualizations",
+		"serve-release",
+		"each visualization gets its own address on the scheme",
+		"Two serves of different documents answer two different ids, each with the address visualization://localhost/<id>; release is Ok, and a second release of the same id is Ok too.",
+	),
+	c(
+		"visualizations",
+		"too-large",
+		"a visualization over the store's size is its own error",
+		"serve of a document over VISUALIZATION_MAX_STORE_BYTES UTF-8 bytes returns Err with visualization_too_large.",
+	),
+	c(
 		"portForward",
 		"start-stop",
 		"a local listener starts, is listed and stops",
@@ -589,6 +627,16 @@ export interface ContractControls {
 			cwd: string;
 		}[],
 	): void;
+	/**
+	 * Writes a Conductor database at `path` holding these rows, each table's columns taken from
+	 * its rows' keys (APP-17).
+	 */
+	seedConductorDatabase?(
+		path: string,
+		tables: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>,
+	): void | Promise<void>;
+	/** The size, modified time and bytes of every file beside the database at `path`, as one text. */
+	conductorFingerprint?(path: string): string | Promise<string>;
 	/** What the layer below the platform last received. */
 	readonly dockBadge?: number | null;
 	readonly clipboardText?: string | null;
@@ -1938,6 +1986,151 @@ const STEPS: Record<string, ContractStep> = {
 		ctx.assert(!after.paired && after.url === null, "unpair kept the pairing");
 	},
 
+	"conductorImport.copy-read": async (ctx) => {
+		const seed = ctx.controls?.seedConductorDatabase;
+		const fingerprint = ctx.controls?.conductorFingerprint;
+		ctx.assert(seed !== undefined && fingerprint !== undefined, "the controls seed no database");
+		if (seed === undefined || fingerprint === undefined) return;
+		const source = `${ctx.outside}/conductor/conductor.db`;
+		await seed(source, {
+			repos: [{ id: "repo-1", name: "alpha", root_path: "/tmp/alpha", display_order: 3 }],
+			env_vars: [{ key: "API_TOKEN", scope: "shared", context: "local", value: "contract-secret" }],
+			session_events: [
+				{ session_id: "s", event_type: "agent" },
+				{ session_id: "s", event_type: "userMessage" },
+			],
+		});
+		const before = await fingerprint(source);
+		const size = expectOk(ctx, await ctx.platform.conductorImport.find(source), "find");
+		ctx.assert(size !== null && size > 0, `find answered ${String(size)}`);
+		const none = expectOk(
+			ctx,
+			await ctx.platform.conductorImport.find(`${ctx.outside}/none/conductor.db`),
+			"find missing",
+		);
+		ctx.assert(none === null, "find answered a size for a missing database");
+		const copy = expectOk(ctx, await ctx.platform.conductorImport.copy(source), "copy");
+		const snapshot = expectOk(ctx, await ctx.platform.conductorImport.read(copy.copyPath), "read");
+		ctx.assert((await fingerprint(source)) === before, "the copy changed Conductor's files");
+		const repos = snapshot.tables.repos ?? [];
+		ctx.assert(
+			repos.length === 1 && repos[0]?.name === "alpha" && repos[0]?.display_order === 3,
+			`read gave the repos ${JSON.stringify(repos)}`,
+		);
+		const env = snapshot.tables.env_vars ?? [];
+		ctx.assert(
+			env.length === 1 && env[0]?.has_value === true && !("value" in (env[0] ?? {})),
+			`read gave the env rows ${JSON.stringify(env)}`,
+		);
+		ctx.assert(
+			!JSON.stringify(snapshot).includes("contract-secret"),
+			"an environment value left the copy",
+		);
+		ctx.assert(snapshot.tables.workspaces === null, "a missing table did not read as null");
+		ctx.assert(snapshot.counts.session_events === 2, "the counted table was not counted");
+		ctx.assert(snapshot.counts.terminal_sessions === null, "a missing counted table was counted");
+		const outside = await ctx.platform.conductorImport.read(source);
+		ctx.assert(
+			!outside.ok && outside.error.code === "conductor_import_bad_copy",
+			"read opened a file the import did not copy",
+		);
+		const removed = expectOk(ctx, await ctx.platform.conductorImport.discardCopies(), "discard");
+		ctx.assert(removed >= 1, `discardCopies removed ${removed} files`);
+		const gone = await ctx.platform.conductorImport.read(copy.copyPath);
+		ctx.assert(!gone.ok, "a discarded copy could still be read");
+		ctx.assert((await fingerprint(source)) === before, "discarding touched Conductor's files");
+	},
+
+	"visualizations.serve-release": async (ctx) => {
+		const first = expectOk(ctx, await ctx.platform.visualizations.serve("<p>first</p>"), "serve");
+		const second = expectOk(ctx, await ctx.platform.visualizations.serve("<p>second</p>"), "serve");
+		ctx.assert(first.id !== second.id, `two serves answered the same id ${first.id}`);
+		for (const page of [first, second]) {
+			ctx.assert(
+				page.url === `visualization://localhost/${page.id}`,
+				`the address ${page.url} is not on the scheme with its id`,
+			);
+		}
+		expectOk(ctx, await ctx.platform.visualizations.release(first.id), "release");
+		expectOk(ctx, await ctx.platform.visualizations.release(first.id), "second release");
+		expectOk(ctx, await ctx.platform.visualizations.release(second.id), "release");
+	},
+
+	"visualizations.too-large": async (ctx) => {
+		const served = await ctx.platform.visualizations.serve(
+			"x".repeat(VISUALIZATION_MAX_STORE_BYTES + 1),
+		);
+		ctx.assert(
+			!served.ok && served.error.code === "visualization_too_large",
+			"a document over the store's size was not visualization_too_large",
+		);
+	},
+
+	"conductorImport.missing": async (ctx) => {
+		const copied = await ctx.platform.conductorImport.copy(`${ctx.outside}/none/conductor.db`);
+		ctx.assert(
+			!copied.ok && copied.error.code === "conductor_import_missing",
+			"copying a missing database was not conductor_import_missing",
+		);
+	},
+
+	"conductorImport.move-secrets": async (ctx) => {
+		const seed = ctx.controls?.seedConductorDatabase;
+		ctx.assert(seed !== undefined, "the controls seed no database");
+		if (seed === undefined) return;
+		const source = `${ctx.outside}/conductor/conductor.db`;
+		await seed(source, {
+			env_vars: [
+				{ key: "API_TOKEN", scope: "shared", context: "local", value: "contract-secret" },
+				{ key: "IN_KEYCHAIN", scope: "shared", context: "local", value: null },
+			],
+		});
+		const copy = expectOk(ctx, await ctx.platform.conductorImport.copy(source), "copy");
+		const token = {
+			name: "API_TOKEN",
+			scope: "shared",
+			context: "local",
+			keychainKey: "contract-env:API_TOKEN",
+		};
+		const noValue = { ...token, name: "IN_KEYCHAIN", keychainKey: "contract-env:IN_KEYCHAIN" };
+		try {
+			const failed = await ctx.platform.conductorImport.moveSecrets(copy.copyPath, [
+				token,
+				noValue,
+			]);
+			ctx.assert(
+				!failed.ok && failed.error.code === "conductor_import_secret_missing",
+				"a missing value did not fail the move",
+			);
+			ctx.assert(
+				expectOk(ctx, await ctx.platform.keychain.get(token.keychainKey), "get after fail") ===
+					null,
+				"a failed move left a Keychain entry",
+			);
+			const written = expectOk(
+				ctx,
+				await ctx.platform.conductorImport.moveSecrets(copy.copyPath, [token]),
+				"move",
+			);
+			ctx.assert(written.join() === token.keychainKey, `the move wrote ${written.join()}`);
+			ctx.assert(
+				expectOk(ctx, await ctx.platform.keychain.get(token.keychainKey), "get") ===
+					"contract-secret",
+				"the Keychain did not get the value",
+			);
+			const again = await ctx.platform.conductorImport.moveSecrets(copy.copyPath, [token]);
+			ctx.assert(
+				!again.ok &&
+					again.error.code === "conductor_import_secret_exists" &&
+					!again.error.message.includes("contract-secret"),
+				"a second move replaced the value or named it",
+			);
+		} finally {
+			expectOk(ctx, await ctx.platform.keychain.delete(token.keychainKey), "clean up");
+			expectOk(ctx, await ctx.platform.conductorImport.discardCopies(), "discard");
+		}
+	},
+
 	"portForward.start-stop": async (ctx) => {
 		const events: string[] = [];
 		const stop = ctx.platform.portForward.onEvent((event) => events.push(event.kind));
@@ -2172,6 +2365,21 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 		"cloud.relay.onClosed",
 		"cloud.relay.close",
 	],
+	"conductorImport.copy-read": [
+		"conductorImport.find",
+		"conductorImport.copy",
+		"conductorImport.read",
+		"conductorImport.discardCopies",
+	],
+	"conductorImport.missing": ["conductorImport.copy"],
+	"conductorImport.move-secrets": [
+		"conductorImport.copy",
+		"conductorImport.moveSecrets",
+		"keychain.get",
+		"keychain.delete",
+	],
+	"visualizations.serve-release": ["visualizations.serve", "visualizations.release"],
+	"visualizations.too-large": ["visualizations.serve"],
 	"portForward.start-stop": [
 		"portForward.findAvailableLocalPort",
 		"portForward.start",

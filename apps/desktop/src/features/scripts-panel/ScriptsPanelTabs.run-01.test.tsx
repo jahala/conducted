@@ -36,6 +36,20 @@ describe("RUN-01 scripts panel tab strip", () => {
 		expect(button.title).toBe("Maximum 2 terminals allowed");
 	});
 
+	it("counts the centre's terminals too: a full workspace disables New terminal here", () => {
+		render(
+			<ScriptsPanelTabs
+				{...props}
+				terminals={[{ id: "t1" as TerminalId, title: "Terminal 1", ended: false }]}
+				terminalCount={2}
+			/>,
+		);
+
+		const button = screen.getByRole("button", { name: "New terminal" }) as HTMLButtonElement;
+		expect(button.disabled).toBe(true);
+		expect(button.title).toBe("Maximum 2 terminals allowed");
+	});
+
 	it("selects a fixed tab and a terminal tab", () => {
 		const onSelect = vi.fn();
 		render(<ScriptsPanelTabs {...props} onSelect={onSelect} />);

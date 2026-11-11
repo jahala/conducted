@@ -18,12 +18,8 @@ import { createTestContainer, seedRepo, seedWorkspace } from "../../test/contain
 import { FakeGitRunner, gitOutput, gitUnscripted } from "../../test/fake-git-runner.ts";
 import { checkpointRef, PRE_SPOTLIGHT_CHECKPOINT_ID } from "../git/refs.ts";
 import type { Repo, RepoConfig, Terminal, Workspace } from "../model.ts";
-import {
-	runListFor,
-	SPOTLIGHT_ACTION_ID,
-	SpotlightService,
-	type SpotlightServiceDeps,
-} from "./spotlight.ts";
+import { SPOTLIGHT_ACTION_ID } from "../spotlight.ts";
+import { runListFor, SpotlightService, type SpotlightServiceDeps } from "./spotlight.ts";
 
 const WORKSPACE_ID = "w1" as WorkspaceId;
 const OTHER_WORKSPACE_ID = "w2" as WorkspaceId;
@@ -111,6 +107,7 @@ const terminal = (id: TerminalId, repoId: RepoId): Terminal => ({
 	kind: "terminal",
 	title: "Terminal 1",
 	cwd: ROOT,
+	placement: "centre",
 	hostKind: "local",
 	startCommand: null,
 	startedAt: 1,

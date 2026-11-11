@@ -37,7 +37,7 @@ import {
 	PR_MENTION_LIMIT,
 	type PrMentionItem,
 	type PrMentionSearchResult,
-} from "../../../core/services/mention-search.ts";
+} from "../../../core/mention-search.ts";
 import { closeSuggestionRoot, SuggestionPopup, type SuggestionRow } from "./SuggestionPopup.tsx";
 import type { TriggerMenuSpec } from "./trigger-menu.ts";
 

@@ -19,19 +19,7 @@ import type { SessionConfig } from "@conducted/protocol";
 import { appError, createKeyedQueue, err, ok, type Result } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Repositories } from "../db/repositories.ts";
-
-export interface FavoriteModel {
-	id: string;
-	config: Pick<SessionConfig, "agent" | "acpAgent" | "model" | "effort" | "fastMode">;
-	position: number;
-}
-
-/**
- * The loadout is five models, selected with Cmd+Ctrl+1 to 5: the default model first, then up to
- * four favourites, as in Conductor (renderApp, the picker's favourites and the Loadout page).
- */
-export const LOADOUT_SIZE = 5;
-export const MAX_FAVORITES = LOADOUT_SIZE - 1;
+import { type FavoriteModel, LOADOUT_SIZE, MAX_FAVORITES } from "../favorite-model.ts";
 
 export interface FavoriteModelsState {
 	loaded: boolean;

@@ -2,7 +2,7 @@ import { AGENT_PROVIDER_TABLE, signInEnvVars } from "@conducted/protocol";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
-import { isReservedEnvVarName } from "../../../core/services/settings.ts";
+import { isReservedEnvVarName } from "../../../core/settings-helpers.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
 import { EnvironmentPage } from "../pages/EnvironmentPage.tsx";
 import {

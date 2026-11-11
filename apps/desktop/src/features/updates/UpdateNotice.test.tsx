@@ -12,7 +12,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
-import { UPDATE_FOCUS_RECHECK_MS } from "../../core/services/updates.ts";
+import { UPDATE_FOCUS_RECHECK_MS } from "../../core/updates.ts";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
 import { renderWithRouter } from "../../test/render-with-router.tsx";
 import { Sidebar } from "../sidebar/Sidebar.tsx";

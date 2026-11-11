@@ -34,8 +34,8 @@
 import { type ReactNode, useState } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../../core/context.tsx";
+import { githubFailureMessage, githubTokenWarning } from "../../../core/github-text.ts";
 import { useActions, useGitHubAccess, useLinearAccess } from "../../../core/hooks.ts";
-import { githubFailureMessage, githubTokenWarning } from "../../../core/services/github.ts";
 import { AlertDialog, AlertDialogContent } from "../../../ui/AlertDialog.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { Dialog, DialogContent, DialogFooter } from "../../../ui/Dialog.tsx";

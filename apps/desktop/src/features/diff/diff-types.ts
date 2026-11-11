@@ -23,8 +23,6 @@ export interface DiffTheme {
 
 export interface DiffPreferences {
 	layout: "unified" | "split";
-	/** Show the whole file with changes marked, not only the changed hunks. */
-	entireFile: boolean;
 	hideWhitespaceChanges: boolean;
 	wrapLines: boolean;
 	ligatures: boolean;

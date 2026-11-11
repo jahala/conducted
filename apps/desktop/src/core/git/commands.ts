@@ -410,28 +410,16 @@ export const firstPushSteps = (
 
 // ---------------------------------------------------------------- git extras (3.11)
 
-/**
- * `git diff --quiet HEAD` exits 1 when the file has changes. The path is a literal pathspec, so
- * a name git could read as an option stays a name.
- */
-export const diffQuietHead = (path?: string): GitCommand =>
-	git(["diff", "--quiet", "HEAD", ...(path === undefined ? [] : ["--", `:(literal)${path}`])], {
-		okExitCodes: PROBE,
-	});
-
-/**
- * Lists the path when git does not track it yet (a new file), and prints nothing otherwise. NUL
- * separated, with a literal pathspec, like `diffQuietHead`.
- */
-export const lsFilesUntrackedPath = (path: string): GitCommand =>
-	git(["ls-files", "--others", "--exclude-standard", "-z", "--", `:(literal)${path}`]);
+/** `git diff --quiet HEAD` exits 1 when the working tree has changes. */
+export const diffQuietHead = (): GitCommand =>
+	git(["diff", "--quiet", "HEAD"], { okExitCodes: PROBE });
 
 /** The Kaleidoscope diff command Conductor configures for `git difftool` (services-map 3.11). */
 const KSDIFF_DIFF_COMMAND =
 	'ksdiff --partial-changeset --relative-path "$MERGED" -- "$LOCAL" "$REMOTE"';
 
-/** Opens the file's changes, or the whole working tree, in Kaleidoscope. */
-export const diffToolKsdiff = (path?: string): GitCommand =>
+/** Opens the working tree's changes in Kaleidoscope, as Conductor's Open in does. */
+export const diffToolKsdiff = (): GitCommand =>
 	git(
 		[
 			"-c",
@@ -440,7 +428,6 @@ export const diffToolKsdiff = (path?: string): GitCommand =>
 			"--tool=ksdiff",
 			"--no-prompt",
 			"HEAD",
-			...(path === undefined ? [] : ["--", `:(literal)${path}`]),
 		],
 		{ retryOnLock: false },
 	);

@@ -1,17 +1,19 @@
 /**
  * @feature CHAT-22 Codex visualizations in the chat
- * Owns: tests for the visualization frame: the outside-workspace notice, the sandboxed frame and
- * its "Open" button, the load failure that recovers when the file appears, the frame following its
- * content's height, and a reload after the file changes on disk.
+ * Owns: tests for the visualization frame: the outside-workspace notice, the sandboxed frame served
+ * from the visualization scheme and its "Open" button, the page dropped when the frame goes, the
+ * load failure that recovers when the file appears, the frame following its content's height, and
+ * a reload after the file changes on disk.
  * Behaviour: inventory-ui-text.md ("Codex inline visualizations"); ui-map.md 3.3.
  * Test first: a path outside the workspace root renders "Visualization is outside the workspace:"
  * with the path and loads no frame.
  */
-import type { WorkspaceId } from "@conducted/shared";
+import type { Result, WorkspaceId } from "@conducted/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
+import { VISUALIZATION_MAX_STORE_BYTES, type VisualizationPage } from "../../platform/platform.ts";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
 import { CodexVisualization } from "./CodexVisualization.tsx";
 
@@ -22,6 +24,8 @@ interface MountOptions {
 	file?: string;
 	/** The path the component is given, when it differs from the file. */
 	display?: (workspacePath: string) => string;
+	/** Holds every page the shell serves until this settles, as a slow shell would. */
+	holdServe?: Promise<void>;
 }
 
 interface Mounted {
@@ -33,6 +37,10 @@ interface Mounted {
 	write: (text: string) => Promise<void>;
 	/** Reads the modified time again, as the open-file poll does. */
 	refresh: () => Promise<void>;
+	/** The pages the visualization scheme would serve, by address. */
+	pages: () => ReadonlyMap<string, string>;
+	/** The shell's answer to every serve the frame asked for, in order. */
+	serves: Promise<Result<VisualizationPage>>[];
 }
 
 const mounted: Mounted[] = [];
@@ -58,6 +66,15 @@ async function mount(options: MountOptions = {}): Promise<Mounted> {
 		defaultOptions: { queries: { retry: false, networkMode: "always" } },
 	});
 	const onOpen = vi.fn<(path: string) => void>();
+	const visualizations = test.container.platform.visualizations;
+	const serve = visualizations.serve;
+	const held = options.holdServe ?? Promise.resolve();
+	const serves: Promise<Result<VisualizationPage>>[] = [];
+	visualizations.serve = (document) => {
+		const answer = held.then(() => serve(document));
+		serves.push(answer);
+		return answer;
+	};
 	const entry: Mounted = {
 		test,
 		client,
@@ -74,6 +91,8 @@ async function mount(options: MountOptions = {}): Promise<Mounted> {
 				}),
 			);
 		},
+		pages: () => test.memory.controls.visualizationPages,
+		serves,
 	};
 	mounted.push(entry);
 	const path = options.display === undefined ? file : options.display(workspace.path);
@@ -87,40 +106,113 @@ async function mount(options: MountOptions = {}): Promise<Mounted> {
 	return entry;
 }
 
+/** Waits for the frame to get its address, and answers the page the scheme serves there. */
+async function servedPage(entry: Mounted): Promise<{ frame: HTMLIFrameElement; page: string }> {
+	const frame = (await screen.findByTitle("Visualization")) as HTMLIFrameElement;
+	await waitFor(() => expect(frame.getAttribute("src")).toMatch(/^visualization:\/\/localhost\//));
+	return { frame, page: entry.pages().get(frame.getAttribute("src") ?? "") ?? "" };
+}
+
 describe("CHAT-22 Codex visualization", () => {
 	it("renders the file inside a script-running frame that cannot reach the app's origin", async () => {
-		await mount({ html: "<h1>Revenue chart</h1>" });
-		const frame = (await screen.findByTitle("Visualization")) as HTMLIFrameElement;
-		const documentText = frame.getAttribute("srcdoc") ?? "";
-		expect(documentText).toContain("<h1>Revenue chart</h1>");
-		expect(documentText).toContain("Content-Security-Policy");
-		expect(documentText).toContain("default-src 'none'");
+		const entry = await mount({ html: "<h1>Revenue chart</h1>" });
+		const { frame, page } = await servedPage(entry);
+		expect(page).toContain("<h1>Revenue chart</h1>");
+		expect(frame.hasAttribute("srcdoc")).toBe(false);
+		expect(frame.getAttribute("src")).toMatch(/^visualization:\/\/localhost\/[^/]+$/);
 		const sandbox = frame.getAttribute("sandbox") ?? "";
 		expect(sandbox.split(/\s+/)).toContain("allow-scripts");
 		expect(sandbox).not.toContain("allow-same-origin");
 		expect(frame.getAttribute("referrerpolicy")).toBe("no-referrer");
 	});
 
-	it("puts its policy ahead of every script of the page and blocks form posts", async () => {
-		await mount({
+	it("keeps every script of the page in order and its doctype first, with the policy left to the scheme", async () => {
+		const entry = await mount({
 			html: '<!DOCTYPE html><script>early()</script><html><head><title>Chart</title></head><body><form action="https://example.com/collect"></form><script>late()</script></body></html>',
 		});
-		const frame = (await screen.findByTitle("Visualization")) as HTMLIFrameElement;
-		const parsed = new DOMParser().parseFromString(frame.getAttribute("srcdoc") ?? "", "text/html");
-		const policy = parsed.querySelector('meta[http-equiv="Content-Security-Policy"]');
+		const { page } = await servedPage(entry);
+		const parsed = new DOMParser().parseFromString(page, "text/html");
 
-		expect(policy?.getAttribute("content")).toContain("default-src 'none'");
-		expect(policy?.getAttribute("content")).toContain("form-action 'none'");
+		// The policy travels as the page's header (visualization.rs), so it covers every script.
+		expect(parsed.querySelector('meta[http-equiv="Content-Security-Policy"]')).toBeNull();
+		expect(page.startsWith("<!DOCTYPE html>")).toBe(true);
 		expect(parsed.compatMode).toBe("CSS1Compat");
 		const scripts = [...parsed.querySelectorAll("script")].map((script) => script.textContent);
 		expect(scripts.filter((text) => text === "early()" || text === "late()")).toEqual([
 			"early()",
 			"late()",
 		]);
+		const height = [...parsed.querySelectorAll("script")].at(-1);
 		for (const script of parsed.querySelectorAll("script")) {
-			const position = policy?.compareDocumentPosition(script) ?? 0;
-			expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+			if (script === height) continue;
+			const position = height?.compareDocumentPosition(script) ?? 0;
+			expect(position & Node.DOCUMENT_POSITION_PRECEDING).toBe(Node.DOCUMENT_POSITION_PRECEDING);
 		}
+	});
+
+	it("gives two visualizations on screen their own pages", async () => {
+		const first = await mount({ html: "<p>First chart</p>" });
+		render(
+			<QueryClientProvider client={first.client}>
+				<ServicesProvider container={first.test.container}>
+					<CodexVisualization
+						workspaceId={first.workspaceId}
+						path="viz/other.html"
+						onOpen={first.onOpen}
+					/>
+				</ServicesProvider>
+			</QueryClientProvider>,
+		);
+		await first.test.container.platform.fs.writeTextAtomic(
+			"/code/workspaces/viz/viz/other.html",
+			"<p>Second chart</p>",
+		);
+		await act(() => first.client.refetchQueries());
+		// Wait for what the screen shows: the shell can hold both pages before React has put the
+		// second page's address on its frame, which a busy machine shows as one frame.
+		let sources: string[] = [];
+		await waitFor(() => {
+			sources = screen
+				.getAllByTitle("Visualization")
+				.map((frame) => frame.getAttribute("src") ?? "")
+				.filter((source) => source !== "");
+			expect(new Set(sources).size).toBe(2);
+		});
+		expect(first.pages().size).toBe(2);
+		const pages = sources.map((source) => first.pages().get(source) ?? "");
+		expect(pages.filter((page) => page.includes("First chart"))).toHaveLength(1);
+		expect(pages.filter((page) => page.includes("Second chart"))).toHaveLength(1);
+	});
+
+	it("drops its page from the shell when the frame goes", async () => {
+		const entry = await mount({ html: "<p>Hi</p>" });
+		await servedPage(entry);
+		expect(entry.pages().size).toBe(1);
+		cleanup();
+		await waitFor(() => expect(entry.pages().size).toBe(0));
+	});
+
+	it("drops a page the shell serves after the frame is gone", async () => {
+		let answer: () => void = () => {};
+		const holdServe = new Promise<void>((resolve) => {
+			answer = resolve;
+		});
+		const entry = await mount({ html: "<p>Hi</p>", holdServe });
+		await screen.findByTitle("Visualization");
+		expect(entry.serves).toHaveLength(1);
+		cleanup();
+		answer();
+		const served = await entry.serves[0];
+		expect(served?.ok).toBe(true);
+		if (served?.ok !== true) return;
+		await waitFor(() => expect(entry.pages().has(served.value.url)).toBe(false));
+		expect(entry.pages().size).toBe(0);
+	});
+
+	it("shows the load failure for a page too large for the shell to serve", async () => {
+		await mount({ html: "x".repeat(VISUALIZATION_MAX_STORE_BYTES) });
+		expect(await screen.findByText("Couldn’t load visualization")).toBeTruthy();
+		expect(document.querySelector("iframe")).toBeNull();
 	});
 
 	it("opens the file by its path inside the workspace", async () => {
@@ -179,12 +271,15 @@ describe("CHAT-22 Codex visualization", () => {
 
 	it("reloads the frame when the file changes on disk", async () => {
 		const entry = await mount({ html: "<p>First</p>" });
-		expect((await screen.findByTitle("Visualization")).getAttribute("srcdoc")).toContain("First");
+		expect((await servedPage(entry)).page).toContain("First");
 		await entry.write("<p>Second</p>");
 		await entry.refresh();
 		await waitFor(() =>
-			expect(document.querySelector("iframe")?.getAttribute("srcdoc")).toContain("Second"),
+			expect(
+				entry.pages().get(document.querySelector("iframe")?.getAttribute("src") ?? ""),
+			).toContain("Second"),
 		);
+		await waitFor(() => expect(entry.pages().size).toBe(1));
 	});
 
 	it("recovers when a missing file appears", async () => {
@@ -194,7 +289,9 @@ describe("CHAT-22 Codex visualization", () => {
 		await entry.write("<p>Now here</p>");
 		await entry.refresh();
 		await waitFor(() =>
-			expect(document.querySelector("iframe")?.getAttribute("srcdoc")).toContain("Now here"),
+			expect(
+				entry.pages().get(document.querySelector("iframe")?.getAttribute("src") ?? ""),
+			).toContain("Now here"),
 		);
 	});
 

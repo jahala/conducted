@@ -19,7 +19,7 @@
  * Test first: four branches render top first with the trunk last and the current one marked.
  */
 import type { ChangedFile } from "../../../core/api.ts";
-import type { GraphiteBranch } from "../../../core/services/graphite.ts";
+import type { GraphiteBranch } from "../../../core/graphite.ts";
 import { cn } from "../../../ui/cn.ts";
 import { IconButton } from "../../../ui/IconButton.tsx";
 import { ArrowDownToLineIcon, TriangleAlertIcon } from "../../../ui/icons.tsx";

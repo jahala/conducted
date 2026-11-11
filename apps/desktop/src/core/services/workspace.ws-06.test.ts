@@ -69,6 +69,7 @@ interface HarnessOptions {
 	worktreeRemoveFails?: boolean;
 	existingPaths?: ReadonlySet<string>;
 	settings?: Record<string, unknown>;
+	setupFails?: boolean;
 }
 
 function harness(options: HarnessOptions = {}) {
@@ -149,6 +150,9 @@ function harness(options: HarnessOptions = {}) {
 			row.state = to;
 			return ok(true);
 		},
+		async setSetupLogPath() {
+			return ok(undefined);
+		},
 		async finishUnarchive(
 			id: WorkspaceId,
 			input: { branch: string; directoryName: string; path: string },
@@ -166,6 +170,7 @@ function harness(options: HarnessOptions = {}) {
 		},
 	};
 
+	const setupRuns: string[] = [];
 	const deleteAll = vi.fn(async () =>
 		options.clearChatsFails === true
 			? err(appError("chat_delete_failed", "chats survived"))
@@ -233,7 +238,25 @@ function harness(options: HarnessOptions = {}) {
 			deleteAll,
 		},
 		scripts: {
-			runSetup: vi.fn(),
+			runSetup: vi.fn(async () => {
+				setupRuns.push("w1");
+				if (options.setupFails === true) {
+					return ok({
+						scriptFound: true,
+						exitCode: 1,
+						terminalId: null,
+						logPath: "/app/setup.log",
+						log: "saved" as const,
+					});
+				}
+				return ok({
+					scriptFound: false,
+					exitCode: null,
+					terminalId: null,
+					logPath: null,
+					log: "missing" as const,
+				});
+			}),
 			runArchive: vi.fn(),
 			stopWorkspace: vi.fn(),
 			clearRuns: vi.fn(),
@@ -250,6 +273,7 @@ function harness(options: HarnessOptions = {}) {
 		finished,
 		transitions,
 		deleteAll,
+		setupRuns,
 		trash,
 		replies,
 	};
@@ -262,6 +286,31 @@ const archiveCheckpoint = (call: { command: GitCommand }): boolean =>
 	call.command.args[1] === "archive-w1";
 
 describe("WS-06 unarchive on the same branch", () => {
+	it("runs the setup script again after a complete restore", async () => {
+		const h = harness();
+
+		const result = await h.service.unarchive("w1" as WorkspaceId, {
+			branchName: null,
+			clearChats: false,
+		});
+
+		expect(result.ok).toBe(true);
+		expect(h.setupRuns).toEqual(["w1"]);
+	});
+
+	it("keeps the restored workspace ready when its setup script fails", async () => {
+		const h = harness({ setupFails: true });
+
+		const result = await h.service.unarchive("w1" as WorkspaceId, {
+			branchName: null,
+			clearChats: false,
+		});
+
+		expect(result.ok).toBe(true);
+		expect(h.rows[0]?.state).toBe("ready");
+		expect(h.setupRuns).toEqual(["w1"]);
+	});
+
 	it("re-adds the worktree, restores the checkpoint and clears the archive time", async () => {
 		const h = harness();
 

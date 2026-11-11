@@ -3,7 +3,7 @@
  * Owns: one hook that reads the Graphite stack of the checked-out branch from the Graphite
  * service's store, for the repository the git panel watches.
  * Behaviour: services-map.md 3.8.1 (`gt state` for the visible workspace's repository, only while
- * `graphite_disabled` is not true), 5B.1.8; the stack rule lives in core/services/graphite.ts
+ * `graphite_disabled` is not true), 5B.1.8; the stack rule lives in core/graphite.ts
  * (graphiteStackOf).
  * Data: the Graphite store, keyed by the repository's root, and useSetting("graphite_disabled").
  * Must handle: the switch turned off (no stack at once, before the next poll clears the store), a
@@ -14,8 +14,8 @@
  */
 import { useStore } from "zustand";
 import { useServices } from "../../core/context.tsx";
+import { type GraphiteStack, graphiteStackOf } from "../../core/graphite.ts";
 import { useSetting } from "../../core/hooks.ts";
-import { type GraphiteStack, graphiteStackOf } from "../../core/services/graphite.ts";
 
 const NO_GRAPHITE_STACK: GraphiteStack = { isInStack: false, branches: [] };
 

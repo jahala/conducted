@@ -1,14 +1,19 @@
 /**
  * @feature REV-08 Editor surface
- * Tests that the CodeMirror view mounts, follows the text prop without calling it an edit, selects
- * the find match it is given, selects all text from the right-click menu, shows line numbers, and
- * is destroyed on unmount.
+ * Tests that the CodeMirror view mounts, follows the text prop without calling it an edit, colours
+ * the text with Shiki's tokens, selects the find match it is given, selects all text from the
+ * right-click menu, shows line numbers, and is destroyed on unmount.
  */
 import { EditorView } from "@codemirror/view";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EditorSurfaceOptions } from "./codemirror-setup.ts";
-import { EditorSurface } from "./EditorSurface.tsx";
+
+const shiki = vi.hoisted(() => ({ codeToTokens: vi.fn() }));
+
+vi.mock("shiki", () => ({ codeToTokens: shiki.codeToTokens }));
+
+const { EditorSurface } = await import("./EditorSurface.tsx");
 
 /** The live CodeMirror view inside a rendered surface. */
 function viewIn(container: HTMLElement): EditorView {
@@ -18,7 +23,10 @@ function viewIn(container: HTMLElement): EditorView {
 	return view;
 }
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	shiki.codeToTokens.mockReset();
+});
 
 const options: EditorSurfaceOptions = {
 	wrapLines: true,
@@ -26,6 +34,7 @@ const options: EditorSurfaceOptions = {
 	readOnly: false,
 	fontFamily: "Geist Mono",
 	themeType: "light",
+	codeTheme: "default",
 };
 
 describe("REV-08 EditorSurface", () => {
@@ -130,6 +139,31 @@ describe("REV-08 EditorSurface", () => {
 		fireEvent.click(await screen.findByRole("menuitem", { name: "Select all text" }));
 		const main = viewIn(container).state.selection.main;
 		expect({ from: main.from, to: main.to }).toEqual({ from: 0, to: 22 });
+	});
+
+	it("colours the text with Shiki's tokens and a line number per line", async () => {
+		shiki.codeToTokens.mockResolvedValue({
+			tokens: [
+				[
+					{ content: "const", color: "#ff0000", fontStyle: 0 },
+					{ content: " a", color: "#00ff00", fontStyle: 0 },
+				],
+			],
+		});
+		const { container } = render(
+			<EditorSurface
+				path="src/a.ts"
+				text="const a"
+				options={options}
+				onChange={() => {}}
+				onSave={() => {}}
+			/>,
+		);
+		await waitFor(() => {
+			const spans = Array.from(container.querySelectorAll<HTMLElement>(".cm-content span"));
+			expect(spans.map((span) => span.style.color)).toContain("rgb(255, 0, 0)");
+		});
+		expect(container.querySelector(".cm-lineNumbers")).not.toBeNull();
 	});
 
 	it("shows a line number for each line", async () => {

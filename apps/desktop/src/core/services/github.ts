@@ -104,8 +104,9 @@
  * restack flag. The readiness rules that read the merge states live in
  * core/status/stack-readiness.ts. The
  * sidebar and selected workspace subscriptions belong to the screens that own them; this file
- * calls `onMerged` and the workspace service archives the workspace, and calls
- * `onPullRequestChanged` when an open pull request's `updatedAt` changes so review comments sync.
+ * calls `onMerged` with the merged pull request and whether its stack still has open work, so the
+ * container can keep or archive the workspace, and calls `onPullRequestChanged` when an open pull
+ * request's `updatedAt` changes so review comments sync.
  * Test first: two merge calls at once send one `gh pr merge`.
  * PR-03 test first: two watched workspaces of one repository ask GitHub in one batched query.
  * PR-05 test first: two failing checks send one instruction with both log tails.
@@ -198,6 +199,18 @@ import {
 	syncedBaselineRef,
 } from "../git/stack-catch-up.ts";
 import { readOperation, readUpstreamDivergence } from "../git/status.ts";
+import {
+	forgeForRemoteUrl,
+	GITHUB_HEAD_MISMATCH_MESSAGE,
+	type GithubFailureClass,
+	type GithubRemote,
+	type GithubRepository,
+	githubFailureMessage,
+	githubRemoteFromUrl,
+	githubRepositoryFromRemote,
+	isGithubHost,
+	isGithubRemoteUrl,
+} from "../github-text.ts";
 import type {
 	CheckRun,
 	GitHubAccess as GitHubAccessView,
@@ -211,13 +224,14 @@ import type {
 	RepoNameCheck,
 	StackEntryView,
 } from "../model.ts";
+import { buildDeepLink } from "../notifications.ts";
+import { projectFolderName } from "../project-templates.ts";
 import {
 	createPrInstruction,
 	type FailingCheck,
 	fixErrorsInstruction,
 } from "./agent-instructions.ts";
 import { parseTargetBranch } from "./git.ts";
-import { buildDeepLink } from "./notifications.ts";
 import {
 	closedPrIsShown,
 	type GraphqlPullRequestNode,
@@ -243,7 +257,6 @@ import {
 	requestedInterval,
 	shouldQueryPr,
 } from "./pr-polling.ts";
-import { projectFolderName } from "./project-templates.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
 /** The paths GitHub reads a pull request template from, in the order the research lists them. */
@@ -255,24 +268,10 @@ export const PR_TEMPLATE_PATHS = [
 
 /** The Keychain entry the Account page writes and `gh` receives as GH_TOKEN (D029). */
 export const GH_PAT_KEYCHAIN_KEY = "gh_pat_token";
-/** Shown by the Account page when the text in the token field is not shaped like a GitHub token. */
-export const GITHUB_TOKEN_WARNING = "That doesn't look like a GitHub token. Are you sure?";
 /** Shown when a refresh of GitHub data fails for a reason the service cannot classify. */
 export const GITHUB_REFRESH_FAILED_MESSAGE = "Couldn't refresh GitHub";
-export const GITHUB_UNAUTHORIZED_MESSAGE = "Reconnect GitHub in Settings to keep pushing changes.";
-export const GITHUB_SAML_SSO_MESSAGE =
-	"GitHub requires single sign-on for this organization. Authorize your account for the organization, then try again.";
-/** Shown when the workspace's HEAD is not the pull request's head, so a merge would act on other code. */
-export const GITHUB_HEAD_MISMATCH_MESSAGE =
-	"Merge blocked: this workspace's code is different from the pull request's head. Pull the latest changes and try again.";
 
 export type GithubAuthMethod = "cli" | "pat";
-export type GithubFailureClass =
-	| "unauthorized"
-	| "saml-sso-required"
-	| "missing-scope"
-	| "offline"
-	| "other";
 
 export type GithubAccess =
 	| { status: "unknown"; reason?: "check_failed" }
@@ -326,40 +325,6 @@ export function classifyGhFailure(text: string): GithubFailureClass {
 	return "other";
 }
 
-/**
- * The scope the failure says is missing, when GitHub names one. The Account page and the toast
- * use it to say exactly which scope to add.
- */
-export function missingScopeFrom(text: string): string | null {
-	const accepted = /x-accepted-oauth-scopes:\s*([^\r\n]+)/i.exec(text);
-	if (accepted !== null) return accepted[1]?.split(",")[0]?.trim() ?? null;
-	const quoted = /scope[^.\r\n]{0,120}?["'`]([a-z][a-z0-9:_-]*)["'`]/i.exec(text);
-	if (quoted !== null) return quoted[1] ?? null;
-	const known =
-		/(?:needs|requires|missing|add)[^.\r\n]{0,80}?\b(repo|gist|workflow|notifications|user|project|read:org|write:org|admin:org|read:packages|write:packages|delete:packages|read:discussion|write:discussion|read:project|write:project|codespace)\b["'`]?\s+scope/i.exec(
-			text,
-		);
-	return known?.[1] ?? null;
-}
-
-/** The sentence the UI shows for a classified failure. Null when the class needs no message. */
-export function githubFailureMessage(failure: GithubFailureClass, text: string): string | null {
-	switch (failure) {
-		case "unauthorized":
-			return GITHUB_UNAUTHORIZED_MESSAGE;
-		case "saml-sso-required":
-			return GITHUB_SAML_SSO_MESSAGE;
-		case "missing-scope": {
-			const scope = missingScopeFrom(text);
-			return scope === null
-				? "GitHub access is missing a scope this action needs. Add it to your token and try again."
-				: `GitHub access is missing the "${scope}" scope. Add it to your token and try again.`;
-		}
-		default:
-			return null;
-	}
-}
-
 export interface ParsedAuthStatus {
 	login: string | null;
 	host: string | null;
@@ -378,99 +343,6 @@ export function parseAuthStatus(text: string): ParsedAuthStatus {
 		.map((scope) => scope.trim().replace(/^['"`]|['"`]$/g, ""))
 		.filter((scope) => scope.length > 0 && scope.toLowerCase() !== "none");
 	return { login: match?.[2] ?? null, host: match?.[1] ?? null, scopes };
-}
-
-/**
- * Whether a remote URL points at GitHub. Only github.com and ssh.github.com get the GitHub forge;
- * every other host is treated as local git (services-map 3.1).
- */
-export function isGithubRemoteUrl(url: string): boolean {
-	const trimmed = url.trim();
-	if (trimmed.length === 0) return false;
-	const scp = hasUrlScheme(trimmed) ? null : SCP_LIKE_REMOTE.exec(trimmed);
-	if (scp !== null) return isGithubHost(scp[1]);
-	try {
-		return isGithubHost(new URL(trimmed).hostname);
-	} catch {
-		return false;
-	}
-}
-
-/** Whether the text names a URL with a scheme, such as `https://` or `ssh://`. */
-const hasUrlScheme = (url: string): boolean => /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(url);
-
-/** git's scp-like remote, `user@host:owner/repo`. Only used when there is no URL scheme. */
-const SCP_LIKE_REMOTE = /^[^@\s]+@([^:\s/]+):(.+)$/;
-
-const isGithubHost = (host: string | undefined): boolean => {
-	const name = (host ?? "").toLowerCase();
-	return name === "github.com" || name === "ssh.github.com";
-};
-
-/**
- * The forge a remote gets: GitHub for github.com only, local git for everything else, and local
- * git for a repository with no remote at all (null). The one home of this rule.
- */
-export function forgeForRemoteUrl(url: string | null): "github" | "local" {
-	return url !== null && isGithubRemoteUrl(url) ? "github" : "local";
-}
-
-/** The owner and repository name GitHub needs for its REST paths. */
-export interface GithubRepository {
-	owner: string;
-	name: string;
-}
-
-const NOT_GITHUB_REMOTE = "This repository has no GitHub remote.";
-
-/** A GitHub remote: the host it names and the repository's owner and name. */
-interface GithubRemote extends GithubRepository {
-	/** The host name, lower case, for example "github.com" or "ssh.github.com". */
-	host: string;
-}
-
-/**
- * Reads `owner/name` out of a GitHub remote URL, in any of the shapes git stores: HTTPS, scp-like
- * SSH and an ssh:// URL. Every other host is refused, the same rule as `isGithubRemoteUrl`.
- */
-export function githubRepositoryFromRemote(url: string): Result<GithubRepository> {
-	const remote = githubRemoteFromUrl(url);
-	return remote.ok ? ok({ owner: remote.value.owner, name: remote.value.name }) : remote;
-}
-
-/** The one parser behind `githubRepositoryFromRemote`, keeping the host as well. */
-function githubRemoteFromUrl(url: string): Result<GithubRemote> {
-	const trimmed = url.trim();
-	if (trimmed === "") return err(appError("github_not_github", NOT_GITHUB_REMOTE));
-	let host: string;
-	let path: string;
-	const scp = hasUrlScheme(trimmed) ? null : SCP_LIKE_REMOTE.exec(trimmed);
-	if (scp !== null) {
-		host = scp[1] ?? "";
-		path = scp[2] ?? "";
-	} else {
-		let parsed: URL;
-		try {
-			parsed = new URL(trimmed);
-		} catch {
-			return err(appError("github_not_github", NOT_GITHUB_REMOTE));
-		}
-		host = parsed.hostname;
-		path = parsed.pathname;
-	}
-	if (!isGithubHost(host)) return err(appError("github_not_github", NOT_GITHUB_REMOTE));
-	const parts = path
-		.replace(/^\/+/, "")
-		.replace(/\/+$/, "")
-		.replace(/\.git$/i, "")
-		.split("/")
-		.filter((part) => part.length > 0);
-	const owner = parts[0];
-	const name = parts[1];
-	if (owner === undefined || name === undefined) {
-		return err(appError("github_not_github", NOT_GITHUB_REMOTE));
-	}
-	return ok({ host: host.toLowerCase(), owner, name });
 }
 
 /** Whether the issues tab may ask GitHub for this repository (services-map 5B.8.2). */
@@ -961,24 +833,6 @@ export function resolveGhAuthMethod(
 	return explicit === "cli" || explicit === "pat" ? explicit : hasStoredToken ? "pat" : "cli";
 }
 
-/**
- * GitHub's personal access tokens start with a known prefix. A guard against a pasted password or
- * a half-copied value, not a validation: only GitHub can say whether a token works.
- */
-export function looksLikeGithubToken(token: string): boolean {
-	const trimmed = token.trim();
-	return /^(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})$/.test(trimmed);
-}
-
-/**
- * The warning the Account page shows before saving a value that is not shaped like a GitHub
- * token. Null when the value looks right. Saving is the caller's decision after the user
- * confirms, because an enterprise token can have an unexpected prefix.
- */
-export function githubTokenWarning(token: string): string | null {
-	return looksLikeGithubToken(token) ? null : GITHUB_TOKEN_WARNING;
-}
-
 /** The merge method GitHub allows, in Conductor's preference order (services-map 5B.1.7). */
 export function chooseMergeMethod(output: string): MergeMethod | null {
 	let allowed: unknown;
@@ -1203,6 +1057,32 @@ export interface PrWorkspaceContext {
 	customPrompt?: string | null;
 }
 
+/** The pull request whose merge the poll noticed, and whether its stack still has open work. */
+export interface MergedPullRequest {
+	number: number;
+	url: string;
+	/** True when a stack still has another open or draft pull request to merge. */
+	stackHasOpenPrs: boolean;
+}
+
+/**
+ * Whether a stack read after a merge found another pull request still open. A draft counts, as
+ * GitHub's stack members report it separately from "open".
+ */
+export function stackHasOpenPullRequests(
+	members: readonly { state: "open" | "draft" | "merged" | "closed" }[],
+): boolean {
+	return members.some((member) => member.state === "open" || member.state === "draft");
+}
+
+/**
+ * What Conductor does when the stack read fails during archive-on-merge: keep the workspace when
+ * the merged pull request is not the branch checked out here (a stack's other member merged).
+ */
+export function mergedBranchDiffers(mergedBranch: string | null, localBranch: string): boolean {
+	return mergedBranch !== null && mergedBranch !== "" && localBranch !== mergedBranch;
+}
+
 /** Why a catch-up did not rebase. Every one is a normal answer, not an error. */
 export type CatchUpSkipReason =
 	| "not_in_stack"
@@ -1234,7 +1114,7 @@ export interface GithubServiceDeps {
 	agent: AgentMessenger;
 	contextOf: (workspaceId: WorkspaceId) => Promise<Result<PrWorkspaceContext>>;
 	/** Called when a PR becomes merged, so the workspace service can archive on merge. */
-	onMerged: (workspaceId: WorkspaceId, prNumber: number) => void;
+	onMerged: (workspaceId: WorkspaceId, merged: MergedPullRequest) => void;
 	/**
 	 * Called when an open pull request's `updatedAt` changes, so review comments can be synced
 	 * (REV-04). The container always supplies it; tests that never poll may leave it out.
@@ -2394,7 +2274,7 @@ export class GithubService {
 			kind: "success",
 			cost: answer.value.cost ?? 1,
 		});
-		chunk.forEach((target, index) => {
+		for (const [index, target] of chunk.entries()) {
 			const node = answer.value.nodes[index] ?? null;
 			if (node === null) {
 				this.#noPrUntil.set(target.key, target.now + NO_PR_MEMORY_MS);
@@ -2402,14 +2282,14 @@ export class GithubService {
 					target.key,
 					ok({ pullRequest: null, unavailable: "no_pr", fetchedAt: target.now }),
 				);
-				return;
+				continue;
 			}
 			this.#noPrUntil.delete(target.key);
 			results.set(
 				target.key,
-				this.#toWorkspaceEntry(target.key, target.found, node, answer.value, target.now),
+				await this.#toWorkspaceEntry(target.key, target.found, node, answer.value, target.now),
 			);
-		});
+		}
 	}
 
 	#writeEntry(key: string, entry: WorkspacePrEntry): void {
@@ -2474,13 +2354,13 @@ export class GithubService {
 		return ok(undefined);
 	}
 
-	#toWorkspaceEntry(
+	async #toWorkspaceEntry(
 		key: string,
 		found: PrWorkspaceContext,
 		node: GraphqlPullRequestNode,
 		answer: RepositoryAnswer,
 		now: number,
-	): Result<WorkspacePrEntry> {
+	): Promise<Result<WorkspacePrEntry>> {
 		const raw = rawFromGraphql(node);
 		const headBranch = raw.headRefName ?? found.branch;
 		const state = pullRequestStateOf(raw.state, raw.isDraft);
@@ -2508,9 +2388,28 @@ export class GithubService {
 		pr.mergeable = reconcileMergeable(previous?.mergeable ?? null, pr.mergeable, sameHead);
 		this.#headByWorkspace.set(key, raw.headRefOid);
 		if (state === "merged" && previous?.state !== "merged") {
-			this.#deps.onMerged(found.workspaceId, raw.number);
+			this.#deps.onMerged(found.workspaceId, {
+				number: raw.number,
+				url: raw.url,
+				stackHasOpenPrs: await this.#stackHasOpenPullRequests(found, raw.headRefName ?? null),
+			});
 		}
 		return ok({ pullRequest: pr, unavailable: "none", fetchedAt: now });
+	}
+
+	/**
+	 * Whether a merged pull request leaves open work in its stack. A successful stack read answers
+	 * from its members; a failed read follows Conductor and keeps the workspace only when the
+	 * merged pull request is not the branch checked out here.
+	 */
+	async #stackHasOpenPullRequests(
+		found: PrWorkspaceContext,
+		mergedBranch: string | null,
+	): Promise<boolean> {
+		// Conductor reads the stack for this decision even when the stack view is turned off.
+		const stack = await this.readStack(found.workspaceId, { ignoreStackedSetting: true });
+		if (stack.ok) return stackHasOpenPullRequests(stack.value);
+		return mergedBranchDiffers(mergedBranch, found.branch);
 	}
 
 	/** The remote and branch as pushed, from the branch's configured upstream. */
@@ -3167,10 +3066,17 @@ export class GithubService {
 	 * stacks turned off in Settings, is an empty answer, not an error. The optional `stackEntry`
 	 * field is retried without when the host does not know it, and that host is remembered.
 	 */
-	async readStack(workspaceId: WorkspaceId): Promise<Result<StackEntryView[]>> {
+	async readStack(
+		workspaceId: WorkspaceId,
+		options: { ignoreStackedSetting?: boolean } = {},
+	): Promise<Result<StackEntryView[]>> {
 		const key = String(workspaceId);
 		const setting = this.#deps.setting;
-		if (setting !== undefined && setting<boolean>("github_stacked_prs_enabled") !== true) {
+		if (
+			options.ignoreStackedSetting !== true &&
+			setting !== undefined &&
+			setting<boolean>("github_stacked_prs_enabled") !== true
+		) {
 			this.#stackMembers.delete(key);
 			return ok([]);
 		}

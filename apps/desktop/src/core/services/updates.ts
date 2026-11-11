@@ -28,7 +28,6 @@ import { fireAndForget } from "../async/fire-and-forget.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 
 export const UPDATE_CHECK_INTERVAL_MS = 3_600_000;
-export const UPDATE_FOCUS_RECHECK_MS = 600_000;
 /** A failed download is tried twice more, this far apart. */
 export const UPDATE_DOWNLOAD_RETRIES = 2;
 export const UPDATE_DOWNLOAD_RETRY_DELAY_MS = 60_000;

@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearCommandHandlers } from "../../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { RepoConfig, RunAction, Workspace } from "../../../core/model.ts";
-import { SPOTLIGHT_BRANCH_NOTICE } from "../../../core/services/spotlight.ts";
+import { SPOTLIGHT_BRANCH_NOTICE } from "../../../core/spotlight.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../../test/container.ts";
 import { WithSurfaces } from "../../../test/surfaces.tsx";
 import { RunTab } from "./RunTab.tsx";

@@ -64,7 +64,9 @@ describe("NAV-10 NewTabMenu", () => {
 		trigger.focus();
 		fireEvent.keyDown(trigger, { key: "Enter" });
 		fireEvent.click(await screen.findByRole("menuitem", { name: "Local terminal" }));
-		await waitFor(() => expect(state.createTerminal).toHaveBeenCalledWith(workspaceId, undefined));
+		await waitFor(() =>
+			expect(state.createTerminal).toHaveBeenCalledWith(workspaceId, { placement: "centre" }),
+		);
 		expect(onSearchChange).toHaveBeenCalledWith({ tab: "terminal", terminalId: "t1" });
 	});
 
@@ -77,7 +79,10 @@ describe("NAV-10 NewTabMenu", () => {
 		await openMenu();
 		fireEvent.click(await screen.findByRole("menuitem", { name: "Local terminal" }));
 		await waitFor(() =>
-			expect(state.createTerminal).toHaveBeenCalledWith(workspaceId, { command: "npm run dev" }),
+			expect(state.createTerminal).toHaveBeenCalledWith(workspaceId, {
+				placement: "centre",
+				command: "npm run dev",
+			}),
 		);
 	});
 

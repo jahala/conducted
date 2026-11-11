@@ -6,9 +6,8 @@ import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import type { Repo } from "../model.ts";
 import { getSettingDef } from "../registries/settings.ts";
+import { actionIdsEqual, actionLabel, normalizeActionId } from "../settings-helpers.ts";
 import {
-	actionIdsEqual,
-	actionLabel,
 	ENV_VAR_KEYCHAIN_MARKER,
 	ENV_VAR_NONE_MARKER,
 	envVarKeychainKey,
@@ -16,7 +15,6 @@ import {
 	type LayerValue,
 	legacyRunAction,
 	mergeSettingActions,
-	normalizeActionId,
 	parseSettingsDocument,
 	redactSettingForLog,
 	resolveSetting,

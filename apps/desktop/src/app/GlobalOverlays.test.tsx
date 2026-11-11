@@ -6,10 +6,11 @@
  * Test first: show("palette") then show("passport") leaves only "passport" open; Cmd+K opens the palette.
  */
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
 import { createTestContainer } from "../test/container.ts";
+import { CHANGELOG_URL, DOCUMENTATION_URL } from "./GlobalOverlays.tsx";
 import { useOverlayStore } from "./overlay-store.ts";
 import { AppProviders, createQueryClient } from "./providers.tsx";
 import { createAppRouter } from "./router.tsx";
@@ -58,5 +59,36 @@ describe("NAV-08 GlobalOverlays", () => {
 		fireEvent.keyDown(document, { key: "k", metaKey: true });
 		expect(await screen.findByPlaceholderText("Type a command or search...")).toBeTruthy();
 		expect(useOverlayStore.getState().open).toBe("palette");
+	});
+
+	it("opens the changelog and the docs from the palette", async () => {
+		const test = await mountRoot();
+		const openUrl = vi.spyOn(test.memory.platform.opener, "openUrl");
+		act(() => useOverlayStore.getState().show("palette"));
+
+		fireEvent.change(await screen.findByPlaceholderText("Type a command or search..."), {
+			target: { value: "changelog" },
+		});
+		fireEvent.click(await screen.findByText("Open changelog"));
+		await waitFor(() => expect(openUrl).toHaveBeenCalledWith(CHANGELOG_URL));
+
+		act(() => useOverlayStore.getState().show("palette"));
+		fireEvent.change(await screen.findByPlaceholderText("Type a command or search..."), {
+			target: { value: "documentation" },
+		});
+		fireEvent.click(await screen.findByText("Open documentation"));
+		await waitFor(() => expect(openUrl).toHaveBeenCalledWith(DOCUMENTATION_URL));
+	});
+
+	it("keeps Passport opening its overlay from the palette", async () => {
+		await mountRoot();
+		act(() => useOverlayStore.getState().show("palette"));
+
+		fireEvent.change(await screen.findByPlaceholderText("Type a command or search..."), {
+			target: { value: "passport" },
+		});
+		fireEvent.click(await screen.findByText("Passport"));
+
+		expect(useOverlayStore.getState().open).toBe("passport");
 	});
 });

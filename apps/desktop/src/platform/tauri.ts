@@ -72,6 +72,9 @@ import type {
 	CloudRelay,
 	CloudRequest,
 	CloudResponse,
+	ConductorCopy,
+	ConductorImport,
+	ConductorSnapshot,
 	Database,
 	Dialogs,
 	FileDropEvent,
@@ -105,6 +108,8 @@ import type {
 	TreeEntry,
 	Unsubscribe,
 	Updater,
+	VisualizationPage,
+	Visualizations,
 } from "./platform.ts";
 import { platformError } from "./platform.ts";
 import {
@@ -365,6 +370,13 @@ export const COMMANDS = {
 	keychainGet: "keychain_get",
 	keychainSet: "keychain_set",
 	keychainDelete: "keychain_delete",
+	conductorImportFind: "conductor_import_find", // APP-17
+	conductorImportCopy: "conductor_import_copy", // APP-17
+	conductorImportRead: "conductor_import_read", // APP-17
+	conductorImportMoveSecrets: "conductor_import_move_secrets", // APP-17
+	conductorImportDiscard: "conductor_import_discard", // APP-17
+	visualizationServe: "visualization_serve", // CHAT-22
+	visualizationRelease: "visualization_release", // CHAT-22
 	notify: "notify",
 	setDockBadge: "set_dock_badge",
 	notificationTakePending: "notification_take_pending",
@@ -1490,6 +1502,36 @@ interface FsPathsPayload {
 }
 
 /**
+ * `conductor_import_find { source }`, `conductor_import_copy { source }`, `conductor_import_read { copyPath }`,
+ * `conductor_import_move_secrets { copyPath, moves }`, `conductor_import_discard` (APP-17).
+ */
+export function createTauriConductorImport(bindings: TauriBindings): ConductorImport {
+	return {
+		find: (sourcePath) =>
+			invokeResult<number | null>(bindings, COMMANDS.conductorImportFind, { source: sourcePath }),
+		copy: (sourcePath) =>
+			invokeResult<ConductorCopy>(bindings, COMMANDS.conductorImportCopy, { source: sourcePath }),
+		read: (copyPath) =>
+			invokeResult<ConductorSnapshot>(bindings, COMMANDS.conductorImportRead, { copyPath }),
+		moveSecrets: (copyPath, moves) =>
+			invokeResult<string[]>(bindings, COMMANDS.conductorImportMoveSecrets, {
+				copyPath,
+				moves: [...moves],
+			}),
+		discardCopies: () => invokeResult<number>(bindings, COMMANDS.conductorImportDiscard),
+	};
+}
+
+/** `visualization_serve { document }`, `visualization_release { id }` (CHAT-22). */
+export function createTauriVisualizations(bindings: TauriBindings): Visualizations {
+	return {
+		serve: (document) =>
+			invokeResult<VisualizationPage>(bindings, COMMANDS.visualizationServe, { document }),
+		release: (id) => invokeResult<void>(bindings, COMMANDS.visualizationRelease, { id }),
+	};
+}
+
+/**
  * Builds the whole Platform. Order: health check, `app_info`, `fs_paths`, then the groups above.
  * The database opens on its first statement, so the startup version check runs before the plugin's
  * migrator. Returns the first failed startup call as an `Err`.
@@ -1531,6 +1573,8 @@ export async function createTauriPlatform(
 		http: createTauriHttp(bindings),
 		cloud: createTauriCloud(bindings),
 		portForward: createTauriPortForward(bindings),
+		conductorImport: createTauriConductorImport(bindings),
+		visualizations: createTauriVisualizations(bindings),
 	};
 	return ok(platform);
 }

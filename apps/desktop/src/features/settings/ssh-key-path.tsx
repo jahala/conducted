@@ -19,14 +19,10 @@
  * wording and settings.set is not called.
  */
 import { useEffect, useState } from "react";
-import {
-	customSshKeyMissing,
-	expandSshKeyPath,
-	SSH_KEY_PATH_SETTING,
-} from "../../core/cloud/ssh.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useSetting } from "../../core/hooks.ts";
 import { getSettingDef, pageDescriptionOf } from "../../core/registries/settings.ts";
+import { customSshKeyMissing, expandSshKeyPath, SSH_KEY_PATH_SETTING } from "../../core/ssh-key.ts";
 import { Input } from "../../ui/Input.tsx";
 import { FolderIcon, TrashIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";

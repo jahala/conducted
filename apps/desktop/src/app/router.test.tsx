@@ -1,5 +1,5 @@
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Container } from "../core/container.ts";
 import { ServicesProvider } from "../core/context.tsx";
@@ -56,8 +56,9 @@ function workspace(id: string, repoId: string): Workspace {
 	};
 }
 
-async function openContainerApp(path: string, container: Container) {
-	const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
+async function openContainerApp(path: string | string[], container: Container) {
+	const initialEntries = Array.isArray(path) ? path : [path];
+	const router = createAppRouter(createMemoryHistory({ initialEntries }));
 	render(
 		<ServicesProvider container={container}>
 			<AppProviders client={createQueryClient(() => {})}>
@@ -69,7 +70,7 @@ async function openContainerApp(path: string, container: Container) {
 	return router;
 }
 
-async function openApp(path: string, repos: Repo[] = [], workspaces: Workspace[] = []) {
+async function openApp(path: string | string[], repos: Repo[] = [], workspaces: Workspace[] = []) {
 	return openContainerApp(path, createShellContainer({ repos, workspaces }).container);
 }
 
@@ -185,6 +186,15 @@ describe("routes", () => {
 		expect(screen.getByTestId("settings-top-bar").hasAttribute("data-tauri-drag-region")).toBe(
 			true,
 		);
+	});
+
+	it("returns to the previous screen when Settings goes Back", async () => {
+		const router = await openApp(["/all-workspaces", "/settings/user/general"]);
+		await screen.findByRole("heading", { name: "General" });
+
+		fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+		await waitFor(() => expect(router.state.location.pathname).toBe("/all-workspaces"));
 	});
 
 	it("/diagnostics renders without the sidebar", async () => {

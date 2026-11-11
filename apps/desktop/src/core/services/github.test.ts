@@ -4,19 +4,21 @@ import type { Keychain, ShellOutput } from "../../platform/platform.ts";
 import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner, GitRunOptions } from "../git/runner.ts";
 import {
-	chooseMergeMethod,
-	classifyGhFailure,
-	GH_PAT_KEYCHAIN_KEY,
-	GITHUB_REFRESH_FAILED_MESSAGE,
 	GITHUB_SAML_SSO_MESSAGE,
 	GITHUB_TOKEN_WARNING,
-	type GithubAccess,
-	GithubService,
 	githubFailureMessage,
 	githubTokenWarning,
 	isGithubRemoteUrl,
 	looksLikeGithubToken,
 	missingScopeFrom,
+} from "../github-text.ts";
+import {
+	chooseMergeMethod,
+	classifyGhFailure,
+	GH_PAT_KEYCHAIN_KEY,
+	GITHUB_REFRESH_FAILED_MESSAGE,
+	type GithubAccess,
+	GithubService,
 	parseAuthStatus,
 	resolveGhAuthMethod,
 	toGitHubAccessView,

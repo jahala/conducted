@@ -13,28 +13,15 @@
  * Test first: a chat with no reported window shows the size the same model reported in another
  * chat.
  */
-import type { AgentItem, SessionConfig } from "@conducted/protocol";
+import type { AgentItem } from "@conducted/protocol";
 import { ok, type Result } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
+import { contextWindowKeyOf } from "../context-windows.ts";
 import type { ModelContextWindowRepository } from "../db/model-context-windows.ts";
 
 export interface ContextWindowsState {
 	/** Sizes by `contextWindowKey`. */
 	byModel: Readonly<Record<string, number>>;
-}
-
-/** The agent part of a remembered size: the agent kind, or "acp:<agent>" for an ACP agent. */
-export function contextWindowAgent(config: Pick<SessionConfig, "agent" | "acpAgent">): string {
-	return config.agent === "acp" ? `acp:${config.acpAgent ?? ""}` : config.agent;
-}
-
-const keyOf = (agent: string, model: string): string => `${agent}\n${model}`;
-
-/** The key of a remembered size: the agent and the model id the chat was started with. */
-export function contextWindowKey(
-	config: Pick<SessionConfig, "agent" | "acpAgent" | "model">,
-): string {
-	return keyOf(contextWindowAgent(config), config.model);
 }
 
 /** The window size an agent message reports, from its last usage item. Null when it has none. */
@@ -67,14 +54,15 @@ export class ContextWindowService {
 		const listed = await this.#deps.repository().list();
 		if (!listed.ok) return listed;
 		const loaded: Record<string, number> = {};
-		for (const row of listed.value) loaded[keyOf(row.agent, row.model)] = row.windowTokens;
+		for (const row of listed.value)
+			loaded[contextWindowKeyOf(row.agent, row.model)] = row.windowTokens;
 		this.store.setState((state) => ({ byModel: { ...loaded, ...state.byModel } }));
 		return ok(undefined);
 	}
 
 	/** Called after the ingest stored a report, so open meters see it at once. */
 	remember(agent: string, model: string, windowTokens: number): void {
-		const key = keyOf(agent, model);
+		const key = contextWindowKeyOf(agent, model);
 		if (this.store.getState().byModel[key] === windowTokens) return;
 		this.store.setState((state) => ({ byModel: { ...state.byModel, [key]: windowTokens } }));
 	}

@@ -1,8 +1,8 @@
 /**
  * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
  * @feature RUN-01 ScriptsPanel
- * Owns: right panel, bottom half. Tabs Setup, Run, Terminal N and Ports, a collapse control, and
- * the active tab. Entry point embedded by the workspace screen.
+ * Owns: right panel, bottom half. Tabs Setup, Run, the terminals made in this panel and Ports, a
+ * collapse control, and the active tab. Entry point embedded by the workspace screen.
  * Behaviour: ui-map.md 3.7 (tabs, Cmd+J toggles the panel); services-map.md 5A.1 (setup and
  * action process stores).
  * Data: useTerminals, useRunState, useWorkspace, useSetupState, useSetting, useActions().
@@ -29,7 +29,7 @@ import {
 	useTerminals,
 	useWorkspace,
 } from "../../core/hooks.ts";
-import { terminalLimit } from "../../core/services/terminals.ts";
+import { terminalLimit } from "../../core/terminals.ts";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { PortsTab } from "./ports/PortsTab.tsx";
@@ -52,7 +52,9 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 	const [collapsed, setCollapsed] = useState(false);
 
 	const all = terminals.state === "ready" ? terminals.data : [];
-	const interactive = all.filter((terminal) => terminal.kind === "terminal");
+	const allInteractive = all.filter((terminal) => terminal.kind === "terminal");
+	// A terminal made in the centre is listed there; only the panel's own are its tabs (#482).
+	const interactive = allInteractive.filter((terminal) => terminal.placement === "panel");
 	// Only a cloud workspace shows a host beside each terminal's name (CLOUD-09).
 	const cloudWorkspace = workspace.state === "ready" && workspace.data.host.kind === "cloud";
 	const terminalTabs = interactive.map((terminal) => ({
@@ -62,7 +64,8 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 		...(cloudWorkspace ? { hostKind: terminal.hostKind } : {}),
 	}));
 	const limit = terminalLimit(Boolean(tabFreakMode));
-	const atLimit = terminalTabs.length >= limit;
+	// The service's limit counts every interactive terminal of the workspace, in either strip.
+	const atLimit = allInteractive.length >= limit;
 
 	const runActions =
 		run.state === "ready" ? run.data.actions.filter((action) => !action.hidden) : [];
@@ -97,10 +100,10 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 
 	const newTerminal = (hostKind?: "local" | "cloud"): void => {
 		void (async () => {
-			const created = await actions.terminals.create(
-				workspaceId,
-				hostKind === undefined ? undefined : { hostKind },
-			);
+			const created = await actions.terminals.create(workspaceId, {
+				placement: "panel",
+				...(hostKind === undefined ? {} : { hostKind }),
+			});
 			if (!created.ok) {
 				toastError("Couldn't open a terminal", created.error);
 				return;
@@ -139,6 +142,7 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 				runActive={runActive}
 				showPorts={showPorts}
 				terminalLimit={limit}
+				terminalCount={allInteractive.length}
 				collapsed={collapsed}
 				fileSync={fileSync}
 				cloudWorkspace={cloudWorkspace}

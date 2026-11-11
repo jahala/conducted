@@ -10,18 +10,22 @@
  * invalid path is refused with a reason, so a saved path is always a path that exists.
  * Must handle: a path that does not exist, an empty value meaning the bundled program, and a root
  * folder change that asks for confirmation first and names the old and new path (D037 keeps the
- * existing data, unlike Conductor's wipe).
+ * existing data, unlike Conductor's wipe). A finished change reloads the chats, refreshes projects
+ * and workspaces, opens Home and toasts, as Conductor does (renderApp @10966029).
  * Test first: saving a non-existent program path shows the error and does not call settings.set.
  *
  * PLAT-28 also renders the Agent binaries section here: the state of the Claude Code and Codex
  * programs and of Cursor's SDK (AGENT-09, installed only from here, D083), with Install or Retry,
  * Re-download and Remove. PLAT-35 adds a Helper programs section for gh and watchexec, kept apart
  * from the agent programs, so a failed or missing download of either shows its error and Retry
- * here instead of running a copy on PATH (D088). The programs themselves are downloaded and
- * verified by the system service, not by this page.
+ * here instead of running a copy on PATH (D088). A successful install toasts "Installed <name>.",
+ * as Conductor does (renderApp @10982892); Re-download and Remove have no success toast there. The
+ * programs themselves are downloaded and verified by the system service, not by this page.
  */
 import type { ManagedProgram, Result } from "@conducted/shared";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useServices } from "../../../core/context.tsx";
 import {
 	useActions,
 	useAgentPrograms,
@@ -30,7 +34,7 @@ import {
 } from "../../../core/hooks.ts";
 import type { AgentProgramView } from "../../../core/model.ts";
 import { getSettingDef } from "../../../core/registries/settings.ts";
-import { PROGRAM_DISPLAY_NAMES } from "../../../core/services/system.ts";
+import { PROGRAM_DISPLAY_NAMES } from "../../../core/system.ts";
 import { AlertDialog, AlertDialogContent } from "../../../ui/AlertDialog.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { Input } from "../../../ui/Input.tsx";
@@ -46,6 +50,8 @@ const ROOT_PATH_KEY = "conductor_root_path";
 export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
 	const load = useSettingsLoad();
 	const actions = useActions();
+	const services = useServices().services;
+	const navigate = useNavigate();
 	const saves = useSettingSaves();
 	const rootPath = useSetting<string>(ROOT_PATH_KEY);
 	const [pendingRoot, setPendingRoot] = useState<string | null>(null);
@@ -65,7 +71,14 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 		setPendingRoot(null);
 		if (next === null) return;
 		const saved = await saves.save(ROOT_PATH_KEY, next);
-		if (saved) toast("Conducted root path changed successfully");
+		if (!saved) return;
+		// Conductor reloads its chat state, refreshes workspaces and repos, then opens Home
+		// (renderApp @10966029). D037 keeps the existing data, so the reload finds it unchanged.
+		await services.sessions.start();
+		await services.workspace.start();
+		await services.repo.start();
+		void navigate({ to: "/" });
+		toast.success("Conducted root path changed successfully");
 	};
 
 	return (
@@ -158,11 +171,28 @@ function AgentBinaries() {
 	const actions = useActions();
 	const [busy, setBusy] = useState<ManagedProgram | null>(null);
 
-	const run = async (program: ManagedProgram, action: () => Promise<Result<void>>) => {
+	/**
+	 * Runs one program action. An install or re-download that fails says so in Conductor's words
+	 * ("Failed to install <name>: <message>"); Conductor has no remove, so a failed remove shows the
+	 * error's own message.
+	 */
+	const run = async (
+		program: ManagedProgram,
+		action: () => Promise<Result<void>>,
+		messages: { success?: string; installing?: boolean } = {},
+	) => {
 		setBusy(program);
 		const result = await action();
 		setBusy(null);
-		if (!result.ok) toastError("Couldn't update the agent program", result.error);
+		if (!result.ok) {
+			toast.error(
+				messages.installing === true
+					? `Failed to install ${PROGRAM_DISPLAY_NAMES[program]}: ${result.error.message}`
+					: result.error.message,
+			);
+			return;
+		}
+		if (messages.success !== undefined) toast.success(messages.success);
 	};
 
 	return (
@@ -190,11 +220,16 @@ function AgentBinaries() {
 							view={view}
 							busy={busy === view.status.program}
 							onInstall={() =>
-								void run(view.status.program, () => actions.programs.install(view.status.program))
+								void run(view.status.program, () => actions.programs.install(view.status.program), {
+									success: `Installed ${PROGRAM_DISPLAY_NAMES[view.status.program]}.`,
+									installing: true,
+								})
 							}
 							onRedownload={() =>
-								void run(view.status.program, () =>
-									actions.programs.redownload(view.status.program),
+								void run(
+									view.status.program,
+									() => actions.programs.redownload(view.status.program),
+									{ installing: true },
 								)
 							}
 							onRemove={() =>
@@ -218,11 +253,28 @@ function HelperPrograms() {
 	const actions = useActions();
 	const [busy, setBusy] = useState<ManagedProgram | null>(null);
 
-	const run = async (program: ManagedProgram, action: () => Promise<Result<void>>) => {
+	/**
+	 * Runs one program action. An install or re-download that fails says so in Conductor's words
+	 * ("Failed to install <name>: <message>"); Conductor has no remove, so a failed remove shows the
+	 * error's own message.
+	 */
+	const run = async (
+		program: ManagedProgram,
+		action: () => Promise<Result<void>>,
+		messages: { success?: string; installing?: boolean } = {},
+	) => {
 		setBusy(program);
 		const result = await action();
 		setBusy(null);
-		if (!result.ok) toastError("Couldn't update the helper program", result.error);
+		if (!result.ok) {
+			toast.error(
+				messages.installing === true
+					? `Failed to install ${PROGRAM_DISPLAY_NAMES[program]}: ${result.error.message}`
+					: result.error.message,
+			);
+			return;
+		}
+		if (messages.success !== undefined) toast.success(messages.success);
 	};
 
 	return (
@@ -249,11 +301,16 @@ function HelperPrograms() {
 							view={view}
 							busy={busy === view.status.program}
 							onInstall={() =>
-								void run(view.status.program, () => actions.programs.install(view.status.program))
+								void run(view.status.program, () => actions.programs.install(view.status.program), {
+									success: `Installed ${PROGRAM_DISPLAY_NAMES[view.status.program]}.`,
+									installing: true,
+								})
 							}
 							onRedownload={() =>
-								void run(view.status.program, () =>
-									actions.programs.redownload(view.status.program),
+								void run(
+									view.status.program,
+									() => actions.programs.redownload(view.status.program),
+									{ installing: true },
 								)
 							}
 							onRemove={() =>

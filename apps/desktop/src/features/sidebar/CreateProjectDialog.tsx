@@ -30,7 +30,7 @@ import {
 	PROJECT_TEMPLATES,
 	type ProjectTemplate,
 	projectFolderName,
-} from "../../core/services/project-templates.ts";
+} from "../../core/project-templates.ts";
 import { Badge } from "../../ui/Badge.tsx";
 import { Button, type ButtonProps } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";

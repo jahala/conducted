@@ -56,6 +56,9 @@ export const SETTINGS_SQL = {
 	list: "SELECT key, value, updated_at FROM settings ORDER BY key",
 	upsert: `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, $3)
 		ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+	/** Writes a key only when it has no value yet (APP-17's import never replaces a setting). */
+	insertIfAbsent: `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, $3)
+		ON CONFLICT (key) DO NOTHING`,
 	delete: "DELETE FROM settings WHERE key = $1",
 	deleteByPrefix: "DELETE FROM settings WHERE substr(key, 1, length($1)) = $1",
 } as const;

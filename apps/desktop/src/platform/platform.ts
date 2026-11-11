@@ -58,6 +58,13 @@ export const PLATFORM_ERROR_CODES = [
 	"cloud_response_too_large",
 	"cloud_token_invalid",
 	"cloud_token_unreadable",
+	"conductor_import_bad_copy",
+	"conductor_import_busy",
+	"conductor_import_copy_failed",
+	"conductor_import_missing",
+	"conductor_import_read_failed",
+	"conductor_import_secret_exists",
+	"conductor_import_secret_missing",
 	"cloud_uninstall_failed",
 	"cloud_unscripted",
 	"cloud_url_not_allowed",
@@ -240,6 +247,8 @@ export const PLATFORM_ERROR_CODES = [
 	"updater_state_read",
 	"updater_state_unreadable",
 	"updater_state_write",
+	"visualization_id_failed",
+	"visualization_too_large",
 	"window_focus_failed",
 	"window_main_thread_failed",
 	"window_missing",
@@ -925,6 +934,117 @@ export interface Http {
 	}): HttpDownload;
 }
 
+// ---------------------------------------------------------------- import from Conductor (APP-17)
+
+/**
+ * The tables `ConductorImport.read` returns whole, and the ones it only counts. The Rust shell keeps
+ * the same two lists (`conductor_import.rs`), and the Tauri contract test compares them.
+ */
+export const CONDUCTOR_READ_TABLES = [
+	"repos",
+	"workspaces",
+	"sessions",
+	"settings",
+	"env_vars",
+	"navigation_sections",
+	"navigation_section_memberships",
+	"favorite_models",
+	"diff_comments",
+] as const;
+export const CONDUCTOR_COUNTED_TABLES = [
+	"session_events",
+	"session_messages",
+	"terminal_sessions",
+	"port_forwards",
+	"attachments",
+	"session_messages_outbox",
+	"session_assets_outbox",
+	"identity_associations",
+] as const;
+
+/** The folder under the app data folder that holds the import's copies. */
+export const CONDUCTOR_COPY_FOLDER = "conductor-import";
+
+/** A copy of Conductor's database in the import's own folder. */
+export interface ConductorCopy {
+	copyPath: string;
+	bytes: number;
+}
+
+/**
+ * The tables the import maps, read from a copy, as rows keyed by column name, and the row counts
+ * of the tables it leaves behind. A table Conductor's schema does not have is `null`. `env_vars`
+ * rows carry `has_value` in place of their value, which never leaves the Rust shell.
+ */
+export interface ConductorSnapshot {
+	tables: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[] | null>>;
+	counts: Readonly<Record<string, number | null>>;
+}
+
+/** One environment variable value to move from the copy into the app's Keychain service. */
+export interface ConductorSecretMove {
+	/** Conductor's `env_vars` key, scope and context, which pick its row. */
+	name: string;
+	scope: string;
+	context: string;
+	keychainKey: string;
+}
+
+export interface ConductorImport {
+	/**
+	 * The size in bytes of Conductor's database at `sourcePath`, or null when there is none. Only a
+	 * stat: the file is not opened.
+	 */
+	find(sourcePath: string): Promise<Result<number | null>>;
+	/**
+	 * Copies Conductor's database at `sourcePath` into the import's folder. Conductor's files are
+	 * read as bytes and never opened by SQLite. Missing: `conductor_import_missing`; written to
+	 * during every try: `conductor_import_busy`.
+	 */
+	copy(sourcePath: string): Promise<Result<ConductorCopy>>;
+	/** Reads a copy this import made. Any other path: `conductor_import_bad_copy`. */
+	read(copyPath: string): Promise<Result<ConductorSnapshot>>;
+	/**
+	 * Moves each value from the copy into the Keychain, all or nothing, and returns the keys it
+	 * wrote. A key the Keychain already holds is `conductor_import_secret_exists`.
+	 */
+	moveSecrets(copyPath: string, moves: readonly ConductorSecretMove[]): Promise<Result<string[]>>;
+	/** Removes every copy in the import's folder and returns how many files went. */
+	discardCopies(): Promise<Result<number>>;
+}
+
+// ---------------------------------------------------------------- Codex visualizations (CHAT-22)
+
+/**
+ * The most pages and bytes the Rust shell keeps for visualization frames (`visualization.rs`
+ * `MAX_PAGES` and `MAX_STORE_BYTES`; the Tauri contract test compares them). A newer page pushes
+ * the oldest out.
+ */
+export const VISUALIZATION_MAX_PAGES = 64;
+export const VISUALIZATION_MAX_STORE_BYTES = 128 * 1024 * 1024;
+
+/** One page the Rust shell serves, and the address its frame loads. */
+export interface VisualizationPage {
+	id: string;
+	/** `visualization://localhost/<id>`. */
+	url: string;
+}
+
+/**
+ * visualization.rs: each Codex visualization is served from its own origin, with a policy that
+ * lets its inline scripts run. The app's own policy stays strict, which a `srcdoc` frame would
+ * inherit (issue #466).
+ */
+export interface Visualizations {
+	/**
+	 * Keeps `document` in the Rust shell under a new random id and answers its address. A
+	 * document over `VISUALIZATION_MAX_STORE_BYTES` UTF-8 bytes is `visualization_too_large`.
+	 */
+	serve(document: string): Promise<Result<VisualizationPage>>;
+	/** Drops the page once its frame is gone. An id that is already gone is Ok. */
+	release(id: string): Promise<Result<void>>;
+}
+
 // ---------------------------------------------------------------- the whole
 
 export interface Platform {
@@ -950,4 +1070,6 @@ export interface Platform {
 	http: Http;
 	cloud: Cloud;
 	portForward: PortForwarding;
+	conductorImport: ConductorImport;
+	visualizations: Visualizations;
 }

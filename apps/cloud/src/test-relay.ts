@@ -41,7 +41,9 @@ export default {
 		const routed = routeRequest(request, env.PAIRING_TOKEN);
 		if ("refusal" in routed) return routed.refusal;
 		if ("pair" in routed) return pairAnswer();
-		if ("settings" in routed) return new Response("Not found", { status: 404 });
+		if ("settings" in routed || "readiness" in routed) {
+			return new Response("Not found", { status: 404 });
+		}
 		return env.WORKSPACE.getByName(routed.route.name).fetch(request);
 	},
 } satisfies ExportedHandler<TestEnv>;

@@ -1782,12 +1782,9 @@
 		"by": "hand"
 	},
 	"text:R8685730": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Stop waiting\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R8717420": {
@@ -3462,9 +3459,9 @@
 	},
 	"text:R10377244": {
 		"status": "decided",
-		"decision": "D004",
-		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
-		"by": "rule:team-wording"
+		"decision": "D127",
+		"note": "Built by CLOUD-19: the cloud entry's mark in the organisation switcher (state sidebar-organization-switcher).",
+		"by": "hand"
 	},
 	"text:R10377924": {
 		"status": "decided",
@@ -3486,9 +3483,9 @@
 	},
 	"text:R10385019": {
 		"status": "decided",
-		"decision": "D004",
-		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
-		"by": "rule:team-wording"
+		"decision": "D127",
+		"note": "Built by CLOUD-19: the switcher's line while data privacy mode is on.",
+		"by": "hand"
 	},
 	"text:R10385358": {
 		"status": "decided",
@@ -4119,30 +4116,21 @@
 		"by": "seed"
 	},
 	"text:R10725742": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"OAuth\" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10725877": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Bearer token\" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10725931": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Custom headers\" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10725984": {
@@ -4154,120 +4142,81 @@
 		"by": "seed"
 	},
 	"text:R10726669": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Advanced client identity\" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10726955": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"OAuth callback URL\" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10734876": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"setup guide\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10735245": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"MCP server URL\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10735883": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Client ID\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10736417": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Client secret\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10737019": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Finish connecting in your browser.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10738808": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Connect Datadog\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10738847": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Before connecting, allow Conductor’s OAuth redirect URL in Datadog.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10739035": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Datadog site\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10739612": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Organization Settings → Preferences → MCP OAuth Redirect URLs\" (region, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10739707": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Add this URL:\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10764556": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"No recommended MCPs match your search\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10764770": {
@@ -4285,39 +4234,27 @@
 		"by": "seed"
 	},
 	"text:R10767373": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Import from local\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10769991": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Select MCP servers\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10770341": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Scanning local MCP servers…\" (region, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10770489": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Couldn't read local MCP configs\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10771891": {
@@ -4338,12 +4275,9 @@
 		"by": "hand"
 	},
 	"text:R10778993": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "MCP servers page has an 'Installed' and a 'Recommended' tab",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The organization MCP page configures MCP servers for cloud workspaces. It is a team feature, which stays out (D004, kept by D018).",
 		"by": "hand"
 	},
 	"text:R10784516": {
@@ -5633,14 +5567,14 @@
 	},
 	"text:R11502876": {
 		"status": "decided",
-		"decision": "D025",
-		"note": "Enterprise data privacy is an organisation policy managed by Conductor's service, which D025 leaves out.",
+		"decision": "D127",
+		"note": "Built by CLOUD-19: shown on the new-workspace page in cloud mode while data privacy mode is on.",
 		"by": "hand"
 	},
 	"text:R11502916": {
 		"status": "decided",
-		"decision": "D025",
-		"note": "Enterprise data privacy is an organisation policy managed by Conductor's service, which D025 leaves out.",
+		"decision": "D127",
+		"note": "Built by CLOUD-19: the new-workspace page's launch reason and the Cloud disabled tooltip while data privacy mode is on.",
 		"by": "hand"
 	},
 	"text:R11503507": {

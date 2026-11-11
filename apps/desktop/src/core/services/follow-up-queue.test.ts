@@ -1,8 +1,9 @@
 import type { LiveState } from "@conducted/protocol";
 import type { MessageId, SessionId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
+import { agentCanSteer } from "../follow-up-queue.ts";
 import type { QueuedMessage } from "../model.ts";
-import { agentCanSteer, canReleaseQueue, chooseDelivery, nextToSend } from "./follow-up-queue.ts";
+import { canReleaseQueue, chooseDelivery, nextToSend } from "./follow-up-queue.ts";
 
 const row = (
 	over: Partial<Omit<QueuedMessage, "id">> & { id: string; position: number },

@@ -21,7 +21,7 @@ import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useActions, useBacklogWorkspaces, useRepos, useSetting } from "../../core/hooks.ts";
 import type { BacklogWorkspace, Repo } from "../../core/model.ts";
-import { WorkspaceService } from "../../core/services/workspace.ts";
+import { NO_READY_REPOSITORY_MESSAGE } from "../../core/workspace-helpers.ts";
 import { Button } from "../../ui/Button.tsx";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
@@ -170,9 +170,7 @@ export function BacklogScreen(_props: Record<string, never>) {
 											{repo === undefined ? unstarted.text : `${repo.name} · ${unstarted.text}`}
 										</span>
 										{missing ? (
-											<span className="text-xs text-warning">
-												{WorkspaceService.NO_READY_REPOSITORY_MESSAGE}
-											</span>
+											<span className="text-xs text-warning">{NO_READY_REPOSITORY_MESSAGE}</span>
 										) : null}
 									</button>
 									<Select

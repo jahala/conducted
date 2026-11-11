@@ -1,7 +1,7 @@
 /**
  * @feature REV-02 Diff toolbar
- * Tests that each control changes only its own preference. The toolbar became Conductor's icon
- * toggles plus a "View options" menu, so "Entire file" moved from a button into that menu.
+ * Tests that each control changes only its own preference. The toolbar is Conductor's icon toggles
+ * plus a "View options" menu; "Entire file" is the file header's read-only view, not a diff option.
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -12,7 +12,6 @@ afterEach(cleanup);
 
 const preferences: DiffPreferences = {
 	layout: "unified",
-	entireFile: false,
 	hideWhitespaceChanges: false,
 	wrapLines: false,
 	ligatures: true,
@@ -82,12 +81,13 @@ describe("REV-02 DiffToolbar", () => {
 		);
 	});
 
-	it("toggles the entire file from View options", async () => {
-		const onChange = vi.fn();
-		render(<DiffViewOptions preferences={preferences} onChange={onChange} disabled={false} />);
+	it("offers only the choices that change the diff itself", async () => {
+		render(<DiffViewOptions preferences={preferences} onChange={() => {}} disabled={false} />);
 		fireEvent.click(screen.getByRole("button", { name: "View options" }));
-		fireEvent.click(await screen.findByRole("checkbox", { name: "Entire file" }));
-		expect(onChange).toHaveBeenCalledWith({ ...preferences, entireFile: true });
+		expect(await screen.findByRole("checkbox", { name: "Hide whitespace changes" })).toBeTruthy();
+		expect(await screen.findByRole("checkbox", { name: "Wrap lines" })).toBeTruthy();
+		// "Entire file" is the header's own read-only view (FileTabHeader), not a diff option.
+		expect(screen.queryByRole("checkbox", { name: "Entire file" })).toBeNull();
 	});
 
 	it("disables every control for a binary file", () => {

@@ -3701,3 +3701,7 @@ RUN-06	rule	Conductor has no Copilot agent runner, ACP adapter, program download
 RUN-06	rule	The Copilot preset runs `copilot --allow-all` in a new terminal tab from PATH, with the same command whether tool approvals are required or not (main @437927)	other-runners 9	missing
 RUN-06	rule	Conductor has no Gemini agent runner, ACP adapter, program download, sign-in or Agents page row; Gemini appears only as a new-tab terminal preset (bundle @10677047)	other-runners 9; inventory label #404	missing
 RUN-06	rule	The Gemini preset runs `gemini -y` in a new terminal tab from PATH, with the same command whether tool approvals are required or not (main @437927)	other-runners 9	missing
+APP-17	rule	The import copies Conductor's database as bytes and opens only the copy; nothing of Conductor's is written, and Conducted is written all or nothing.	docs/plans/migrate-from-conductor	covered
+APP-18	rule	Chat history comes over once the spike on a real copy meets D100's pass mark: at least 99% of sampled events mapped, and every chat's visible messages matching.	docs/plans/migrate-from-conductor	missing
+APP-17	rule	Environment variable values kept in Conductor's own Keychain item come over once that item's service name is verified.	services-map 4.2.8	missing
+APP-17	rule	OpenCode and Pi chats come over once Conductor's acp_config is read.	services-map 2.2	missing

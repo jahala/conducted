@@ -40,6 +40,9 @@ import type { FileSyncView } from "./cloud/file-sync.ts";
 import type { LocalMcpScan } from "./cloud/mcp-import.ts";
 import type { CloudGitIdentity, CloudMcpServer, CloudSettings } from "./cloud/settings.ts";
 import type { CloudWorkspaceResources } from "./cloud/state.ts";
+import type { ImportPreview } from "./conductor-import/plan.ts";
+import type { ConductorImportState, ImportOutcome } from "./conductor-import/service.ts";
+import type { FileSyncView } from "./file-sync-view.ts";
 import type {
 	AgentConfigFile,
 	AgentProgramView,
@@ -84,6 +87,7 @@ import type {
 	Workspace,
 	WorkspaceStatus,
 } from "./model.ts";
+import type { CloudReadiness, Organization } from "./organization.ts";
 
 // ---------------------------------------------------------------- query results
 
@@ -169,6 +173,12 @@ export interface PortForwardEntry {
 export interface DetectedRemotePort {
 	port: number;
 	processName: string | null;
+}
+
+/** The organisation switcher's entries and the active one (CLOUD-19). */
+export interface OrganizationsView {
+	organizations: Organization[];
+	active: Organization;
 }
 
 /** What a cloud workspace's header shows (CLOUD-15). */
@@ -296,6 +306,11 @@ export interface NewWorkspaceInput {
 	attachmentPaths: string[];
 	config: SessionConfig;
 	sectionId: SectionId | null;
+	/**
+	 * The paired Worker to create this workspace in (CLOUD-19), as Conductor's create call takes its
+	 * `hostingServerUrl`. Absent: the workspace is made on this Mac.
+	 */
+	cloudUrl?: string;
 }
 
 // ---------------------------------------------------------------- queries
@@ -411,6 +426,16 @@ export interface Queries {
 	useLinearAccess(): Loadable<LinearAccess>;
 	/** The Worker this Mac is paired with, for the Connections page (CLOUD-07). */
 	useCloudPairing(): Loadable<CloudPairing>;
+	/**
+	 * The organisation switcher's entries, this Mac and the paired Worker, and the active one
+	 * (CLOUD-19). Loading until the pairing has been read.
+	 */
+	useOrganizations(): Loadable<OrganizationsView>;
+	/**
+	 * What the Worker at `url` holds, for the new-workspace page's cloud mode (CLOUD-19). It is read
+	 * when the hook mounts with a URL; null reads nothing.
+	 */
+	useCloudReadiness(url: string | null): Loadable<CloudReadiness>;
 	/** The Mac's personal cloud settings, for the Git and Cloud pages (CLOUD-17). */
 	useCloudSettings(): Loadable<{ settings: CloudSettings; paired: boolean }>;
 	/** A cloud workspace's file-sync state, for the scripts panel (CLOUD-11). */
@@ -421,6 +446,8 @@ export interface Queries {
 	useSystemInfo(): Loadable<SystemInfo>;
 	/** Whether the app has Full Disk Access. */
 	useFullDiskAccess(): Loadable<boolean>;
+	/** The import from Conductor: whether its database is here, the dry run and the outcome (APP-17). */
+	useConductorImport(): ConductorImportState;
 }
 
 // ---------------------------------------------------------------- actions
@@ -455,7 +482,16 @@ export interface Actions {
 		create: Act<[input: NewWorkspaceInput], Workspace>;
 		/** A just-added project's first workspace, with the default chat settings (Conductor's autoCreateWorkspace). */
 		createFirst: Act<[repoId: RepoId], Workspace>;
-		archive: Act<[id: WorkspaceId, options: { deleteBranch: boolean }]>;
+		archive: Act<
+			[
+				id: WorkspaceId,
+				options: {
+					deleteBranch: boolean;
+					discardGitOperationState?: boolean;
+					stopRunningAgents?: boolean;
+				},
+			]
+		>;
 		/** `clearChats` is "Clear & unarchive": the chats are removed before the workspace comes back. */
 		unarchive: Act<
 			[id: WorkspaceId, options: { branchName: string | null; clearChats: boolean }],
@@ -499,7 +535,13 @@ export interface Actions {
 	};
 	sessions: {
 		create: Act<[workspaceId: WorkspaceId, config: SessionConfig], Session>;
-		close: Act<[id: SessionId]>;
+		/**
+		 * Hides a chat, stops its agent and makes the next chat active. Closing the last chat starts
+		 * a new one. Returns the chat that becomes active, so the caller opens its tab.
+		 */
+		close: Act<[id: SessionId], Session>;
+		/** `/clear`: starts a replacement chat, makes it active and hides the old one. */
+		clear: Act<[id: SessionId], Session>;
 		reopen: Act<[id: SessionId]>;
 		rename: Act<[id: SessionId, title: string]>;
 		/** Sends now, queues, or steers, depending on state and the follow-up setting. */
@@ -568,8 +610,6 @@ export interface Actions {
 		 * HEAD), keeping the chats. Null name: a generated one.
 		 */
 		continueOnNewBranch: Act<[workspaceId: WorkspaceId, name: string | null]>;
-		/** Opens the file's diff in the external diff tool chosen in settings. */
-		openInDiffTool: Act<[workspaceId: WorkspaceId, path: string]>;
 		/** The workspace's sparse checkout and the top-level folders it can include. */
 		sparseCheckoutSettings: Act<[workspaceId: WorkspaceId], SparseCheckoutSettings>;
 		/** Includes only these directories in the worktree. An empty list turns sparse checkout off. */
@@ -646,9 +686,17 @@ export interface Actions {
 		/**
 		 * `command` is typed into the new shell when it starts. In a cloud workspace `hostKind`
 		 * picks the sandbox (the default) or the Mac in the local mirror (CLOUD-11).
+		 * `placement` says which strip its tab belongs to; the centre is the default.
 		 */
 		create: Act<
-			[workspaceId: WorkspaceId, options?: { command?: string; hostKind?: "local" | "cloud" }],
+			[
+				workspaceId: WorkspaceId,
+				options?: {
+					command?: string;
+					hostKind?: "local" | "cloud";
+					placement?: "centre" | "panel";
+				},
+			],
 			Terminal
 		>;
 		/** Opens the repository's terminal in its main clone, creating it the first time. */
@@ -699,6 +747,8 @@ export interface Actions {
 	mcp: {
 		/** Asks the agent to check its MCP servers again. */
 		refresh: Act<[sessionId: SessionId]>;
+		/** Drops a chat's cached MCP list, so the next look reads the agent's config again. */
+		forget: Act<[sessionId: SessionId]>;
 	};
 	attachments: {
 		/** Copies files into app storage for a chat and returns where the copies are. */
@@ -818,6 +868,16 @@ export interface Actions {
 		/** The Worker's shareable preview URL for one remote port. */
 		previewUrl: Act<[workspaceId: WorkspaceId, remotePort: number], string>;
 	};
+	conductorImport: {
+		/** Looks for Conductor's database again. Null when there is none. */
+		find: Act<[], { bytes: number } | null>;
+		/** The dry run: copies Conductor's database and lists what would come over. */
+		preview: Act<[], ImportPreview>;
+		/** Imports what the last dry run showed, all or nothing. */
+		run: Act<[], ImportOutcome>;
+		/** Drops the dry run and its copy. */
+		cancel: Act;
+	};
 	app: {
 		runCommand: Act<[commandId: string]>;
 		/** Quits the app the way the menu's Quit does: asks first while agents are working. */
@@ -843,3 +903,16 @@ export interface Actions {
 		runXcodeLicenseFix: Act;
 	};
 }
+
+/** The import from Conductor's view types, for its screens (APP-17). */
+export type {
+	ImportKind,
+	ImportPreview,
+	KindCount,
+	LeftOut,
+	NotBrought,
+	PartNote,
+	ScriptMention,
+	ScriptRename,
+} from "./conductor-import/plan.ts";
+export type { ConductorImportState, ImportOutcome } from "./conductor-import/service.ts";

@@ -2,7 +2,10 @@ name: Catalogue shots
 
 # Draws every state of the states catalogue (docs/engineering.md, "States catalogue") in Chromium
 # and uploads the PNGs, so a screen change can be read beside Conductor's captures without a
-# browser run on the owner's Mac. Runs on pull requests that touch the desktop's screens.
+# browser run on the owner's Mac. Runs on pull requests that touch the desktop's screens. The same
+# job runs the browser check of the Codex visualization frame under the app's production policy
+# (scripts/visualization/frame-policy.browser.ts, issue #466) and the Loadout's pointer drag
+# (scripts/catalogue/loadout-drag.browser.ts, issue #481).
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -10,6 +13,9 @@ on:
       - "apps/desktop/src/**"
       - "scripts/catalogue/**"
       - "apps/desktop/vite.catalogue.config.ts"
+      - "apps/desktop/src-tauri/tauri.conf.json"
+      - "apps/desktop/src-tauri/src/visualization.rs"
+      - "scripts/visualization/**"
 
 permissions:
   contents: read
@@ -22,7 +28,9 @@ jobs:
   shots:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # A full run takes about 14 minutes (2026-11-08), so 15 cut normal runs off. The limit catches
+    # a hang, not slowness.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
@@ -42,3 +50,9 @@ jobs:
           name: catalogue-shots
           path: .context/shots/ours/
           retention-days: 14
+      - name: The visualization frame runs its scripts under the production policy
+        if: ${{ !cancelled() }}
+        run: bun scripts/visualization/frame-policy.browser.ts
+      - name: The Loadout takes a model from a real pointer drag
+        if: ${{ !cancelled() }}
+        run: bun scripts/catalogue/loadout-drag.browser.ts

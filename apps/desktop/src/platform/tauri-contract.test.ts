@@ -8,7 +8,14 @@ import { vitestContractHarness } from "../test/contract-harness.ts";
 import { memoryPlatformForShape, platformMethods } from "../test/memory-platform.ts";
 import { PLATFORM_CONTRACT_CASES, runPlatformContract } from "../test/platform-contract.ts";
 import { createNodeTauriBindings } from "../test/tauri-node-bindings.ts";
-import { PLATFORM_ERROR_CODES } from "./platform.ts";
+import {
+	CONDUCTOR_COPY_FOLDER,
+	CONDUCTOR_COUNTED_TABLES,
+	CONDUCTOR_READ_TABLES,
+	PLATFORM_ERROR_CODES,
+	VISUALIZATION_MAX_PAGES,
+	VISUALIZATION_MAX_STORE_BYTES,
+} from "./platform.ts";
 import { createTauriPlatform } from "./tauri.ts";
 
 const NEEDS_RUST = "Rust does this (the Node bindings cannot do it honestly)";
@@ -40,6 +47,7 @@ const TAURI_SKIPS: Readonly<Record<string, string>> = {
 	"cloud.pairing": `${NEEDS_RUST}: writes the real Keychain and needs a deployed Worker (CLOUD-07's live run owns it)`,
 	"cloud.relay": `${NEEDS_RUST}: needs a deployed Worker (CLOUD-03's Worker tests own the relay)`,
 	"portForward.start-stop": `${NEEDS_RUST}: binds a loopback listener and reads the Keychain (port_forward.rs tests own it)`,
+	"conductorImport.move-secrets": `${NEEDS_RUST}: writes the macOS Keychain (conductor_import.rs tests own it)`,
 };
 
 runPlatformContract(
@@ -230,5 +238,49 @@ describe("PLAT-05 a missing path answers fs_not_found on both sides", () => {
 		expect(files).toContain('code: "fs_not_found"');
 		const bridge = readFileSync(join(PLATFORM_DIR, "tauri.ts"), "utf8");
 		expect(bridge).toContain('platformError("fs_not_found"');
+	});
+});
+
+describe("CHAT-22 the visualization store has the same limits on both sides", () => {
+	/** The value of one Rust `usize` constant, with `*` products of integer literals. */
+	const rustSize = (source: string, name: string): number | null => {
+		const found = new RegExp(`pub const ${name}: usize = ([0-9_ *]+);`).exec(source);
+		if (found?.[1] === undefined) return null;
+		return found[1]
+			.split("*")
+			.map((factor) => Number(factor.trim().replaceAll("_", "")))
+			.reduce((product, factor) => product * factor, 1);
+	};
+	const rust = readFileSync(join(RUST_SRC, "visualization.rs"), "utf8");
+
+	it("keeps as many pages and bytes as visualization.rs does", () => {
+		expect(rustSize(rust, "MAX_PAGES")).toBe(VISUALIZATION_MAX_PAGES);
+		expect(rustSize(rust, "MAX_STORE_BYTES")).toBe(VISUALIZATION_MAX_STORE_BYTES);
+	});
+
+	it("flags a limit that drifts", () => {
+		expect(rustSize("pub const MAX_PAGES: usize = 2 * 1_000;", "MAX_PAGES")).toBe(2000);
+		expect(rustSize("const OTHER: usize = 3;", "MAX_PAGES")).toBeNull();
+	});
+});
+
+describe("APP-17 the import reads the same tables on both sides", () => {
+	/** The string items of one Rust `&[&str]` constant. */
+	const rustList = (source: string, name: string): string[] => {
+		const found = new RegExp(`pub const ${name}: &\\[&str\\] = &\\[([^\\]]*)\\]`).exec(source);
+		return [...(found?.[1] ?? "").matchAll(/"([a-z_]+)"/g)].map((match) => match[1] ?? "");
+	};
+	const rust = readFileSync(join(RUST_SRC, "conductor_import.rs"), "utf8");
+
+	it("lists the read and the counted tables as conductor_import.rs does", () => {
+		expect(rustList(rust, "READ_TABLES")).toEqual([...CONDUCTOR_READ_TABLES]);
+		expect(rustList(rust, "COUNTED_TABLES")).toEqual([...CONDUCTOR_COUNTED_TABLES]);
+		expect(rust).toContain(`pub const COPY_FOLDER: &str = "${CONDUCTOR_COPY_FOLDER}";`);
+	});
+
+	it("flags a list that drifts", () => {
+		expect(
+			rustList('pub const READ_TABLES: &[&str] = &["repos", "other"];', "READ_TABLES"),
+		).toEqual(["repos", "other"]);
 	});
 });

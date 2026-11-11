@@ -10,7 +10,7 @@ import type { WorkspaceId } from "@conducted/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
 import { answerSidecar, deliveredAsAsked } from "../../test/sidecar-answers.ts";
-import { normaliseLinkedPaths } from "./workspace.ts";
+import { normaliseLinkedPaths } from "../workspace-helpers.ts";
 
 const CONFIG: SessionConfig = {
 	agent: "claude",

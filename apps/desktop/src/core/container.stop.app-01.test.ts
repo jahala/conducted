@@ -82,6 +82,7 @@ function build(database: Database) {
 		windowFocused: () => true,
 		// This test starts no background work, so nothing is reported.
 		reportFailure: () => undefined,
+		showToast: () => undefined,
 		openLink: () => {},
 	});
 	return { memory, container };

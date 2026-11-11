@@ -90,6 +90,7 @@ export function createActions(
 		sessions: {
 			create: (workspaceId, config) => services.sessions.create(workspaceId, config),
 			close: (id) => services.sessions.close(id),
+			clear: (id) => services.sessions.clear(id),
 			reopen: (id) => services.sessions.reopen(id),
 			rename: (id, title) => services.sessions.rename(id, title),
 			send: (id, text, attachmentPaths, delivery) =>
@@ -142,7 +143,6 @@ export function createActions(
 			switchBranch: (workspaceId, branch) => services.git.switchBranch(workspaceId, branch),
 			continueOnNewBranch: (workspaceId, name) =>
 				services.git.continueOnNewBranch(workspaceId, name),
-			openInDiffTool: (workspaceId, path) => services.git.openInDiffTool(workspaceId, path),
 			sparseCheckoutSettings: (workspaceId) => services.git.sparseCheckoutSettings(workspaceId),
 			setSparseCheckoutDirectories: (workspaceId, directories) =>
 				services.git.setSparseCheckoutDirectories(workspaceId, directories),
@@ -219,6 +219,7 @@ export function createActions(
 		},
 		mcp: {
 			refresh: (sessionId) => services.mcp.refreshSession(sessionId),
+			forget: (sessionId) => services.mcp.forgetSession(sessionId),
 		},
 		attachments: {
 			add: (sessionId, paths) => services.composer.addAttachments(sessionId, paths),
@@ -291,6 +292,12 @@ export function createActions(
 			refreshDiscovery: (workspaceId) => services.portForwards.refreshDiscovery(workspaceId),
 			previewUrl: (workspaceId, remotePort) =>
 				services.portForwards.previewUrl(workspaceId, remotePort),
+		},
+		conductorImport: {
+			find: () => services.conductorImport.find(),
+			preview: () => services.conductorImport.preview(),
+			run: () => services.conductorImport.run(),
+			cancel: () => services.conductorImport.cancel(),
 		},
 		app: {
 			runCommand: (commandId) => services.commands.run(commandId),

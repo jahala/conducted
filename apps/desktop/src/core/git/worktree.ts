@@ -331,6 +331,19 @@ export async function prepareWorktree(
 		}
 	}
 
+	const context = await addContextFolder(runner, input);
+	if (!context.ok) return context;
+	return ok({ warning });
+}
+
+/**
+ * Makes the checkout's `.context` folder and keeps it out of git through the repository's
+ * `info/exclude` (services-map 3.1). A worktree and a cloud workspace's clone both use it.
+ */
+export async function addContextFolder(
+	runner: GitRunner,
+	input: Pick<PrepareWorktreeInput, "worktreePath" | "fs">,
+): Promise<Result<void>> {
 	const folder = contextDir(input.worktreePath);
 	const made = await input.fs.mkdirp(folder);
 	if (!made.ok) return made;
@@ -353,7 +366,7 @@ export async function prepareWorktree(
 		const written = await input.fs.writeTextAtomic(excludePath, next);
 		if (!written.ok) return written;
 	}
-	return ok({ warning });
+	return ok(undefined);
 }
 
 /** Shown when a checkpoint save finds an unfinished merge, rebase, cherry-pick or revert. */

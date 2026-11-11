@@ -62,7 +62,6 @@ afterEach(() => {
 
 const preferences = {
 	layout: "unified" as const,
-	entireFile: false,
 	hideWhitespaceChanges: false,
 	wrapLines: true,
 	ligatures: true,

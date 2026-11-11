@@ -6,6 +6,10 @@
  * - When the command ends, the folder must be empty apart from `owner.pid`. Anything else is listed
  *   and the run fails. The folder is then removed either way.
  * - Folders left by a run that was killed (its recorded process is gone) are removed first.
+ * - Git's background maintenance is off for every git process in the run. A commit can start a
+ *   detached `git maintenance run --auto` that writes into a test's repository after the test
+ *   removed it, which leaves a folder behind (issue #458). The settings go through git's own
+ *   environment config, after any the caller already set.
  *
  * Usage: bun scripts/with-run-dir.ts <command> [args...]
  */
@@ -49,6 +53,28 @@ export function removeDeadRuns(dir: string): number {
 	return removed;
 }
 
+/** The git settings that stop git starting background work a test cannot wait for. */
+const QUIET_GIT: readonly (readonly [string, string])[] = [
+	["maintenance.auto", "false"],
+	["gc.auto", "0"],
+	["gc.autoDetach", "false"],
+];
+
+/** `env` with QUIET_GIT appended to git's environment config, keeping the caller's entries. */
+export function withQuietGit(
+	env: Record<string, string | undefined>,
+): Record<string, string | undefined> {
+	const start = Number(env.GIT_CONFIG_COUNT ?? "0");
+	const first = Number.isInteger(start) && start >= 0 ? start : 0;
+	const next: Record<string, string | undefined> = { ...env };
+	QUIET_GIT.forEach(([key, value], index) => {
+		next[`GIT_CONFIG_KEY_${first + index}`] = key;
+		next[`GIT_CONFIG_VALUE_${first + index}`] = value;
+	});
+	next.GIT_CONFIG_COUNT = String(first + QUIET_GIT.length);
+	return next;
+}
+
 /** Lists what a run left in its folder, ignoring the owner file. */
 export function leftovers(runDir: string): string[] {
 	return readdirSync(runDir).filter((name) => name !== OWNER);
@@ -68,7 +94,7 @@ if (import.meta.main) {
 	const runDir = join(base, `${Date.now()}-${process.pid}`);
 	mkdirSync(runDir);
 	writeFileSync(join(runDir, OWNER), String(process.pid));
-	const env = { ...process.env, TMPDIR: `${runDir}/`, TMP: runDir, TEMP: runDir };
+	const env = withQuietGit({ ...process.env, TMPDIR: `${runDir}/`, TMP: runDir, TEMP: runDir });
 
 	const child = Bun.spawnSync(command, { env, stdio: ["inherit", "inherit", "inherit"] });
 	const left = leftovers(runDir);

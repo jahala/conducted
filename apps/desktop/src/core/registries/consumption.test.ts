@@ -26,14 +26,17 @@ const statusIn = (table: string, feature: string): string | undefined => {
 /** Backlog status per feature id, read from the real backlog. */
 const statusOf = (feature: string): string | undefined => statusIn(backlog, feature);
 
-/** Source text of every file that could use a key or an id: no tests, no registries. */
+/**
+ * Source text of every file that could use a key or an id: no tests, no registries, and not the
+ * import from Conductor, whose key map names settings without reading them (APP-17).
+ */
 function consumerSource(): string {
 	const parts: string[] = [];
 	const walk = (dir: string): void => {
 		for (const name of readdirSync(dir)) {
 			const path = join(dir, name);
 			if (statSync(path).isDirectory()) {
-				if (name !== "registries" && name !== "test") walk(path);
+				if (name !== "registries" && name !== "test" && name !== "conductor-import") walk(path);
 			} else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) {
 				parts.push(readFileSync(path, "utf8"));
 			}
@@ -56,18 +59,7 @@ const KNOWN_UNUSED_SETTINGS: readonly string[] = [
 ];
 
 /** Commands of a done feature that no handler or caller names yet. */
-const KNOWN_UNUSED_COMMANDS: readonly string[] = [
-	"terminal.clear",
-	"terminal.close",
-	"terminal.deleteLine",
-	"terminal.find",
-	"terminal.lineEnd",
-	"terminal.lineStart",
-	"terminal.new",
-	"terminal.newline",
-	"terminal.wordBack",
-	"terminal.wordForward",
-];
+const KNOWN_UNUSED_COMMANDS: readonly string[] = [];
 
 describe("registry entries are used", () => {
 	it("reads the status of a feature from the backlog", () => {

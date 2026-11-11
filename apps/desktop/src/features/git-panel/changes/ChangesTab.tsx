@@ -44,6 +44,8 @@ import { type ReactNode, useMemo, useState } from "react";
 import { useCommandHandler } from "../../../app/command-dispatcher.ts";
 import type { DiffScope } from "../../../core/api.ts";
 import { useServices } from "../../../core/context.tsx";
+import { branchNameWithoutRemote } from "../../../core/git-text.ts";
+import type { GraphiteStack } from "../../../core/graphite.ts";
 import {
 	useActions,
 	useBranchCommits,
@@ -55,9 +57,7 @@ import {
 	useWorkspace,
 	useWorkspaceStatus,
 } from "../../../core/hooks.ts";
-import { branchNameWithoutRemote } from "../../../core/services/git.ts";
-import type { GraphiteStack } from "../../../core/services/graphite.ts";
-import { remoteNameFromConfig } from "../../../core/services/workspace.ts";
+import { remoteNameFromConfig } from "../../../core/workspace-helpers.ts";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
