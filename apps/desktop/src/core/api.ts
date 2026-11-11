@@ -577,8 +577,6 @@ export interface Actions {
 		 * HEAD), keeping the chats. Null name: a generated one.
 		 */
 		continueOnNewBranch: Act<[workspaceId: WorkspaceId, name: string | null]>;
-		/** Opens the file's diff in the external diff tool chosen in settings. */
-		openInDiffTool: Act<[workspaceId: WorkspaceId, path: string]>;
 		/** The workspace's sparse checkout and the top-level folders it can include. */
 		sparseCheckoutSettings: Act<[workspaceId: WorkspaceId], SparseCheckoutSettings>;
 		/** Includes only these directories in the worktree. An empty list turns sparse checkout off. */
