@@ -337,7 +337,14 @@ async function checkSamples(
 		if (!read.ok) return read;
 		const active = rows.activeSessions.find((entry) => entry.workspaceId === workspace.id);
 		const { setupLogPath: _setupLogPath, ...model } = workspace;
-		const expected = { ...model, port: ports[0], activeSessionId: active?.sessionId ?? null };
+		// An imported workspace is on this Mac, so it has no mirror and its Sync files switch is
+		// stored off (migration 0019), as Conductor stores it for one.
+		const expected = {
+			...model,
+			port: ports[0],
+			activeSessionId: active?.sessionId ?? null,
+			remoteFileSyncEnabled: false,
+		};
 		if (stable(read.value) !== stable(expected)) return mismatch("workspace");
 	}
 	const session = rows.sessions[0];

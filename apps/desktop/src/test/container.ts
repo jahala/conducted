@@ -12,8 +12,10 @@
  * when stores load.
  * Test first: a seeded project is visible through the repo service's store and two ids differ.
  */
+
 import { LOCAL_HOST, type SessionEvent } from "@conducted/protocol";
 import type { Clock, MessageId, SessionId, TurnId, WorkspaceId } from "@conducted/shared";
+import { initialSyncEnabled } from "../core/cloud/file-sync.ts";
 import {
 	type Container,
 	type ContainerInputs,
@@ -229,7 +231,10 @@ export async function seedWorkspace(
 		linkedPaths: partial.linkedPaths ?? [],
 		setupLogPath: partial.setupLogPath ?? null,
 		host: partial.host ?? LOCAL_HOST,
-		remoteFileSyncEnabled: partial.remoteFileSyncEnabled ?? false,
+		// As the app's create step: a cloud workspace starts with the Advanced setting (on by
+		// default), one on this Mac with sync off.
+		remoteFileSyncEnabled:
+			partial.remoteFileSyncEnabled ?? initialSyncEnabled(partial.host ?? LOCAL_HOST, true),
 	});
 	must(await container.services.workspace.start());
 	return must(created);
