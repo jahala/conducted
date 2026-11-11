@@ -67,6 +67,7 @@ import type {
 	AttachmentFiles,
 	Clipboard,
 	Cloud,
+	CloudDeployEvent,
 	CloudDeployResult,
 	CloudPairing,
 	CloudRelay,
@@ -443,6 +444,7 @@ export const EVENTS = {
 	programsVerificationErrors: "programs://verification-errors",
 	cloudLine: "cloud://line", // CLOUD-03
 	cloudClosed: "cloud://closed", // CLOUD-03
+	cloudDeployStep: "cloud://deploy", // CLOUD-08
 	portForwardEvent: "port-forward-event", // CLOUD-10
 } as const;
 
@@ -1391,6 +1393,8 @@ export function createTauriCloud(bindings: TauriBindings): Cloud {
 		// Tauri's deserializer needs for the `Option` field.
 		deploy: (input) =>
 			invokeResult<CloudDeployResult>(bindings, COMMANDS.cloudDeploy, { input: input ?? {} }),
+		onDeployEvent: (listener) =>
+			onEvent<CloudDeployEvent>(bindings, EVENTS.cloudDeployStep, listener),
 		uninstall: (input) =>
 			invokeResult<void>(bindings, COMMANDS.cloudUninstall, { input: input ?? {} }),
 		request: (request: CloudRequest) =>

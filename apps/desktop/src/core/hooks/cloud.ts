@@ -4,14 +4,15 @@
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
  * @feature CLOUD-17 Cloud settings page
- * Owns: the query hooks for the cloud connection: the pairing the Connections page reads, a
- * cloud workspace's forwarding view, the status, resources and agent cost its header shows, and
- * the Mac's personal cloud settings (Git and Cloud pages).
+ * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
+ * Owns: the query hooks for the cloud connection: the pairing the Cloud page reads, the deploy's
+ * state, a cloud workspace's forwarding view, the status, resources and agent cost its header
+ * shows, and the Mac's personal cloud settings (Git and Cloud pages).
  * Behaviour: core/hooks.ts states the contract; the pairing, forwarding, workspace and settings
  * services' stores hold the answers.
  * Must handle: a state not read yet (loading), and a Keychain or Worker read that failed (an error
  * state with its message).
- * Test first: ConnectionsPage.test.tsx pairs with a Worker URL and a token, then unpairs.
+ * Test first: CloudPage.test.tsx pairs with a Worker URL and a token, then unpairs.
  */
 import { useEffect } from "react";
 import { useStore } from "zustand";
@@ -33,6 +34,11 @@ export const useFileSyncStatus: Queries["useFileSyncStatus"] = (workspaceId) => 
 		void service.start(workspaceId);
 	}, [service, workspaceId, host?.kind]);
 	return service.viewOf(workspaceId, host ?? { kind: "local" });
+};
+
+export const useCloudDeploy: Queries["useCloudDeploy"] = () => {
+	const service = useServices().services.cloudDeploy;
+	return useStore(service.store, (current) => current);
 };
 
 export const useCloudPairing: Queries["useCloudPairing"] = () => {

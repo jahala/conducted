@@ -15,11 +15,14 @@
  * Must handle: a Worker URL or token the Worker refused (its message, earlier pairing left alone);
  * an unpaired Mac shows Deploy and the pair form, and a paired one shows the Worker and Unpair; a
  * deploy or uninstall that fails shows the shell's own message and changes no pairing.
- * Children: uses useCloudPairing and the cloud actions.
+ * CLOUD-08 issue #490: the deploy's state is the deploy service's, read through useCloudDeploy, so
+ * arriving while a deploy runs shows its spinner and step, and arriving after it shows the URL or
+ * the shell's failure. Remove deployment is disabled while a deploy runs.
+ * Children: uses useCloudPairing, useCloudDeploy and the cloud actions.
  * Test first: a Worker URL the Worker refused leaves the Mac unpaired and shows the Worker's message.
  */
 import { useState } from "react";
-import { useActions, useCloudPairing } from "../../../core/hooks.ts";
+import { useActions, useCloudDeploy, useCloudPairing } from "../../../core/hooks.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Input, Label } from "../../../ui/Input.tsx";
 import { toast } from "../../../ui/Toast.tsx";
@@ -27,13 +30,13 @@ import { toast } from "../../../ui/Toast.tsx";
 export function CloudWorkerBlock() {
 	const actions = useActions();
 	const pairing = useCloudPairing();
+	const deploy = useCloudDeploy();
+	const running = deploy.state === "running";
 	const [workerUrl, setWorkerUrl] = useState("");
 	const [pairingToken, setPairingToken] = useState("");
 	const [pairingError, setPairingError] = useState<string | null>(null);
 	const [pairingBusy, setPairingBusy] = useState(false);
-	const [deployBusy, setDeployBusy] = useState(false);
-	const [deployError, setDeployError] = useState<string | null>(null);
-	const [deployNote, setDeployNote] = useState<string | null>(null);
+	const [removeError, setRemoveError] = useState<string | null>(null);
 
 	const pairWorker = async () => {
 		setPairingError(null);
@@ -61,33 +64,32 @@ export function CloudWorkerBlock() {
 		toast("Unpaired from the Worker");
 	};
 
+	// The deploy's state lives in the deploy service, so leaving the page does not lose it. The
+	// service joins a second call to the running one; the button only follows its state.
 	const deployWorker = async () => {
-		setDeployError(null);
-		setDeployNote(null);
-		setDeployBusy(true);
 		const result = await actions.cloud.deploy();
-		setDeployBusy(false);
-		if (!result.ok) {
-			setDeployError(result.error.message);
-			return;
-		}
-		setDeployNote(`Deployed and paired with ${result.value.url}.`);
-		toast("Deployed the Worker and paired this Mac");
+		if (result.ok) toast("Deployed the Worker and paired this Mac");
 	};
 
 	const removeDeployment = async () => {
-		setDeployError(null);
-		setDeployNote(null);
-		setDeployBusy(true);
+		setRemoveError(null);
 		const result = await actions.cloud.uninstall();
-		setDeployBusy(false);
 		if (!result.ok) {
-			setDeployError(result.error.message);
+			setRemoveError(result.error.message);
 			return;
 		}
-		setDeployNote("Removed the Worker, its container application and its bucket.");
 		toast("Removed the deployment from your Cloudflare account");
 	};
+
+	/** What the deploy is doing, from the shell's own steps; never guessed. */
+	const deployProgress =
+		deploy.state === "running"
+			? deploy.step === null
+				? "Starting the deploy…"
+				: `Deploying… ${deploy.step}`
+			: deploy.state === "done"
+				? `Deployed and paired with ${deploy.url}.`
+				: null;
 
 	return (
 		<div className="flex flex-col gap-3 border-b border-border pb-4">
@@ -125,25 +127,30 @@ export function CloudWorkerBlock() {
 						your Cloudflare account. It also unpairs this Mac.
 					</p>
 					<div className="flex items-end gap-3">
-						<Button variant="secondary" loading={deployBusy} onClick={() => void deployWorker()}>
+						<Button variant="secondary" loading={running} onClick={() => void deployWorker()}>
 							Deploy to Cloudflare
 						</Button>
 						<Button
 							variant="outlineDestructive"
-							loading={deployBusy}
+							disabled={running}
 							onClick={() => void removeDeployment()}
 						>
 							Remove deployment
 						</Button>
 					</div>
-					{deployNote ? (
+					{deployProgress ? (
 						<p role="status" className="text-xs text-fg-muted">
-							{deployNote}
+							{deployProgress}
 						</p>
 					) : null}
-					{deployError ? (
+					{deploy.state === "failed" ? (
 						<p role="alert" className="text-xs text-danger">
-							{deployError}
+							{deploy.error.message}
+						</p>
+					) : null}
+					{removeError ? (
+						<p role="alert" className="text-xs text-danger">
+							{removeError}
 						</p>
 					) : null}
 				</div>
@@ -152,18 +159,23 @@ export function CloudWorkerBlock() {
 				<div className="flex flex-col gap-2">
 					<p className="text-sm text-fg-muted">Not paired</p>
 					<div className="flex items-end gap-3">
-						<Button loading={deployBusy} onClick={() => void deployWorker()}>
+						<Button loading={running} onClick={() => void deployWorker()}>
 							Deploy to Cloudflare
 						</Button>
 					</div>
-					{deployNote ? (
+					{deployProgress ? (
 						<p role="status" className="text-xs text-fg-muted">
-							{deployNote}
+							{deployProgress}
 						</p>
 					) : null}
-					{deployError ? (
+					{deploy.state === "failed" ? (
 						<p role="alert" className="text-xs text-danger">
-							{deployError}
+							{deploy.error.message}
+						</p>
+					) : null}
+					{removeError ? (
+						<p role="alert" className="text-xs text-danger">
+							{removeError}
 						</p>
 					) : null}
 					<p className="text-xs text-fg-subtle">

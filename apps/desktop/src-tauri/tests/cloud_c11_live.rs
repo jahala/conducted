@@ -181,7 +181,7 @@ fn files_and_terminal_on_a_real_sandbox() {
     let workspace = format!("c11live{}", &name[name.len() - 6..]);
 
     let deploy_began = Instant::now();
-    let deployed = deploy_worker(&wrangler, &resources, &name, &token);
+    let deployed = deploy_worker(&wrangler, &resources, &name, &token, &|_step| {});
     let deploy_ms = deploy_began.elapsed().as_millis();
     let url = match &deployed {
         Ok(url) => Some(url.clone()),
@@ -405,7 +405,7 @@ fn measure_the_read_bytes_limit() {
     let wrangler = live_wrangler();
     let workspace = format!("c11size{}", &name[name.len() - 6..]);
 
-    let deployed = deploy_worker(&wrangler, &resources, &name, &token);
+    let deployed = deploy_worker(&wrangler, &resources, &name, &token, &|_step| {});
     let mut measurements: Vec<(u64, Result<usize, String>)> = Vec::new();
     if let Ok(url) = &deployed {
         let result = tauri::async_runtime::block_on(async {

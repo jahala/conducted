@@ -36,6 +36,7 @@ import type {
 	WorkspaceId,
 } from "@conducted/shared";
 import type { CloudDeployResult, CloudPairInput, CloudPairing } from "../platform/platform.ts";
+import type { CloudDeployState } from "./cloud/deploy.ts";
 import type { CloudGitIdentity, CloudSettings } from "./cloud/settings.ts";
 import type { CloudWorkspaceResources } from "./cloud/state.ts";
 import type { ImportPreview } from "./conductor-import/plan.ts";
@@ -410,8 +411,10 @@ export interface Queries {
 	useRepoNameCheck(owner: string, name: string): Loadable<RepoNameCheck>;
 	/** Whether a Linear key is set and accepted. */
 	useLinearAccess(): Loadable<LinearAccess>;
-	/** The Worker this Mac is paired with, for the Connections page (CLOUD-07). */
+	/** The Worker this Mac is paired with, for the Cloud page (CLOUD-07). */
 	useCloudPairing(): Loadable<CloudPairing>;
+	/** The deploy's state, for the Cloud page (CLOUD-08, issue #490). */
+	useCloudDeploy(): CloudDeployState;
 	/** The Mac's personal cloud settings, for the Git and Cloud pages (CLOUD-17). */
 	useCloudSettings(): Loadable<{ settings: CloudSettings; paired: boolean }>;
 	/** A cloud workspace's file-sync state, for the scripts panel (CLOUD-11). */
