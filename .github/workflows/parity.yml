@@ -49,6 +49,10 @@ jobs:
       # setup-bun needs unzip, which the Playwright image lacks; npm's bun package carries the binary.
       - name: Install bun from npm at the pinned version
         run: npm install --global "bun@$(cat .bun-version)"
+      # The job runs as root in the container and the checkout belongs to the runner's user, so git
+      # refuses the folder until it is marked safe.
+      - name: Let git use the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: pnpm install --frozen-lockfile
       - name: Dump every catalogue state
         run: bun scripts/parity/dump.ts --out "$RUNNER_TEMP/parity" --commit "${{ github.event.pull_request.head.sha || github.sha }}"
@@ -90,6 +94,10 @@ jobs:
       # setup-bun needs unzip, which the Playwright image lacks; npm's bun package carries the binary.
       - name: Install bun from npm at the pinned version
         run: npm install --global "bun@$(cat .bun-version)"
+      # The job runs as root in the container and the checkout belongs to the runner's user, so git
+      # refuses the folder until it is marked safe.
+      - name: Let git use the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: pnpm install --frozen-lockfile
       - name: Check out the commit before #345 beside this one
         run: git worktree add --detach "$RUNNER_TEMP/before-345" "$BEFORE_345"

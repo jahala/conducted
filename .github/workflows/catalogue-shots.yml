@@ -46,6 +46,10 @@ jobs:
       # setup-bun needs unzip, which the Playwright image lacks; npm's bun package carries the binary.
       - name: Install bun from npm at the pinned version
         run: npm install --global "bun@$(cat .bun-version)"
+      # The job runs as root in the container and the checkout belongs to the runner's user, so git
+      # refuses the folder until it is marked safe.
+      - name: Let git use the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: pnpm install --frozen-lockfile
       - run: bun scripts/catalogue/shots.ts
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
