@@ -10,13 +10,23 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../../../test/container.ts";
+import { toast } from "../../../ui/Toast.tsx";
 import { RepoMiscPage } from "./RepoMiscPage.tsx";
+
+const navigate = vi.hoisted(() => vi.fn());
+
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@tanstack/react-router")>()),
+	useNavigate: () => navigate,
+}));
 
 let test: TestContainer | undefined;
 
 afterEach(() => {
 	cleanup();
 	vi.useRealTimers();
+	vi.restoreAllMocks();
+	navigate.mockReset();
 	test?.close();
 	test = undefined;
 });
@@ -105,6 +115,24 @@ describe("SET-07 RepoMiscPage", () => {
 
 		await waitFor(() => expect(remove).toHaveBeenCalledTimes(1));
 		expect(remove).toHaveBeenCalledWith(repo.id);
+	});
+
+	it("toasts the removal and opens the user Git settings, as Conductor does", async () => {
+		const { repo, container } = await renderPage(1);
+		vi.spyOn(container.actions.projects, "remove").mockResolvedValue(ok(undefined));
+		const success = vi.spyOn(toast, "success");
+
+		fireEvent.click(screen.getByRole("button", { name: "Remove repository" }));
+		const dialog = await screen.findByRole("dialog");
+		fireEvent.click(within(dialog).getByRole("button", { name: "Remove repository" }));
+
+		await waitFor(() => expect(success).toHaveBeenCalledWith("Repository removed successfully"));
+		expect(navigate).toHaveBeenCalledWith({
+			to: "/settings/user/$page",
+			params: { page: "git" },
+			replace: true,
+		});
+		expect(container.actions.projects.remove).toHaveBeenCalledWith(repo.id);
 	});
 
 	it("shows the root and workspaces paths read-only with the warning", async () => {
