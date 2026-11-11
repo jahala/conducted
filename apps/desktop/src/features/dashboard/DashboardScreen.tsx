@@ -27,6 +27,7 @@ import type { KanbanStatus, Repo, Workspace } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { LoadableView } from "../../ui/LoadableView.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
+import { usePointerDrag } from "../../ui/pointer-drag.ts";
 import { Skeleton } from "../../ui/Skeleton.tsx";
 import { TitleBarInset } from "../../ui/TitleBarInset.tsx";
 import { toastError } from "../../ui/Toast.tsx";
@@ -116,6 +117,7 @@ export function DashboardScreen() {
 	// The newest move of each card. Only its answer clears the card's override, so a card moved
 	// twice stays where it was last put while the first write answers.
 	const latestMove = useRef(new Map<Workspace["id"], number>());
+	const columnNodes = useRef(new Map<KanbanStatus, HTMLElement>());
 
 	const move = useCallback(
 		(workspaceId: Workspace["id"], status: KanbanStatus) => {
@@ -138,6 +140,26 @@ export function DashboardScreen() {
 		},
 		[actions, overrides, workspace.store],
 	);
+
+	const pointer = usePointerDrag<Workspace, KanbanStatus>({
+		targetAt: (point) => {
+			for (const status of KANBAN_STATUSES) {
+				const node = columnNodes.current.get(status);
+				if (node === undefined) continue;
+				const rect = node.getBoundingClientRect();
+				if (
+					point.x < rect.left ||
+					point.x > rect.right ||
+					point.y < rect.top ||
+					point.y > rect.bottom
+				)
+					continue;
+				return { target: status, element: node };
+			}
+			return undefined;
+		},
+		onDrop: (workspace, status) => move(workspace.id, status),
+	});
 
 	const retry = (start: () => Promise<Result<void>>) => () => {
 		void start().then((result) => {
@@ -225,6 +247,11 @@ export function DashboardScreen() {
 																workspaces={groups[status]}
 																repos={repoRows}
 																onMove={move}
+																pointer={pointer}
+																columnRef={(node) => {
+																	if (node === null) columnNodes.current.delete(status);
+																	else columnNodes.current.set(status, node);
+																}}
 															/>
 														))}
 													</div>
