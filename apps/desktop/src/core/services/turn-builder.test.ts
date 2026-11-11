@@ -8,7 +8,7 @@ import type {
 import { idleLiveState } from "@conducted/protocol";
 import type { CheckpointId, EventId, MessageId, ToolUseId, TurnId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
-import type { ChatBlock, ChatTurn } from "../model.ts";
+import type { ChatBlock, ChatTurn, ToolCallView } from "../model.ts";
 import { buildTurns, classifyTurnsChange, type StoredEvent } from "./turn-builder.ts";
 
 const config: SessionConfig = {
@@ -46,6 +46,20 @@ const agent = (turn: string, at: number, items: AgentItem[], id = `agent-${at}`)
 	at,
 	turnId: turn as TurnId,
 	message: { agent: "claude", items },
+});
+
+/** A message from a sub-agent, which Conductor keeps inside the call that started it. */
+const subAgent = (turn: string, at: number, items: AgentItem[], parent: string): SessionEvent => ({
+	type: "agent",
+	eventId: `sub-agent-${at}` as EventId,
+	at,
+	turnId: turn as TurnId,
+	message: { agent: "claude", parentToolUseId: parent as ToolUseId, items },
+});
+
+const todo = (label: string): AgentItem => ({
+	kind: "todo",
+	items: [{ label, status: "pending" }],
 });
 
 const ended = (
@@ -155,6 +169,10 @@ const asToolBlock = (block: ChatBlock | undefined) => {
 	return block.call;
 };
 
+/** The tool calls inside a card's blocks, in order. */
+const childCalls = (call: ToolCallView): ToolCallView[] =>
+	call.blocks.flatMap((block) => (block.kind === "tool" ? [block.call] : []));
+
 describe("CHAT-07 turn builder", () => {
 	it("pairs a tool call with its result from a later event", () => {
 		const events = [
@@ -209,12 +227,43 @@ describe("CHAT-07 turn builder", () => {
 		expect(tools).toHaveLength(1);
 		const parent = asToolBlock(tools[0]);
 		expect(parent.item.toolUseId).toBe("task");
-		const child = must(parent.children[0], "a child call");
+		const child = must(childCalls(parent)[0], "a child call");
 		expect(child.item.toolUseId).toBe("child");
 		expect(child.result).toBeNull();
-		const grandchild = must(child.children[0], "a grandchild call");
+		const grandchild = must(childCalls(child)[0], "a grandchild call");
 		expect(grandchild.item.toolUseId).toBe("grandchild");
 		expect(grandchild.result?.output).toBe("deep");
+	});
+
+	it("keeps a sub-agent's text, todo and calls inside the parent call", () => {
+		const events = [
+			user("turn-1", "message-1", "explore", 100),
+			agent("turn-1", 101, [call("task")]),
+			subAgent("turn-1", 102, [text("inner note"), todo("step one")], "task"),
+			subAgent("turn-1", 103, [call("child")], "task"),
+			ended("turn-1", 104),
+		];
+
+		const turn = firstTurn(stored(events), live());
+
+		expect(turn.blocks).toHaveLength(1);
+		const parent = asToolBlock(turn.blocks[0] as ChatBlock);
+		expect(parent.item.toolUseId).toBe("task");
+		expect(parent.blocks.map((block) => block.kind)).toEqual(["text", "todo", "tool"]);
+		expect(childCalls(parent).map((child) => child.item.toolUseId)).toEqual(["child"]);
+	});
+
+	it("shows a second user message in a turn as a steer", () => {
+		const events = [
+			user("turn-1", "message-1", "first", 100),
+			user("turn-1", "message-2", "second", 101),
+			ended("turn-1", 102),
+		];
+
+		const turn = firstTurn(stored(events), live());
+
+		expect(turn.userMessage?.text).toBe("first");
+		expect(turn.steers.map((steer) => steer.text)).toEqual(["second"]);
 	});
 
 	it("keeps both calls at the top level when their parent links loop", () => {
@@ -229,8 +278,8 @@ describe("CHAT-07 turn builder", () => {
 		const tools = turn.blocks.filter((block) => block.kind === "tool");
 
 		expect(tools.map((block) => asToolBlock(block).item.toolUseId).sort()).toEqual(["a", "b"]);
-		expect(asToolBlock(tools[0]).children).toEqual([]);
-		expect(asToolBlock(tools[1]).children).toEqual([]);
+		expect(asToolBlock(tools[0]).blocks).toEqual([]);
+		expect(asToolBlock(tools[1]).blocks).toEqual([]);
 	});
 
 	it("shows a notice for a tool result whose call never arrived", () => {

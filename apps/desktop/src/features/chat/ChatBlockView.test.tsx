@@ -43,7 +43,7 @@ describe("CHAT-06 block view", () => {
 					input: {},
 				},
 				result: null,
-				children: [],
+				blocks: [],
 			},
 		};
 		render(<ChatBlockView block={block} sessionId={sessionId} />);

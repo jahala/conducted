@@ -24,10 +24,16 @@ jobs:
   typescript:
     if: github.event_name == 'push' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    # A hung test would otherwise run for GitHub's default of six hours.
-    timeout-minutes: 15
+    # A hung test would otherwise run for GitHub's default of six hours. A full run takes 9 to 12
+    # minutes (2026-11-11), and slow package mirrors pushed two runs past 15, so the limit sits well
+    # above a normal run: it catches a hang, not slowness.
+    timeout-minutes: 30
     steps:
+      # Two commits deep: a pull request's run checks out the merge commit, and its first parent
+      # is main's tip, the base the changed-only test run compares with.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # ratchet:actions/setup-node@v7.1.0
         with:
@@ -46,10 +52,8 @@ jobs:
         run: pnpm exec biome ci .
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: shellcheck bin/*.sh
-      # The RUN-09 tests run the terminal shim in a real zsh, which this image does not ship.
-      - name: Install zsh
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: sudo apt-get update -qq && sudo apt-get install -qq --yes --no-install-recommends zsh
+      # A pull request runs the tests its changes can reach (scripts/run-tests.ts, rules in
+      # scripts/test-rules.ts); main runs every test after each merge, the net under that choice.
       - name: Tests (each runner also writes a JUnit report)
         id: tests
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -57,15 +61,17 @@ jobs:
           CONDUCTED_TEST_REPORTS: ${{ runner.temp }}/test-reports
         run: |
           mkdir -p "$CONDUCTED_TEST_REPORTS"
-          pnpm test
-      # One list of every failed test by file, also on the run's summary page. It fails when a
-      # report is missing, so a runner that crashed before writing one is never read as green.
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            pnpm test:changed --since HEAD^1
+          else
+            pnpm test
+          fi
+      # One list of every failed test by file, also on the run's summary page. The test run names
+      # the runners it started in runners.txt; a runner whose report is missing fails this step,
+      # so one that crashed before writing it is never read as green.
       - name: Failed tests, by file
         if: ${{ !cancelled() && steps.tests.outcome != 'skipped' }}
-        run: >-
-          bun scripts/test-report.ts "$RUNNER_TEMP/test-reports"
-          desktop=apps/desktop protocol=packages/protocol shared=packages/shared
-          sidecar=packages/sidecar scripts=.
+        run: xargs bun scripts/test-report.ts "$RUNNER_TEMP/test-reports" < "$RUNNER_TEMP/test-reports/runners.txt"
       - name: Build the web UI that ships inside the app
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm build
@@ -84,7 +90,8 @@ jobs:
 
   rust:
     if: github.event_name == 'push' || github.event.pull_request.draft == false
-    # The app is macOS-only (WKWebView, Keychain, Apple speech), so the shell is checked on macOS.
+    # The app is macOS-only (WKWebView, Keychain, Apple speech), so the shell is checked on macOS,
+    # and so are the desktop's tests that need macOS's own programs.
     runs-on: macos-latest
     timeout-minutes: 30
     defaults:
@@ -105,12 +112,22 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
-      - name: Install the Worker runtime for the relay test
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # ratchet:oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version-file: .bun-version
+      # The Worker's runtime for the relay test, and the desktop's test tools for the tests that
+      # need macOS's own programs.
+      - name: Install the Worker runtime and the desktop's test tools
         working-directory: .
-        run: pnpm install --frozen-lockfile --filter @conducted/cloud
+        run: pnpm install --frozen-lockfile --filter @conducted/cloud --filter "@conducted/desktop..."
       # As in the TypeScript job, a format failure does not hide a clippy or test failure.
       - run: cargo fmt --check
       - if: ${{ !cancelled() }}
         run: cargo clippy --all-targets -- -D warnings
       - if: ${{ !cancelled() }}
         run: cargo test
+      # The desktop's macOS tests (`*.macos.test.ts`): the terminal shim in the real /bin/zsh.
+      - name: Desktop tests that need macOS
+        if: ${{ !cancelled() }}
+        working-directory: .
+        run: pnpm test:macos

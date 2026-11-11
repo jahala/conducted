@@ -1,24 +1,24 @@
 /**
  * @feature CHAT-08 Sub-agent card
- * Owns: The card for a task the agent handed to a sub-agent: its description, its own tool calls
- * grouped inside, and its final answer.
- * Behaviour: frontend.md 5 (sub-agent messages are bucketed under their parent Task call),
+ * Owns: The card for a task the agent handed to a sub-agent: its description, everything the
+ * sub-agent showed inside it (its text, thinking, todo list and tool calls, in order), and its
+ * final answer.
+ * Behaviour: frontend.md 5 (a sub-agent's messages are bucketed under the parent Task call),
  * ui-map.md 3.3 ('Subagent').
- * Must handle: Many nested calls (a count above the list; the card itself collapses); a running
- * sub-agent (the count grows); a sub-agent that failed; a nested sub-agent; the children render through the
- * same registry, each in its own error boundary, so every kind of card works inside and one broken card
- * does not hide its siblings.
- * Test first: A call with two children shows 'Subagent', the description, and two nested cards.
+ * Must handle: Many nested blocks (a count above the list; the card itself collapses); a running
+ * sub-agent (the count grows); a sub-agent that failed; a nested sub-agent; the blocks render
+ * through the same views as a turn, each in its own error boundary, so every kind works inside
+ * and one broken card does not hide its siblings.
+ * Test first: A call with two child tool calls shows 'Subagent', the description, and two nested cards.
  */
-import { toolCardFor } from "../registry.ts";
-import { ToolCardBoundary } from "../ToolCard.tsx";
+import { ChatBlockView } from "../../ChatBlockView.tsx";
 import { ToolCardFrame, ToolOutput, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
 export function SubAgentCard({ call, sessionId, defaultExpanded }: ToolCardProps) {
 	const input = call.item.input;
 	const description = textField(input, "description", "prompt", "task") ?? "Sub-agent task";
-	const count = call.children.length;
+	const count = call.blocks.filter((block) => block.kind === "tool").length;
 	const answer = call.result?.output ?? "";
 	return (
 		<ToolCardFrame
@@ -31,14 +31,14 @@ export function SubAgentCard({ call, sessionId, defaultExpanded }: ToolCardProps
 					<p className="text-xs text-fg-subtle">
 						{count} {count === 1 ? "tool call" : "tool calls"}
 					</p>
-					{call.children.map((child) => {
-						const Card = toolCardFor(child.item.tool);
-						return (
-							<ToolCardBoundary key={child.toolUseId} call={child}>
-								<Card call={child} sessionId={sessionId} defaultExpanded={defaultExpanded} />
-							</ToolCardBoundary>
-						);
-					})}
+					{call.blocks.map((block, index) => (
+						<ChatBlockView
+							// Blocks of another kind carry no id; the list only grows at its end.
+							key={block.kind === "tool" ? block.call.toolUseId : `${block.kind}-${index}`}
+							block={block}
+							sessionId={sessionId}
+						/>
+					))}
 					{answer.length > 0 ? <ToolOutput>{answer}</ToolOutput> : null}
 				</div>
 			}
