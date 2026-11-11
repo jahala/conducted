@@ -1,8 +1,9 @@
 /**
  * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
  * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
- * Owns: the lifecycle calls a cloud workspace makes on its Worker: its state (status and
- * resources), a restart, the stop an archive makes (saving its work and transcripts first), and the
+ * @feature CLOUD-19 Create cloud workspaces: the organisation switcher and the new-workspace page in cloud mode
+ * Owns: the lifecycle calls a cloud workspace makes on its Worker: the start a creation makes
+ * (CLOUD-19), its state (status and resources), a restart, the stop an archive makes (saving its work and transcripts first), and the
  * remove a delete makes (everything the workspace keeps).
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (a workspace's calls belong to its Worker) and
  * D105 ("Deleting a workspace (CLOUD-08) ... must delete [the backups]"). The header's status and
@@ -40,6 +41,48 @@ export async function readCloudWorkspaceState(
 				),
 			)
 		: ok(state);
+}
+
+/**
+ * A new cloud workspace's sandbox name: `ws-` and the id's letters and digits, lowercase. It is the
+ * Durable Object name the Worker's routes take (`WORKSPACE_NAME` in apps/cloud/src/args.ts: at
+ * most 63 lowercase letters, digits and dashes).
+ */
+export function cloudWorkspaceName(id: string): string {
+	return `ws-${id
+		.toLowerCase()
+		.replace(/[^a-z0-9]/g, "")
+		.slice(0, 32)}`;
+}
+
+/**
+ * A cloud workspace's folder in its sandbox. It holds the sandbox name, so no two cloud workspaces
+ * share a folder and the host lookup by folder finds the right one (D101).
+ */
+export function cloudWorkspaceFolder(name: string): string {
+	return `/workspace/${name}`;
+}
+
+/** Conductor's words when a cloud workspace's sandbox cannot be reached (main @3823745). */
+export const CLOUD_WORKSPACE_UNREACHABLE =
+	"Cloud workspace isn't reachable right now. Try again in a moment.";
+
+/**
+ * Starts a cloud workspace's sandbox and waits for its sidecar, as a creation does before it
+ * clones. A refusal that is not the Worker's own data-privacy answer is Conductor's "isn't
+ * reachable", with the Worker's reason kept as the cause.
+ */
+export async function startCloudWorkspace(cloud: Cloud, host: CloudHost): Promise<Result<void>> {
+	const answer = await cloudJson(cloud, host, "/start", {});
+	if (!answer.ok) {
+		if (answer.error.code === "cloud_data_privacy") return answer;
+		return err(appError("cloud_unreachable", CLOUD_WORKSPACE_UNREACHABLE, answer.error));
+	}
+	const value = answer.value as { started?: unknown };
+	if (typeof value.started !== "boolean") {
+		return err(appError("cloud_bad_response", "The Workspace did not say that it started."));
+	}
+	return ok(undefined);
 }
 
 /** Restarts a cloud workspace: the Worker saves its work, stops it and starts it again. */

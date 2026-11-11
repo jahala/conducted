@@ -16,6 +16,9 @@ vi.mock("../composer/draft-sources.ts", () => ({
 }));
 
 vi.mock("../../core/hooks.ts", () => ({
+	// The organisation switcher in the block's first row (CLOUD-19) reads these.
+	useActions: () => ({ settings: { set: vi.fn() } }),
+	useOrganizations: () => ({ state: "loading" }),
 	useSetting: () => settings.dashboard,
 	useLiveShortcut: (commandId: string) =>
 		commandId === "nav.home"
