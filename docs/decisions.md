@@ -902,3 +902,18 @@ Left out, and why:
 - A cloud create does not copy the Mac's included files (such as `.env`) into the sandbox, so no secret enters it (cloud-and-remote.md, "Secrets never enter the sandbox"), and the clone names its remote `origin` whatever the project's `remote_name` says.
 
 Why: it is Conductor's own control in Conductor's place, the smallest set of its behaviour that one local and one cloud entry need, and it reuses the create path and the Worker routes that exist, adding only the readiness route.
+
+## D128. A pull request runs the tests its changes can reach; main runs every test (2026-11-11)
+
+Proposed by the lead; not yet ruled on by the owner, apart from the rules the brief quoted: money, data-loss and security tests run on every pull request, and a flaky test gets a root cause.
+
+Context: main's last green CI run (43030758742) took 12 minutes, 9.5 of them in `pnpm test`, every test on every pull request whatever it changed. The desktop's Vitest files alone took 514 s. The TypeScript job also installed zsh from Ubuntu's mirror for one test, and the mirror was unreachable that day (#540).
+
+Chosen:
+
+- Pull requests run `pnpm test:changed --since HEAD^1` (`scripts/run-tests.ts`): each runner's own import graph picks the tests the changed files reach, files read by name count as reached, and `scripts/test-rules.ts` holds the run-everything list, the folder rules and the always-run tests. Code that changed with no test reaching it runs everything. Main runs every test after each merge, the net under the selection.
+- The bun-tested folders walk Bun's resolver over their imports instead of `bun test --changed`, which missed every import of a workspace package by name.
+- Tests that need a program only macOS ships are their own Vitest project (`*.macos.test.ts`) and run in CI's macOS job, so no job installs zsh.
+- Not done: a fixture cache, because no test builds an expensive shared fixture, and shared workers, because they first need proof that the 830 desktop files leave no global state behind. A desktop change still selects about half of the desktop files, since most tests reach the real container; shared workers are where the next gain is.
+
+Why: run only what a change can break, and keep one net that catches what that misses (the owner's test-setup method).
