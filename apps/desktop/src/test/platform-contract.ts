@@ -357,7 +357,7 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"app",
 		"resource-usage",
 		"resourceUsage places each process in the longest workspace that holds its folder",
-		"A process in a folder inside two given workspace paths reports the inner one, a process in none reports no workspace, and the call is Ok.",
+		"A process in a folder inside two given workspace paths reports the inner one, a process in none reports no workspace, each names its parent, and the call is Ok.",
 		"controls",
 	),
 	c(
@@ -621,10 +621,12 @@ export interface ContractControls {
 	setProcesses?(
 		processes: readonly {
 			pid: number;
-			name: string;
+			ppid?: number;
+			label: string;
 			cpuPercent: number;
 			memoryBytes: number;
 			cwd: string;
+			terminalId?: string;
 		}[],
 	): void;
 	/**
@@ -1603,8 +1605,8 @@ const STEPS: Record<string, ContractStep> = {
 		const outer = ctx.path("workspaces");
 		const inner = ctx.path("workspaces/oslo");
 		ctx.controls?.setProcesses?.([
-			{ pid: 11, name: "node", cpuPercent: 1.5, memoryBytes: 2048, cwd: `${inner}/web` },
-			{ pid: 12, name: "zsh", cpuPercent: 0, memoryBytes: 1024, cwd: ctx.path("elsewhere") },
+			{ pid: 11, ppid: 12, label: "node", cpuPercent: 1.5, memoryBytes: 2048, cwd: `${inner}/web` },
+			{ pid: 12, label: "zsh", cpuPercent: 0, memoryBytes: 1024, cwd: ctx.path("elsewhere") },
 		]);
 		const rows = expectOk(
 			ctx,
@@ -1614,6 +1616,7 @@ const STEPS: Record<string, ContractStep> = {
 		const node = rows.find((row) => row.pid === 11);
 		const zsh = rows.find((row) => row.pid === 12);
 		ctx.assert(node?.workspacePath === inner, `node was placed in ${String(node?.workspacePath)}`);
+		ctx.assert(node?.ppid === 12, `node named ${String(node?.ppid)} as its parent`);
 		ctx.assert(
 			zsh !== undefined && zsh.workspacePath === undefined,
 			`zsh was placed in ${String(zsh?.workspacePath)}`,

@@ -54,6 +54,7 @@ export const RefreshIcon = (p: P) => (
 export const PlusIcon = (p: P) => <Icon d="M8 3v10M3 8h10" {...p} />;
 export const CloseIcon = (p: P) => <Icon d="M4 4l8 8M12 4l-8 8" {...p} />;
 export const ChevronDownIcon = (p: P) => <Icon d="M4 6l4 4 4-4" {...p} />;
+export const ChevronUpIcon = (p: P) => <Icon d="M4 10l4-4 4 4" {...p} />;
 export const ChevronRightIcon = (p: P) => <Icon d="M6 4l4 4-4 4" {...p} />;
 export const TargetIcon = (p: P) => (
 	<Icon d="M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12zM8 11A3 3 0 1 0 8 5a3 3 0 0 0 0 6zM8 8.01V8" {...p} />
@@ -337,6 +338,24 @@ export const MoreVerticalIcon = (p: P) => (
 	<Icon d="M8 3.5v.01M8 8v.01M8 12.5v.01" strokeWidth="2.25" {...p} />
 );
 export const ColumnsIcon = (p: P) => <Icon d="M2.5 3h11v10h-11zM8 3v10" {...p} />;
+/** A chip with three pins on each side: the resource usage chip. */
+export const MicrochipIcon = (p: P) => (
+	<Icon
+		d="M5 2.5h6a.5.5 0 0 1 .5.5v10a.5.5 0 0 1-.5.5H5a.5.5 0 0 1-.5-.5V3a.5.5 0 0 1 .5-.5zM2.5 5h2M2.5 8h2M2.5 11h2M11.5 5h2M11.5 8h2M11.5 11h2"
+		{...p}
+	/>
+);
+/** Three stacked sheets: grouping. */
+export const LayersIcon = (p: P) => (
+	<Icon d="M8 2.5l5.5 2.75L8 8 2.5 5.25zM2.5 8L8 10.75 13.5 8M2.5 10.75L8 13.5l5.5-2.75" {...p} />
+);
+/** Two branches joining one trunk: a tree of processes. */
+export const GitForkIcon = (p: P) => (
+	<Icon
+		d="M5 5.25a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5zM11 5.25a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5zM8 13.25a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5zM5 5.25V6.5A1.5 1.5 0 0 0 6.5 8h3A1.5 1.5 0 0 0 11 6.5V5.25M8 8v2.75"
+		{...p}
+	/>
+);
 export const DatabaseIcon = (p: P) => (
 	<Icon
 		d="M8 5.5c3 0 5-.9 5-2s-2-2-5-2-5 .9-5 2 2 2 5 2zM3 3.5v9c0 1.1 2 2 5 2s5-.9 5-2v-9M3 8c0 1.1 2 2 5 2s5-.9 5-2"

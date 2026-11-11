@@ -252,11 +252,15 @@ export type MemoryConductorDatabase = Record<string, readonly Readonly<Record<st
 /** One process of the app, as the process table lists it. */
 export interface MemoryProcess {
 	pid: number;
-	name: string;
+	/** The parent's pid; 0 when left out. */
+	ppid?: number;
+	label: string;
 	cpuPercent: number;
 	memoryBytes: number;
 	/** Its working folder, which places it in a workspace. */
 	cwd: string;
+	/** The terminal it runs in, as the Rust shell marks a terminal's processes. */
+	terminalId?: string;
 }
 
 export interface MemoryPlatform {
@@ -1544,11 +1548,13 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		quit: async () => {},
 		resourceUsage: async (workspacePaths) =>
 			ok(
-				processes.map(({ cwd, ...usage }) => {
+				processes.map(({ cwd, ppid = 0, ...usage }) => {
 					const owner = workspacePaths
 						.filter((path) => isWithinRoot(cwd, path))
 						.sort((left, right) => right.length - left.length)[0];
-					return owner === undefined ? usage : { ...usage, workspacePath: owner };
+					return owner === undefined
+						? { ...usage, ppid }
+						: { ...usage, ppid, workspacePath: owner };
 				}),
 			),
 		// The data argument is not kept, so a value that cannot be serialised cannot break logging.
