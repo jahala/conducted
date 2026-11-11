@@ -4,6 +4,7 @@
  * @feature SIDE-22 Slash command cache that works before a chat starts
  * @feature WS-11 Backlog workspaces: save now, start later
  * @feature NAV-16 Draft markers on the Create row and on workspaces
+ * @feature CLOUD-19 Create cloud workspaces: the organisation switcher and the new-workspace page in cloud mode
  * Owns: the "new workspace" dialog at /create: the project picker (with Open project, Open GitHub project,
  * Quick start and the projects under Recents), the "···" options (section, Backlog), the toggleable
  * "create from" picker (default branch, an existing local branch, a pull request or an issue), the first
@@ -37,13 +38,28 @@
  * a backlog save or a start runs does nothing; "Add to backlog" is hidden when unstarted workspaces are off;
  * in start mode every field shows the saved row and is locked, because Start creates from that row, and
  * Alt+Enter does not save a second copy.
+ * CLOUD-19, cloud mode: while the cloud entry is the active organisation, the page works out its
+ * hosting target as Conductor's `BXa` does (renderApp @11497335): the Worker, once it is ready and
+ * data privacy is off. In the cloud the top row's project picker becomes the repository picker
+ * ("Repository", "Select repo", "Repository on <Worker>", "Add repository"), listing the projects
+ * the Worker can clone; until the Worker is ready the row shows the status line of Conductor's
+ * `AYa` in the warning tone, the create-from control is hidden, and Create is off with Conductor's
+ * reason as its tooltip ("Checking organization...", the data-privacy text, or `OYa`'s readiness
+ * reason). Data privacy adds "Cloud disabled" at the right. The create call names the Worker
+ * (`cloudUrl`) and goes through the same action as a local one.
+ * Our design choice: Conductor's "Connect GitHub" and "Set up an agent" actions open its own
+ * GitHub and providers flows, which set its service's credentials; a Worker's GitHub token and
+ * model key are Worker secrets the app cannot set, so those two lines carry no action. "View
+ * computer" opens the Connections page, where the Worker is paired, and "Add one" and "Add
+ * repository" open Open GitHub project. Conductor's restricted-access toggle and its cloud backlog
+ * are team and service features, so in cloud mode the page has neither (D127).
  * Test first: submitting with a repository and a prompt calls workspaces.create with that input and navigates to
  * the new workspace; a failed create offers Retry setup and Recover prompt; Alt+Enter saves the draft to
  * the backlog.
  */
 import type { RepoId, SectionId, WorkspaceId } from "@conducted/shared";
 import { useNavigate, useRouter, useSearch } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 import type { NewWorkspaceInput } from "../core/api.ts";
 import { createSingleFlight } from "../core/async/single-flight.ts";
@@ -52,7 +68,9 @@ import {
 	useActions,
 	useBacklogWorkspaces,
 	useBranches,
+	useCloudReadiness,
 	useIssues,
+	useOrganizations,
 	usePreWorkspaceSlashCommands,
 	usePullRequestList,
 	useRepoFileSearch,
@@ -60,6 +78,16 @@ import {
 	useSetting,
 } from "../core/hooks.ts";
 import type { IssueView, PullRequestSummary, Section } from "../core/model.ts";
+import {
+	CHECKING_ORGANIZATION,
+	CLOUD_UNAVAILABLE_WITH_DATA_PRIVACY,
+	type CloudLaunchState,
+	type CloudRepository,
+	cloudLaunchDisabledReason,
+	cloudLaunchState,
+	cloudLaunchStatusLine,
+	cloudRepositories,
+} from "../core/organization.ts";
 import { newWorkspaceSessionConfig } from "../core/services/workspace.ts";
 import { useNewWorkspaceDraft } from "../features/composer/draft-sources.ts";
 import { type ModelChoice, ModelMenu } from "../features/composer/ModelPicker.tsx";
@@ -72,7 +100,9 @@ import { Dialog, DialogContent } from "../ui/Dialog.tsx";
 import { EmptyState } from "../ui/EmptyState.tsx";
 import { Input, Label } from "../ui/Input.tsx";
 import {
+	CheckIcon,
 	ChevronDownIcon,
+	ChevronRightIcon,
 	CircleIcon,
 	FolderIcon,
 	GitBranchIcon,
@@ -89,8 +119,10 @@ import {
 	MenuTrigger,
 } from "../ui/Menu.tsx";
 import { Select } from "../ui/Select.tsx";
+import { Spinner } from "../ui/Spinner.tsx";
 import { toast, toastError } from "../ui/Toast.tsx";
 import { ToggleGroup, ToggleGroupItem } from "../ui/Toggle.tsx";
+import { Tooltip } from "../ui/Tooltip.tsx";
 import { useCommandHandler } from "./command-dispatcher.ts";
 
 type FromKind = "default" | "branch" | "pull_request" | "issue";
@@ -288,7 +320,36 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	const promptTouched = useRef(false);
 
 	const readyRepos = repos.state === "ready" ? repos.data : [];
-	const selectedRepo = readyRepos.find((repo) => repo.id === repoId) ?? readyRepos[0];
+	const localRepo = readyRepos.find((repo) => repo.id === repoId) ?? readyRepos[0];
+
+	// CLOUD-19: where the workspace runs, as Conductor's BXa works it out. The cloud is the target
+	// only once the Worker is ready and data privacy is off; until then Create says why it is off.
+	const organizations = useOrganizations();
+	const dataPrivacy = useSetting<boolean>("enterprise_data_privacy");
+	const activeOrganization = organizations.state === "ready" ? organizations.data.active : null;
+	const cloudUrl = activeOrganization?.isCloud === true ? activeOrganization.url : null;
+	const isCloudOrg = cloudUrl !== null;
+	const cloudRepos = useMemo(() => cloudRepositories(readyRepos), [readyRepos]);
+	const readiness = useCloudReadiness(cloudUrl);
+	const launch: CloudLaunchState | null =
+		cloudUrl === null
+			? null
+			: cloudLaunchState({ url: cloudUrl, readiness, repositoryCount: cloudRepos.length });
+	const cloudTarget = launch?.kind === "ready" && !dataPrivacy ? launch.url : null;
+	const cloudMode = cloudTarget !== null;
+	const launchDisabledReason =
+		organizations.state === "loading"
+			? CHECKING_ORGANIZATION
+			: launch === null
+				? undefined
+				: dataPrivacy
+					? CLOUD_UNAVAILABLE_WITH_DATA_PRIVACY
+					: cloudLaunchDisabledReason(launch);
+	const [cloudRepoId, setCloudRepoId] = useState<RepoId | null>(null);
+	const cloudRepo = cloudRepos.find((entry) => entry.repo.id === cloudRepoId) ?? cloudRepos[0];
+	// In the cloud the page works on the repository the Worker will clone.
+	const selectedRepo = cloudMode && cloudRepo !== undefined ? cloudRepo.repo : localRepo;
+	const addRepository = useAddProject({ onAdded: (repo) => setCloudRepoId(repo.id) });
 
 	useEffect(() => {
 		if (repoId === null && readyRepos[0] !== undefined) setRepoId(readyRepos[0].id);
@@ -487,6 +548,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			attachmentPaths: [],
 			config,
 			sectionId: section === "" ? null : (section as SectionId),
+			...(cloudTarget === null ? {} : { cloudUrl: cloudTarget }),
 		};
 	}
 
@@ -528,6 +590,8 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			});
 			return;
 		}
+		// Create is off while the page says why; Enter in a field must not get past it.
+		if (launchDisabledReason !== undefined) return;
 		const input = makeInput(selectedRepo, section);
 		if (input === null) return;
 		await flight.run("create", async () => {
@@ -603,20 +667,55 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 						void submit();
 					}}
 				>
-					<header className="flex h-12 items-center gap-1 border-b border-border px-3">
-						<ProjectMenu
-							repos={readyRepos}
-							selected={selectedRepo}
-							disabled={fieldsLocked}
-							onPick={(value) => {
-								setRepoId(value);
-								setSelectedPullRequest(null);
-								setSelectedIssue(null);
-								setShowBranchList(false);
-								setMention(null);
-								setSlashMention(null);
-							}}
-						/>
+					<header
+						className={cn(
+							"flex h-12 items-center gap-1 border-b border-border px-3",
+							isCloudOrg && !cloudMode && launch?.kind !== "loading" && "bg-warning-surface",
+						)}
+					>
+						{cloudMode && cloudRepo !== undefined ? (
+							<CloudRepositoryMenu
+								repositories={cloudRepos}
+								selected={cloudRepo}
+								machineName={activeOrganization?.label ?? ""}
+								disabled={fieldsLocked}
+								onPick={(value) => {
+									setCloudRepoId(value);
+									setSelectedPullRequest(null);
+									setSelectedIssue(null);
+									setShowBranchList(false);
+									setMention(null);
+									setSlashMention(null);
+								}}
+								onAddRepository={addRepository.openClone}
+							/>
+						) : isCloudOrg && launch !== null ? (
+							<CloudLaunchStatus
+								launch={launch}
+								onViewComputer={() =>
+									void navigate({
+										to: "/settings/user/$page",
+										params: { page: "connections" },
+									})
+								}
+								onAddRepository={addRepository.openClone}
+							/>
+						) : isCloudOrg ? null : (
+							<ProjectMenu
+								repos={readyRepos}
+								selected={selectedRepo}
+								disabled={fieldsLocked}
+								onPick={(value) => {
+									setRepoId(value);
+									setSelectedPullRequest(null);
+									setSelectedIssue(null);
+									setShowBranchList(false);
+									setMention(null);
+									setSlashMention(null);
+								}}
+							/>
+						)}
+						{addRepository.dialogs}
 						<Button
 							type="button"
 							variant="ghost"
@@ -629,24 +728,33 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							<MoreHorizontalIcon className="size-3.5" />
 						</Button>
 						<span className="flex-1" />
-						<button
-							type="button"
-							aria-label="Show or hide the create-from picker"
-							aria-expanded={pickerOpen}
-							aria-controls="create-from-picker"
-							disabled={fieldsLocked}
-							title="Create from"
-							className="-mr-1.5 flex h-7 min-w-0 max-w-72 items-center gap-1.5 rounded-md px-1.5 text-fg outline-none hover:bg-hover focus-visible:ring-1 focus-visible:ring-focus aria-expanded:bg-hover disabled:opacity-50"
-							onClick={() => setPickerOpen((open) => !open)}
-						>
-							<FromSource
-								kind={fromKind}
-								branch={branchName.trim()}
-								pullRequest={selectedPullRequest}
-								issue={selectedIssue}
-							/>
-							<ChevronDownIcon className="size-3.5 shrink-0 text-fg-muted" />
-						</button>
+						{isCloudOrg && dataPrivacy ? (
+							<Tooltip content={CLOUD_UNAVAILABLE_WITH_DATA_PRIVACY}>
+								<span className="flex shrink-0 items-center text-sm font-medium text-fg-muted">
+									Cloud disabled
+								</span>
+							</Tooltip>
+						) : null}
+						{isCloudOrg && !cloudMode ? null : (
+							<button
+								type="button"
+								aria-label="Show or hide the create-from picker"
+								aria-expanded={pickerOpen}
+								aria-controls="create-from-picker"
+								disabled={fieldsLocked}
+								title="Create from"
+								className="-mr-1.5 flex h-7 min-w-0 max-w-72 items-center gap-1.5 rounded-md px-1.5 text-fg outline-none hover:bg-hover focus-visible:ring-1 focus-visible:ring-focus aria-expanded:bg-hover disabled:opacity-50"
+								onClick={() => setPickerOpen((open) => !open)}
+							>
+								<FromSource
+									kind={fromKind}
+									branch={branchName.trim()}
+									pullRequest={selectedPullRequest}
+									issue={selectedIssue}
+								/>
+								<ChevronDownIcon className="size-3.5 shrink-0 text-fg-muted" />
+							</button>
+						)}
 					</header>
 
 					{startMode ? (
@@ -655,7 +763,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 						</p>
 					) : null}
 
-					{pickerOpen ? (
+					{pickerOpen && (!isCloudOrg || cloudMode) ? (
 						<div
 							id="create-from-picker"
 							className="flex flex-col gap-3 border-b border-border px-4 py-3"
@@ -806,7 +914,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							autoFocus
 							className="block min-h-40 w-full resize-none bg-transparent text-sm font-light text-fg outline-none placeholder:text-fg-subtle"
 						/>
-						{mention !== null && mention.query.length >= 2 ? (
+						{mention !== null && mention.query.length >= 2 && (!isCloudOrg || cloudMode) ? (
 							<RepoFileSuggestions
 								repoId={selectedRepo.id}
 								query={mention.query}
@@ -818,7 +926,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 								}}
 							/>
 						) : null}
-						{slashMention !== null ? (
+						{slashMention !== null && (!isCloudOrg || cloudMode) ? (
 							<RepoSlashSuggestions
 								repoRootPath={selectedRepo.rootPath}
 								query={slashMention.query}
@@ -908,7 +1016,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							>
 								Cancel
 							</Button>
-						) : backlogEnabled ? (
+						) : backlogEnabled && !isCloudOrg ? (
 							<Button
 								type="button"
 								variant="outline"
@@ -925,19 +1033,22 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							</Button>
 						) : null}
 						<div className="flex items-center">
-							<Button
-								type="submit"
-								size="xs"
-								loading={busy}
-								aria-label={startMode ? "Start" : "Create workspace"}
-								title={startMode ? "Start workspace ↵" : "Create workspace ↵"}
-								className={cn("text-sm", !startMode && sections.length > 0 && "rounded-r-none")}
-							>
-								{startMode ? "Start" : "Create"}
-								<span aria-hidden="true" className="text-xs">
-									↵
-								</span>
-							</Button>
+							<LaunchReason reason={startMode ? undefined : launchDisabledReason}>
+								<Button
+									type="submit"
+									size="xs"
+									loading={busy}
+									disabled={!startMode && launchDisabledReason !== undefined}
+									aria-label={startMode ? "Start" : "Create workspace"}
+									title={startMode ? "Start workspace ↵" : "Create workspace ↵"}
+									className={cn("text-sm", !startMode && sections.length > 0 && "rounded-r-none")}
+								>
+									{startMode ? "Start" : "Create"}
+									<span aria-hidden="true" className="text-xs">
+										↵
+									</span>
+								</Button>
+							</LaunchReason>
 							{!startMode && sections.length > 0 ? (
 								<Menu>
 									<MenuTrigger asChild>
@@ -946,7 +1057,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 											size="xs"
 											aria-label="Create in section"
 											title="Create in section"
-											disabled={busy}
+											disabled={busy || launchDisabledReason !== undefined}
 											className="w-6 rounded-l-none border-l border-canvas/20 px-0"
 										>
 											<ChevronDownIcon className="size-3.5" />
@@ -973,6 +1084,124 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 				</form>
 			</DialogContent>
 		</Dialog>
+	);
+}
+
+/**
+ * Create with the reason it is off, as Conductor wraps its launch button (renderApp `Xxa`
+ * @10147045): a focusable span that carries the reason as its tooltip and its accessible name.
+ */
+function LaunchReason({
+	reason,
+	children,
+}: {
+	reason: string | undefined;
+	children: ReactElement;
+}) {
+	if (reason === undefined) return children;
+	return (
+		<Tooltip content={reason}>
+			{/* biome-ignore lint/a11y/noNoninteractiveTabindex lint/a11y/useSemanticElements: the disabled button cannot take focus, so its reason needs a named stop of its own, as Conductor's does; a fieldset would change the button's layout and form semantics. */}
+			<span role="group" tabIndex={0} aria-label={reason} className="inline-flex cursor-help">
+				{children}
+			</span>
+		</Tooltip>
+	);
+}
+
+/**
+ * The top row's line while the cloud is not ready, in Conductor's words and warning tone
+ * (renderApp `AYa` and `uL` @11438719): a spinner while the Worker is checked, else the reason with
+ * the action that applies to our Worker.
+ */
+function CloudLaunchStatus({
+	launch,
+	onViewComputer,
+	onAddRepository,
+}: {
+	launch: CloudLaunchState;
+	onViewComputer: () => void;
+	onAddRepository: () => void;
+}) {
+	const line = cloudLaunchStatusLine(launch);
+	const action =
+		launch.kind === "machine-not-ready"
+			? { label: "View computer", onClick: onViewComputer }
+			: launch.kind === "no-repos"
+				? { label: "Add one", onClick: onAddRepository }
+				: null;
+	return (
+		<div className="-ml-1.5 flex h-7 min-w-0 items-center gap-1.5 px-1.5 text-sm">
+			{launch.kind === "loading" ? (
+				<Spinner size="sm" label="Checking machine availability" />
+			) : null}
+			{line === undefined ? null : <span className="min-w-0 truncate text-warning-fg">{line}</span>}
+			{action === null ? null : (
+				<button
+					type="button"
+					onClick={action.onClick}
+					className="flex shrink-0 items-center gap-1 rounded-sm font-medium text-warning hover:text-warning-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-focus"
+				>
+					{action.label}
+					<ChevronRightIcon className="size-3.5" />
+				</button>
+			)}
+		</div>
+	);
+}
+
+/**
+ * The cloud repository picker (renderApp `zZi` @10190788): the chosen repository's name and a
+ * chevron, the tooltip "Repository on <Worker>", and a menu of the repositories the Worker can clone
+ * with "Add repository" after them.
+ */
+function CloudRepositoryMenu({
+	repositories,
+	selected,
+	machineName,
+	disabled,
+	onPick,
+	onAddRepository,
+}: {
+	repositories: readonly CloudRepository[];
+	selected: CloudRepository;
+	machineName: string;
+	disabled: boolean;
+	onPick: (id: RepoId) => void;
+	onAddRepository: () => void;
+}) {
+	return (
+		<Menu>
+			<Tooltip content={`Repository on ${machineName}`}>
+				<MenuTrigger asChild>
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						disabled={disabled}
+						aria-label="Repository"
+						className="max-w-80 gap-1.5 px-2 text-sm font-medium text-fg"
+					>
+						<span className="min-w-0 truncate">{selected.label}</span>
+						<ChevronDownIcon className="size-3.5 shrink-0 text-fg-muted" />
+					</Button>
+				</MenuTrigger>
+			</Tooltip>
+			<MenuContent align="start" className="w-72">
+				{repositories.map((entry) => (
+					<MenuItem
+						key={entry.repo.id}
+						icon={entry.repo.id === selected.repo.id ? <CheckIcon /> : <span />}
+						onSelect={() => onPick(entry.repo.id)}
+					>
+						{entry.label}
+					</MenuItem>
+				))}
+				<MenuItem icon={<PlusIcon />} onSelect={onAddRepository}>
+					Add repository
+				</MenuItem>
+			</MenuContent>
+		</Menu>
 	);
 }
 

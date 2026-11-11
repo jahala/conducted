@@ -51,8 +51,10 @@ export const useOrganizations: Queries["useOrganizations"] = () => {
 	const pairing = useCloudPairing();
 	const choice = useSetting<string>("active_organization");
 	return useMemo<Loadable<OrganizationsView>>(() => {
-		if (pairing.state === "loading") return { state: "loading" };
-		// A Keychain read that failed lists this Mac only, so the app keeps working locally.
+		// Only a stored cloud choice waits for the pairing: this Mac is known without it.
+		if (pairing.state === "loading" && choice === "cloud") return { state: "loading" };
+		// A Keychain read that failed, or one not done yet, lists this Mac only, so the app keeps
+		// working locally.
 		const organizations = organizationsFor(
 			pairing.state === "ready" ? pairing.data : { paired: false, url: null },
 		);
