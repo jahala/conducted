@@ -13,7 +13,12 @@
  */
 import { LOCAL_HOST, type SessionEvent } from "@conducted/protocol";
 import type { Clock, MessageId, SessionId, TurnId, WorkspaceId } from "@conducted/shared";
-import { type Container, type ContainerInputs, createContainer } from "../core/container.ts";
+import {
+	type Container,
+	type ContainerInputs,
+	createContainer,
+	type UiToast,
+} from "../core/container.ts";
 import type { NewRepo } from "../core/db/repos.ts";
 import { createRepositories } from "../core/db/repositories.ts";
 import type { NewWorkspace } from "../core/db/workspaces.ts";
@@ -57,6 +62,8 @@ export interface TestContainer {
 	database: Database;
 	/** What the container told the user about background work that failed (`reportFailure`). */
 	reported: { title: string; message: string }[];
+	/** What the container asked the toast host to show (`showToast`). */
+	toasted: UiToast[];
 	close(): void;
 }
 
@@ -90,6 +97,7 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 		});
 	}
 	const reported: { title: string; message: string }[] = [];
+	const toasted: UiToast[] = [];
 	const container = createContainer({
 		platform: memory.platform,
 		clock,
@@ -103,6 +111,7 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 		reportFailure: (title, error) => {
 			reported.push({ title, message: error.message });
 		},
+		showToast: options.showToast ?? ((notice) => toasted.push(notice)),
 		writeDiagnosticsReport:
 			options.writeDiagnosticsReport ??
 			((capture, fileName) => writeRedactedReport(memory.platform, capture, fileName)),
@@ -112,6 +121,7 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 		memory,
 		database: store.database,
 		reported,
+		toasted,
 		close: () => store.close(),
 	};
 }
