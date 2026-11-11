@@ -1659,6 +1659,18 @@ const SETTINGS_TABLE = [
 		default: 256,
 		min: 0,
 	},
+	// Our design choice: Conductor keeps this fold in its sidebar route state, keyed "team-org-assigned".
+	{
+		key: "sidebar_my_workspaces_collapsed",
+		page: "state",
+		scopes: ["user"],
+		title: "Fold My workspaces",
+		description: "Whether the My workspaces list is folded.",
+		searchTerms: ["fold", "collapse", "sidebar", "workspaces"],
+		feature: "NAV-03",
+		type: "bool",
+		default: false,
+	},
 	{
 		key: "sidebar_group_by",
 		page: "state",

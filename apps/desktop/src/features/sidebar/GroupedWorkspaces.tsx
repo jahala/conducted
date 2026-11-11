@@ -5,8 +5,9 @@
  * Behaviour: ui-map.md 4 items 4 to 7 and the View options menu (group by Status or Project, filter
  * by project, sort by Updated or Created; manual order when it is on). The list opens with
  * Conductor's "My workspaces" header, whose hover ellipsis holds that menu (renderApp @10494900).
- * Our design choice: the header does not collapse the list; whether Conductor's local list
- * collapses from it is not settled by the bundle.
+ * The header is Conductor's button (`Rtr`, @10493990) and folds the main list: aria-expanded, a
+ * right chevron while folded, a down chevron on hover or focus while open, and its own remembered
+ * fold, saved as `sidebar_my_workspaces_collapsed`.
  * Our design choice: The view options (group, filter, sort) are kept in a setting so they survive a
  * restart. Status groups run in this order: done, in review, in progress, backlog, canceled, the
  * order Conductor uses. Pinned and the user's sections are rendered by PinnedSection and
@@ -15,11 +16,12 @@
  * setting. A project group header dragged onto another saves the project order through
  * `Actions.projects.reorder` (NAV-04), the way Conductor reorders its project groups. The row's
  * right-click actions menu comes from NAV-10.
- * Must handle: A workspace in two places (pinned and in a section) shows once, in Pinned; a group
- * with no workspaces is hidden; a main group starts closed unless it holds the open workspace, and
- * the user's toggle then wins, as in Conductor (renderApp's sidebar groups); a collapsed group shows
- * its count; a project filter that matches
- * nothing shows a short empty note with a way to clear it; archived workspaces are never listed;
+ * Must handle: A workspace in two places (pinned and in a section) shows once, in Pinned; in project
+ * grouping every project that is not hidden keeps its group and its +, with or without workspaces,
+ * as in Conductor's local organisation; a status group with no workspaces is hidden; a main group
+ * starts closed unless it holds the open workspace, and the user's toggle then wins, as in Conductor
+ * (renderApp's sidebar groups); a collapsed group shows its count; when no group is left, a short
+ * empty note with a way to clear the filter; archived workspaces are never listed;
  * the selected workspace stays visible after a re-sort; Cmd+1..9 and Cmd+Alt+ArrowUp/Down move
  * through the visible order, wrapping at the ends; a right click on the list offers "New section...".
  * The collapsed state of the main groups lives here so the visible order can leave them out; a row
@@ -290,6 +292,7 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 	const sortBy = useSetting<string>("sidebar_sort_by");
 	const projectFilter = useSetting<string>("sidebar_repo_filter");
 	const manualOrderSetting = useSetting<boolean>("manual_workspace_order");
+	const myWorkspacesCollapsed = useSetting<boolean>("sidebar_my_workspaces_collapsed");
 	const storedManualOrder = useSetting<string>("sidebar_manual_order");
 	const params = useParams({ strict: false });
 	const selectedId = (params as { workspaceId?: WorkspaceId }).workspaceId ?? null;
@@ -459,6 +462,14 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 
 	const clearFilter = () => changeView({ ...view, projectFilter: [] });
 
+	const toggleMyWorkspaces = () => {
+		void actions.settings
+			.set("sidebar_my_workspaces_collapsed", !myWorkspacesCollapsed)
+			.then((result) => {
+				if (!result.ok) toastError("Couldn't save the sidebar view", result.error);
+			});
+	};
+
 	return (
 		<ContextMenu
 			items={
@@ -466,15 +477,22 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 			}
 		>
 			<div className="flex flex-col" data-sidebar-list="">
-				{/* Conductor's list header (Rtr, renderApp @10494900): "My workspaces" in 12px semibold
-				    muted text, its actions behind an ellipsis that shows on hover (D098). */}
+				{/* Conductor's list header (Rtr, renderApp @10493990): "My workspaces" in 12px semibold
+				    muted text, its actions behind an ellipsis that shows on hover (D098). The header
+				    folds the main list and remembers the fold. */}
 				<div className="group/header relative mt-0.5 px-2">
-					<div className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1.5 group-hover/header:bg-hover">
-						<h2 className="min-w-0 flex-1 truncate text-xs font-semibold text-sidebar-fg-muted">
+					<button
+						type="button"
+						aria-expanded={!myWorkspacesCollapsed}
+						onClick={toggleMyWorkspaces}
+						className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1.5 text-left group-hover/header:bg-hover"
+					>
+						<span className="min-w-0 flex-1 truncate text-xs font-semibold text-sidebar-fg-muted">
 							My workspaces
-						</h2>
+						</span>
 						<span aria-hidden="true" className="w-6 shrink-0" />
-					</div>
+						<HeaderChevron open={!myWorkspacesCollapsed} focusWithin />
+					</button>
 					<ViewOptionsMenu
 						view={view}
 						repos={repos}
@@ -495,36 +513,38 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 					excludedIds={pinnedIds}
 					onNewSection={() => setNewSectionOpen(true)}
 				/>
-				{groups.length === 0 ? (
-					<div className="flex flex-col items-center gap-2 p-4 text-center text-sm text-fg-muted">
-						<p>No matching workspaces</p>
-						{view.projectFilter.length > 0 ? (
-							<Button variant="secondary" size="sm" onClick={clearFilter}>
-								Clear filter
-							</Button>
-						) : null}
-					</div>
-				) : (
-					mainGroups.map((group) => {
-						const key = groupKey(group);
-						return (
-							<GroupSection
-								key={key}
-								group={group}
-								rows={rows}
-								repos={repos}
-								selectedId={selectedId}
-								shortcutIndexes={shortcutIndexes}
-								manualOrder={view.manualOrder}
-								open={!isCollapsed(group)}
-								onOpenChange={(open) => setGroupOpen(key, open)}
-								onReorder={saveOrder(key)}
-								repoReorderable={projectGroupCount > 1}
-								onReorderRepo={reorderProjects}
-							/>
-						);
-					})
-				)}
+				<div hidden={myWorkspacesCollapsed}>
+					{groups.length === 0 ? (
+						<div className="flex flex-col items-center gap-2 p-4 text-center text-sm text-fg-muted">
+							<p>No matching workspaces</p>
+							{view.projectFilter.length > 0 ? (
+								<Button variant="secondary" size="sm" onClick={clearFilter}>
+									Clear filter
+								</Button>
+							) : null}
+						</div>
+					) : (
+						mainGroups.map((group) => {
+							const key = groupKey(group);
+							return (
+								<GroupSection
+									key={key}
+									group={group}
+									rows={rows}
+									repos={repos}
+									selectedId={selectedId}
+									shortcutIndexes={shortcutIndexes}
+									manualOrder={view.manualOrder}
+									open={!isCollapsed(group)}
+									onOpenChange={(open) => setGroupOpen(key, open)}
+									onReorder={saveOrder(key)}
+									repoReorderable={projectGroupCount > 1}
+									onReorderRepo={reorderProjects}
+								/>
+							);
+						})
+					)}
+				</div>
 				<SectionDialog open={newSectionOpen} onOpenChange={setNewSectionOpen} section={null} />
 			</div>
 		</ContextMenu>
