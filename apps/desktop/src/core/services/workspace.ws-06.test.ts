@@ -69,6 +69,7 @@ interface HarnessOptions {
 	worktreeRemoveFails?: boolean;
 	existingPaths?: ReadonlySet<string>;
 	settings?: Record<string, unknown>;
+	setupFails?: boolean;
 }
 
 function harness(options: HarnessOptions = {}) {
@@ -239,6 +240,15 @@ function harness(options: HarnessOptions = {}) {
 		scripts: {
 			runSetup: vi.fn(async () => {
 				setupRuns.push("w1");
+				if (options.setupFails === true) {
+					return ok({
+						scriptFound: true,
+						exitCode: 1,
+						terminalId: null,
+						logPath: "/app/setup.log",
+						log: "saved" as const,
+					});
+				}
 				return ok({
 					scriptFound: false,
 					exitCode: null,
@@ -285,6 +295,19 @@ describe("WS-06 unarchive on the same branch", () => {
 		});
 
 		expect(result.ok).toBe(true);
+		expect(h.setupRuns).toEqual(["w1"]);
+	});
+
+	it("keeps the restored workspace ready when its setup script fails", async () => {
+		const h = harness({ setupFails: true });
+
+		const result = await h.service.unarchive("w1" as WorkspaceId, {
+			branchName: null,
+			clearChats: false,
+		});
+
+		expect(result.ok).toBe(true);
+		expect(h.rows[0]?.state).toBe("ready");
 		expect(h.setupRuns).toEqual(["w1"]);
 	});
 

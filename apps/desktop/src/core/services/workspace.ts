@@ -1131,8 +1131,15 @@ export class WorkspaceService {
 		return ok({ ...resolved.value, branchName: branch });
 	}
 
-	/** Runs the repo's setup script in a terminal and moves the workspace to ready or failed. */
-	async runSetup(workspaceId: WorkspaceId): Promise<Result<void>> {
+	/**
+	 * Runs the repo's setup script in a terminal and moves the workspace to ready or failed. An
+	 * unarchive that reruns setup keeps the restored workspace ready when the script fails, as
+	 * Conductor does; the Setup tab carries the failure.
+	 */
+	async runSetup(
+		workspaceId: WorkspaceId,
+		options: { keepStateOnFailure?: boolean } = {},
+	): Promise<Result<void>> {
 		// Register the start and its nonce before the first await. A second start or a cancel in
 		// the same tick then sees this run instead of slipping past a check that waits on the row.
 		if (this.#setupStarting.has(workspaceId)) return ok(undefined);
@@ -1178,6 +1185,7 @@ export class WorkspaceService {
 
 			if (!result.ok) {
 				this.#setSetupRun(workspaceId, { state: "failed", exitCode: null, log: "missing" });
+				if (options.keepStateOnFailure === true) return err(result.error);
 				const moved = await this.#finishSetup(workspaceId, false);
 				return moved.ok ? err(result.error) : moved;
 			}
@@ -1198,6 +1206,9 @@ export class WorkspaceService {
 				logPath: run.scriptFound ? (run.logPath ?? null) : null,
 				log: run.log ?? "missing",
 			});
+			if (!succeeded && options.keepStateOnFailure === true) {
+				return err(appError("setup_failed", SETUP_FAILED_MESSAGE));
+			}
 			const moved = await this.#finishSetup(workspaceId, succeeded);
 			if (!moved.ok) return moved;
 			return succeeded ? ok(undefined) : err(appError("setup_failed", SETUP_FAILED_MESSAGE));
@@ -1915,7 +1926,7 @@ export class WorkspaceService {
 
 		// A complete restore was archived with its dependencies in place. Conductor runs the setup
 		// script again here; a setup failure belongs to the Setup tab, not to the unarchive.
-		await this.runSetup(id);
+		await this.runSetup(id, { keepStateOnFailure: true });
 
 		return ok({ needsBranchName: false, uncommittedChangesLost });
 	}
