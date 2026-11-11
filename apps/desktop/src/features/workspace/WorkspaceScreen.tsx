@@ -9,7 +9,8 @@
  * Our design choice: every region is its own <NotBuiltYet>, keyed by the workspace id, so a failing region
  * never takes down the others and a new workspace gets a fresh try. The centre is SplitPanes, which renders
  * the tab strip and content as one group, or two when Split tabs is on. Data comes from hooks inside each
- * region, not from this component.
+ * region, not from this component. One tab drag spans the centre and the Scripts panel, so a terminal
+ * tab drags between them (tab-drag.tsx, issue #527).
  * Must handle: switching workspaces (all regions reset); the right panel closed (header shows the toggle, see
  * WorkspaceHeader); archived workspace (the gate shows the notice, panels explain themselves); search state
  * is the URL's, changes go through onSearchChange; the Git panel's tab and diff scope follow the URL's `gitTab`
@@ -29,6 +30,7 @@ import { LinkPullRequestDialog } from "../pr/LinkPullRequestDialog.tsx";
 import { forwardingToast } from "../scripts-panel/ports/forwarding-toast.ts";
 import { ScriptsPanel } from "../scripts-panel/ScriptsPanel.tsx";
 import { SplitPanes } from "./SplitPanes.tsx";
+import { TabDragProvider } from "./tab-drag.tsx";
 import { WorkspaceGate } from "./WorkspaceGate.tsx";
 import { WorkspaceHeader } from "./WorkspaceHeader.tsx";
 import { WorkspaceLayout } from "./WorkspaceLayout.tsx";
@@ -90,7 +92,7 @@ export function WorkspaceScreen({
 	const gitScope =
 		search.scope === undefined ? undefined : (parseDiffScope(search.scope) ?? undefined);
 	return (
-		<>
+		<TabDragProvider>
 			<WorkspaceLayout
 				workspaceId={workspaceId}
 				header={(controls) => (
@@ -133,6 +135,6 @@ export function WorkspaceScreen({
 				onOpenChange={setLinkingPullRequest}
 				onSubmit={(urlOrNumber) => actions.pullRequests.link(workspaceId, urlOrNumber)}
 			/>
-		</>
+		</TabDragProvider>
 	);
 }

@@ -2,6 +2,8 @@
  * @feature Every in-app drag
  * Owns: the one pointer-driven drag gesture used by the sidebar, tabs, queue, favourites and Kanban:
  * the movement threshold, the target under the pointer, the release, Escape, and the click guard.
+ * Also `usePointerDropTargets`, one drag shared by several regions that each register their own
+ * hit test and drop: the sidebar's lists, and the centre's tabs with the bottom panel (#527).
  * Behaviour: issue #529 and Conductor's own drags (renderApp's Loadout, tab panel, sidebar, queue
  * and kanban) are pointer driven: a press starts a drag only after the pointer moves 4px, each move
  * hit-tests the caller's targets, releasing drops on the target under the pointer, Escape or a
@@ -11,7 +13,8 @@
  * Must handle: a press that never moves stays a click; a drag released outside every target calls
  * `onCancel`; the handlers are removed on release, Escape and unmount.
  * Our design choice: the caller supplies `targetAt`, so each screen keeps its own geometry and drop
- * rules; this module owns only the gesture and the click guard.
+ * rules; this module owns only the gesture and the click guard. Where several regions share a
+ * drag, the smallest element under the pointer wins, so a row beats the list behind it.
  * Test first: a press that never moves stays a click.
  */
 
@@ -48,8 +51,11 @@ export interface PointerDragState<P, T> {
 
 export interface PointerDragOptions<P, T> {
 	threshold?: number;
-	/** The caller's target under the point, or undefined when the point is outside every target. */
-	targetAt(point: PointerDragPoint): PointerDragHit<T> | undefined;
+	/**
+	 * The caller's target under the point, or undefined when the point is outside every target. It
+	 * sees what is dragged, so a target can refuse a payload it does not take.
+	 */
+	targetAt(point: PointerDragPoint, payload: P): PointerDragHit<T> | undefined;
 	onDrop(payload: P, target: T, point: PointerDragPoint): void;
 	/** A drag cancelled with Escape or by the pointer. */
 	onCancel?(payload: P): void;
@@ -131,7 +137,7 @@ export function usePointerDrag<P, T>(options: PointerDragOptions<P, T>): Pointer
 					document.documentElement.dataset.pointerDrag = "";
 				}
 				const point = { x: moveEvent.clientX, y: moveEvent.clientY };
-				const hit = optionsRef.current.targetAt(point);
+				const hit = optionsRef.current.targetAt(point, payload);
 				setDrag({
 					payload,
 					dx,
@@ -150,7 +156,7 @@ export function usePointerDrag<P, T>(options: PointerDragOptions<P, T>): Pointer
 				setDrag(null);
 				if (!wasActive) return;
 				const point = { x: endEvent.clientX, y: endEvent.clientY };
-				const hit = optionsRef.current.targetAt(point);
+				const hit = optionsRef.current.targetAt(point, current);
 				if (hit === undefined) {
 					const outside = optionsRef.current.onReleaseOutside;
 					if (outside === undefined) optionsRef.current.onCancel?.(current);
@@ -202,4 +208,55 @@ export function usePointerDrag<P, T>(options: PointerDragOptions<P, T>): Pointer
 	}, []);
 
 	return { drag, start, cancel, consumeClick, resetClick, isDragging: drag !== null };
+}
+
+/** One region's target under the pointer, with the drop it performs. */
+export interface PointerDropHit<P> {
+	element: Element;
+	drop(payload: P, point: PointerDragPoint): void;
+}
+
+/** A region's hit test. It sees the payload, so a region can refuse what it does not take. */
+export type PointerHitTest<P, H extends PointerDropHit<P>> = (
+	point: PointerDragPoint,
+	payload: P,
+) => H | undefined;
+
+export interface PointerDropTargets<P, H extends PointerDropHit<P>> {
+	pointer: PointerDrag<P, H>;
+	/** Adds a region's hit test; the function it returns removes it. */
+	register(hitTest: PointerHitTest<P, H>): () => void;
+}
+
+/**
+ * One pointer drag shared by several regions. Each region registers a hit test; the smallest
+ * element under the pointer wins, and releasing there calls that hit's drop.
+ */
+export function usePointerDropTargets<P, H extends PointerDropHit<P>>(): PointerDropTargets<P, H> {
+	const tests = useRef<PointerHitTest<P, H>[]>([]);
+	const register = useCallback((hitTest: PointerHitTest<P, H>) => {
+		tests.current = [...tests.current, hitTest];
+		return () => {
+			tests.current = tests.current.filter((entry) => entry !== hitTest);
+		};
+	}, []);
+	const pointer = usePointerDrag<P, H>({
+		targetAt: (point, payload) => {
+			let best: H | undefined;
+			let smallest = Number.POSITIVE_INFINITY;
+			for (const test of tests.current) {
+				const hit = test(point, payload);
+				if (hit === undefined) continue;
+				const rect = hit.element.getBoundingClientRect();
+				const area = rect.width * rect.height;
+				if (area <= smallest) {
+					best = hit;
+					smallest = area;
+				}
+			}
+			return best === undefined ? undefined : { target: best, element: best.element };
+		},
+		onDrop: (payload, hit, point) => hit.drop(payload, point),
+	});
+	return { pointer, register };
 }

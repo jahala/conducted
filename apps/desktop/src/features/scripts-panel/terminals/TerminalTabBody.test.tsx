@@ -13,7 +13,9 @@ vi.mock("../../terminal/TerminalView.tsx", () => ({
 	),
 }));
 
-const { TerminalTabBody, nextTerminalAfterClose } = await import("./TerminalTabBody.tsx");
+const { TerminalTabBody, nextTerminalAfterClose, terminalAfterMoveOut } = await import(
+	"./TerminalTabBody.tsx"
+);
 
 const id = (value: string) => value as TerminalId;
 const workspaceId = "w1" as WorkspaceId;
@@ -34,6 +36,14 @@ describe("RUN-06 terminal tab body", () => {
 	it("selects nothing when no terminal is left, and the first for an unknown id", () => {
 		expect(nextTerminalAfterClose([id("a")], id("a"))).toBeNull();
 		expect(nextTerminalAfterClose([id("a"), id("b")], id("gone"))).toBe("a");
+	});
+
+	it("shows the terminal before one that moved to the centre, or the next when it was first", () => {
+		const ids = [id("a"), id("b"), id("c")];
+		expect(terminalAfterMoveOut(ids, id("b"))).toBe("a");
+		expect(terminalAfterMoveOut(ids, id("c"))).toBe("b");
+		expect(terminalAfterMoveOut(ids, id("a"))).toBe("b");
+		expect(terminalAfterMoveOut([id("a")], id("a"))).toBeNull();
 	});
 
 	it("keeps a hidden terminal mounted when another tab is shown", () => {
