@@ -9,6 +9,7 @@
  */
 
 import { animateCast, type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
+import { findFirst } from "../dom.ts";
 import { addChat, must, setSetting } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
 import type { World } from "../world.ts";
@@ -29,8 +30,7 @@ async function seedSidebarDrags(world: World): Promise<Cast> {
  * so the drag controller publishes it and empty Pinned draws its drop hint.
  */
 async function startWorkspaceDrag(document: Document): Promise<void> {
-	const row = document.querySelector<HTMLElement>("[data-workspace-id]");
-	if (row === null) throw new Error("No sidebar workspace row to drag.");
+	const row = await findFirst(document, "[data-workspace-id]");
 	const rect = row.getBoundingClientRect();
 	const x = rect.left + rect.width / 2;
 	const y = rect.top + rect.height / 2;

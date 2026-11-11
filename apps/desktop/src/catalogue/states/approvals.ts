@@ -12,7 +12,7 @@ import type { Interaction, SessionConfig } from "@conducted/protocol";
 import type { ToolUseId } from "@conducted/shared";
 import { animateCast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, shows } from "../dom.ts";
+import { click, clickOn, findFirst, shows } from "../dom.ts";
 import { openInteraction } from "../live.ts";
 import { addChat, addEvents, CLAUDE_CONFIG } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
@@ -201,7 +201,8 @@ export const APPROVAL_STATES: CatalogueState[] = [
 							},
 						],
 					});
-					await click(document, "[role=radio]", "SQLite");
+					// The row's text starts with its aria-hidden number, so it is found by position.
+					clickOn(await findFirst(document, "[role=radio][data-question-option='0']"));
 					await click(document, "button", "Submit");
 				},
 				ready: (document) => shows(document, "Could not send answers. Try again."),

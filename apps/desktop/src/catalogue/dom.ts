@@ -36,14 +36,28 @@ export async function find(
 	throw new Error(`No ${selector} named "${name}" appeared.`);
 }
 
-/** Clicks like a pointer does: pointer and mouse events, then click. */
+/** Waits for the first element matching `selector`, for a target with no name of its own. */
+export async function findFirst(document: Document, selector: string): Promise<HTMLElement> {
+	for (let frame = 0; frame < MAX_FRAMES; frame++) {
+		const found = document.querySelector<HTMLElement>(selector);
+		if (found !== null) return found;
+		await nextFrame();
+	}
+	throw new Error(`No ${selector} appeared.`);
+}
+
+/** Waits for the control named `name`, then clicks it as a pointer does. */
 export async function click(
 	document: Document,
 	selector: string,
 	name: string,
 	options: { prefix?: boolean } = {},
 ): Promise<void> {
-	const element = await find(document, selector, name, options);
+	clickOn(await find(document, selector, name, options));
+}
+
+/** Clicks `element` like a pointer does: pointer and mouse events, then click. */
+export function clickOn(element: HTMLElement): void {
 	const init = { bubbles: true, cancelable: true, button: 0, pointerType: "mouse" } as const;
 	element.dispatchEvent(new PointerEvent("pointerdown", init));
 	element.dispatchEvent(new MouseEvent("mousedown", init));
@@ -52,17 +66,21 @@ export async function click(
 	// A pointer click counts 1; `element.click()` counts 0, which controls read as the keyboard.
 	element.dispatchEvent(new MouseEvent("click", { ...init, detail: 1 }));
 	// A pointer click shows no focus ring; a scripted one would, so leave focus where a pointer would.
-	if (document.activeElement === element) element.blur();
+	if (element.ownerDocument.activeElement === element) element.blur();
 }
 
-/** Right-clicks like a pointer does, which opens the element's context menu. */
+/** Waits for the control named `name`, then right-clicks it as a pointer does. */
 export async function rightClick(
 	document: Document,
 	selector: string,
 	name: string,
 	options: { prefix?: boolean } = {},
 ): Promise<void> {
-	const element = await find(document, selector, name, options);
+	rightClickOn(await find(document, selector, name, options));
+}
+
+/** Right-clicks `element` like a pointer does, which opens its context menu. */
+export function rightClickOn(element: HTMLElement): void {
 	const box = element.getBoundingClientRect();
 	const init = {
 		bubbles: true,

@@ -321,7 +321,8 @@ export const COMPOSER_STATES: CatalogueState[] = [
 			const cast = await seedCast(world);
 			const chat = await addChat(world, cast.arbor, {
 				title: null,
-				config: { ...CLAUDE_CONFIG, effort: "max" },
+				// Sonnet's efforts stop at high in the catalogue's model list.
+				config: { ...CLAUDE_CONFIG, model: "sonnet", effort: "max" },
 			});
 			return {
 				route: chatRoute(cast.arbor, chat),

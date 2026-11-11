@@ -10,7 +10,7 @@
 import type { CodexGoal, SessionConfig } from "@conducted/protocol";
 import { chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, shows, typeInto } from "../dom.ts";
+import { click, has, shows, typeInto } from "../dom.ts";
 import { addChat, addEvents, CLAUDE_CONFIG, must } from "../seeds.ts";
 import type { AfterContext, CatalogueState } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
@@ -118,7 +118,7 @@ export const GOAL_STATES: CatalogueState[] = [
 		async ({ document }) => {
 			await click(document, "button", "Edit goal");
 		},
-		(document) => shows(document, "Save goal"),
+		(document) => has(document, "button", "Save goal"),
 	),
 	editingGoal(
 		"composer-goal-empty",

@@ -13,7 +13,7 @@
  */
 
 import { type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
-import { click, shows } from "../dom.ts";
+import { click, findFirst, rightClickOn, shows } from "../dom.ts";
 import { must } from "../seeds.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import type { World } from "../world.ts";
@@ -106,18 +106,7 @@ export const SIDEBAR_STATES: CatalogueState[] = [
 		"Sidebar: a pinned workspace's actions menu",
 		"Unpin",
 		async ({ document }) => {
-			const row = document.querySelector<HTMLElement>("[data-workspace-id]");
-			if (row === null) throw new Error("No sidebar workspace row to open.");
-			const box = row.getBoundingClientRect();
-			const init = {
-				bubbles: true,
-				cancelable: true,
-				button: 2,
-				clientX: box.left + box.width / 2,
-				clientY: box.top + box.height / 2,
-			};
-			row.dispatchEvent(new PointerEvent("pointerdown", { ...init, pointerType: "mouse" }));
-			row.dispatchEvent(new MouseEvent("contextmenu", init));
+			rightClickOn(await findFirst(document, "[data-workspace-pinned-drop] [data-workspace-id]"));
 		},
 	),
 	sectionsState(

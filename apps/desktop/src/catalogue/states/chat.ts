@@ -15,7 +15,7 @@ import type { Workspace } from "../../core/model.ts";
 import { animateCast, type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
 import { click, has, hover, shows } from "../dom.ts";
-import { addChat, addEvents, must } from "../seeds.ts";
+import { addChat, addEvents, addRepo, must } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
 import type { World } from "../world.ts";
@@ -217,11 +217,13 @@ export const CHAT_STATES: CatalogueState[] = [
 	{
 		id: "workspace-not-found",
 		group: "Workspace chat",
-		title: "A workspace address that no workspace answers",
+		title: "A workspace address that no workspace answers, on a Mac with no workspaces",
+		// With any workspace loaded, the route sends an unknown id to All workspaces (router.tsx), so
+		// the gate's card shows only while the list is empty.
 		seed: async (world): Promise<Scene> => {
-			const cast = await seedCast(world);
+			const atlas = await addRepo(world, { name: "atlas" });
 			return {
-				route: `/repository/${cast.atlas.id}/workspace/workspace-that-is-gone`,
+				route: `/repository/${atlas.id}/workspace/workspace-that-is-gone`,
 				ready: (document) => shows(document, "Workspace not found"),
 			};
 		},
