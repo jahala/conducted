@@ -23,6 +23,19 @@ export default defineConfig({
 	test: {
 		environment: "jsdom",
 		setupFiles: ["./src/test/setup.ts"],
+		// Two kinds of test. `unit` runs everywhere and is the default (`pnpm test`). `macos` needs
+		// programs only macOS ships, such as /bin/zsh, so it runs in CI's macOS job
+		// (`pnpm test:macos`).
+		projects: [
+			{
+				extends: true,
+				test: {
+					name: "unit",
+					exclude: [...configDefaults.exclude, "**/*.macos.test.?(c|m)[jt]s?(x)"],
+				},
+			},
+			{ extends: true, test: { name: "macos", include: ["**/*.macos.test.?(c|m)[jt]s?(x)"] } },
+		],
 		...(reports
 			? {
 					reporters: [

@@ -46,12 +46,13 @@ The header says what the file does now, not what the feature will do one day. Wh
 
 ## Tests
 
-| Kind                         | Tool                                  | Lives in                         | Runs                        |
-| ---------------------------- | ------------------------------------- | -------------------------------- | --------------------------- |
-| Unit, packages               | `bun test`                            | next to the code, `*.test.ts`    | `pnpm test`                 |
-| Unit and components, desktop | Vitest with jsdom and Testing Library | next to the code, `*.test.ts(x)` | `pnpm test`                 |
-| Rust                         | `cargo test`                          | inline `#[cfg(test)]` modules    | in `apps/desktop/src-tauri` |
-| Guards                       | `bun test`                            | `scripts/guards`                 | `pnpm guards`               |
+| Kind                         | Tool                                  | Lives in                            | Runs                              |
+| ---------------------------- | ------------------------------------- | ----------------------------------- | --------------------------------- |
+| Unit, packages               | `bun test`                            | next to the code, `*.test.ts`       | `pnpm test`                       |
+| Unit and components, desktop | Vitest with jsdom and Testing Library | next to the code, `*.test.ts(x)`    | `pnpm test`                       |
+| Desktop, needs macOS         | Vitest, project `macos`               | next to the code, `*.macos.test.ts` | `pnpm test:macos`, CI's macOS job |
+| Rust                         | `cargo test`                          | inline `#[cfg(test)]` modules       | in `apps/desktop/src-tauri`       |
+| Guards                       | `bun test`                            | `scripts/guards`                    | `pnpm guards`                     |
 
 Rules every test follows:
 
@@ -70,11 +71,22 @@ Rules every test follows:
 - **A guard proves it can fail.** A check that reads source text includes a sample it must flag.
 - **Five guards watch the shape of tests** (`scripts/guards/test-shapes.ts`): tests that cannot fail, tests that mock the thing they test, stand-ins defined outside `src/test/`, real time or leaked state, and tests that cannot pass. A test cannot pass when a Testing Library query looks for text with whitespace at an end or doubled (the library trims and collapses the page's text first), or when a `vi.mock` factory leaves out a name that a module the test reaches imports (Vitest throws when that code runs; start the factory from `importOriginal()` or use `createTestContainer`). Each compares per-file counts with `scripts/guards/test-shapes-baseline.json`. A count may not rise, and the baseline must fall with every fix: run `bun scripts/guards/test-shapes.ts --write-baseline` after a fix, and `--list` to see every site. A mock that is a real seam carries `// seam: <ID> <reason>` on the line above.
 
+### Which tests run
+
+`pnpm test` runs every test. `pnpm test:changed` runs the tests the changes since origin/main can reach; every pull request runs it in CI, and main runs every test after each merge. Both go through `scripts/run-tests.ts`; `--dry-run` prints the choice without running it.
+
+- **Each runner's own graph decides.** Vitest's module graph picks the desktop's and the cloud's tests (`scripts/vitest-affected.ts` asks it through Vitest's Node API). Bun's resolver walks the imports of the bun-tested folders. `bun test --changed` is not used: it does not follow a workspace package imported by name, so a change to `packages/shared` selected none of the sidecar's tests.
+- **Files read by name count.** Code that names a changed file reads it (comments are stripped first): a data file by its base name, a module by its folder and base name. A test that lists or builds a whole folder is named in a folder rule.
+- **One file holds the rules:** `scripts/test-rules.ts`. A change on its run-everything list (manifests, the lockfile, test and CI configuration, the test run itself, migrations, generated code) runs everything. Its always list keeps the money, data-loss and security tests running on every pull request.
+- **Never an empty pass.** When code changed and no test reaches it, every test runs.
+- **The main line is the net.** When its full run fails on a test a pull request skipped, fix the defect and the rule that let it through. Nothing else checks the folder rules.
+- **Desktop tests come in two kinds:** the Vitest project `unit`, the default everywhere, and `macos` (`*.macos.test.ts`), for tests that need a program only macOS ships, such as `/bin/zsh`. The macOS kind runs in CI's macOS job.
+
 ## CI
 
 Every workflow runs on GitHub-hosted runners. A push costs this Mac nothing, and no job runs on the owner's Mac. Every job has `timeout-minutes`, so a hung runner stops at a known time rather than GitHub's six-hour default (`pnpm guards` checks this). A newer push cancels the older run of the same pull request; a push to main never cancels the run of the commit before it.
 
-- `ci.yml` runs the fast checks on every ready pull request and on each push to main.
+- `ci.yml` runs the fast checks on every ready pull request and on each push to main. A pull request runs only the tests its changes can reach ([Which tests run](#which-tests-run)); a push to main runs every test. Its macOS job runs the Rust checks and `pnpm test:macos`.
 - `codeql.yml` scans the TypeScript and the Rust with CodeQL on ready pull requests to main, on pushes to main, and weekly. Rust is scanned in build mode `none`, so the scan needs no build and no macOS runner. Results appear under Security > Code scanning; the workflow asks only for `security-events: write`.
 - `coverage.yml`, `parity.yml`, `catalogue-shots.yml` and `dependency-review.yml` run the measurements, the parity harness, the screenshots and the dependency review described in [States catalogue](#states-catalogue).
 
@@ -106,7 +118,7 @@ The owner's ruling: Conductor's own frontend runs on this Mac only, from the git
 
 ## A run leaves nothing behind
 
-`pnpm test` runs through `scripts/with-run-dir.ts`. It gives the run its own folder (`$TMPDIR/conducted-runs/<run id>`, recorded with the run's process id), points `TMPDIR` at it, and removes it when the run ends. When the run ends it fails if anything is left. The next run removes folders whose recorded process is gone.
+`pnpm test`, `pnpm test:changed` and `pnpm test:macos` run through `scripts/with-run-dir.ts`. It gives the run its own folder (`$TMPDIR/conducted-runs/<run id>`, recorded with the run's process id), points `TMPDIR` at it, and removes it when the run ends. When the run ends it fails if anything is left. The next run removes folders whose recorded process is gone.
 
 Tests that create git repos, sidecar sockets or temporary files create them under `TMPDIR`, and stop every process they start by the process id they recorded.
 
@@ -123,6 +135,26 @@ After the release exists, the same workflow updates the Homebrew cask in `jahala
 Anyone can check that a published file came from this repository's code:
 
     gh attestation verify <file> --repo jahala/conducted
+
+### The agent programs' versions
+
+The app ships its own copies of Claude Code and Codex, pinned by the release feed at
+`apps/desktop/src-tauri/programs/release-feed.json` (PLAT-28). The same versions appear in the
+Rust pins (`pinned_version` in `apps/desktop/src-tauri/src/binaries.rs`), in the cloud image's
+program table (`apps/cloud/sandbox/image.ts` and its Dockerfile), and in the SDK the sidecar pins
+(`@anthropic-ai/claude-agent-sdk` in `packages/sidecar/package.json`). They move together.
+
+`bun scripts/programs/update-feed.ts` reads the newest Claude Code release from
+`https://downloads.claude.ai/claude-code-releases/<version>/manifest.json` and the newest Codex
+release from GitHub, and writes every file above with the size and SHA-256 each publisher states.
+It never computes or guesses a checksum: a release without one is refused. It moves the SDK pin to
+the newest wrapper the Claude Code manifest's `sdkCompat` tested, and says so. When every pinned
+copy is current, it changes nothing.
+
+`.github/workflows/agent-programs.yml` runs the script daily and on manual dispatch. When a file
+changes, it updates the `chore/agent-program-versions` branch and opens or updates one pull
+request from it. The workflow needs no secret beyond its own token; the script reads GitHub with
+`GITHUB_TOKEN` when the workflow sets it.
 
 ## The product page
 

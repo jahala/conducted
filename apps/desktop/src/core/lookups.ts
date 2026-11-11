@@ -52,7 +52,8 @@ import type { PrWorkspaceContext } from "./services/github.ts";
 import { localExecutionForHost } from "./services/local-command.ts";
 import type { RepoState } from "./services/repo.ts";
 import type { SessionsState } from "./services/sessions.ts";
-import { FIRST_CHAT_APP_TOOLS, type WorkspaceState } from "./services/workspace.ts";
+import type { WorkspaceState } from "./services/workspace.ts";
+import { FIRST_CHAT_APP_TOOLS } from "./services/workspace-creation.ts";
 import {
 	NEW_CHAT_EFFORT_FALLBACK,
 	NEW_CHAT_MODEL_FALLBACK,

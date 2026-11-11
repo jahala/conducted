@@ -715,8 +715,8 @@ pub const EVENT_PROGRAM_STATUS: &str = "programs://status";
 /// watchexec). The release feed shipped with the app must serve them.
 pub fn pinned_version(program: ManagedProgram) -> &'static str {
     match program {
-        ManagedProgram::Claude => "2.1.308",
-        ManagedProgram::Codex => "0.164.0",
+        ManagedProgram::Claude => "2.1.322",
+        ManagedProgram::Codex => "0.167.1",
         ManagedProgram::Gh => "2.100.0",
         ManagedProgram::Watchexec => "2.3.2",
         // The latest @cursor/sdk on registry.npmjs.org on 2026-11-06, which the owner ruled is
@@ -3106,7 +3106,13 @@ mod tests {
                 .map(|release| release.version.as_str()),
             Some("2.1.308")
         );
-        assert_eq!(pinned_version(ManagedProgram::Claude), "2.1.308");
+        assert_eq!(
+            pinned_version(ManagedProgram::Claude),
+            shipped_feed()
+                .release(ManagedProgram::Claude)
+                .expect("Claude is pinned")
+                .version
+        );
         assert_eq!(pinned_version(ManagedProgram::Gh), "2.100.0");
     }
 
@@ -3748,7 +3754,8 @@ mod tests {
             .error
             .expect("the refusal is shown");
         assert!(
-            error.contains("offers claude 2.1.307") && error.contains("pins 2.1.308"),
+            error.contains("offers claude 2.1.307")
+                && error.contains(&format!("pins {}", pinned_version(ManagedProgram::Claude))),
             "{error}"
         );
         assert!(!ctx.dirs.program(ManagedProgram::Claude).exists());
@@ -4483,15 +4490,16 @@ mod tests {
         );
 
         assert_eq!(status.state, ProgramState::Ready, "{:?}", status.error);
-        let binary = ctx.dirs.binary(ManagedProgram::Codex, "0.164.0");
+        let pinned = pinned_version(ManagedProgram::Codex);
+        let binary = ctx.dirs.binary(ManagedProgram::Codex, pinned);
         assert_eq!(fs::read(&binary).expect("the program"), program);
         assert_eq!(
             version_folder_names(&ctx, ManagedProgram::Codex),
             vec!["codex".to_string()],
             "the downloaded file is gone"
         );
-        let metadata = fs::read_to_string(ctx.dirs.metadata(ManagedProgram::Codex, "0.164.0"))
-            .expect("metadata");
+        let metadata =
+            fs::read_to_string(ctx.dirs.metadata(ManagedProgram::Codex, pinned)).expect("metadata");
         let metadata: serde_json::Value = serde_json::from_str(&metadata).expect("metadata json");
         assert_eq!(
             metadata["sha256"],
@@ -4514,7 +4522,11 @@ mod tests {
 
         assert_eq!(status.state, ProgramState::Ready, "{:?}", status.error);
         assert_eq!(
-            fs::read(ctx.dirs.binary(ManagedProgram::Codex, "0.164.0")).expect("the program"),
+            fs::read(
+                ctx.dirs
+                    .binary(ManagedProgram::Codex, pinned_version(ManagedProgram::Codex))
+            )
+            .expect("the program"),
             b"#!/bin/sh\necho codex-cli 0.164.0\n"
         );
     }

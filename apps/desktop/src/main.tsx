@@ -39,7 +39,7 @@ import { ServicesProvider } from "./core/context.tsx";
 import { useSystemInfo } from "./core/hooks.ts";
 import type { SoundPlayer } from "./core/services/notifications.ts";
 import { tomlCodec } from "./core/services/toml-codec.ts";
-import { createPlaceNames } from "./core/services/workspace.ts";
+import { createPlaceNames } from "./core/services/workspace-creation.ts";
 import { writeRedactedReport } from "./features/diagnostics/diagnostics-report.ts";
 import { isWrongCpuBuild } from "./features/updates/RosettaConfirm.tsx";
 import type { Platform, SystemInfo } from "./platform/platform.ts";

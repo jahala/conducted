@@ -51,24 +51,24 @@ RUN set -eux; \
 	ln -s /opt/conducted/agent-binaries/gh/2.100.0/gh /opt/conducted/bin/gh; \
 	rm -rf /tmp/gh.tar.gz /tmp/gh_2.100.0_linux_amd64
 
-# Claude Code 2.1.308, the version the app pins. The Linux x64 package is Anthropic's native
+# Claude Code 2.1.322, the version the app pins. The Linux x64 package is Anthropic's native
 # release; npm checks the registry's integrity for it.
 RUN npm install --prefix /tmp/claude --no-save --ignore-scripts --no-audit --no-fund \
-		@anthropic-ai/claude-code-linux-x64@2.1.308 \
+		@anthropic-ai/claude-code-linux-x64@2.1.322 \
 	&& install -D -m 0755 /tmp/claude/node_modules/@anthropic-ai/claude-code-linux-x64/claude \
-		/opt/conducted/agent-binaries/claude/2.1.308/claude \
-	&& ln -s /opt/conducted/agent-binaries/claude/2.1.308/claude /opt/conducted/bin/claude \
+		/opt/conducted/agent-binaries/claude/2.1.322/claude \
+	&& ln -s /opt/conducted/agent-binaries/claude/2.1.322/claude /opt/conducted/bin/claude \
 	&& rm -rf /tmp/claude
 
-# Codex 0.164.0, the version the app pins. The upstream musl binary is static. The SHA-256 is
+# Codex 0.167.1, the version the app pins. The upstream musl binary is static. The SHA-256 is
 # GitHub's asset digest.
 RUN set -eux; \
 	curl -fsSL -o /tmp/codex.tar.gz \
-		https://github.com/openai/codex/releases/download/rust-v0.164.0/codex-x86_64-unknown-linux-musl.tar.gz; \
-	echo "90dd0b03b28afcb7fa733a4f73b413db2916a47347efd43fb669cc1c774ee8e4  /tmp/codex.tar.gz" | sha256sum -c -; \
+		https://github.com/openai/codex/releases/download/rust-v0.167.1/codex-x86_64-unknown-linux-musl.tar.gz; \
+	echo "64bcc99c32e434b4bcb0508a97df9b7aeecdb97e956d976fb13661096ec4e3e2  /tmp/codex.tar.gz" | sha256sum -c -; \
 	tar -xzf /tmp/codex.tar.gz -C /tmp; \
-	install -D -m 0755 /tmp/codex-x86_64-unknown-linux-musl /opt/conducted/agent-binaries/codex/0.164.0/codex; \
-	ln -s /opt/conducted/agent-binaries/codex/0.164.0/codex /opt/conducted/bin/codex; \
+	install -D -m 0755 /tmp/codex-x86_64-unknown-linux-musl /opt/conducted/agent-binaries/codex/0.167.1/codex; \
+	ln -s /opt/conducted/agent-binaries/codex/0.167.1/codex /opt/conducted/bin/codex; \
 	rm -rf /tmp/codex.tar.gz /tmp/codex-x86_64-unknown-linux-musl
 
 # Cursor's SDK 1.3.1, the version the app installs on demand (AGENT-09), plus the Linux x64 native
