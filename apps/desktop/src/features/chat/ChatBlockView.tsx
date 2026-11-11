@@ -10,7 +10,7 @@
  * error block's banner.
  * Test first: a tool block renders the tool card for its call; a notice block renders a banner.
  */
-import type { SessionId, WorkspaceId } from "@conducted/shared";
+import type { AgentKind, SessionId, WorkspaceId } from "@conducted/shared";
 import type { ChatBlock } from "../../core/model.ts";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { AssistantText } from "./AssistantText.tsx";
@@ -37,9 +37,11 @@ function BlockContent({
 	streaming,
 	onRetry,
 	retryInNewChat,
+	agent,
 }: {
 	block: ChatBlock;
 	sessionId: SessionId;
+	agent?: AgentKind;
 	workspaceId?: WorkspaceId;
 	canRun?: boolean;
 	streaming?: boolean;
@@ -64,7 +66,14 @@ function BlockContent({
 			return <TodoBlock item={block.item} />;
 		case "notice":
 		case "error":
-			return <ChatBanner block={block} onRetry={onRetry} retryInNewChat={retryInNewChat} />;
+			return (
+				<ChatBanner
+					block={block}
+					onRetry={onRetry}
+					retryInNewChat={retryInNewChat}
+					agent={agent}
+				/>
+			);
 	}
 }
 
@@ -81,9 +90,12 @@ export function ChatBlockView({
 	streaming,
 	onRetry,
 	retryInNewChat,
+	agent,
 }: {
 	block: ChatBlock;
 	sessionId: SessionId;
+	/** The chat's agent, so a sign-in error block reads as that agent's own. */
+	agent?: AgentKind;
 	/** The workspace a relative file or video target in the text, or a shell command, belongs to. */
 	workspaceId?: WorkspaceId;
 	/** The workspace is ready and not archived, so a shell block can run its command. */
@@ -108,6 +120,7 @@ export function ChatBlockView({
 				streaming={streaming}
 				onRetry={onRetry}
 				retryInNewChat={retryInNewChat}
+				agent={agent}
 			/>
 		</NotBuiltYet>
 	);

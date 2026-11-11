@@ -9,8 +9,10 @@
  * now while the agent retries by itself; the error card offers Retry in new chat), 7.4 (agent
  * binary and auth problems are shown inline in chat). The turn error views and their words are
  * Conductor's IQi (renderApp @9538488) and GFe (@9534766); GFe's retry button reads 'Retry'.
- * Our design choice: Sign-in and key problems link to the Agents settings page and show the agent's
- * own message, which names the problem (one auth code covers every agent). Retryable errors show
+ * Our design choice: Sign-in and key problems link to the Agents settings page. One auth code covers
+ * every agent, so the banner reads the agent and its message and shows Conductor's words for it:
+ * "Authentication required" (Claude), "ChatGPT login expired", "Codex authentication required" and
+ * "Cursor API key required" (renderApp @9512696, @9542567, @9543489). Retryable errors show
  * 'Retry', which resends the last message. Every error keeps the title 'The agent reported an
  * error' unless Conductor's view has a title of its own, and keeps Retry in new chat, which
  * Conductor leaves off its session limit and image views. Retry in new chat creates the chat and
@@ -23,7 +25,7 @@
  * button; the retry line names the attempt and Retry now calls back.
  */
 import { AGENT_ERROR_CODES, type LiveState } from "@conducted/protocol";
-import type { SessionId, TurnId } from "@conducted/shared";
+import type { AgentKind, SessionId, TurnId } from "@conducted/shared";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useRef } from "react";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
@@ -53,6 +55,8 @@ export interface ChatBannerProps {
 	onRetry?: () => void;
 	/** The failed turn to send again in a new chat of the same workspace. */
 	retryInNewChat?: RetryInNewChatTarget;
+	/** The chat's agent, so a sign-in error reads as that agent's own (renderApp @9542567). */
+	agent?: AgentKind;
 }
 
 export interface ChatRetryBannerProps {
@@ -138,6 +142,30 @@ function errorTitle(isAuth: boolean, view: TurnErrorView | undefined): string {
 	return "The agent reported an error";
 }
 
+/** The title and help of a sign-in error, in each agent's own words (renderApp @9512696, @9542577, @9543489). */
+function authCopy(agent: AgentKind | undefined, message: string): { title: string; body: string | null } {
+	const text = message.toLowerCase();
+	if (agent === "codex") {
+		if (/chatgpt|token.*expired|session.*expired|login expired/.test(text)) {
+			return {
+				title: "ChatGPT login expired",
+				body: "Your ChatGPT login has expired. Reconnect ChatGPT, then send your message again.",
+			};
+		}
+		return {
+			title: "Codex authentication required",
+			body: "Please configure Codex authentication in Settings to use Codex.",
+		};
+	}
+	if (agent === "cursor") {
+		return {
+			title: "Cursor API key required",
+			body: "Add a Cursor API key in provider settings to use Cursor.",
+		};
+	}
+	return { title: "Authentication required", body: null };
+}
+
 const SESSION_LIMIT_NOTE =
 	"This limit is imposed by Anthropic and applies to all Claude Code usage.";
 const SESSION_LIMIT_HELP =
@@ -170,7 +198,7 @@ function sessionLimitReset(resetsAt: number | null): string {
 		: `Your limit will be reset on ${formatResetTime(resetsAt)}.`;
 }
 
-export function ChatBanner({ block, view, onRetry, retryInNewChat }: ChatBannerProps) {
+export function ChatBanner({ block, view, onRetry, retryInNewChat, agent }: ChatBannerProps) {
 	const actions = useActions();
 	const copy = (text: string) => {
 		void reportFailure(actions.app.copyText(text), "Failed to copy message");
@@ -198,8 +226,10 @@ export function ChatBanner({ block, view, onRetry, retryInNewChat }: ChatBannerP
 
 	const item = block.item;
 	const isAuth = item.code === AGENT_ERROR_CODES.authRequired;
+	const auth = isAuth ? authCopy(agent, item.message) : null;
 	const shown = view === undefined ? item.message : (viewText(view) ?? item.message);
-	const message = shown.trim().length === 0 ? "This message could not be displayed." : shown;
+	const message =
+		auth?.body ?? (shown.trim().length === 0 ? "This message could not be displayed." : shown);
 	const openStatus = () => {
 		void reportFailure(actions.app.openUrl(ANTHROPIC_STATUS), "Couldn't open the link");
 	};
@@ -217,7 +247,7 @@ export function ChatBanner({ block, view, onRetry, retryInNewChat }: ChatBannerP
 		>
 			<div>
 				<Alert tone="destructive" icon={<XCircleIcon />}>
-					<AlertTitle>{errorTitle(isAuth, view)}</AlertTitle>
+					<AlertTitle>{auth?.title ?? errorTitle(isAuth, view)}</AlertTitle>
 					<AlertDescription>
 						<div className="flex flex-col gap-2">
 							<span className="select-text">
@@ -242,7 +272,7 @@ export function ChatBanner({ block, view, onRetry, retryInNewChat }: ChatBannerP
 										params={{ page: "agents" }}
 										className="inline-flex h-7 items-center rounded-md border border-border-strong px-2.5 text-xs font-book text-fg hover:bg-hover"
 									>
-										Open agent settings
+										Open settings
 									</Link>
 								) : null}
 								{item.retryable && onRetry ? (
