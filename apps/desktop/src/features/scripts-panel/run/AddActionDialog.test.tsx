@@ -50,6 +50,14 @@ describe("SET-07 AddActionDialog", () => {
 		expect(save.disabled).toBe(true);
 	});
 
+	it("opens the icon picker from Choose action icon", () => {
+		renderDialog();
+
+		fireEvent.click(screen.getByRole("button", { name: "Choose action icon" }));
+
+		expect(document.activeElement).toBe(screen.getByRole("searchbox", { name: "Search icons" }));
+	});
+
 	it("saves the normalised id and the trimmed text", async () => {
 		const { onSave } = renderDialog();
 		fireEvent.change(screen.getByLabelText("Action name"), { target: { value: "Test suite" } });

@@ -19,9 +19,11 @@
  * Must handle: no actions (empty state), loading, the picked action disappearing (falls back to the
  * default), a run starting while setup is running (button says Waiting for setup), a stop that is
  * not confirmed (the error is shown, the retained outcome stays in view, and the button returns to
- * Run), a saved history that could not be read (the reason is shown), a process that exits by itself
- * (output stays, button back to Run again), exclusive mode stopping another workspace's run (the
- * service does it), and an archived workspace.
+ * Run), a saved history that could not be read (the reason is shown), a start whose workspace or
+ * project is gone (Conductor's "Unable to start: workspace or repository not found"), a config that
+ * cannot be read ("Couldn't load actions." with Retry), a process that exits by itself (output stays,
+ * button back to Run again), exclusive mode stopping another workspace's run (the service does it),
+ * and an archived workspace.
  * RUN-02: with "Use spotlight testing" on, the list has the synthetic Spotlight entry and it is
  * picked first, so the button reads "Start spotlight" or "Stop spotlight"; while Spotlight runs a
  * line says the root's branch points at the workspace's changes, and a failed restore of the root
@@ -40,6 +42,7 @@ import { useActions, useRepoConfig, useRunState, useWorkspace } from "../../../c
 import { defaultRunAction } from "../../../core/run-scripts.ts";
 import { SPOTLIGHT_ACTION_ID, SPOTLIGHT_BRANCH_NOTICE } from "../../../core/spotlight.ts";
 import { isArchivedWorkspace } from "../../../core/status/archived.ts";
+import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
@@ -220,6 +223,10 @@ export function RunTab({ workspaceId }: RunTabProps) {
 							: await actions.run.stopSpotlight(workspaceId);
 			if (forSpotlight) setSpotlightBusy(false);
 			if (!result.ok) {
+				if (result.error.code === "workspace_unknown" || result.error.code === "repo_unknown") {
+					toast.error("Unable to start: workspace or repository not found");
+					return;
+				}
 				const title =
 					effect === "start_spotlight"
 						? "Couldn't start Spotlight"
@@ -247,7 +254,24 @@ export function RunTab({ workspaceId }: RunTabProps) {
 		);
 	}
 	if (run.state === "error") {
-		return <EmptyState title="Run is unavailable" body={run.error.message} tone="failed" />;
+		return (
+			<EmptyState
+				title="Couldn't load actions."
+				body={run.error.message}
+				tone="failed"
+				action={
+					workspace.state === "ready" ? (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => void services.repo.loadConfig(workspace.data.repoId)}
+						>
+							Retry
+						</Button>
+					) : null
+				}
+			/>
+		);
 	}
 	if (workspace.state === "error") {
 		return <EmptyState title="Run is unavailable" body={workspace.error.message} tone="failed" />;
