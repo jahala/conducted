@@ -155,13 +155,10 @@
 		"by": "seed"
 	},
 	"description:R2129942": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-02",
-		"owner": "hand",
-		"note": "This is Conductor's synced-user-setting failure. Our settings are local, and a failed save already shows Conductor's 'Failed to save setting' toast (toast:M390047)."
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's synced user-setting failure. Our settings are local, and a failed save already shows Conductor's 'Failed to save setting' toast.",
+		"by": "hand"
 	},
 	"description:R2668060": {
 		"status": "gap",
@@ -1786,13 +1783,10 @@
 		"by": "hand"
 	},
 	"description:R11303886": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"class": "wording",
-		"backlog": "SET-07",
-		"owner": "hand",
-		"note": "This is Conductor's organization Prompts panel (D004, D025). Our repository prompt instructions are a different job."
+		"status": "decided",
+		"decision": "D004",
+		"note": "Conductor's organization Prompts panel; the organization pages are team features D004 leaves out and D018 keeps out.",
+		"by": "hand"
 	},
 	"description:R11304246": {
 		"status": "decided",
