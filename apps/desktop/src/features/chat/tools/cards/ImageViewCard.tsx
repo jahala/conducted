@@ -3,8 +3,8 @@
  * Owns: The card for the agent looking at an image file, and the image path reader the image
  * generation card shares.
  * Behaviour: ui-map.md 3.3 ('Preview image', 'Loading image').
- * Must handle: An image still loading; an image that cannot be shown, such as a file that is gone
- * (the name and a clear message stay, the preview does not); a result that names the path instead
+ * Must handle: An image still loading ('Loading image'); an image that cannot be shown, such as a
+ * file that is gone ('Failed to load image'); a result that names the path instead
  * of the input; a result that is not a path at all ("No image path was given").
  * The preview loads the file through `Platform.fs.assetUrl`. The Rust shell serves files of the
  * registered project and workspace folders and the attachment folder; any other file fails to load
@@ -64,11 +64,11 @@ export function ImageViewCard({ call, defaultExpanded }: ToolCardProps) {
 							className="max-h-80 max-w-full rounded-sm object-contain"
 						/>
 					) : null}
-					{failed ? <p className="text-xs text-danger">Image could not be loaded: {path}</p> : null}
+					{failed ? <p className="text-xs text-danger">Failed to load image</p> : null}
 					{path === null ? (
 						<p className="text-xs text-fg-subtle">No image path was given.</p>
 					) : null}
-					{call.result === null ? <p className="text-xs text-fg-subtle">Loading image.</p> : null}
+					{call.result === null ? <p className="text-xs text-fg-subtle">Loading image</p> : null}
 				</div>
 			}
 		/>

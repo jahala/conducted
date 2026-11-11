@@ -87,29 +87,35 @@ describe("CHAT-06 turn footer", () => {
 	it("shows token counts in the details hover card", async () => {
 		render(<TurnFooter turn={turn()} sessionId={sessionId} />);
 		fireEvent.focus(screen.getByRole("button", { name: "Turn details" }));
-		expect((await screen.findAllByText(/Input 12/)).length).toBeGreaterThan(0);
-		expect(screen.getAllByText(/Output 34/).length).toBeGreaterThan(0);
-		expect(screen.getAllByText(/Cache read 56/).length).toBeGreaterThan(0);
-		expect(screen.getAllByText(/Cache write 78/).length).toBeGreaterThan(0);
+		expect((await screen.findAllByText("Input")).length).toBeGreaterThan(0);
+		expect(screen.getAllByText("Output").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("Cache read").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("Cache write").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("12").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("34").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("56").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("78").length).toBeGreaterThan(0);
 	});
 
 	it("shows the fast mode state in the details hover card", async () => {
 		render(<TurnFooter turn={turn()} sessionId={sessionId} />);
 		fireEvent.focus(screen.getByRole("button", { name: "Turn details" }));
-		expect((await screen.findAllByText(/Fast mode on/)).length).toBeGreaterThan(0);
+		expect((await screen.findAllByText("Fast mode")).length).toBeGreaterThan(0);
+		expect(screen.getAllByText("On").length).toBeGreaterThan(0);
 	});
 
 	it("shows the turn's cost only while Show agent cost is on", async () => {
 		const first = render(<TurnFooter turn={turn()} sessionId={sessionId} />);
 		fireEvent.focus(screen.getByRole("button", { name: "Turn details" }));
-		expect((await screen.findAllByText(/Input 12/)).length).toBeGreaterThan(0);
-		expect(screen.queryAllByText(/Cost \$0\.01/)).toEqual([]);
+		expect((await screen.findAllByText("Input")).length).toBeGreaterThan(0);
+		expect(screen.queryAllByText(/Cost/)).toEqual([]);
 		first.unmount();
 
 		state.settings = { experimental_show_agent_cost: true };
 		render(<TurnFooter turn={turn()} sessionId={sessionId} />);
 		fireEvent.focus(screen.getByRole("button", { name: "Turn details" }));
-		expect((await screen.findAllByText(/Cost \$0\.01/)).length).toBeGreaterThan(0);
+		expect((await screen.findAllByText("Cost")).length).toBeGreaterThan(0);
+		expect(screen.getByText("$0.01")).toBeTruthy();
 	});
 
 	it("copies the final message", async () => {
@@ -121,7 +127,7 @@ describe("CHAT-06 turn footer", () => {
 	it("copies a summary of the turn from the menu", async () => {
 		// Conductor's footer has no Copy summary button; ours keeps the action in the "···" menu.
 		render(<TurnFooter turn={turn()} sessionId={sessionId} />);
-		const trigger = screen.getByRole("button", { name: "More turn actions" });
+		const trigger = screen.getByRole("button", { name: "Show message actions" });
 		trigger.focus();
 		fireEvent.keyDown(trigger, { key: "Enter" });
 		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy summary" }));
@@ -139,7 +145,7 @@ describe("CHAT-06 turn footer", () => {
 
 	it("disables Reset without a checkpoint", async () => {
 		render(<TurnFooter turn={turn()} sessionId={sessionId} />);
-		const trigger = screen.getByRole("button", { name: "More turn actions" });
+		const trigger = screen.getByRole("button", { name: "Show message actions" });
 		trigger.focus();
 		fireEvent.keyDown(trigger, { key: "Enter" });
 		const reset = await screen.findByRole("menuitem", { name: "Reset chat" });
@@ -147,7 +153,7 @@ describe("CHAT-06 turn footer", () => {
 	});
 
 	async function openMenu() {
-		const trigger = screen.getByRole("button", { name: "More turn actions" });
+		const trigger = screen.getByRole("button", { name: "Show message actions" });
 		trigger.focus();
 		fireEvent.keyDown(trigger, { key: "Enter" });
 	}

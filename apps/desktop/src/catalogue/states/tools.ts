@@ -12,6 +12,7 @@
 import { animateCast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
 import { click, find, shows } from "../dom.ts";
+import { deliverEvents, setLiveState } from "../live.ts";
 import { addChat, addEvents } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
@@ -33,6 +34,17 @@ async function openRow(document: Document, title: string, nth = 0): Promise<void
 	const row = rows[nth];
 	if (row === undefined) throw new Error(`No closed "${title}" row number ${nth + 1}.`);
 	row.click();
+}
+
+/** Opens the closed rows whose title starts with `title`; a row already open is left alone. */
+async function openClosedRow(document: Document, title: string): Promise<void> {
+	const rows = [...document.querySelectorAll<HTMLElement>("button[aria-expanded=false]")].filter(
+		(row) => (row.textContent ?? "").trim().startsWith(title),
+	);
+	for (const row of rows) {
+		row.click();
+		await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+	}
 }
 
 /** arbor's review of its own change, before the pull request. */
@@ -273,6 +285,39 @@ async function taskToolsChat(world: World): Promise<Scene> {
 		].join("\n"),
 	});
 	talk.tool(turn, {
+		tool: "task_list",
+		rawName: "TaskList",
+		input: {},
+		output: "No tasks",
+	});
+	talk.tool(turn, {
+		tool: "task_list",
+		rawName: "TaskList",
+		input: {},
+		output: "Task #1: Write the Node 24 release notes\nTask #2: Check the minimum Node version",
+	});
+	talk.tool(turn, {
+		tool: "image_view",
+		rawName: "Read",
+		input: { file_path: `${CANYON}/docs/release/node-24-banner.png` },
+		output: "Loaded the image.",
+	});
+	talk.tool(turn, {
+		tool: "send_message",
+		rawName: "SendMessage",
+		input: { chat: "Release checklist", message: "The banner is ready for the post." },
+		output: "Message sent.",
+	});
+	talk.tool(turn, {
+		tool: "sub_agent",
+		rawName: "Task",
+		input: {
+			description: "Check the release notes for missing steps",
+			prompt: "Read docs/release/node-24.md and list any step without a test.",
+		},
+		output: "Every step has a test except the Dockerfile change.",
+	});
+	talk.tool(turn, {
 		tool: "node_repl",
 		rawName: "node_repl",
 		input: { code: "process.versions.node.split('.')[0]" },
@@ -283,6 +328,12 @@ async function taskToolsChat(world: World): Promise<Scene> {
 		rawName: "image_generation",
 		input: { prompt: "A flat banner with a green hexagon and the words Node 24" },
 		output: "Saved the image to docs/release/node-24-banner.png",
+	});
+	talk.tool(turn, {
+		tool: "image_generation",
+		rawName: "image_generation",
+		input: { prompt: "A small square icon of the Node 24 hexagon" },
+		output: null,
 	});
 	talk.usage(turn, 31_000);
 	talk.text(
@@ -296,9 +347,15 @@ async function taskToolsChat(world: World): Promise<Scene> {
 		after: async ({ app, document }) => {
 			await animateCast(world, cast, app);
 			await refreshGit(app, cast.grove);
-			// The turn's work shows open, as the only work of the chat; open two of its rows.
+			// The turn's work shows open, as the only work of the chat; open every card it names.
 			await openRow(document, "Task created");
+			await openClosedRow(document, "Task details");
+			await openClosedRow(document, "Tasks");
+			await openClosedRow(document, "Preview image");
+			await openClosedRow(document, "Send message");
+			await openClosedRow(document, "Subagent");
 			await openRow(document, "Node REPL");
+			await openClosedRow(document, "Loading image");
 		},
 		ready: (document) => shows(document, "process.versions.node"),
 	};
@@ -339,7 +396,42 @@ async function mermaidChat(world: World): Promise<Scene> {
 	};
 }
 
+/** A running turn whose task and image are still being worked on, so both cards say they load. */
+async function loadingToolsChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.grove, { title: "Start the release work" });
+	const talk = conversation("grove-loading", CATALOGUE_NOW - 2 * MINUTE, 10_000);
+	const turn = talk.user("Start the release task and make its banner image.");
+	talk.tool(turn, {
+		tool: "task_get",
+		rawName: "TaskGet",
+		input: { taskId: "1" },
+		output: null,
+	});
+	talk.tool(turn, {
+		tool: "image_generation",
+		rawName: "image_generation",
+		input: { prompt: "A flat banner with a green hexagon and the words Node 24" },
+		output: null,
+	});
+	return {
+		route: chatRoute(cast.grove, chat),
+		after: async ({ app }) => {
+			await refreshGit(app, cast.grove);
+			setLiveState(world, chat.id, {});
+			deliverEvents(world, chat.id, talk.events, 10);
+		},
+		ready: (document) => shows(document, "Loading task..."),
+	};
+}
+
 export const TOOL_STATES: CatalogueState[] = [
+	{
+		id: "chat-tools-loading",
+		group: "Workspace chat",
+		title: "A running turn: its task and its image are still being made",
+		seed: loadingToolsChat,
+	},
 	{
 		id: "chat-tool-cards-review",
 		group: "Workspace chat",

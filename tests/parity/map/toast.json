@@ -601,12 +601,11 @@
 	},
 	"toast:R8137573": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "CHAT-06",
 		"item": "Conductor shows \"Failed to copy message\" (message, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R8156106": {
 		"status": "gap",
@@ -889,8 +888,7 @@
 		"screen": "inventory-controls Composer",
 		"backlog": "CHAT-04",
 		"item": "Conductor shows \"Failed to prepare the message for editing.\" (message, inventory-controls Composer); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R9392792": {
 		"status": "gap",
@@ -898,8 +896,7 @@
 		"screen": "inventory-controls Composer",
 		"backlog": "CHAT-04",
 		"item": "Conductor shows \"Failed to discard attachment changes.\" (message, inventory-controls Composer); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R9405672": {
 		"status": "gap",

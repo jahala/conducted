@@ -173,7 +173,7 @@ function sessionLimitReset(resetsAt: number | null): string {
 export function ChatBanner({ block, view, onRetry, retryInNewChat }: ChatBannerProps) {
 	const actions = useActions();
 	const copy = (text: string) => {
-		void reportFailure(actions.app.copyText(text), "Couldn't copy the message");
+		void reportFailure(actions.app.copyText(text), "Failed to copy message");
 	};
 
 	if (block.kind === "notice") {

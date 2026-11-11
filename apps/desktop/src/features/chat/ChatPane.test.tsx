@@ -309,7 +309,7 @@ describe("REV-09 files changed under a turn", () => {
 			expect(screen.getByText("index.ts")).toBeTruthy();
 
 			// Open diff is in the turn's "···" menu (D098).
-			fireEvent.keyDown(screen.getByRole("button", { name: "More turn actions" }), {
+			fireEvent.keyDown(screen.getByRole("button", { name: "Show message actions" }), {
 				key: "Enter",
 			});
 			fireEvent.click(await screen.findByRole("menuitem", { name: "Open diff" }));

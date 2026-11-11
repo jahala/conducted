@@ -53,8 +53,6 @@ import { GeneralPage } from "../features/settings/pages/GeneralPage.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { ResourceUsageTable } from "../features/sidebar/ResourceUsageTable.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
-import { Sidebar } from "../features/sidebar/Sidebar.tsx";
-// biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { TabContent } from "../features/workspace/TabContent.tsx";
 import type { ShellCommand } from "../platform/platform.ts";
 import { agentEvent, userMessageEvent } from "../test/chat-events.ts";
@@ -383,7 +381,7 @@ describe("s1-ui-1 join", () => {
 						}),
 					),
 				);
-				expect(await screen.findByText(entry.title)).toBeTruthy();
+				expect((await screen.findAllByText(entry.title)).length).toBeGreaterThan(0);
 				cleanup();
 			}
 		} finally {

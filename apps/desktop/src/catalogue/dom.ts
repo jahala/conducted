@@ -113,6 +113,16 @@ export async function typeInto(
 	element.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+/** Points the pointer at the first element matching `selector` named `name`, opening a hover card. */
+export async function hover(document: Document, selector: string, name: string): Promise<void> {
+	const element = await find(document, selector, name);
+	const init = { bubbles: true, cancelable: true, pointerType: "mouse" } as const;
+	element.dispatchEvent(new PointerEvent("pointerover", init));
+	element.dispatchEvent(new PointerEvent("pointerenter", init));
+	element.dispatchEvent(new MouseEvent("mouseover", init));
+	element.dispatchEvent(new MouseEvent("mouseenter", init));
+}
+
 /** True when an element matching `selector` is named `name`: an icon button counts by its aria-label. */
 export const has = (document: Document, selector: string, name: string): boolean =>
 	[...document.querySelectorAll(selector)].some((element) => nameOf(element) === name);

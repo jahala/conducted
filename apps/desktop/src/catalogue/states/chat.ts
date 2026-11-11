@@ -12,7 +12,7 @@
 import type { Workspace } from "../../core/model.ts";
 import { animateCast, type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, shows } from "../dom.ts";
+import { click, hover, shows } from "../dom.ts";
 import { addChat, addEvents } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
@@ -66,6 +66,18 @@ export const safe = next?.startsWith("/") ? next : "/";
 > [!NOTE]
 > The release notes are on [nodejs.org](https://nodejs.org/en/blog/release).
 
+> [!TIP]
+> Run the unit tests before the build; they catch the same problems sooner.
+
+> [!IMPORTANT]
+> Node 24 drops \`url.parse\`, so every old call site has to move.
+
+> [!WARNING]
+> CI on main still runs Node 22 until the next release.
+
+> [!CAUTION]
+> Do not merge the Dockerfile change before the runtime change lands.
+
 ---
 
 - Run \`pnpm install\` after pulling.
@@ -91,7 +103,49 @@ const markdownChat = async (world: World): Promise<Scene> => {
 	};
 };
 
+/** arbor's chat with a screenshot attached, and its attachment viewer open. */
+async function attachmentChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.arbor, { title: "Check the redirect screenshot" });
+	const path = "/Users/sam/Desktop/redirect.png";
+	const video = "/Users/sam/Desktop/redirect-clip.mp4";
+	const talk = conversation("arbor-attachment", CATALOGUE_NOW - 20 * MINUTE);
+	const turn = talk.user("Does this screenshot show the redirect losing the page?", {
+		attachmentPaths: [path, video],
+	});
+	talk.text(turn, "It does: the address ends at `/` instead of `/billing`.");
+	talk.usage(turn, 12_000);
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	return {
+		route: chatRoute(cast.arbor, chat),
+		after: async ({ app, document }) => {
+			await animateCast(world, cast, app);
+			await refreshGit(app, cast.arbor);
+			await click(document, "button", "Open redirect.png");
+		},
+		ready: (document) => shows(document, "Copy image"),
+	};
+}
+
 export const CHAT_STATES: CatalogueState[] = [
+	{
+		id: "chat-turn-details",
+		group: "Workspace chat",
+		title: "The turn footer's details card open: start to end time, Fast mode and token counts",
+		seed: castChat(
+			(cast) => ({ route: chatRoute(cast.arbor, cast.chats.arbor), workspace: cast.arbor }),
+			"Cache read",
+			(document) => hover(document, "button", "Turn details"),
+		),
+	},
+	{
+		id: "chat-attachment-viewer",
+		group: "Workspace chat",
+		title:
+			"A chat image open in the attachment viewer: Copy image, Download file, Open in default app",
+		seed: attachmentChat,
+	},
 	{
 		id: "chat-finished",
 		group: "Workspace chat",

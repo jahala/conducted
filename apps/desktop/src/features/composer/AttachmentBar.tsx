@@ -7,7 +7,7 @@
  * `Platform.fs.assetUrl` can load a staged image now; showing one is a visible change to settle
  * against Conductor first.
  * Must handle: no attachments (renders nothing); many attachments (wrap); remove by keyboard (the
- * chip's button); a copy in progress (a status row).
+ * chip's button); a copy in progress (a status row named 'Loading attachment').
  * Test first: two attachments render two removable items; removing one updates the draft.
  */
 import type { SessionId } from "@conducted/shared";
@@ -52,7 +52,11 @@ export function AttachmentBar({
 				</li>
 			))}
 			{busy ? (
-				<li role="status" className="flex items-center gap-1.5 px-1 text-xs text-fg-muted">
+				<li
+					role="status"
+					aria-label="Loading attachment"
+					className="flex items-center gap-1.5 px-1 text-xs text-fg-muted"
+				>
 					<span className="size-3 animate-spin rounded-full border border-border-strong border-t-accent" />
 					Copying attachment…
 				</li>

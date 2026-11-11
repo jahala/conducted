@@ -45,7 +45,11 @@ export interface Conversation {
 	thinking(turn: TurnId, text: string): void;
 	/** A tool call and, unless `output` is null, its result in a second message. Returns its id. */
 	tool(turn: TurnId, step: ToolStep): ToolUseId;
-	usage(turn: TurnId, contextUsedTokens: number): void;
+	usage(
+		turn: TurnId,
+		contextUsedTokens: number,
+		extra?: Partial<Extract<AgentItem, { kind: "usage" }>>,
+	): void;
 	/** The end checkpoint with the files the turn changed, then the turn's end and its error. */
 	end(turn: TurnId, changes?: FileChange[], outcome?: TurnOutcome, error?: string): void;
 }
@@ -120,7 +124,7 @@ export function conversation(prefix: string, startAt: number, stepMs = 4_000): C
 			}
 			return toolUseId;
 		},
-		usage: (turn, contextUsedTokens) =>
+		usage: (turn, contextUsedTokens, extra) =>
 			agent(turn, [
 				{
 					kind: "usage",
@@ -132,6 +136,7 @@ export function conversation(prefix: string, startAt: number, stepMs = 4_000): C
 					contextUsedTokens,
 					contextWindowTokens: 200_000,
 					model: "claude-opus-4-7",
+					...extra,
 				},
 			]),
 		end(turn, changes, outcome = "success", error) {

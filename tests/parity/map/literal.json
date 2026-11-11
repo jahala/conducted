@@ -1502,12 +1502,12 @@
 		"owner": "hand"
 	},
 	"literal:R3465496": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-14",
-		"item": "Context hover card: window used, token breakdown, model, effort, service tier",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-context-usage",
+		"via": "text",
+		"role": "dd",
+		"selector": "div:nth-of-type(2) > div > div > dl > dd:nth-of-type(8)",
+		"by": "seed"
 	},
 	"literal:R3465826": {
 		"status": "matched",
@@ -1546,12 +1546,12 @@
 		"by": "seed"
 	},
 	"literal:R3494596": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-20",
-		"item": "Task cards: 'Task created', 'Task details' with Status, Subject, Blocked by, Blocks, 'No tasks'",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-tool-cards-tasks",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(5) > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:R3501304": {
 		"status": "gap",

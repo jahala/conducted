@@ -40,8 +40,8 @@ import { Button } from "../../ui/Button.tsx";
 import { CopyButton } from "../../ui/CopyButton.tsx";
 import { MoreHorizontalIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "../../ui/Menu.tsx";
+import { Popover } from "../../ui/Popover.tsx";
 import { toastError } from "../../ui/Toast.tsx";
-import { Tooltip } from "../../ui/Tooltip.tsx";
 import { MINUTE_MS, useNow } from "../sidebar/use-now.ts";
 import { formatCost } from "./ContextWheel.tsx";
 import { ResetChatDialog } from "./ResetChatDialog.tsx";
@@ -121,20 +121,47 @@ function summaryOf(turn: ChatTurn, finalMessage: string): string {
 	return lines.join("\n");
 }
 
-function detailsOf(turn: ChatTurn, showCost: boolean): string {
-	const end = turn.endedAt === null ? "running" : clock(turn.endedAt);
-	const lines = [`${clock(turn.startedAt)} to ${end}`];
-	const usage = turn.usage;
-	if (usage === null) {
-		lines.push("No usage reported.");
-		return lines.join("\n");
-	}
-	if (usage.fastMode !== null) lines.push(`Fast mode ${usage.fastMode ? "on" : "off"}`);
-	lines.push(
-		`Input ${usage.inputTokens} · Output ${usage.outputTokens} · Cache read ${usage.cacheReadTokens} · Cache write ${usage.cacheWriteTokens}`,
+/** One label and value row of the turn details card. A flex row keeps the label its own name. */
+function detailRow(label: string, value: string, muted = false) {
+	return (
+		<div className="flex justify-between gap-4">
+			<span className="text-fg-muted">{label}</span>
+			<span className={muted ? "tabular-nums text-fg-muted" : "tabular-nums font-medium"}>
+				{value}
+			</span>
+		</div>
 	);
-	if (showCost && usage.costUsd !== null) lines.push(`Cost ${formatCost(usage.costUsd)}`);
-	return lines.join("\n");
+}
+
+/** The hover card's content: Conductor's start to end time, Fast mode and token rows. */
+function TurnDetails({ turn, showCost }: { turn: ChatTurn; showCost: boolean }) {
+	const end = turn.endedAt === null ? null : clock(turn.endedAt);
+	const usage = turn.usage;
+	return (
+		<div className="flex w-56 flex-col gap-1 text-xs">
+			<div>
+				{clock(turn.startedAt)} → {end ?? "running"}
+			</div>
+			{usage?.fastMode === null || usage === null
+				? null
+				: detailRow("Fast mode", usage.fastMode ? "On" : "Off")}
+			{usage === null ? (
+				<p className="text-fg-muted">No usage reported.</p>
+			) : (
+				<div className="mt-1 flex flex-col gap-0.5 border-t border-border pt-1">
+					{detailRow("Input", usage.inputTokens.toLocaleString())}
+					{detailRow("Output", usage.outputTokens.toLocaleString())}
+					{usage.cacheReadTokens > 0
+						? detailRow("Cache read", usage.cacheReadTokens.toLocaleString())
+						: null}
+					{usage.cacheWriteTokens > 0
+						? detailRow("Cache write", usage.cacheWriteTokens.toLocaleString())
+						: null}
+					{showCost && usage.costUsd !== null ? detailRow("Cost", formatCost(usage.costUsd)) : null}
+				</div>
+			)}
+		</div>
+	);
 }
 
 export function TurnFooter({ turn, sessionId, onOpenDiff, onOpenFile, now }: TurnFooterProps) {
@@ -190,15 +217,22 @@ export function TurnFooter({ turn, sessionId, onOpenDiff, onOpenFile, now }: Tur
 	const endedAt = turn.endedAt ?? turn.startedAt;
 	return (
 		<div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-2 text-xs text-fg-muted">
-			<Tooltip content={detailsOf(turn, showCost)}>
-				<button
-					type="button"
-					aria-label="Turn details"
-					className="shrink-0 rounded-sm hover:text-fg"
-				>
-					{formatTurnDuration(endedAt - turn.startedAt)} · {formatTurnTime(endedAt, today)}
-				</button>
-			</Tooltip>
+			<Popover
+				hover
+				side="top"
+				align="start"
+				trigger={
+					<button
+						type="button"
+						aria-label="Turn details"
+						className="shrink-0 rounded-sm hover:text-fg"
+					>
+						{formatTurnDuration(endedAt - turn.startedAt)} · {formatTurnTime(endedAt, today)}
+					</button>
+				}
+			>
+				<TurnDetails turn={turn} showCost={showCost} />
+			</Popover>
 			<span className="flex shrink-0 items-center gap-1">
 				{finalMessage.length === 0 ? null : (
 					<CopyButton
@@ -215,7 +249,7 @@ export function TurnFooter({ turn, sessionId, onOpenDiff, onOpenFile, now }: Tur
 						<Button
 							variant="ghost"
 							size="xs"
-							aria-label="More turn actions"
+							aria-label="Show message actions"
 							title="More actions"
 							className="size-5 px-0 text-fg-muted"
 						>
