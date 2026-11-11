@@ -1,9 +1,10 @@
 /**
  * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
+ * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
  * Owns: a cloud workspace's header control and its popover: the trigger is the workspace's
  * identity (status icon, display name, "Low disk"), and the popover holds the name with the
- * app's rename and workspace-actions controls, a separator, then the labelled rows Environment,
- * Status, CPU, Memory, Disk and Agent cost, with Restart.
+ * app's rename and workspace-actions controls, a separator, the labelled rows Environment,
+ * Status, CPU, Memory, Disk and Agent cost with Restart, then the "Sync files" row (CLOUD-11).
  * Behaviour: ui-map.md 3.1 and Conductor's cloud header (renderApp `a2o`, `NPi`, `Xgo`, `Zgo`),
  * read for structure only (D001): the trigger is one button, `aria-label` "<name> · <status>"
  * plus " · Low disk space" when low; the popover is 320px wide, scrolls, and starts with the
@@ -47,6 +48,7 @@ import { Separator } from "../../ui/Separator.tsx";
 import { Spinner } from "../../ui/Spinner.tsx";
 import { toastError, workspaceToast } from "../../ui/Toast.tsx";
 import { Tooltip } from "../../ui/Tooltip.tsx";
+import { CloudFileSyncRow } from "./CloudFileSyncRow.tsx";
 import { useBranchPrefix } from "./use-branch-prefix.ts";
 import { WorkspaceActionsMenu } from "./WorkspaceActionsMenu.tsx";
 import { WorkspaceRenameDialog } from "./WorkspaceRenameDialog.tsx";
@@ -340,6 +342,10 @@ export function CloudWorkspaceStatus({
 							</DetailRow>
 						)}
 					</div>
+
+					<Separator />
+
+					<CloudFileSyncRow workspaceId={workspaceId} />
 				</div>
 			</Popover>
 

@@ -14,7 +14,7 @@
  * Test first: at the terminal limit the new-terminal button is disabled and says why.
  */
 import type { TerminalId } from "@conducted/shared";
-import type { FileSyncView } from "../../core/file-sync-view.ts";
+import { type FileSyncView, SYNC_OFF_STATUS } from "../../core/file-sync-view.ts";
 import { cn } from "../../ui/cn.ts";
 import { IconButton } from "../../ui/IconButton.tsx";
 import {
@@ -152,17 +152,21 @@ export function ScriptsPanelTabs({
 			/>
 			{fileSync !== undefined && fileSync.state !== "local" && fileSync.state !== "synced" ? (
 				<span
+					role="status"
 					data-file-sync-state={fileSync.state}
+					aria-label={fileSync.state === "unavailable" ? fileSync.localTerminalLabel : undefined}
 					title={
 						fileSync.state === "unavailable"
-							? fileSync.localTerminalLabel
+							? fileSync.localTerminalDescription
 							: fileSync.state === "failed"
 								? fileSync.message
 								: undefined
 					}
 					className="shrink-0 rounded px-1.5 py-0.5 text-[11px] text-fg-muted"
 				>
-					{fileSync.label}
+					<span title={fileSync.state === "unavailable" ? fileSync.description : undefined}>
+						{fileSync.state === "off" ? SYNC_OFF_STATUS : fileSync.label}
+					</span>
 				</span>
 			) : null}
 			<div role="tablist" className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
