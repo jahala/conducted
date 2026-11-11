@@ -61,6 +61,11 @@ async function open(browser: Browser, url: string, state: string): Promise<Page>
 	return page;
 }
 
+/** The element's text, or empty when it has gone; only a check's detail, never a pass condition. */
+async function text(locator: Locator): Promise<string> {
+	return locator.textContent({ timeout: 2_000 }).catch(() => "");
+}
+
 /** The point at the middle of an element. */
 async function middle(element: Locator): Promise<{ x: number; y: number }> {
 	const box = await element.boundingBox();
@@ -131,7 +136,7 @@ async function main(): Promise<number> {
 				check(
 					"sidebar: a row dragged to Pinned pins it",
 					landed === 1 && samePath(pinned, path),
-					(await target.textContent()) ?? "",
+					await text(target),
 				);
 			}
 		} finally {
