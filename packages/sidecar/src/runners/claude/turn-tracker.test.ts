@@ -215,13 +215,30 @@ describe("AGENT-02 turn tracker", () => {
 		const decision = tracker.onSdkMessage(
 			resultMessage({ uuid: "ours", isError: true, text: "API Error: 500 Internal server error" }),
 		);
+		// The same words as the result's error item, so the chat shows the error once.
 		const outcome: TurnOutcome = {
 			kind: "error",
-			message: "API Error: 500 Internal server error",
-			retryable: false,
+			message: "Claude Code error: API Error: 500 Internal server error",
+			retryable: true,
 		};
 		expect(decision).toEqual({ action: "forward_and_settle", outcome });
 		expect(outcomes).toEqual([outcome]);
+	});
+
+	test("an is_error result whose only error lines are diagnostics ends the turn without an error", () => {
+		const { tracker, outcomes } = makeTracker();
+		tracker.expectTurn("ours");
+		const message = {
+			...(resultMessage({ uuid: "ours", isError: true }) as object),
+			subtype: "error_during_execution",
+			errors: ["[ede_diagnostic] stream closed"],
+		} as unknown as SDKMessage;
+
+		expect(tracker.onSdkMessage(message)).toEqual({
+			action: "forward_and_settle",
+			outcome: { kind: "success" },
+		});
+		expect(outcomes).toEqual([{ kind: "success" }]);
 	});
 
 	test("cancel settles the turn at once and late results are dropped", () => {
