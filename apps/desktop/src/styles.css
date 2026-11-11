@@ -128,18 +128,6 @@
 	--color-code-class: light-dark(#c7490a, #fb923c);
 	--color-code-tag: light-dark(#157f3c, #4ade80);
 
-	/* File-language icons: Conductor's tint families (renderApp @2480863), each raised where the
-	   light value fell below 3:1 on the canvas. */
-	--color-file-blue: light-dark(#2563eb, #60a5fa);
-	--color-file-cyan: light-dark(#0e7490, #22d3ee);
-	--color-file-yellow: light-dark(#a16207, #facc15);
-	--color-file-orange: light-dark(#c2410c, #fb923c);
-	--color-file-green: light-dark(#15803d, #4ade80);
-	--color-file-red: light-dark(#dc2626, #f87171);
-	--color-file-pink: light-dark(#db2777, #f472b6);
-	--color-file-purple: light-dark(#9333ea, #c084fc);
-	--color-file-gray: light-dark(#57534e, #a8a29e);
-
 	/* Markdown callout titles and edges (Note, Tip, Important, Warning, Caution). */
 	--color-callout-note: light-dark(#2563eb, #60a5fa);
 	--color-callout-tip: light-dark(#12853c, #4ade80);

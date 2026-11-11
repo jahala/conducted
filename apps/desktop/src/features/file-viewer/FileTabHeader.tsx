@@ -25,7 +25,6 @@
 
 import { Button } from "../../ui/Button.tsx";
 import { CopyButton } from "../../ui/CopyButton.tsx";
-import { FileTypeIcon } from "../../ui/file-icon.tsx";
 import { EyeIcon, FileIcon, FileTextIcon } from "../../ui/icons.tsx";
 import { Spinner } from "../../ui/Spinner.tsx";
 import { TruncatedText } from "../../ui/TruncatedText.tsx";
@@ -84,7 +83,7 @@ export function FileTabHeader({
 			<div className="flex min-w-0 items-center gap-2 py-2 pr-1 pl-3">
 				<div className="flex min-w-32 flex-1 items-center gap-2">
 					<span className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-sm border border-border px-1.5">
-						<FileTypeIcon path={path} className="size-3.5 shrink-0" />
+						<FileTextIcon className="size-3.5 shrink-0 text-fg-muted" />
 						<TruncatedText text={path} maxLength={80} className="text-sm text-fg" />
 					</span>
 					{oldPath === null ? null : (

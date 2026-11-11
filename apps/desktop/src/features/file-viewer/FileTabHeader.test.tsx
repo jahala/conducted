@@ -125,9 +125,4 @@ describe("REV-08 FileTabHeader", () => {
 		);
 		expect(screen.queryByRole("button", { name: "Entire file" })).toBeNull();
 	});
-
-	it("shows the file's language icon on the path chip", () => {
-		render(<FileTabHeader {...baseProps} path="src/main.rs" mode="diff" onModeChange={() => {}} />);
-		expect(document.querySelector("[data-file-icon]")?.getAttribute("data-kind")).toBe("rust");
-	});
 });
