@@ -5,16 +5,18 @@
  * focus), theme from app tokens, and the change and save hooks. A function from options to a
  * state, with no DOM access of its own.
  * Behaviour: ui-map.md 3.2 and 6 (Appearance: mono font, code ligatures, code theme).
- * Library reference: `EditorState`, `Annotation` from "@codemirror/state" and `EditorView`,
- * `keymap`, `lineNumbers`, `drawSelection`, `highlightActiveLine` from "@codemirror/view".
- * Language packages and "@codemirror/commands" are not installed, so every file is plain text and
- * the editor has no undo history and no default key map yet.
+ * Library reference: `EditorState`, `Annotation` from "@codemirror/state"; `EditorView`, `keymap`,
+ * `lineNumbers`, `drawSelection`, `highlightActiveLine` from "@codemirror/view"; `history`,
+ * `defaultKeymap` and `historyKeymap` from "@codemirror/commands". Syntax colours come from Shiki
+ * through shiki-highlight.ts, as Conductor colours its editor from the chosen code theme
+ * (renderApp @4981146).
  * Must handle: an unknown file type (plain text), a very long line (wrapping on), a large file
  * (read-only above a size limit, Our design choice), CRLF files, a document replaced from outside
  * (marked with `externalChange`, so it never reads as the user's edit), and the user's theme
  * changing while the editor is open (the view reconfigures, it is not recreated).
  * Test first: a ".ts" path gives a state whose document equals the input text and is not read-only.
  */
+import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { Annotation, EditorState, type Extension } from "@codemirror/state";
 import {
 	drawSelection,
@@ -24,6 +26,7 @@ import {
 	keymap,
 	lineNumbers,
 } from "@codemirror/view";
+import { shikiHighlight } from "./shiki-highlight.ts";
 
 export interface EditorSurfaceOptions {
 	wrapLines: boolean;
@@ -31,6 +34,8 @@ export interface EditorSurfaceOptions {
 	readOnly: boolean;
 	fontFamily: string | null;
 	themeType: "light" | "dark";
+	/** The Shiki code theme setting (code_theme). */
+	codeTheme: string;
 }
 
 export interface EditorHooks {
@@ -74,7 +79,7 @@ function editorTheme(options: EditorSurfaceOptions): Extension {
 	);
 }
 
-/** The keyboard rules the editor owns: save, and the browser's usual editing gestures. */
+/** Save first, then Conductor's default editing keys and its undo and redo history keys. */
 function editorKeymap(hooks: EditorHooks): Extension {
 	return keymap.of([
 		{
@@ -85,11 +90,13 @@ function editorKeymap(hooks: EditorHooks): Extension {
 				return true;
 			},
 		},
+		...defaultKeymap,
+		...historyKeymap,
 	]);
 }
 
 export function editorExtensions(
-	_path: string,
+	path: string,
 	options: EditorSurfaceOptions,
 	hooks: EditorHooks,
 ): Extension {
@@ -98,6 +105,8 @@ export function editorExtensions(
 		EditorView.editable.of(!options.readOnly),
 		editorTheme(options),
 		editorKeymap(hooks),
+		history(),
+		shikiHighlight(path, options.codeTheme, options.themeType),
 		lineNumbers(),
 		highlightActiveLineGutter(),
 		highlightActiveLine(),
