@@ -12,7 +12,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../../core/context.tsx";
-import type { ToolCallView } from "../../../../core/model.ts";
+import type { ChatBlock, ToolCallView } from "../../../../core/model.ts";
 import { createTestContainer, type TestContainer } from "../../../../test/container.ts";
 import { TOOL_CARDS } from "../registry.ts";
 import { AppToolCard } from "./AppToolCard.tsx";
@@ -56,13 +56,13 @@ interface Extra {
 	output?: string;
 	isError?: boolean;
 	truncated?: boolean;
-	children?: ToolCallView[];
+	blocks?: ChatBlock[];
 }
 
 function view(
 	tool: CanonicalTool,
 	input: unknown,
-	{ rawName, output, isError = false, truncated = false, children = [] }: Extra = {},
+	{ rawName, output, isError = false, truncated = false, blocks = [] }: Extra = {},
 ): ToolCallView {
 	sequence += 1;
 	const toolUseId = `tu-${sequence}` as ToolCallView["toolUseId"];
@@ -71,7 +71,7 @@ function view(
 		item: { kind: "tool_call", toolUseId, tool, rawName: rawName ?? tool, input },
 		result:
 			output === undefined ? null : { kind: "tool_result", toolUseId, output, isError, truncated },
-		children,
+		blocks,
 	};
 }
 
@@ -80,7 +80,7 @@ async function renderInRouter(ui: ReactNode) {
 	const route = createRoute({
 		getParentRoute: () => rootRoute,
 		path: "/",
-		component: () => <>{ui}</>,
+		component: () => <ServicesProvider container={test.container}>{ui}</ServicesProvider>,
 	});
 	const router = createRouter({
 		routeTree: rootRoute.addChildren([route]),
@@ -171,13 +171,13 @@ describe("CHAT-08 skill card", () => {
 
 describe("CHAT-08 sub-agent card", () => {
 	it("shows Subagent, the description, and the nested cards", async () => {
-		const children = [
-			view("bash", { command: "ls" }, { rawName: "Bash" }),
-			view("read", { file_path: "src/a.ts" }, { rawName: "Read" }),
+		const blocks: ChatBlock[] = [
+			{ kind: "tool", call: view("bash", { command: "ls" }, { rawName: "Bash" }) },
+			{ kind: "tool", call: view("read", { file_path: "src/a.ts" }, { rawName: "Read" }) },
 		];
 		await renderInRouter(
 			<SubAgentCard
-				call={view("sub_agent", { description: "Look into it" }, { children })}
+				call={view("sub_agent", { description: "Look into it" }, { blocks })}
 				sessionId={sessionId}
 				defaultExpanded
 			/>,
@@ -208,14 +208,14 @@ describe("CHAT-08 sub-agent card", () => {
 		};
 		TOOL_CARDS.task_create = () => notImplemented("CHAT-09");
 		try {
-			const children = [
-				view("bash", { command: "ls" }, { rawName: "Bash" }),
-				view("task_create", {}, { rawName: "TaskCreate" }),
-				view("read", { file_path: "src/a.ts" }, { rawName: "Read" }),
+			const blocks: ChatBlock[] = [
+				{ kind: "tool", call: view("bash", { command: "ls" }, { rawName: "Bash" }) },
+				{ kind: "tool", call: view("task_create", {}, { rawName: "TaskCreate" }) },
+				{ kind: "tool", call: view("read", { file_path: "src/a.ts" }, { rawName: "Read" }) },
 			];
 			await renderInRouter(
 				<SubAgentCard
-					call={view("sub_agent", { description: "Look into it" }, { children })}
+					call={view("sub_agent", { description: "Look into it" }, { blocks })}
 					sessionId={sessionId}
 					defaultExpanded
 				/>,

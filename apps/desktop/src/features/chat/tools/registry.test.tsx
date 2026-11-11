@@ -33,7 +33,7 @@ const call = (result: ToolCallView["result"]): ToolCallView => ({
 		input: {},
 	},
 	result,
-	children: [],
+	blocks: [],
 });
 
 describe("CHAT-08 tool status", () => {

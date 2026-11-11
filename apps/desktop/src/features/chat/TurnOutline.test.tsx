@@ -55,7 +55,7 @@ function planTurn(index: number): ChatTurn {
 						input: {},
 					},
 					result: null,
-					children: [],
+					blocks: [],
 				},
 			},
 		],
