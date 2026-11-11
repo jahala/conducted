@@ -329,8 +329,13 @@ describe("SET-01 checklist", () => {
 		expect(def.scopes).toEqual(["user"]);
 		expect(def.type).toBe("enum");
 		expect(def.default).toBe("");
-		const values = def.type === "enum" ? def.options.map((o) => o.value) : [];
-		expect(values).toEqual(["", "cli", "pat"]);
+		const options = def.type === "enum" ? def.options : [];
+		expect(options.map((option) => option.value)).toEqual(["", "cli", "pat"]);
+		expect(options.map((option) => option.label)).toEqual([
+			"Automatic",
+			"gh CLI auth",
+			"Personal access token",
+		]);
 		expect(isFileBacked(def)).toBe(false);
 		expect(searchSettings("personal access token").map((s) => s.key)).toContain("gh_auth_method");
 	});

@@ -299,7 +299,7 @@ const SETTINGS_TABLE = [
 		default: "",
 		options: [
 			{ value: "", label: "Automatic" },
-			{ value: "cli", label: "GitHub CLI" },
+			{ value: "cli", label: "gh CLI auth" },
 			{ value: "pat", label: "Personal access token" },
 		],
 	},
@@ -941,7 +941,8 @@ const SETTINGS_TABLE = [
 		type: "bool",
 		default: false,
 	},
-	// Our design choice: empty means no command runs.
+	// "none" is Conductor's last preset and runs no command; a "custom:<index>" value names one
+	// of big_terminal_custom_commands.
 	{
 		key: "big_terminal_preset",
 		page: "experimental",
@@ -951,7 +952,7 @@ const SETTINGS_TABLE = [
 		searchTerms: ["terminal", "preset", "command", "startup"],
 		feature: "RUN-06",
 		type: "string",
-		default: "",
+		default: "none",
 	},
 	// Our design choice: empty means no extra commands.
 	{
