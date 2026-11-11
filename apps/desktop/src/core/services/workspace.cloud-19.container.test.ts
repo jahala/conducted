@@ -98,6 +98,7 @@ describe("CLOUD-19 the create path in the cloud", () => {
 					.map((created) => (created.host.kind === "cloud" ? created.host.vmId : ""))
 					.sort(),
 			);
+			expect(sends).toHaveLength(2);
 			for (const send of sends) {
 				expect((send.params.workspace as { host: unknown }).host).toMatchObject({
 					kind: "cloud",

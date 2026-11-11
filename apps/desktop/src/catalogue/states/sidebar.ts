@@ -95,8 +95,7 @@ export const SIDEBAR_STATES: CatalogueState[] = [
 					await click(context.document, "button", "Account menu");
 				},
 				ready: (document) =>
-					document.querySelector("[role=menu]") !== null &&
-					shows(document, "conducted.example.workers.dev"),
+					document.querySelector("[role=menu]") !== null && shows(document, "Cloud organization"),
 			};
 		},
 	},
