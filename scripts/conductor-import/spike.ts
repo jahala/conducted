@@ -28,6 +28,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ChatTurn } from "../../apps/desktop/src/core/model.ts";
 import { buildTurns } from "../../apps/desktop/src/core/services/turn-builder.ts";
+import type { SessionEvent } from "../../packages/protocol/src/events.ts";
 import { idleLiveState } from "../../packages/protocol/src/live-state.ts";
 import type { SessionConfig } from "../../packages/protocol/src/session-config.ts";
 import type { AgentKind } from "../../packages/shared/src/ids.ts";
@@ -115,6 +116,35 @@ function chatTranscript(turns: readonly ChatTurn[]): TranscriptTurn[] {
 	});
 }
 
+/**
+ * The events without sub-agent messages whose parent call is in none of them, and how many text,
+ * todo and call entries those messages held. Conductor takes every sub-agent message out of the
+ * main transcript (`vmt` @1427544) and has no card for one whose parent it never stored, so it shows
+ * none of it; ours keeps it at the top level, by the owner's ruling to hide nothing (D129). The
+ * comparison leaves that ruled difference out and the spike prints its size.
+ */
+function withoutOrphanedWork(events: readonly SessionEvent[]): {
+	kept: SessionEvent[];
+	leftOutEntries: number;
+} {
+	const calls = new Set<string>();
+	for (const event of events) {
+		if (event.type !== "agent") continue;
+		for (const item of event.message.items)
+			if (item.kind === "tool_call") calls.add(item.toolUseId);
+	}
+	let leftOutEntries = 0;
+	const kept = events.filter((event) => {
+		const parent = event.type === "agent" ? event.message.parentToolUseId : undefined;
+		if (event.type !== "agent" || parent === undefined || calls.has(parent)) return true;
+		leftOutEntries += event.message.items.filter(
+			(item) => item.kind === "text" || item.kind === "tool_call" || item.kind === "todo",
+		).length;
+		return false;
+	});
+	return { kept, leftOutEntries };
+}
+
 const entries = (turns: readonly TranscriptTurn[]): number =>
 	turns.reduce((sum, turn) => sum + turn.user.length + turn.agent.length, 0);
 
@@ -196,6 +226,7 @@ function measure(db: Database, sample: number | null, print: (line: string) => v
 		number
 	>;
 	let notMappedRows = 0;
+	let orphanedEntries = 0;
 	const perChat: ChatResult[] = [];
 	for (const index of picks(chats.length, sample ?? chats.length)) {
 		const chat = chats[index];
@@ -216,7 +247,9 @@ function measure(db: Database, sample: number | null, print: (line: string) => v
 		}
 		for (const reason of UNMAPPED_REASONS) unmapped[reason] += result.unmapped[reason];
 		for (const reason of LEFT_OUT_REASONS) leftOut[reason] += result.leftOut[reason];
-		const stored = result.events.map((event, idx) => ({
+		const { kept, leftOutEntries } = withoutOrphanedWork(result.events);
+		orphanedEntries += leftOutEntries;
+		const stored = kept.map((event, idx) => ({
 			idx,
 			event,
 			receivedAt: event.at,
@@ -256,6 +289,9 @@ function measure(db: Database, sample: number | null, print: (line: string) => v
 	print("mapped rows left out, as Conductor does not show them:");
 	for (const reason of LEFT_OUT_REASONS) print(`  ${reason} ${leftOut[reason]}`);
 	print(`rows in chats not mapped yet: ${notMappedRows}`);
+	print(
+		`sub-agent entries whose parent call is stored nowhere, shown by D129 and left out of the comparison: ${orphanedEntries}`,
+	);
 	print("per chat (agent; Conductor turns, entries; Conducted turns, entries; result):");
 	perChat.forEach((chat, index) => {
 		const result = chat.verdict === null ? "not mapped yet" : VERDICT_WORDS[chat.verdict];
