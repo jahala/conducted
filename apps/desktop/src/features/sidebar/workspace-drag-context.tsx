@@ -9,7 +9,8 @@
  * element under the pointer wins, so a row beats the list behind it; Escape or a cancelled pointer
  * changes nothing; the click that ends a drag is not also a click.
  * Our design choice: each list registers its own hit test and keeps its own drop rule, so the hook
- * beside it (use-workspace-drag.ts) stays the one home of the rule.
+ * beside it (use-workspace-drag.ts) stays the one home of the rule. The registry and the smallest-
+ * element rule are the shared `usePointerDropTargets`.
  * Test first: a row dropped after another row in manual order calls the order action.
  */
 import type { RepoId, SectionId, WorkspaceId } from "@conducted/shared";
@@ -17,7 +18,6 @@ import {
 	createContext,
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
-	useCallback,
 	useContext,
 	useEffect,
 	useMemo,
@@ -27,7 +27,8 @@ import {
 	type PointerDragClick,
 	type PointerDragPoint,
 	type PointerDragState,
-	usePointerDrag,
+	type PointerDropHit,
+	usePointerDropTargets,
 } from "../../ui/pointer-drag.ts";
 
 /** What a sidebar drag carries. */
@@ -37,10 +38,8 @@ export type WorkspaceDragPayload =
 	| { kind: "repo"; id: RepoId };
 
 /** One list's target under the pointer, with the drop it performs. */
-export interface WorkspaceDragHit {
+export interface WorkspaceDragHit extends PointerDropHit<WorkspaceDragPayload> {
 	key: string;
-	element: Element;
-	drop(payload: WorkspaceDragPayload, point: PointerDragPoint): void;
 }
 
 export type WorkspaceHitTest = (point: PointerDragPoint) => WorkspaceDragHit | undefined;
@@ -56,31 +55,7 @@ export interface WorkspaceDragController {
 const WorkspaceDragContext = createContext<WorkspaceDragController | null>(null);
 
 export function WorkspaceDragProvider({ children }: { children: ReactNode }) {
-	const tests = useRef<WorkspaceHitTest[]>([]);
-	const register = useCallback((hitTest: WorkspaceHitTest) => {
-		tests.current = [...tests.current, hitTest];
-		return () => {
-			tests.current = tests.current.filter((entry) => entry !== hitTest);
-		};
-	}, []);
-	const pointer = usePointerDrag<WorkspaceDragPayload, WorkspaceDragHit>({
-		targetAt: (point) => {
-			let best: WorkspaceDragHit | undefined;
-			let smallest = Number.POSITIVE_INFINITY;
-			for (const test of tests.current) {
-				const hit = test(point);
-				if (hit === undefined) continue;
-				const rect = hit.element.getBoundingClientRect();
-				const area = rect.width * rect.height;
-				if (area <= smallest) {
-					best = hit;
-					smallest = area;
-				}
-			}
-			return best === undefined ? undefined : { target: best, element: best.element };
-		},
-		onDrop: (payload, hit, point) => hit.drop(payload, point),
-	});
+	const { pointer, register } = usePointerDropTargets<WorkspaceDragPayload, WorkspaceDragHit>();
 	// While any sidebar drag runs the cursor is grabbing and links ignore the pointer, as Conductor's.
 	useEffect(() => {
 		if (pointer.drag === null) return;
