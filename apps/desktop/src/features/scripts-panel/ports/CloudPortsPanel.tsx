@@ -1,8 +1,10 @@
 /**
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
- * Owns: the Ports tab of a cloud workspace: Start forwarding (Cmd+Y), Waiting for ports, and the
- * Forward ports popover with detected ports, forwarded ports, a typed remote port, per-forward
- * toggles, Auto-forwarding and a shareable preview URL.
+ * @feature CLOUD-09 Cloud terminals, run scripts and previews
+ * Owns: the Ports tab of a cloud workspace: Start forwarding (Cmd+Y), Waiting for ports, the
+ * Preview URL row that shares one port as a capability URL (CLOUD-09), and the Forward ports
+ * popover with detected ports, forwarded ports, a typed remote port, per-forward toggles and
+ * Auto-forwarding.
  * Behaviour: ui-map.md 3.7 (the popover's labels and the Start forwarding button), 6 (the
  * Connections settings that this view obeys), services-map.md 5A.3.3 (forward, toggle, cancel and
  * discovery). Messages are Conductor's: "Enter a valid port (1-65535)", "Port 22 is reserved for
@@ -26,7 +28,9 @@ import {
 import { Badge } from "../../../ui/Badge.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
+import { IconButton } from "../../../ui/IconButton.tsx";
 import { Input } from "../../../ui/Input.tsx";
+import { CopyIcon } from "../../../ui/icons.tsx";
 import { Kbd } from "../../../ui/Kbd.tsx";
 import { Popover } from "../../../ui/Popover.tsx";
 import { Switch } from "../../../ui/Switch.tsx";
@@ -49,6 +53,8 @@ export function CloudPortsPanel({ workspaceId }: CloudPortsPanelProps) {
 	const shortcut = useLiveShortcut("workspace.togglePortForwarding");
 	const exclusive = useSetting<boolean>("exclusive_port_forwarding_enabled") === true;
 	const [typed, setTyped] = useState("");
+	/** The port shared as a preview URL, or null while the row reads "Off" (CLOUD-09). */
+	const [previewPort, setPreviewPort] = useState<number | null>(null);
 
 	if (workspace.state === "loading") return null;
 	if (workspace.state === "error") {
@@ -105,15 +111,21 @@ export function CloudPortsPanel({ workspaceId }: CloudPortsPanelProps) {
 	const unavailable = view.forwards.filter(
 		(forward) => !view.detectedPorts.some((entry) => entry.port === forward.remotePort),
 	);
+	// Conductor offers the ports it is forwarding and the ones it has detected, in numeric order.
+	const previewCandidates = [
+		...new Set([
+			...view.forwards.filter((forward) => forward.enabled).map((forward) => forward.remotePort),
+			...view.detectedPorts.map((entry) => entry.port),
+		]),
+	].sort((left, right) => left - right);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-y-auto">
-			<div className="flex items-center justify-between gap-3 border-b border-separator px-3 py-2">
+			<div className="flex flex-col gap-2 border-b border-separator px-3 py-2">
 				<div className="flex min-w-0 items-center gap-2">
-					<span className="truncate text-sm text-fg">Cloud ports</span>
 					{view.forwardingEnabled ? <Badge>Forwarding ports</Badge> : null}
 				</div>
-				<div className="flex shrink-0 items-center gap-2">
+				<div className="flex min-w-0 flex-wrap items-center gap-2 [&>*]:shrink-0">
 					<Popover
 						trigger={
 							<Button variant="outline" size="xs">
@@ -123,9 +135,6 @@ export function CloudPortsPanel({ workspaceId }: CloudPortsPanelProps) {
 						align="end"
 					>
 						<div className="flex w-80 flex-col gap-3">
-							<p className="text-xs text-fg-muted">
-								Select a port to share via a URL. Workspace read permissions required.
-							</p>
 							<section className="flex flex-col gap-1">
 								<p className="text-xs font-medium text-fg">Ports detected</p>
 								{detected.length === 0 ? (
@@ -187,63 +196,6 @@ export function CloudPortsPanel({ workspaceId }: CloudPortsPanelProps) {
 									))}
 								</section>
 							)}
-							<section className="flex flex-col gap-1">
-								<p className="text-xs font-medium text-fg">Forwarded ports</p>
-								{view.forwards.length === 0 ? (
-									<p className="text-xs text-fg-subtle">Nothing is forwarded yet.</p>
-								) : (
-									view.forwards.map((forward) => (
-										<div key={forward.id} className="flex flex-col gap-1">
-											<div className="flex items-center justify-between gap-2">
-												<span className="font-mono text-sm text-fg">
-													localhost:{forward.localPort} → {forward.remotePort}
-												</span>
-												<Switch
-													checked={forward.enabled}
-													aria-label={`Forward remote port ${forward.remotePort}`}
-													onCheckedChange={(checked) =>
-														void actions.portForwards.toggle(forward.id, checked).then((result) => {
-															if (!result.ok) {
-																toastError("Couldn't toggle the forward", result.error);
-															}
-														})
-													}
-												/>
-											</div>
-											<div className="flex items-center gap-1">
-												<Button
-													variant="ghost"
-													size="xs"
-													title={localhostUrl(forward.localPort)}
-													onClick={() => open.inBrowser(localhostUrl(forward.localPort))}
-												>
-													Forward to localhost
-												</Button>
-												<Button
-													variant="ghost"
-													size="xs"
-													onClick={() => copyPreview(forward.remotePort)}
-												>
-													Copy preview URL
-												</Button>
-												<Button
-													variant="ghost"
-													size="xs"
-													onClick={() =>
-														void actions.portForwards.remove(forward.id).then((result) => {
-															if (!result.ok) {
-																toastError("Couldn't cancel the forward", result.error);
-															}
-														})
-													}
-												>
-													Cancel forwarding port
-												</Button>
-											</div>
-										</div>
-									))
-								)}
-							</section>
 							<section className="flex items-center gap-2">
 								<Input
 									type="number"
@@ -292,6 +244,53 @@ export function CloudPortsPanel({ workspaceId }: CloudPortsPanelProps) {
 					</Button>
 				</div>
 			</div>
+			<div className="flex items-center justify-between gap-2 border-b border-separator px-3 py-2">
+				<span className="text-sm text-fg" title="Preview URL">
+					Preview URL
+				</span>
+				<div className="flex items-center gap-1">
+					<Popover
+						trigger={
+							<Button variant="ghost" size="xs" aria-label="Choose preview URL port">
+								{previewPort === null ? "Off" : String(previewPort)}
+							</Button>
+						}
+						align="end"
+					>
+						<div className="flex w-64 flex-col gap-1">
+							<p className="px-2 py-1.5 text-xs text-fg-muted">
+								Select a port to share via a URL. Workspace read permissions required.
+							</p>
+							<button
+								type="button"
+								className="flex items-center rounded-md px-2 py-1 text-left text-sm text-fg hover:bg-hover"
+								onClick={() => setPreviewPort(null)}
+							>
+								Off
+							</button>
+							{previewCandidates.map((port) => (
+								<button
+									key={port}
+									type="button"
+									className="flex items-center rounded-md px-2 py-1 text-left text-sm tabular-nums text-fg hover:bg-hover"
+									onClick={() => setPreviewPort(port)}
+								>
+									{port}
+								</button>
+							))}
+						</div>
+					</Popover>
+					{previewPort === null ? null : (
+						<IconButton
+							size="xs"
+							label="Copy preview URL"
+							title="Copy preview URL"
+							icon={<CopyIcon className="size-3.5" />}
+							onClick={() => copyPreview(previewPort)}
+						/>
+					)}
+				</div>
+			</div>
 			{view.error === null ? null : (
 				<p role="alert" className="px-3 py-2 text-xs text-danger">
 					{view.error}
@@ -307,6 +306,58 @@ export function CloudPortsPanel({ workspaceId }: CloudPortsPanelProps) {
 					<EmptyState title="Waiting for ports" body="Start a server in the cloud workspace." />
 				</div>
 			) : null}
+			{view.forwards.length === 0 ? null : (
+				<section className="flex flex-col gap-1">
+					<p className="text-xs font-medium text-fg">Forwarded ports</p>
+					{view.forwards.map((forward) => (
+						<div key={forward.id} className="flex flex-col gap-1">
+							<div className="flex items-center justify-between gap-2">
+								<span className="font-mono text-sm text-fg">
+									localhost:{forward.localPort} → {forward.remotePort}
+								</span>
+								<Switch
+									checked={forward.enabled}
+									aria-label={`Forward remote port ${forward.remotePort}`}
+									onCheckedChange={(checked) =>
+										void actions.portForwards.toggle(forward.id, checked).then((result) => {
+											if (!result.ok) {
+												toastError("Couldn't toggle the forward", result.error);
+											}
+										})
+									}
+								/>
+							</div>
+							<div className="flex items-center gap-1">
+								<Button
+									variant="ghost"
+									size="xs"
+									title={localhostUrl(forward.localPort)}
+									onClick={() => open.inBrowser(localhostUrl(forward.localPort))}
+								>
+									Forward to localhost
+								</Button>
+								<Button variant="ghost" size="xs" onClick={() => copyPreview(forward.remotePort)}>
+									Copy preview URL
+								</Button>
+								<Button
+									variant="ghost"
+									size="xs"
+									onClick={() =>
+										void actions.portForwards.remove(forward.id).then((result) => {
+											if (!result.ok) {
+												toastError("Couldn't cancel the forward", result.error);
+											}
+										})
+									}
+								>
+									Cancel forwarding port
+								</Button>
+							</div>
+						</div>
+					))}
+				</section>
+			)}
+
 			{view.forwards.length === 0 && !(view.forwardingEnabled && view.waiting) ? (
 				<div className="flex flex-1 items-center justify-center px-3 py-8">
 					<EmptyState
