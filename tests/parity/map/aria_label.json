@@ -760,8 +760,8 @@
 	},
 	"aria_label:R10381913": {
 		"status": "decided",
-		"decision": "D025",
-		"note": "Conductor's account and organisation menu: its account, plans and single sign-on.",
+		"decision": "D127",
+		"note": "Built by CLOUD-19: the organisation switcher's trigger at the top of the sidebar, with this Mac and the paired Worker (state sidebar-organization-switcher).",
 		"by": "hand"
 	},
 	"aria_label:R10424742": {

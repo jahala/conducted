@@ -25,6 +25,7 @@ Why: the research maps onto it file by file. The agent SDKs are TypeScript. Taur
 
 Chosen: no organizations, cloud workspaces, file sync, routines, workspace chat, cloud CLI, phone remote control or analytics. No "host" abstraction for remote machines.
 Why: they are a second product on top of the local one, and need a hosted service. A cloud plan, if ever wanted, gets its own decision.
+Since D018 and D127: cloud workspaces are built, and the organisation switcher is taken for this Mac and the paired Worker only.
 
 ## D005. Our own neutral agent-message format (2026-11-04)
 
@@ -102,7 +103,7 @@ Why: the advisory cannot reach a shipped build, and the fix depends on Tauri mov
 
 ## D018. A cloud option on the user's own Cloudflare account (2026-11-04)
 
-Replaces D004 for cloud workspaces. Team features (organizations, shared workspaces, routines, workspace chat) stay out.
+Replaces D004 for cloud workspaces. Team features (organizations, shared workspaces, routines, workspace chat) stay out. D127 takes one organisation feature, the switcher, because it is how Conductor chooses where a workspace runs.
 Context: the owner wants workspaces that keep running when the Mac sleeps. Cloudflare's Sandbox SDK runs isolated Linux containers with git, a shell and files, and Cloudflare documents running Claude Code, Codex, OpenCode and Pi in them.
 Chosen: an optional cloud host for workspaces, deployed by each user to their own Cloudflare account (Workers Paid, 5 US dollars a month plus usage), with their own model key. We host nothing. The UI reaches git, shell, files, terminals and the sidecar through a `Host` interface, local or cloud. The details and a spike with a kill criterion are in `docs/plans/cloud-and-remote.md`.
 Why: no servers, billing or user data on our side, and the sidecar already runs anywhere its I/O is passed in.
@@ -509,7 +510,7 @@ Context: Conductor keeps every row that belongs to a remote host in a second dat
 Chosen:
 
 - The host is a fact of the workspace and has one home: `workspaces.host_kind`, `host_url` and `host_vm_id` (migration 0009). A cloud workspace's sessions, events, live state, comments and terminals are its local copy. They follow it by reference: `sessions`, `diff_comments` and `terminals` reference `workspaces(id)` and `session_events` and `session_live_state` reference `sessions(id)`, all `ON DELETE CASCADE` (0001_init.sql, with terminals rebuilt in 0004).
-- Queries that local work runs over keep local rows by joining to `workspaces` and filtering `host_kind = 'local'`: the port allocator, the workspace folder-name generator, the archive scan and startup repair. The merged workspace list and the sidebar's unread counts still hold both hosts, as Conductor merges its two database lists.
+- Queries that local work runs over keep local rows by joining to `workspaces` and filtering `host_kind = 'local'`: the port allocator, the archive scan and startup repair. The merged workspace list and the sidebar's unread counts still hold both hosts, as Conductor merges its two database lists. (D127: the folder-name generator reads every host's rows, because the `(repo_id, directory_name)` unique index spans hosts; the lists the screens show follow the active organisation.)
 - Removing a cloud host deletes that host's workspaces in one transaction (`host-copy.ts`); the cascades remove the sessions, events, live state, comments and terminals. The local host is refused.
 - Because every host has always used one database, no startup mover is needed: no older version stored a cloud row anywhere else.
 
@@ -582,6 +583,7 @@ Why: the user can check the token with the Worker at the moment they paste it, a
 
 Context: the second round of D098 found two more Conductor controls that only work with a Conductor account: the organisation switcher at the top of the sidebar and of Settings ("Sam Rivera's Mac", whose menu holds the organisations, "Create organization", "Upgrade to Pro" and "Log out"), and the Loadout's "Share" button on Default models ("Sign in to share a loadout"; it opens a page on Conductor's service).
 Chosen: neither is built, by D025. The switcher's one local item, Settings, is the sidebar's gear. Our loadout has no way to share; nothing takes the button's place.
+D127 narrows this for the switcher: it is built at the top of the sidebar with this Mac and the paired Worker, because it is where Conductor chooses where a workspace runs. Its account and team items stay out.
 Why: both reach Conductor's own service and account, which D025 leaves out; a control that cannot work would be a look without a feature, which D098 removes.
 
 ## D108. Cloud terminals and previews, as CLOUD-09 built them (2026-11-07)
@@ -874,3 +876,30 @@ Context: `docs/architecture.md` said `features` and `ui` may import only `core/h
 Chosen: `features` and `ui` may import `core/context.tsx`, `core/model.ts`, `core/hooks.ts`, `core/api.ts`, anything under `core/registries/`, `core/status/` and `core/async/`, the pure helper modules under `core/` outside `core/services/`, other features, `ui`, `shared`, protocol types and `app/command-dispatcher.ts`. They must not import `core/services/**`, `core/container.ts`, `core/db/**`, `core/cloud/**`, `core/git/**`, `core/conductor-import/**` or `@tauri-apps/**`. Test files and `src/test/**` are exempt because they wire real containers. Each pure helper, constant or type a screen needed moved out of its service file into a `core/` module named for what it holds, with the service importing it from there; a helper that does I/O stays in its service and the screen reaches it through `Actions` or a hook. Biome's `noRestrictedImports` carries the ban, and `scripts/guards/boundaries.test.ts` probes every banned path and one allowed import.
 
 Why: the boundary is what stops a screen from reading the database or a service's internals, and stating it in prose alone let it erode. Moving the pure parts gives each value one home, so the screens and the services cannot drift apart.
+
+## D127. The organisation switcher chooses this Mac or the paired Worker, and the new-workspace page creates there (2026-11-11)
+
+Proposed by the lead, closing #491; not yet ruled on by the owner.
+
+Context: the cloud stack was built (the Worker, pairing, deploy, sandboxes, the host seam), but nothing created a workspace with a cloud host: `WorkspaceService` always wrote the local host, and the owner asked "HOW DO I USE A CLOUD WORKSPACE??". In Conductor 0.92.1 the control is the organisation switcher above Home (renderApp `CRt`, `U9a` @10381031). While a cloud organisation is active, the new-workspace page works out a cloud hosting target (`BXa` @11497335) and every new workspace is created in the cloud (main `aV` @1109999), and the lists show only that organisation's workspaces (main `Ttn`, `Nst` @922363). D004, D018 and D107 had left organisations out.
+
+Chosen:
+
+- **The switcher, where Conductor has it.** The first row of the sidebar's top block is Conductor's "Account menu" trigger with the active entry's icon and name. Its menu lists "My Mac" (Conductor's personal label when the account has no name) and, only on a paired Mac, the Worker by its host name, marked "Cloud organization"; a check marks the active one. While data privacy is on it adds "Organizations are unavailable when enterprise data privacy is enabled.", then Settings. Choosing an entry writes the hidden user setting `active_organization`, so it survives restarts; a stored cloud choice on an unpaired Mac reads as this Mac, as Conductor falls back to the personal organisation. Choosing reopens the last workspace open in that entry, as Conductor does, while the sidebar stays mounted.
+- **The lists follow the active entry.** `useWorkspaces` lists local workspaces for this Mac and that Worker's cloud workspaces for the cloud entry. Every screen that lists workspaces reads it, as Conductor's screens read its one scoped list. A stored local choice does not wait for the pairing read.
+- **The new-workspace page in the cloud.** The hosting target is the Worker once it is ready and data privacy is off. Conductor's readiness checks map to the Worker: a Worker that does not answer `GET /readiness` is "Computer isn't ready yet." (with "View computer", which opens Connections); no `GITHUB_TOKEN` is "Connect GitHub to create a cloud workspace." ("GitHub isn't connected."); no model key is "Set up an agent to create a cloud workspace." ("No agent set up yet."); no project with a GitHub remote is "Add a repo to the computer to create a workspace." ("No repositories yet.", with "Add one"). "Checking organization..." shows while a stored cloud choice waits for the pairing, and the data-privacy text and "Cloud disabled" while data privacy is on. Create is off with the reason as its tooltip. When ready, the project picker becomes Conductor's repository picker ("Repository", "Select repo", "Repository on <Worker>", "Add repository"), listing the projects the Worker can clone, named by repository; the create-from control stays. The branch picker Conductor hides in the cloud (`CXa`) has no counterpart on our page.
+- **One create path.** `NewWorkspaceInput.cloudUrl` names the Worker, as Conductor's create call takes `hostingServerUrl`. The same `WorkspaceService` create gives the row a sandbox name (`ws-` and an id, a Durable Object name) and the folder `/workspace/<name>`, so no two cloud workspaces share a folder (D101). It starts the sandbox (`POST /w/<name>/start`), clones `https://github.com/<owner>/<repo>.git` into that folder through the Worker's git route, checks out the new branch from `origin/<base>` (a pull request's head is fetched first), sets `push.autoSetupRemote` when that setting is on, keeps `.context/` out of git, counts the files and runs setup; the section and the first chat are shared with the local path. A sandbox that does not start says Conductor's "Cloud workspace isn't reachable right now. Try again in a moment.".
+- **The Worker answers what it holds.** `GET /readiness` returns `{ github, agents: { anthropic, openai, cursor } }` as booleans, behind the pairing token, starting no Durable Object.
+- **Folder names span hosts.** The `(repo_id, directory_name)` unique index covers every host, so the place-name generator now reads every host's names (D103 had kept it local).
+
+Left out, and why:
+
+- The account email, single sign-on marks, "Create organization", "Upgrade to Pro", "Log out", the copy-info context menus and the new-organisation callouts ("Join <org>!", "Switch to <org>!", "Click here to set up your new cloud organization") are Conductor's accounts and teams (D004, D025).
+- The `org.switchTo1` to `org.switchTo9` shortcuts (Ctrl+1 to Ctrl+9) are hidden commands in Conductor; our registry has no hidden commands, so adding them would show them in the palette. Not built.
+- The switcher at the top of Settings, and the cloud organisation's move of `/` to Home, are not built.
+- Conductor's "Connect GitHub" and "Set up an agent" actions and "Couldn't check agent setup." have no counterpart: the Worker's GitHub token and model key are Worker secrets the app cannot set (the user runs `wrangler secret put`), and one readiness call answers every check.
+- The restricted-access toggle and the cloud backlog are team and service features; the page hides "Add to backlog" in the cloud because a backlog row has no host.
+- A cloud create does not copy the Mac's included files (such as `.env`) into the sandbox, so no secret enters it (cloud-and-remote.md, "Secrets never enter the sandbox"), and the clone names its remote `origin` whatever the project's `remote_name` says.
+
+Why: it is Conductor's own control in Conductor's place, the smallest set of its behaviour that one local and one cloud entry need, and it reuses the create path and the Worker routes that exist, adding only the readiness route.
+
