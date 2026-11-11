@@ -24,8 +24,8 @@
  * replaces the last slot, as Conductor's does); a choice already in another slot (it moves there);
  * a save that fails (a toast with the reason).
  * Our design choice: a drag is a pointer drag, as Conductor's Loadout is (renderApp, its slot and
- * model rows use motion's pointer drag). The app window's drag-drop handling takes HTML5 drag
- * events for file drops, so a page's own drag never reaches it (issue #481).
+ * model rows use motion's pointer drag). The app window's drag-drop handler answers every native
+ * drag for file drops, so the page never gets a drag's drop (issue #481).
  * Test first: Enter on a model row puts it in the next empty slot.
  */
 import type { ModelInfo } from "@conducted/protocol";

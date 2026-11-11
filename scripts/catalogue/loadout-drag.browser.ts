@@ -6,8 +6,10 @@
  * Behaviour: Conductor's Loadout (renderApp, the models tab's "Loadout" row) drags with pointer
  * events and motion, not HTML5 drag and drop: its slots are hit-tested from the pointer's point
  * against each slot's rectangle with a 16px margin, the nearest slot's centre winning. That is why
- * it works in the app's window, where Tauri's window drag-drop handling (`dragDropEnabled`, on for
- * file drops into the composer) takes a native drag before the page sees it.
+ * it works in the app's window: Tauri's window drag-drop handler (on by default, for file drops
+ * into the composer) answers every drag that enters the webview, so the page never gets a drag's
+ * `dragover` and `drop` (tauri-runtime-wry's handler returns true instead of passing the drag to
+ * the OS).
  * Must handle: the page receives no HTML5 drag events, as in the app's window; a slot dropped
  * outside every slot is removed; a slot dragged onto another reorders the loadout.
  * Our design choice: the check runs in the catalogue (scripts/catalogue/shots.ts starts it), in
@@ -28,13 +30,14 @@ const STATE = "settings-default-models";
 const HANG_MS = 60_000;
 
 /**
- * The app's window gives the page no HTML5 drag events: Tauri's drag-drop handling takes the
- * native drag (it has to, for file drops into the composer). Closing them at `window` in the
- * capture phase is the closest a browser stand-in gets to that window.
+ * The app's window keeps the drag's destination side: Tauri's drag-drop handler answers every drag
+ * that enters the webview (it has to, for file drops into the composer), so `dragstart` reaches the
+ * page but `dragover` and `drop` do not. Closing the destination events at `window` in the capture
+ * phase is the closest a browser stand-in gets to that window.
  */
 async function appWindow(page: Page): Promise<void> {
 	await page.addInitScript(() => {
-		for (const type of ["dragstart", "dragenter", "dragover", "dragleave", "drop", "dragend"]) {
+		for (const type of ["dragenter", "dragover", "dragleave", "drop"]) {
 			window.addEventListener(type, (event) => event.stopImmediatePropagation(), true);
 		}
 	});
