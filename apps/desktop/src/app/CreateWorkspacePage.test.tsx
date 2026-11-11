@@ -13,7 +13,7 @@ import type { NewWorkspaceInput } from "../core/api.ts";
 import { ServicesProvider } from "../core/context.tsx";
 import type { Repo, Section, Workspace } from "../core/model.ts";
 import { createTestContainer, type TestContainer } from "../test/container.ts";
-import { toast } from "../ui/Toast.tsx";
+import { Toaster, toast } from "../ui/Toast.tsx";
 import { CreateWorkspacePage } from "./CreateWorkspacePage.tsx";
 
 const repo: Repo = {
@@ -73,6 +73,7 @@ beforeEach(() => {
 
 afterEach(() => {
 	cleanup();
+	toast.dismiss();
 	test.close();
 });
 
@@ -133,6 +134,7 @@ async function renderCreatePage(path = "/create", sectionRows: readonly Section[
 	render(
 		<ServicesProvider container={container}>
 			<RouterProvider router={router} />
+			<Toaster />
 		</ServicesProvider>,
 	);
 	await router.load();
@@ -173,6 +175,19 @@ describe("WS-01 CreateWorkspacePage", () => {
 		);
 	});
 
+	it("replaces the create page, as Conductor replaces its new tab", async () => {
+		const { router } = await renderCreatePage();
+
+		fireEvent.click(await screen.findByRole("button", { name: "Create workspace" }));
+
+		await waitFor(() =>
+			expect(router.state.location.pathname).toBe(
+				`/repository/${repo.id}/workspace/${workspace.id}`,
+			),
+		);
+		expect(router.history.canGoBack()).toBe(false);
+	});
+
 	it("toasts the warnings a creation returned", async () => {
 		const warning = vi.spyOn(toast, "warning");
 		const { create, workspaceStore } = await renderCreatePage();
@@ -208,6 +223,38 @@ describe("WS-01 CreateWorkspacePage", () => {
 				`/repository/${repo.id}/workspace/${workspace.id}`,
 			),
 		);
+	});
+
+	it("offers View logs on a failed setup script and opens its log, as Conductor does", async () => {
+		const { create, workspaceStore } = await renderCreatePage();
+		const logPath = "/logs/ws-1.log";
+		create.mockImplementationOnce(async () => {
+			workspaceStore.setState({
+				lastFailedCreate: { ...workspace, state: "failed" },
+				setupRuns: {
+					[workspace.id]: {
+						state: "failed",
+						exitCode: 1,
+						terminalId: null,
+						logPath,
+						log: "saved",
+						interruptedReason: null,
+					},
+				},
+			});
+			return err(
+				appError("setup_failed", "Setup script failed. Check the setup tab for logs."),
+			);
+		});
+		const open = vi
+			.spyOn(test.container.actions.attachments, "openExternally")
+			.mockResolvedValue(ok(undefined));
+
+		fireEvent.click(await screen.findByRole("button", { name: "Create workspace" }));
+
+		const viewLogs = await screen.findByRole("button", { name: "View logs" });
+		fireEvent.click(viewLogs);
+		await waitFor(() => expect(open).toHaveBeenCalledWith(logPath));
 	});
 
 	it("starts a chat on the model default when the settings leave model and effort empty", async () => {
