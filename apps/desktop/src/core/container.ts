@@ -94,7 +94,7 @@ import { FileDiffService } from "./services/file-diff.ts";
 import { FollowUpQueue } from "./services/follow-up-queue.ts";
 import { GitService } from "./services/git.ts";
 import { connectGitCache, createGitCache, type GitCache } from "./services/git-cache.ts";
-import { GithubService } from "./services/github.ts";
+import { GithubService, type MergedPullRequest } from "./services/github.ts";
 import { GraphiteService } from "./services/graphite.ts";
 import {
 	KEEP_AWAKE_SCAN_MS,
@@ -161,6 +161,11 @@ export interface ContainerInputs {
 	 * message. The app entry passes its error toast, the way a failed pull or push is told.
 	 */
 	reportFailure: (title: string, error: { message: string }) => void;
+	/**
+	 * Shows a toast the composition root decides on, with the buttons Conductor offers. The app
+	 * entry passes the toast host, because no core module may draw one.
+	 */
+	showToast: (toast: UiToast) => void;
 	/**
 	 * Writes the redacted diagnostics report for a new chat and returns its path (APP-03). The app
 	 * entry passes the writer, because redaction lives with the diagnostics screen.
@@ -253,31 +258,93 @@ interface StartStep {
 	run: () => Promise<Result<unknown>>;
 }
 
+/** One button on a toast the app shows outside a screen's own call. */
+export interface UiToastAction {
+	label: string;
+	onClick: () => void;
+}
+
+/** A toast the composition root shows when a background success needs the user's next move. */
+export interface UiToast {
+	message: string;
+	tone: "success" | "error" | "warning";
+	action: UiToastAction | null;
+	secondaryAction: UiToastAction | null;
+}
+
 /** What archive-on-merge needs to archive and, when that fails, tell the user why. */
 export interface ArchiveOnMergedPorts {
 	archive: (workspaceId: WorkspaceId, prNumber: number) => Promise<Result<void>>;
+	/** Reads `archive_on_merge` when a merge is noticed, so an off setting shows nothing. */
+	archiveOnMerge: () => boolean;
+	unarchive: (workspaceId: WorkspaceId) => void;
+	openUrl: (url: string) => void;
+	showToast: (toast: UiToast) => void;
 	notify: (input: { title: string; body: string; deepLink?: string }) => Promise<void>;
 	/** Reports a failure of the notification itself, so it is not dropped. */
 	reportError: (message: string) => void;
 }
 
 /**
- * Handles a merged pull request without waiting for the poll. A failed archive (a running chat, a
- * corrupted workspace, a snapshot or script failure) reaches the user as a notification; the
- * Result is never dropped.
+ * Handles a merged pull request without waiting for the poll that noticed it. Conductor's words
+ * and actions: a stack with open work keeps the workspace, a finished one archives it and offers
+ * Open PR and Unarchive, a running chat is named, and a corrupt workspace points to its list.
  */
 export function createArchiveOnMerged(
 	ports: ArchiveOnMergedPorts,
-): (workspaceId: WorkspaceId, prNumber: number) => void {
-	return (workspaceId, prNumber) => {
+): (workspaceId: WorkspaceId, merged: MergedPullRequest) => void {
+	return (workspaceId, merged) => {
 		fireAndForget(
 			async () => {
-				const archived = await ports.archive(workspaceId, prNumber);
-				if (archived.ok) return;
-				await ports.notify({
-					title: "Couldn't archive the workspace",
-					body: archived.error.message,
-					deepLink: buildDeepLink(workspaceId, null),
+				if (!ports.archiveOnMerge()) return;
+				const openPullRequest = {
+					label: "Open PR",
+					onClick: () => ports.openUrl(merged.url),
+				};
+				if (merged.stackHasOpenPrs) {
+					ports.showToast({
+						tone: "success",
+						message: `PR #${merged.number} merged. Workspace kept for the rest of the stack.`,
+						action: openPullRequest,
+						secondaryAction: null,
+					});
+					return;
+				}
+				const archived = await ports.archive(workspaceId, merged.number);
+				if (archived.ok) {
+					ports.showToast({
+						tone: "success",
+						message: `PR #${merged.number} merged and workspace archived`,
+						action: openPullRequest,
+						secondaryAction: {
+							label: "Unarchive",
+							onClick: () => ports.unarchive(workspaceId),
+						},
+					});
+					return;
+				}
+				if (archived.error.code === "workspace_has_running_sessions") {
+					ports.showToast({
+						tone: "error",
+						message: "Merged PR, but workspace was not archived because agents are still running",
+						action: null,
+						secondaryAction: null,
+					});
+					return;
+				}
+				if (archived.error.code === "workspace_corrupted") {
+					await ports.notify({
+						title: "Couldn't archive the workspace",
+						body: "Archiving failed. This workspace might be corrupted. Delete it manually from the workspace list.",
+						deepLink: buildDeepLink(workspaceId, null),
+					});
+					return;
+				}
+				ports.showToast({
+					tone: "error",
+					message: `Merged PR, but failed to archive workspace: ${archived.error.message}`,
+					action: null,
+					secondaryAction: null,
 				});
 			},
 			(error) => ports.reportError(`Could not report a failed archive: ${String(error)}`),
@@ -1103,6 +1170,29 @@ export function createContainer(inputs: ContainerInputs): Container {
 		contextOf: (id) => ready(lookups.prContext(id)),
 		onMerged: createArchiveOnMerged({
 			archive: (id, prNumber) => workspace.onPullRequestMerged(id, prNumber),
+			archiveOnMerge: () => setting<boolean>("archive_on_merge") === true,
+			unarchive: (id) => {
+				fireAndForget(
+					async () => {
+						const result = await workspace.unarchive(id, {
+							branchName: null,
+							clearChats: false,
+						});
+						if (!result.ok) {
+							inputs.reportFailure("Couldn't unarchive the workspace", result.error);
+						} else if (result.value.needsBranchName) {
+							log("warn", "Unarchive needs a branch name; use the workspace's menu.");
+						}
+					},
+					(error) => log("warn", `Could not unarchive the workspace: ${String(error)}`),
+				);
+			},
+			openUrl: (url) => {
+				platform.opener.openUrl(url).catch((error) => {
+					log("warn", `Could not open the pull request: ${String(error)}`);
+				});
+			},
+			showToast: inputs.showToast,
 			notify: (input) => platform.notifications.notify(input),
 			reportError: (message) => log("warn", message),
 		}),

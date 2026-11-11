@@ -44,7 +44,7 @@ import { writeRedactedReport } from "./features/diagnostics/diagnostics-report.t
 import { isWrongCpuBuild } from "./features/updates/RosettaConfirm.tsx";
 import type { Platform, SystemInfo } from "./platform/platform.ts";
 import { createTauriPlatform } from "./platform/tauri.ts";
-import { toastError } from "./ui/Toast.tsx";
+import { toast, toastError } from "./ui/Toast.tsx";
 import "./styles.css";
 
 /**
@@ -102,6 +102,13 @@ export function createAppContainer(
 		windowFocused: () => document.hasFocus(),
 		reportFailure: (title, error) => {
 			toastError(title, error);
+		},
+		showToast: (notice) => {
+			const options = {
+				...(notice.action === null ? {} : { action: notice.action }),
+				...(notice.secondaryAction === null ? {} : { cancel: notice.secondaryAction }),
+			};
+			toast[notice.tone](notice.message, options);
 		},
 		...(options.openLink === undefined ? {} : { openLink: options.openLink }),
 		writeDiagnosticsReport: (capture, fileName) =>

@@ -4,7 +4,7 @@
  * Test first: Choosing Pin calls workspaces.setPinned(id, true); for a pinned workspace the item
  * reads Unpin.
  */
-import type { WorkspaceId } from "@conducted/shared";
+import { appError, err, type WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Loadable } from "../../core/api.ts";
@@ -39,6 +39,7 @@ const state = vi.hoisted(() => {
 		rename: vi.fn(),
 		archive: vi.fn(),
 		unarchive: vi.fn(),
+		remove: vi.fn(),
 		place: vi.fn(),
 		createSection: vi.fn(),
 		copyText: vi.fn(),
@@ -69,6 +70,7 @@ vi.mock("../../core/hooks.ts", () => ({
 			rename: state.rename,
 			archive: state.archive,
 			unarchive: state.unarchive,
+			remove: state.remove,
 		},
 		sections: { place: state.place, create: state.createSection },
 		portForwards: { pauseWorkspace: state.pauseWorkspace },
@@ -104,6 +106,7 @@ beforeEach(() => {
 		state.rename,
 		state.archive,
 		state.unarchive,
+		state.remove,
 		state.place,
 		state.createSection,
 		state.copyText,
@@ -316,6 +319,153 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 		await waitFor(() =>
 			expect(state.archive).toHaveBeenCalledWith(workspaceId, { deleteBranch: false }),
 		);
+	});
+
+	it("asks before archiving a workspace whose agents are running", async () => {
+		state.workspace = {
+			state: "ready",
+			data: {
+				pinnedAt: null,
+				directoryName: "quiet-meadow",
+				state: "ready",
+				host: { kind: "local" },
+			} as Workspace,
+		};
+		state.archive
+			.mockResolvedValueOnce(
+				err(appError("workspace_has_running_sessions", "Stop the running chats first.")),
+			)
+			.mockResolvedValueOnce({ ok: true, value: undefined });
+		await openMenu();
+		fireEvent.click(await screen.findByRole("menuitem", { name: /^Archive/ }));
+
+		expect(await screen.findByRole("alertdialog")).toBeTruthy();
+		expect(screen.getByText("Archive workspace?")).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Stop agents and archive" }));
+
+		await waitFor(() =>
+			expect(state.archive).toHaveBeenLastCalledWith(workspaceId, {
+				deleteBranch: false,
+				stopRunningAgents: true,
+			}),
+		);
+	});
+
+	it("offers Delete permanently when the archive finds a corrupt workspace", async () => {
+		const toasted = vi.spyOn(toast, "error").mockReturnValue("t");
+		try {
+			state.workspace = {
+				state: "ready",
+				data: {
+					pinnedAt: null,
+					directoryName: "quiet-meadow",
+					state: "ready",
+					host: { kind: "local" },
+				} as Workspace,
+			};
+			state.archive.mockResolvedValue(
+				err(appError("workspace_corrupted", "The folder is missing.")),
+			);
+			await openMenu();
+			fireEvent.click(await screen.findByRole("menuitem", { name: /^Archive/ }));
+
+			await waitFor(() =>
+				expect(toasted).toHaveBeenCalledWith(
+					"Archiving failed. This workspace might be corrupted. Delete permanently?",
+					expect.objectContaining({
+						action: expect.objectContaining({ label: "Delete permanently" }),
+					}),
+				),
+			);
+			const options = toasted.mock.calls.at(-1)?.[1] as {
+				action?: { onClick: () => void };
+			};
+			options.action?.onClick();
+			await waitFor(() => expect(state.remove).toHaveBeenCalledWith(workspaceId));
+		} finally {
+			toasted.mockRestore();
+		}
+	});
+
+	it("warns about a Git operation and archives on request", async () => {
+		const warned = vi.spyOn(toast, "warning").mockReturnValue("t");
+		try {
+			state.workspace = {
+				state: "ready",
+				data: {
+					pinnedAt: null,
+					directoryName: "quiet-meadow",
+					state: "ready",
+					host: { kind: "local" },
+				} as Workspace,
+			};
+			state.archive
+				.mockResolvedValueOnce(err(appError("archive_git_busy", "Git has an unfinished merge.")))
+				.mockResolvedValueOnce({ ok: true, value: undefined });
+			await openMenu();
+			fireEvent.click(await screen.findByRole("menuitem", { name: /^Archive/ }));
+
+			await waitFor(() =>
+				expect(warned).toHaveBeenCalledWith(
+					"Because a Git operation (merge, rebase, cherry-pick, or revert) is in progress, archiving may lose some of your work.",
+					expect.objectContaining({
+						action: expect.objectContaining({ label: "Archive" }),
+					}),
+				),
+			);
+			const options = warned.mock.calls.at(-1)?.[1] as {
+				action?: { onClick: () => void };
+			};
+			options.action?.onClick();
+			await waitFor(() =>
+				expect(state.archive).toHaveBeenLastCalledWith(workspaceId, {
+					deleteBranch: false,
+					discardGitOperationState: true,
+				}),
+			);
+		} finally {
+			warned.mockRestore();
+		}
+	});
+
+	it("offers Delete anyway for any other archive failure, and reports a failed delete", async () => {
+		const toasted = vi.spyOn(toast, "error").mockReturnValue("t");
+		try {
+			state.workspace = {
+				state: "ready",
+				data: {
+					pinnedAt: null,
+					directoryName: "quiet-meadow",
+					state: "ready",
+					host: { kind: "local" },
+				} as Workspace,
+			};
+			state.archive.mockResolvedValue(err(appError("db", "The disk is full.")));
+			state.remove.mockResolvedValue(err(appError("db", "The disk is still full.")));
+			await openMenu();
+			fireEvent.click(await screen.findByRole("menuitem", { name: /^Archive/ }));
+
+			await waitFor(() =>
+				expect(toasted).toHaveBeenCalledWith(
+					"The disk is full.",
+					expect.objectContaining({
+						action: expect.objectContaining({ label: "Delete anyway" }),
+					}),
+				),
+			);
+			const options = toasted.mock.calls.at(-1)?.[1] as {
+				action?: { onClick: () => void };
+			};
+			options.action?.onClick();
+			await waitFor(() =>
+				expect(toasted).toHaveBeenCalledWith(
+					"Failed to delete workspace: The disk is still full.",
+					expect.objectContaining({ duration: Number.POSITIVE_INFINITY }),
+				),
+			);
+		} finally {
+			toasted.mockRestore();
+		}
 	});
 
 	it("unarchives an archived workspace", async () => {

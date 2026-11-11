@@ -248,6 +248,29 @@ function harness(options: HarnessOptions = {}) {
 }
 
 describe("WS-05 archive steps", () => {
+	it("stops the running chats and archives when the user confirmed", async () => {
+		const h = harness({ hasWorkingChats: true });
+
+		const archived = await h.service.archive("w1" as WorkspaceId, {
+			deleteBranch: false,
+			stopRunningAgents: true,
+		});
+
+		expect(archived.ok).toBe(true);
+		expect(h.cancelAll).toHaveBeenCalledWith("w1");
+		expect(h.rows[0]?.state).toBe("archived");
+	});
+
+	it("reports a missing folder as a corrupt workspace", async () => {
+		const h = harness({ folderExists: false });
+
+		const archived = await h.service.archive("w1" as WorkspaceId, { deleteBranch: false });
+
+		expect(archived.ok).toBe(false);
+		if (!archived.ok) expect(archived.error.code).toBe("workspace_corrupted");
+		expect(h.transitions).toEqual([]);
+	});
+
 	it("archives a ready workspace through every step and records the commit", async () => {
 		const h = harness();
 

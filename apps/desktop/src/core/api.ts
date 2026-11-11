@@ -458,7 +458,16 @@ export interface Actions {
 		create: Act<[input: NewWorkspaceInput], Workspace>;
 		/** A just-added project's first workspace, with the default chat settings (Conductor's autoCreateWorkspace). */
 		createFirst: Act<[repoId: RepoId], Workspace>;
-		archive: Act<[id: WorkspaceId, options: { deleteBranch: boolean }]>;
+		archive: Act<
+			[
+				id: WorkspaceId,
+				options: {
+					deleteBranch: boolean;
+					discardGitOperationState?: boolean;
+					stopRunningAgents?: boolean;
+				},
+			]
+		>;
 		/** `clearChats` is "Clear & unarchive": the chats are removed before the workspace comes back. */
 		unarchive: Act<
 			[id: WorkspaceId, options: { branchName: string | null; clearChats: boolean }],

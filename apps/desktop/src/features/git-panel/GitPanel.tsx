@@ -37,7 +37,8 @@
  * `scope`, `onScopeChange` and `onOpenFile`. A prop that is left out means the panel keeps that
  * value in its own state (and, without `onOpenFile`, cannot open a file tab).
  * Must handle: git state loading (skeleton header), git state error with retry, no git status
- * because a rebase or merge is underway (the Changes tab says so), the commands "Create PR",
+ * because a rebase or merge is underway (the Changes tab says so), Archive asking first when
+ * agents run and offering Conductor's recovery actions (`useArchiveWorkspace`), the commands "Create PR",
  * "Commit and push", "Start an AI code review" and "Show uncommitted changes" handled only while
  * the panel is mounted, through the command dispatcher so a rebind applies, the palette's Show
  * checks, Show changes, Show all files and Mark ready for review acting on this panel's tabs and
@@ -91,6 +92,7 @@ import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { openTargetOf, pullRequestOpenUrl } from "../pr/pr-open-target.ts";
+import { ArchiveWorkspaceDialog, useArchiveWorkspace } from "../workspace/archive-workspace.tsx";
 import { useBranchPrefix } from "../workspace/use-branch-prefix.ts";
 import { workspaceName } from "../workspace/workspace-name.ts";
 import { ArtifactsTab } from "./artifacts/ArtifactsTab.tsx";
@@ -142,11 +144,7 @@ function ComputedHeader({
 }) {
 	const actions = useActions();
 	const computed = computeGitHeader(inputs);
-	const archive = () => {
-		void actions.workspaces.archive(workspaceId, { deleteBranch: false }).then((result) => {
-			if (!result.ok) toastError("Couldn't archive the workspace", result.error);
-		});
-	};
+	const archive = useArchiveWorkspace(workspaceId);
 	// As in Conductor, "Add all comments to chat" is offered only while a review comment is not
 	// in the chat yet (renderApp @2262911).
 	const model =
@@ -154,19 +152,22 @@ function ComputedHeader({
 			? { ...computed, action: null }
 			: computed;
 	return (
-		<GitHeader
-			model={model}
-			onAction={onAction}
-			pullRequest={inputs.git.pullRequest}
-			onOpenPullRequest={() => {
-				const url = inputs.git.pullRequest?.url;
-				if (url === undefined) return;
-				void actions.app.openUrl(url).then((result) => {
-					if (!result.ok) toastError("Couldn't open the pull request", result.error);
-				});
-			}}
-			onArchive={archive}
-		/>
+		<>
+			<GitHeader
+				model={model}
+				onAction={onAction}
+				pullRequest={inputs.git.pullRequest}
+				onOpenPullRequest={() => {
+					const url = inputs.git.pullRequest?.url;
+					if (url === undefined) return;
+					void actions.app.openUrl(url).then((result) => {
+						if (!result.ok) toastError("Couldn't open the pull request", result.error);
+					});
+				}}
+				onArchive={archive.archive}
+			/>
+			<ArchiveWorkspaceDialog control={archive} />
+		</>
 	);
 }
 
