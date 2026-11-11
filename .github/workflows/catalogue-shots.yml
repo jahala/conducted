@@ -16,6 +16,7 @@ on:
       - "apps/desktop/src-tauri/tauri.conf.json"
       - "apps/desktop/src-tauri/src/visualization.rs"
       - "scripts/visualization/**"
+      - ".github/workflows/catalogue-shots.yml"
 
 permissions:
   contents: read
