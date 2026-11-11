@@ -78,6 +78,8 @@ async function middle(element: Locator): Promise<{ x: number; y: number }> {
 
 /** Presses the middle of `from` and moves past the drag threshold, leaving the drag running. */
 async function press(page: Page, from: Locator): Promise<void> {
+	// A box below a scrolled list's edge is not where the pointer lands; bring it into view first.
+	await from.scrollIntoViewIfNeeded({ timeout: HANG_MS });
 	const start = await middle(from);
 	await page.mouse.move(start.x, start.y);
 	await page.mouse.down();
@@ -323,8 +325,28 @@ async function main(): Promise<number> {
 			await favourite.getByRole("button", { name: "Edit", exact: true }).click();
 			const grip = favourite.getByRole("button", { name: "Reorder Claude Code · haiku" });
 			await press(favourite, grip);
+			// For the detail only: whether the press reached the grip and started a drag.
+			const pressed = await favourite.evaluate(
+				() => document.documentElement.dataset.pointerDrag !== undefined,
+			);
 			const target = favourite.getByRole("button", { name: "Select Codex · gpt-5.5" });
 			await release(favourite, await middle(target));
+			// The reorder is saved, then drawn: wait for haiku to come before gpt-5.5, as the other
+			// checks wait for their result, so a slow runner does not read the list too early.
+			await favourite
+				.waitForFunction(
+					() => {
+						const rows = [...document.querySelectorAll('[aria-label^="Select "]')].map(
+							(row) => row.getAttribute("aria-label") ?? "",
+						);
+						const haiku = rows.findIndex((name) => name.includes("haiku"));
+						const gpt = rows.findIndex((name) => name.includes("gpt-5.5"));
+						return haiku !== -1 && gpt !== -1 && haiku < gpt;
+					},
+					undefined,
+					{ timeout: HANG_MS },
+				)
+				.catch(() => undefined);
 			const names = await favourite
 				.locator('[aria-label^="Select "]')
 				.evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label") ?? ""));
@@ -333,7 +355,7 @@ async function main(): Promise<number> {
 			check(
 				"favourites: a grip dragged onto another row moves the favourite there",
 				haiku !== -1 && gpt !== -1 && haiku < gpt,
-				names.join(", "),
+				`${names.join(", ")} (drag started: ${pressed})`,
 			);
 		} finally {
 			await favourite.close();
