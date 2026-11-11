@@ -19,25 +19,18 @@
 import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Cloud, CloudPairing } from "../../platform/platform.ts";
+import {
+	CLOUD_MCP_ADD_FAILED,
+	CLOUD_MCP_DELETE_FAILED,
+	CLOUD_MCP_UPDATE_FAILED,
+	type CloudMcpServer,
+} from "../cloud-mcp.ts";
 import { CLOUD_ENV_SAVE_FAILED, CLOUD_SETTINGS_UNREACHABLE } from "../cloud-messages.ts";
 
 /** The name and email a cloud workspace commits with (services-map 4.2.7 `gitIdentity`). */
 export interface CloudGitIdentity {
 	name: string;
 	email: string;
-}
-
-/** How a cloud MCP server authenticates (ui-map.md 6 Organization). */
-export type CloudMcpAuth = "none" | "bearer" | "headers";
-
-/** One MCP server a cloud workspace's agents see. It is remote and HTTPS, as Conductor's are. */
-export interface CloudMcpServer {
-	url: string;
-	authType: CloudMcpAuth;
-	/** The bearer token. It stays in the Worker; the sandbox only ever gets a placeholder. */
-	bearerToken?: string;
-	/** The custom header values. They stay in the Worker; the sandbox gets placeholders. */
-	headers?: Record<string, string>;
 }
 
 /** The personal cloud settings one Worker holds. */
@@ -51,11 +44,6 @@ export interface CloudSettings {
 
 /** What Conductor says when the cloud commit identity could not be changed. */
 export const CLOUD_GIT_IDENTITY_FAILED = "Couldn't update Git identity";
-
-/** Conductor's own words for a cloud MCP server that could not be added, changed or deleted. */
-export const CLOUD_MCP_ADD_FAILED = "Couldn't add this MCP server";
-export const CLOUD_MCP_UPDATE_FAILED = "Couldn't update this MCP server";
-export const CLOUD_MCP_DELETE_FAILED = "Couldn't delete this MCP server";
 
 /** The settings a Worker that has never been given any answers with. */
 export function emptyCloudSettings(): CloudSettings {

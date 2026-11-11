@@ -4,7 +4,8 @@
  * edit panel, and "Import from local".
  * Behaviour: ui-map.md 6 Organization (MCP: "Installed", "Import from local", "Select MCP servers",
  * auth types None, OAuth, Bearer token, Custom headers) and renderApp (the add form's Name, URL and
- * Authentication fields and its wording). Conductor's page is an organisation page, which D004 and
+ * Authentication fields, its wording, and the import sheet's search over name, URL and source and
+ * its "Select all" / "Deselect all" toggle). Conductor's page is an organisation page, which D004 and
  * D018 keep out; ours is the personal Cloud page on the Mac's own Worker (D121). OAuth is not
  * offered: Conductor completes it through its hosted service's callback and token store (D004,
  * D018, D025), which this app has no equivalent to. A cloud server overrides the agent's local
@@ -12,18 +13,20 @@
  * Data: the `mcpServers` of useCloudSettings; Actions.cloud.saveMcpServer, removeMcpServer,
  * importMcpServers and scanLocalMcpServers.
  * Must handle: no servers (designed empty state); a save the Worker refuses (its reason stays on
- * the panel); a scan that finds nothing (the right one of Conductor's three messages); a config it
- * cannot read (named); a server already saved (not offered again); a name the Worker reserves
- * (made unique or refused); every secret never shown once saved.
+ * the panel); a scan that finds nothing (the right one of Conductor's three messages); a search that
+ * matches nothing (Conductor's "No matching MCP servers."); a config it cannot read (named); a server
+ * already saved (not offered again); a name the Worker reserves (made unique or refused); every
+ * secret never shown once saved.
  * Test first: adding a bearer-token server saves it and the list shows it without its token.
  */
 import { type ReactNode, useEffect, useState } from "react";
 import {
+	type CloudMcpAuth,
+	type CloudMcpServer,
 	headerLines,
 	type ImportedMcpServer,
 	uniqueMcpServerName,
-} from "../../../core/cloud/mcp-import.ts";
-import type { CloudMcpAuth, CloudMcpServer } from "../../../core/cloud/settings.ts";
+} from "../../../core/cloud-mcp.ts";
 import { useActions } from "../../../core/hooks.ts";
 import { Badge } from "../../../ui/Badge.tsx";
 import { Button } from "../../../ui/Button.tsx";
@@ -40,7 +43,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "../../../ui/Table.tsx";
-import { toast, toastError } from "../../../ui/Toast.tsx";
+import { toast } from "../../../ui/Toast.tsx";
 
 /** Conductor's name rule, with our app tools' reserved name. */
 const SERVER_NAME = /^[A-Za-z0-9_-]{1,64}$/;
@@ -446,6 +449,7 @@ function ImportLocalSheet({
 	const [skipped, setSkipped] = useState(0);
 	const [error, setError] = useState<string | null>(null);
 	const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
+	const [query, setQuery] = useState("");
 	const [saving, setSaving] = useState(false);
 
 	useEffect(() => {
@@ -475,6 +479,32 @@ function ImportLocalSheet({
 					(candidate) =>
 						!installed.has(candidate.name.toLowerCase()) && !installedUrls.has(candidate.url),
 				);
+	// The search matches what Conductor's does: the name, the URL or the sources, without case.
+	const needle = query.trim().toLowerCase();
+	const visible =
+		fresh === null
+			? null
+			: needle === ""
+				? fresh
+				: fresh.filter((candidate) =>
+						[candidate.name, candidate.url, candidate.sources.join(", ")].some((text) =>
+							text.toLowerCase().includes(needle),
+						),
+					);
+	const everyVisibleUnchosen =
+		visible !== null && visible.length > 0 && visible.every((item) => !chosen.has(item.url));
+
+	const toggleAll = () => {
+		if (visible === null) return;
+		setChosen((current) => {
+			const next = new Set(current);
+			for (const candidate of visible) {
+				if (everyVisibleUnchosen) next.add(candidate.url);
+				else next.delete(candidate.url);
+			}
+			return next;
+		});
+	};
 
 	const toggle = (url: string) => {
 		setChosen((current) => {
@@ -542,41 +572,63 @@ function ImportLocalSheet({
 							<p className="text-sm text-fg-muted">
 								Remote MCP servers found in this Mac's agent configs.
 							</p>
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead>
-											<span className="sr-only">Choose</span>
-										</TableHead>
-										<TableHead>Name</TableHead>
-										<TableHead>Source</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{fresh.map((candidate) => (
-										<TableRow key={candidate.url}>
-											<TableCell>
-												<Checkbox
-													aria-label={candidate.name}
-													checked={chosen.has(candidate.url)}
-													onCheckedChange={() => toggle(candidate.url)}
-												/>
-											</TableCell>
-											<TableCell>
-												<div className="flex flex-col">
-													<span className="font-medium text-fg">{candidate.name}</span>
-													<span className="max-w-72 truncate font-mono text-xs text-fg-muted">
-														{candidate.url}
-													</span>
-												</div>
-											</TableCell>
-											<TableCell className="text-fg-muted">
-												{candidate.sources.join(", ")}
-											</TableCell>
+							<div className="flex items-center gap-2">
+								<Input
+									value={query}
+									onChange={(event) => setQuery(event.target.value)}
+									placeholder="Search MCP servers..."
+									aria-label="Search MCP servers"
+									autoFocus
+									autoComplete="off"
+									className="flex-1"
+								/>
+								{visible !== null && visible.length > 0 ? (
+									<Button variant="ghost" size="sm" onClick={toggleAll}>
+										{everyVisibleUnchosen ? "Select all" : "Deselect all"}
+									</Button>
+								) : null}
+							</div>
+							{visible !== null && visible.length > 0 ? (
+								<Table>
+									<TableHeader>
+										<TableRow>
+											<TableHead>
+												<span className="sr-only">Choose</span>
+											</TableHead>
+											<TableHead>Name</TableHead>
+											<TableHead>Source</TableHead>
 										</TableRow>
-									))}
-								</TableBody>
-							</Table>
+									</TableHeader>
+									<TableBody>
+										{visible.map((candidate) => (
+											<TableRow key={candidate.url}>
+												<TableCell>
+													<Checkbox
+														aria-label={candidate.name}
+														checked={chosen.has(candidate.url)}
+														onCheckedChange={() => toggle(candidate.url)}
+													/>
+												</TableCell>
+												<TableCell>
+													<div className="flex flex-col">
+														<span className="font-medium text-fg">{candidate.name}</span>
+														<span className="max-w-72 truncate font-mono text-xs text-fg-muted">
+															{candidate.url}
+														</span>
+													</div>
+												</TableCell>
+												<TableCell className="text-fg-muted">
+													{candidate.sources.join(", ")}
+												</TableCell>
+											</TableRow>
+										))}
+									</TableBody>
+								</Table>
+							) : (
+								<p className="px-2 py-4 text-center text-sm text-fg-muted">
+									No matching MCP servers.
+								</p>
+							)}
 						</>
 					) : unreadable.length > 0 ? (
 						<EmptyState

@@ -22,16 +22,8 @@
 
 import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
 import type { FileStat } from "../../platform/platform.ts";
+import { type ImportedMcpServer, SERVER_NAME } from "../cloud-mcp.ts";
 import type { TomlCodec } from "../services/settings.ts";
-
-/** One remote MCP server the scan found. */
-export interface ImportedMcpServer {
-	name: string;
-	url: string;
-	headers: Record<string, string>;
-	/** The config files' agents that held it, by their labels. */
-	sources: string[];
-}
 
 /** What "Import from local" found. */
 export interface LocalMcpScan {
@@ -73,12 +65,6 @@ function baseName(path: string): string {
 	return path.slice(path.lastIndexOf("/") + 1);
 }
 
-/** A header name the HTTP specification allows (an RFC 9110 token). */
-const HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
-/** A server name: 1 to 64 letters, numbers, hyphens or underscores (Conductor's rule). */
-const SERVER_NAME = /^[A-Za-z0-9_-]{1,64}$/;
-const RESERVED_NAMES = new Set(["conductor", "conducted"]);
-
 /** The tools whose local config files the scan reads, with the labels it shows. */
 const SOURCES = {
 	claude: "Claude Code",
@@ -88,52 +74,6 @@ const SOURCES = {
 	opencode: "OpenCode",
 	codex: "Codex",
 } as const;
-
-/** Conductor's own words for header text it cannot read (renderApp `Inr`). */
-const HEADER_LINES_MESSAGE = 'Enter headers as one "Header-Name: value" per line';
-
-/**
- * The headers a user typed for one server: one `Name: value` per line. A blank line is ignored;
- * a line without a name and a value, or with a name that is not a header, refuses the whole text.
- */
-export function headerLines(
-	text: string,
-): { ok: true; headers: Record<string, string> } | { ok: false; message: string } {
-	const headers: Record<string, string> = {};
-	for (const raw of text.split(/\r?\n/)) {
-		const line = raw.trim();
-		if (line === "") continue;
-		const colon = line.indexOf(":");
-		if (colon < 1) return { ok: false, message: HEADER_LINES_MESSAGE };
-		const name = line.slice(0, colon).trim();
-		const value = line.slice(colon + 1).trim();
-		if (!HEADER_NAME.test(name) || value === "") {
-			return { ok: false, message: HEADER_LINES_MESSAGE };
-		}
-		headers[name] = value;
-	}
-	return { ok: true, headers };
-}
-
-/** A server name the Worker accepts, made from `base`, and unique among `taken`. */
-export function uniqueMcpServerName(base: string, taken: readonly string[]): string {
-	let name = base
-		.replace(/[^A-Za-z0-9_-]+/g, "-")
-		.replace(/^-+|-+$/g, "")
-		.slice(0, 64);
-	if (name === "") name = "imported-mcp";
-	if (!SERVER_NAME.test(name) || RESERVED_NAMES.has(name.toLowerCase())) {
-		name = `mcp-${name}`.slice(0, 64);
-	}
-	if (!SERVER_NAME.test(name)) name = "imported-mcp";
-	let unique = name;
-	let attempt = 2;
-	while (taken.includes(unique) || RESERVED_NAMES.has(unique.toLowerCase())) {
-		unique = `${name.slice(0, 60)}-${attempt}`;
-		attempt += 1;
-	}
-	return unique;
-}
 
 /** The URL a candidate is compared by, so one server found twice is one candidate. */
 function urlKey(raw: string): string | null {

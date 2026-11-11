@@ -7,14 +7,10 @@
 import { ok, type Result } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { FileStat } from "../../platform/platform.ts";
+import { headerLines, uniqueMcpServerName } from "../cloud-mcp.ts";
 import type { TomlCodec } from "../services/settings.ts";
 import { tomlCodec } from "../services/toml-codec.ts";
-import {
-	createCloudMcpImport,
-	headerLines,
-	type LocalFileSystem,
-	uniqueMcpServerName,
-} from "./mcp-import.ts";
+import { createCloudMcpImport, type LocalFileSystem } from "./mcp-import.ts";
 
 const HOME = "/Users/conducted";
 

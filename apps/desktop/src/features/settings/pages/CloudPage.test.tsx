@@ -46,6 +46,46 @@ async function mountPage(settings: { current: unknown } | null) {
 	return test;
 }
 
+interface ImportSettings {
+	gitIdentity: null;
+	envVars: Record<string, string>;
+	mcpServers: Record<string, unknown>;
+}
+
+/** Renders the page with two remote servers in Cursor's local config, its import sheet open. */
+async function mountImport(settings: { current: ImportSettings }): Promise<TestContainer> {
+	const mounted = createTestContainer();
+	test = mounted;
+	mounted.memory.controls.setCloudPairing({ paired: true, url: "https://w.example.dev" });
+	mounted.memory.controls.files.set(
+		`${mounted.memory.platform.fs.paths.home}/.cursor/mcp.json`,
+		JSON.stringify({
+			mcpServers: {
+				alpha: { url: "https://alpha.example.com/mcp" },
+				beta: { url: "https://beta.example.com/mcp" },
+			},
+		}),
+	);
+	mounted.memory.controls.scriptCloud((request) => {
+		if (request.path !== "/settings") return null;
+		if (request.method === "GET") {
+			return ok({ status: 200, body: JSON.stringify(settings.current) });
+		}
+		settings.current = request.body as ImportSettings;
+		return ok({ status: 200, body: JSON.stringify(settings.current) });
+	});
+	await mounted.container.services.settings.start();
+	await mounted.container.services.cloudPairing.start();
+	render(
+		<ServicesProvider container={mounted.container}>
+			<CloudPage />
+			<Toaster />
+		</ServicesProvider>,
+	);
+	fireEvent.click(await screen.findByRole("button", { name: "Import from local" }));
+	return mounted;
+}
+
 describe("CLOUD-17 CloudPage", () => {
 	it("says how to pair a Mac that has no Worker", async () => {
 		await mountPage(null);
@@ -216,6 +256,59 @@ describe("CLOUD-17 CloudPage", () => {
 			(request) => request.method === "POST" && request.path === "/settings",
 		);
 		expect(posts).toHaveLength(1);
+	});
+
+	it("filters local servers by name, URL and source, and says when none match", async () => {
+		await mountImport({ current: { gitIdentity: null, envVars: {}, mcpServers: {} } });
+		expect(await screen.findByRole("checkbox", { name: "alpha" })).toBeTruthy();
+		expect(screen.getByRole("checkbox", { name: "beta" })).toBeTruthy();
+
+		const search = screen.getByPlaceholderText("Search MCP servers...");
+		fireEvent.change(search, { target: { value: "alp" } });
+		expect(screen.getByRole("checkbox", { name: "alpha" })).toBeTruthy();
+		expect(screen.queryByRole("checkbox", { name: "beta" })).toBeNull();
+
+		fireEvent.change(search, { target: { value: "beta.example" } });
+		expect(screen.queryByRole("checkbox", { name: "alpha" })).toBeNull();
+		expect(screen.getByRole("checkbox", { name: "beta" })).toBeTruthy();
+
+		fireEvent.change(search, { target: { value: "cursor" } });
+		expect(screen.getByRole("checkbox", { name: "alpha" })).toBeTruthy();
+		expect(screen.getByRole("checkbox", { name: "beta" })).toBeTruthy();
+
+		fireEvent.change(search, { target: { value: "nothing" } });
+		expect(await screen.findByText("No matching MCP servers.")).toBeTruthy();
+		expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+	});
+
+	it("selects all listed servers with one click and clears them", async () => {
+		const settings: { current: ImportSettings } = {
+			current: { gitIdentity: null, envVars: {}, mcpServers: {} },
+		};
+		await mountImport(settings);
+		const checked = (name: string) =>
+			screen.getByRole("checkbox", { name }).getAttribute("aria-checked");
+		expect(await screen.findByRole("button", { name: "Select all" })).toBeTruthy();
+		expect(checked("alpha")).toBe("false");
+		expect(checked("beta")).toBe("false");
+
+		fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+		expect(checked("alpha")).toBe("true");
+		expect(checked("beta")).toBe("true");
+		expect(screen.getByRole("button", { name: "Deselect all" })).toBeTruthy();
+
+		fireEvent.click(screen.getByRole("button", { name: "Deselect all" }));
+		expect(checked("alpha")).toBe("false");
+		expect(checked("beta")).toBe("false");
+		expect(screen.getByRole("button", { name: "Select all" })).toBeTruthy();
+
+		// The toggle acts on what the search leaves, as Conductor's does.
+		fireEvent.change(screen.getByPlaceholderText("Search MCP servers..."), {
+			target: { value: "alp" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+		fireEvent.click(screen.getByRole("button", { name: "Import" }));
+		await waitFor(() => expect(Object.keys(settings.current.mcpServers)).toEqual(["alpha"]));
 	});
 
 	it("keeps a saved bearer token when an edit leaves the token field blank", async () => {
