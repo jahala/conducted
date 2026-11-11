@@ -1,8 +1,6 @@
 /**
  * @feature DATA-01 Query hook contract for screens
- * @feature CLOUD-19 Create cloud workspaces: the organisation switcher and the new-workspace page in cloud mode
- * Owns: the workspace hooks and the open-in-app list. `useWorkspaces` lists the active
- * organisation's workspaces (CLOUD-19). The status rule reads git state through
+ * Owns: the workspace hooks and the open-in-app list. The status rule reads git state through
  * GitService.stateOf, so there is one builder for the sidebar and the Git panel.
  * Behaviour: services-map.md 1.3, 2.5; core/hooks.ts states the contract.
  * Must handle: a workspace that no longer exists, a status that has not loaded yet, a workspace
@@ -18,10 +16,8 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 import type { Loadable, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
 import type { BacklogWorkspace, SetupView, Workspace } from "../model.ts";
-import { workspaceInOrganization } from "../organization.ts";
 import type { SessionsState } from "../services/sessions.ts";
 import { type ChatStatusInput, deriveWorkspaceStatus } from "../status/workspace-status.ts";
-import { useActiveOrganization } from "./cloud.ts";
 
 /** The chats of a workspace as the status rule sees them. */
 function chatsFor(state: SessionsState, workspaceId: WorkspaceId): readonly ChatStatusInput[] {
@@ -61,17 +57,15 @@ export const useWorkspaces: Queries["useWorkspaces"] = () => {
 	const loaded = useStore(store, (state) => state.loaded);
 	const loadError = useStore(store, (state) => state.loadError);
 	const workspacesById = useStore(store, (state) => state.workspacesById);
-	// CLOUD-19: the lists show the active organisation's workspaces, as Conductor's do (main `Ttn`).
-	const organization = useActiveOrganization();
 	return useMemo<Loadable<Workspace[]>>(() => {
 		if (!loaded) return { state: "loading" };
 		// A failed load leaves no rows; an empty ready list would read as "no workspaces" (DATA-01).
 		if (loadError !== null) return { state: "error", error: loadError };
-		const data = Object.values(workspacesById)
-			.filter((workspace) => workspaceInOrganization(workspace, organization))
-			.sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id));
+		const data = Object.values(workspacesById).sort(
+			(left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id),
+		);
 		return { state: "ready", data };
-	}, [loaded, loadError, workspacesById, organization]);
+	}, [loaded, loadError, workspacesById]);
 };
 export const useWorkspace: Queries["useWorkspace"] = (id) => {
 	const store = useServices().services.workspace.store;

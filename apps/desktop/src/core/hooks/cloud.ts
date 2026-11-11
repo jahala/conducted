@@ -19,7 +19,7 @@ import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
 import type { Loadable, OrganizationsView, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
-import { activeOrganization, type Organization, organizationsFor } from "../organization.ts";
+import { activeOrganization, organizationsFor } from "../organization.ts";
 import { EMPTY_CLOUD_WORKSPACE_VIEW } from "../services/cloud-workspace.ts";
 import { useSetting } from "./settings.ts";
 
@@ -64,17 +64,6 @@ export const useOrganizations: Queries["useOrganizations"] = () => {
 		};
 	}, [pairing, choice]);
 };
-
-/**
- * The active organisation for the lists that follow it. Until the pairing is read it is this Mac,
- * as Conductor lists local workspaces while no organisation is known (main `wue`).
- */
-export function useActiveOrganization(): Organization {
-	const organizations = useOrganizations();
-	return organizations.state === "ready"
-		? organizations.data.active
-		: activeOrganization("local", organizationsFor({ paired: false, url: null }));
-}
 
 export const useCloudReadiness: Queries["useCloudReadiness"] = (url) => {
 	const service = useServices().services.cloudPairing;

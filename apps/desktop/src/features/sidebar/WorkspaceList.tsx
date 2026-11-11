@@ -1,7 +1,10 @@
 /**
  * @feature NAV-03 Workspace list
+ * @feature CLOUD-19 Create cloud workspaces: the organisation switcher and the new-workspace page in cloud mode
  * Owns: loading projects and workspaces and choosing what the list region shows: skeleton rows, an error with
- * retry, an empty state, or the grouped list.
+ * retry, an empty state, or the grouped list. CLOUD-19: the list holds the active organisation's
+ * workspaces: this Mac's while it is active, and the paired Worker's while that is (main `Nst`,
+ * @922363, as Conductor's sidebar filters them).
  * Behaviour: ui-map.md 4 items 4 to 7 (Pinned, sections, main list grouped by status or project).
  * Our design choice: this component only decides the state and hands the saved sections to
  * <GroupedWorkspaces>, which owns the rows.
@@ -13,9 +16,13 @@
  * renders "No workspaces yet".
  */
 import type { Result } from "@conducted/shared";
+import { useMemo } from "react";
 import { useStore } from "zustand";
+import type { Loadable } from "../../core/api.ts";
 import { useServices } from "../../core/context.tsx";
-import { useRepos, useWorkspaces } from "../../core/hooks.ts";
+import { useOrganizations, useRepos, useWorkspaces } from "../../core/hooks.ts";
+import type { Workspace } from "../../core/model.ts";
+import { LOCAL_ORGANIZATION, workspaceInOrganization } from "../../core/organization.ts";
 import { LoadableView } from "../../ui/LoadableView.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
 import { toastError } from "../../ui/Toast.tsx";
@@ -34,7 +41,24 @@ function ListSkeleton() {
 
 export function WorkspaceList() {
 	const repos = useRepos();
-	const workspaces = useWorkspaces();
+	const allWorkspaces = useWorkspaces();
+	const organizations = useOrganizations();
+	// Until a stored cloud choice is confirmed by the pairing, the list is this Mac's, as Conductor
+	// lists local workspaces while no organisation is known (main `wue`).
+	const organization =
+		organizations.state === "ready" ? organizations.data.active : LOCAL_ORGANIZATION;
+	const workspaces = useMemo<Loadable<Workspace[]>>(
+		() =>
+			allWorkspaces.state === "ready"
+				? {
+						state: "ready",
+						data: allWorkspaces.data.filter((workspace) =>
+							workspaceInOrganization(workspace, organization),
+						),
+					}
+				: allWorkspaces,
+		[allWorkspaces, organization],
+	);
 	const services = useServices().services;
 	const { repo, workspace } = services;
 	const sections = useStore(services.sections.store, (state) => state.sections);
