@@ -151,7 +151,16 @@ export function conductorTranscript(
 		(turn): turn is { rows: ShownRow[]; startedAt: number } => turn.startedAt !== null,
 	);
 	started.sort((a, b) => a.startedAt - b.startedAt);
-	return started.map((turn) => shownTurn(turn.rows, options.subAgentText === "inline"));
+	// A turn whose every row is a typed /compact shows nothing: `Zft` @1421093 keeps that message out
+	// of the chat through `AW` @1421782, and nothing else is in the turn. It is no turn a reader sees.
+	return started
+		.filter(
+			(turn) =>
+				!turn.rows.every(
+					(row) => row.userText !== null && isCompactCommand(shownText(row.userText) ?? ""),
+				),
+		)
+		.map((turn) => shownTurn(turn.rows, options.subAgentText === "inline"));
 }
 
 /** Conductor's test for a Claude sign-in error's text (renderApp `JVt` @9517358). */

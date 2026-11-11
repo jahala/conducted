@@ -260,6 +260,26 @@ const BACKGROUND_TURNS: { turnId: string; rows: Row[] }[] = [
 ];
 
 /**
+ * A chat whose sub-agent text and call name a parent call stored in no row. Conductor takes every
+ * sub-agent message out of the main transcript (`vmt`) and has no card to put it in, so it shows
+ * none of it. Ours keeps it visible at the top level (D129: nothing hidden), so the check leaves it
+ * out of the comparison and counts it.
+ */
+const ORPHAN_TURNS: { turnId: string; rows: Row[] }[] = [
+	{
+		turnId: "t-1",
+		rows: [
+			said("Carry on."),
+			wrote(text("u-orphan-1", "Checking the parser.", "tu-gone")),
+			wrote(toolUse("tu-orphan", "Read", { file_path: "parse.ts" }, "tu-gone")),
+			wrote(toolResult("tu-orphan", "export function parse() {}", "tu-gone")),
+			wrote(text("u-own", "All done.")),
+			wrote(done("All done.")),
+		],
+	},
+];
+
+/**
  * A database of made-up chats whose transcript is known by hand. Every Claude chat holds the rows
  * above in `session_messages`. Conductor began writing `session_events` partway through real
  * chats, so a chat with `events: "partial"` has events for its last turn only, and they include
@@ -371,6 +391,7 @@ const LINE = new RegExp(
 		"^mapped rows left out, as Conductor does not show them:$",
 		"^  (queued message|turn without a user message|compact command|compacted reply) \\d+$",
 		"^rows in chats not mapped yet: \\d+$",
+		"^sub-agent entries whose parent call is stored nowhere, shown by D129 and left out of the comparison: \\d+$",
 		"^per chat \\(agent; Conductor turns, entries; Conducted turns, entries; result\\):$",
 		`^  chat \\d+: (claude|codex|cursor|acp|other) \\d+ \\d+ \\d+ \\d+ (match|not mapped yet|mismatch \\((${MISMATCHES})\\))$`,
 		"^mapped chats whose transcript matches: \\d+ of \\d+$",
@@ -462,6 +483,20 @@ describe("APP-18 the chat history spike", () => {
 		// Conductor's main transcript: turn one's message, Task card and text; turn two's message and text.
 		expect(out).toContain("  chat 1: claude 2 5 2 5 match");
 		expect(out).toContain("mapped chats whose transcript matches: 1 of 1");
+	});
+
+	test("leaves out sub-agent work whose parent call is stored nowhere, and counts it (D129)", () => {
+		const { path } = knownCase([
+			{ id: "k-orphan", agent: "claude", events: "none", turns: ORPHAN_TURNS },
+		]);
+		const { code, out } = runSpike([path]);
+
+		expect(code).toBe(0);
+		// Conductor's main transcript: the message and the agent's own text.
+		expect(out).toContain("  chat 1: claude 1 2 1 2 match");
+		expect(out).toContain(
+			"sub-agent entries whose parent call is stored nowhere, shown by D129 and left out of the comparison: 2",
+		);
 	});
 
 	test("leaves the copy's folder as it was", () => {
