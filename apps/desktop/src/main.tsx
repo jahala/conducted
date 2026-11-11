@@ -243,7 +243,7 @@ export interface StartAppOptions {
 	 * dispatcher hands Platform deep links to. A test may pass its own.
 	 */
 	openLink?: (url: string) => void;
-	/** Installs the process-wide error and drag-and-drop handlers. On unless a test says otherwise. */
+	/** Installs the process-wide error, drag-and-drop and browser-menu handlers. On unless a test says otherwise. */
 	installHandlers?: boolean;
 	/** The time source. The system clock unless a caller passes its own. */
 	clock?: Clock;

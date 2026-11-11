@@ -1,8 +1,8 @@
 /**
  * @feature APP-03 DiagnosticsScreen
- * Owns: the diagnostics route. It captures facts about the app and the user's environment, shows
- * them, and offers a redacted or full report, a chat with the report attached, the log export, and
- * a restart.
+ * Owns: the diagnostics route. A Back button above the heading returns to the previous screen. It
+ * captures facts about the app and the user's environment, shows them, and offers a redacted or full
+ * report, a chat with the report attached, the log export, and a restart.
  * Behaviour: ui-map.md 2, route `/diagnostics` ("Capture information about your environment to
  * help diagnose issues"; shell, PATH and environment capture; buttons: copy redacted report, copy
  * full report, create a new session with the redacted report attached, copy logs (may include
@@ -16,11 +16,11 @@
  * login shell capture (the capture fails with its message), no workspace (the chat action is
  * disabled), and a restart while an agent is working (asks first).
  * Test first: with a capture that holds a variable named TOKEN, the redacted view shows a hash and
- * never the value.
+ * never the value. The Back button returns to the workspace the screen was opened from.
  */
 import { appError, err, messageOf, ok, type Result } from "@conducted/shared";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import type { Loadable } from "../../core/api.ts";
@@ -29,6 +29,7 @@ import { useActions, useDiagnostics } from "../../core/hooks.ts";
 import type { DiagnosticsCapture } from "../../core/model.ts";
 import { canOpenWorkspace } from "../../core/workspace-open.ts";
 import { Button } from "../../ui/Button.tsx";
+import { ArrowLeftIcon } from "../../ui/icons.tsx";
 import { LoadableView } from "../../ui/LoadableView.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { type DiagnosticsAction, DiagnosticsActions } from "./DiagnosticsActions.tsx";
@@ -43,6 +44,7 @@ export function DiagnosticsScreen() {
 	const diagnostics = useDiagnostics();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	const router = useRouter();
 	const workspaces = useStore(services.workspace.store, (state) => state.workspacesById);
 	const liveStates = useStore(services.sessions.store, (state) => state.liveStates);
 	const [view, setView] = useState<"redacted" | "full">("redacted");
@@ -186,6 +188,15 @@ export function DiagnosticsScreen() {
 	return (
 		<div className="h-full overflow-auto">
 			<div className="mx-auto flex max-w-3xl flex-col gap-6 px-10 py-8">
+				<button
+					type="button"
+					onClick={() => router.history.back()}
+					className="flex items-center gap-2 self-start text-sm text-fg-muted transition-colors hover:text-fg"
+					tabIndex={-1}
+				>
+					<ArrowLeftIcon className="h-4 w-4" />
+					<span>Back</span>
+				</button>
 				<header className="flex flex-col gap-2">
 					<h1 className="text-xl font-medium text-fg">Diagnostics</h1>
 					<p className="text-sm text-fg-muted">
