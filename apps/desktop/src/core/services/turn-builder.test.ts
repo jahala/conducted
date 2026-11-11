@@ -444,6 +444,77 @@ describe("CHAT-07 turn builder", () => {
 		]);
 	});
 
+	// Conductor hides an all-text assistant message whose text is a sign-in error when the turn's
+	// result already shows the sign-in view (kpa @9558460 with CQi @9517683).
+	describe("a Claude sign-in error", () => {
+		const said = "Invalid API key · Please run /login";
+		const signIn: AgentItem = {
+			kind: "error",
+			code: "agent_auth_required",
+			message: said,
+			retryable: false,
+		};
+
+		it("hides the text that repeats it when the turn's result shows the sign-in view", () => {
+			const events = [
+				user("turn-1", "message-1", "hi", 100),
+				agent("turn-1", 101, [text(said)]),
+				agent("turn-1", 102, [signIn]),
+				ended("turn-1", 103, "error", said),
+			];
+
+			expect(firstTurn(stored(events), live()).blocks).toEqual([{ kind: "error", item: signIn }]);
+		});
+
+		it("keeps the text when the turn has no sign-in result", () => {
+			const events = [
+				user("turn-1", "message-1", "hi", 100),
+				agent("turn-1", 101, [text(said)]),
+				ended("turn-1", 102),
+			];
+
+			expect(firstTurn(stored(events), live()).blocks).toEqual([{ kind: "text", text: said }]);
+		});
+
+		it("keeps a message that is not all text, and text that is not a sign-in error", () => {
+			const events = [
+				user("turn-1", "message-1", "hi", 100),
+				agent("turn-1", 101, [thinking("why"), text(said)]),
+				agent("turn-1", 102, [text("Here is what I found.")]),
+				agent("turn-1", 103, [signIn]),
+				ended("turn-1", 104, "error", said),
+			];
+
+			expect(firstTurn(stored(events), live()).blocks).toEqual([
+				{ kind: "thinking", text: "why", summarized: false },
+				{ kind: "text", text: said },
+				{ kind: "text", text: "Here is what I found." },
+				{ kind: "error", item: signIn },
+			]);
+		});
+
+		it("does not read another agent's sign-in error as Claude's", () => {
+			const codex = (at: number, items: AgentItem[]): SessionEvent => ({
+				type: "agent",
+				eventId: `codex-${at}` as EventId,
+				at,
+				turnId: "turn-1" as TurnId,
+				message: { agent: "codex", items },
+			});
+			const events = [
+				user("turn-1", "message-1", "hi", 100),
+				codex(101, [text(said)]),
+				codex(102, [signIn]),
+				ended("turn-1", 103, "error", said),
+			];
+
+			expect(firstTurn(stored(events), live()).blocks).toEqual([
+				{ kind: "text", text: said },
+				{ kind: "error", item: signIn },
+			]);
+		});
+	});
+
 	it("turns an unknown item kind into a notice block", () => {
 		const unknown = { kind: "future_item", text: "hello" } as unknown as AgentItem;
 		const events = [
