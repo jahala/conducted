@@ -90,7 +90,7 @@ import {
 	cloudLaunchStatusLine,
 	cloudRepositories,
 } from "../core/organization.ts";
-import { newWorkspaceSessionConfig } from "../core/services/workspace.ts";
+import { newWorkspaceSessionConfig } from "../core/services/workspace-creation.ts";
 import { useNewWorkspaceDraft } from "../features/composer/draft-sources.ts";
 import { type ModelChoice, ModelMenu } from "../features/composer/ModelPicker.tsx";
 import { SuggestionPopup } from "../features/composer/mentions/SuggestionPopup.tsx";

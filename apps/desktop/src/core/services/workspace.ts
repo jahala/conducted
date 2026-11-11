@@ -180,28 +180,6 @@ import type { GitCache } from "./git-cache.ts";
 import type { SetupRunResult } from "./run-scripts.ts";
 import { type PlaceNames, WorkspaceCreation, worktreeFolderFor } from "./workspace-creation.ts";
 
-export type { PlaceNames } from "./workspace-creation.ts";
-export {
-	baseBranchFor,
-	CHAT_CREATION_FAILED_MESSAGE,
-	CLOUD_REPO_NOT_GITHUB_MESSAGE,
-	COPY_FILE_SIZE_LIMIT,
-	type CopyIncludedFilesDeps,
-	copyIncludedFiles,
-	createPlaceNames,
-	DEFAULT_COPY_FILES,
-	FIRST_CHAT_APP_TOOLS,
-	GITHUB_LOGIN_MISSING_MESSAGE,
-	matchesCopyPattern,
-	type NewWorkspaceSessionDefaults,
-	newWorkspaceConfigFromSettings,
-	newWorkspaceSessionConfig,
-	parseWorktreeInclude,
-	SECTION_PLACEMENT_FAILED_MESSAGE,
-	selectIncludedPaths,
-	worktreeFolderFor,
-} from "./workspace-creation.ts";
-
 /** The Open in app that shows a workspace's changes as a diff instead of its folder. */
 const KALEIDOSCOPE_APP = "Kaleidoscope";
 
