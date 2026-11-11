@@ -43,9 +43,9 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # ratchet:oven-sh/setup-bun@v2.2.0
-        with:
-          bun-version-file: .bun-version
+      # setup-bun needs unzip, which the Playwright image lacks; npm's bun package carries the binary.
+      - name: Install bun from npm at the pinned version
+        run: npm install --global "bun@$(cat .bun-version)"
       - run: pnpm install --frozen-lockfile
       - run: bun scripts/catalogue/shots.ts
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
