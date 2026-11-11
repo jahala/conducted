@@ -496,12 +496,10 @@
 		"by": "seed"
 	},
 	"settings_key:experimental_legacy_file_preview_and_editing": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "REV-08",
-		"owner": "hand",
-		"note": "The file viewer and editor."
+		"status": "decided",
+		"decision": "D086",
+		"by": "hand",
+		"note": "An experimental switch for Conductor's old file editor, judged internal and never added (docs/plans/items/README.md); a key name D086 leaves out."
 	},
 	"settings_key:experimental_show_agent_cost": {
 		"status": "matched",
