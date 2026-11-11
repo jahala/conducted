@@ -10,11 +10,11 @@
  * into the composer) answers every drag that enters the webview, so the page never gets a drag's
  * `dragover` and `drop` (tauri-runtime-wry's handler returns true instead of passing the drag to
  * the OS).
- * Must handle: the page receives no HTML5 drag events, as in the app's window; a slot dropped
- * outside every slot is removed; a slot dragged onto another reorders the loadout.
+ * Must handle: the page receives no drag's `dragover` or `drop`, as in the app's window; a slot
+ * dropped outside every slot is removed; a slot dragged onto another reorders the loadout.
  * Our design choice: the check runs in the catalogue (scripts/catalogue/shots.ts starts it), in
- * Playwright's Chromium, and closes the window's HTML5 drag events at `window` in the capture
- * phase to stand in for Tauri's handler. The pointer events are real mouse input.
+ * Playwright's Chromium, and closes the drag's destination events at `window` in the capture phase
+ * to stand in for Tauri's handler. The pointer events are real mouse input.
  * Test first: drags a model into an empty slot with pointer events.
  *
  * Usage: bun scripts/catalogue/loadout-drag.browser.ts
