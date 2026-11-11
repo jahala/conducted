@@ -726,6 +726,8 @@ export interface Actions {
 		resolveConflicts: Act<
 			[workspaceId: WorkspaceId, path: string, choices: ConflictChoice[], seenText: string]
 		>;
+		/** Turns a cloud workspace's local mirror on or off, as its "Sync files" switch does. */
+		setSyncEnabled: Act<[workspaceId: WorkspaceId, enabled: boolean]>;
 		/**
 		 * Shows a workspace file selected in a Finder window. A cloud workspace's file is the
 		 * mirror's copy, or a download to Downloads (CLOUD-11); the result names the path shown.
