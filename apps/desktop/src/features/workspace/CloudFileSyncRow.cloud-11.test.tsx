@@ -106,6 +106,8 @@ async function setup() {
 	const workspace = await seedWorkspace(test.container, {
 		repoId: repo.id,
 		host: { kind: "cloud", url: "https://w.example.dev", vmId: "oslo" },
+		// Starts off, so the test turns it on and then off again.
+		remoteFileSyncEnabled: false,
 	});
 	await test.container.services.settings.set("auto_sync_files_in_new_cloud_workspaces", false);
 	await test.database.execute("UPDATE workspaces SET state = 'ready' WHERE id = $1", [
