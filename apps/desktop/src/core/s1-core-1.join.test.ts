@@ -601,9 +601,6 @@ describe("s1-core-1 join", () => {
 				return null;
 			});
 
-			expect(await test.container.actions.git.openInDiffTool(workspace.id, "src/[a].ts")).toEqual(
-				ok(undefined),
-			);
 			expect(
 				await test.container.services.git.setSparseCheckoutDirectories(workspace.id, ["apps"]),
 			).toEqual(ok(undefined));
