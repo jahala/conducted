@@ -49,6 +49,7 @@ export function createActions(
 			setDefaultBranch: (repoId, branch) => services.repo.setDefaultBranch(repoId, branch),
 			reorder: (orderedIds) => services.repo.reorder(orderedIds),
 			updateConfig: (repoId, config) => services.repo.updateConfig(repoId, config),
+			copyPreview: (repoId) => services.repo.copyPreview(repoId),
 			setIcon: (repoId, icon) => services.repo.setIcon(repoId, icon),
 			resetRunAction: (repoId, actionId) => services.repo.resetRunAction(repoId, actionId),
 			setRunActionHidden: (repoId, actionId, hidden) =>

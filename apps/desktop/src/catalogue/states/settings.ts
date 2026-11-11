@@ -6,14 +6,19 @@
  * output styles, the send key, the follow-up behaviour, where pull requests open), each open; the
  * Git page with a custom branch prefix; the Advanced page asking before it changes the root
  * folder; the Agents page's MCP servers for the chat last open; the Environment page's documented
- * variables; atlas's Add action dialog and icon picker; and the Agents page's provider dialog with the Bedrock
- * access-key form.
+ * variables; atlas's Add action dialog and icon picker; the Agents page's provider forms (Anthropic,
+ * subscription, Vertex, both Bedrock modes, ChatGPT, Cursor, custom), its card badges and both
+ * sign-in dialogs; a changed setting's actions menu; the Connect GitHub and disconnect dialogs; the
+ * environment file picker, variable editor, import banner and local-override table; and the MCP
+ * list loading, empty, filtered and failed.
  * Behaviour: ui-map.md 6 (settings pages).
  * Test first: not applicable; the screenshot run opens every state.
  */
 import { chatRoute, seedCast } from "../cast.ts";
 import { seedConductorDatabase } from "../conductor-database.ts";
 import { click, find, shows, typeInto } from "../dom.ts";
+import { scriptGitHub } from "../github.ts";
+import { setSetting } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
 import type { World } from "../world.ts";
 
@@ -182,6 +187,30 @@ async function seedConductorImport(world: World): Promise<void> {
 	});
 }
 
+/** Opens an agent's API-key provider form on the Agents page, optionally on another tab. */
+async function openProviders(
+	document: Document,
+	tab: string | null,
+	choice?: string,
+): Promise<void> {
+	if (tab !== null) await click(document, "[role=tab]", tab);
+	await click(document, "button", "API key");
+	if (choice !== undefined) await choose(document, "Provider", choice);
+}
+
+/** Stores one environment variable and its Keychain value, as the Environment page would. */
+async function seedEnvVar(world: World, name: string, value: string | null): Promise<void> {
+	const keychainRef = `env:global:${name}`;
+	if (value !== null) world.memory.controls.secrets.set(keychainRef, value);
+	const stored = await world.repositories.envVars.set({
+		name,
+		scope: "global",
+		repoId: null,
+		keychainRef,
+	});
+	if (!stored.ok) throw new Error(stored.error.message);
+}
+
 export const SETTINGS_STATES: CatalogueState[] = [
 	page("settings-general", "General", "general", "General"),
 	// Settings search results, which draw Conductor's search copy for a setting or page.
@@ -260,6 +289,459 @@ export const SETTINGS_STATES: CatalogueState[] = [
 	),
 	agentsWhile("hold"),
 	agentsWhile("fail"),
+	{
+		id: "settings-agents-loaded-from-env",
+		group: "Settings",
+		title: "Agents: Claude Code found on the login shell's PATH",
+		seed: async (world) => {
+			await seedCast(world);
+			world.answerSidecar({
+				getAgentInstalls: () => ({
+					agents: [
+						{
+							agent: "claude",
+							installed: true,
+							path: "/opt/homebrew/bin/claude",
+							source: "login_path",
+							version: "2.1.30",
+							authenticated: true,
+						},
+					],
+				}),
+			});
+			return {
+				route: "/settings/user/agents",
+				ready: (document) => shows(document, "Loaded from env"),
+			};
+		},
+	},
+	{
+		id: "settings-agents-api-key",
+		group: "Settings",
+		title: "Agents: Codex signed in with an API key",
+		seed: async (world) => {
+			await seedCast(world);
+			world.answerSidecar({
+				getAgentInstalls: () => ({
+					agents: [
+						{
+							agent: "codex",
+							installed: true,
+							path: "/Users/sam/Library/Application Support/Conducted/bin/codex",
+							source: "managed",
+							version: "0.98.0",
+							authenticated: true,
+							authMethod: "api_key",
+						},
+					],
+				}),
+			});
+			return {
+				route: "/settings/user/agents",
+				after: ({ document }) => click(document, "[role=tab]", "Codex"),
+				ready: (document) => shows(document, "API key configured"),
+			};
+		},
+	},
+	{
+		id: "settings-agents-validation",
+		group: "Settings",
+		title: "Agents: Cursor's program failed its version check",
+		seed: async (world) => {
+			await seedCast(world);
+			world.answerSidecar({
+				getAgentInstalls: () => ({
+					agents: [
+						{
+							agent: "cursor",
+							installed: true,
+							path: "/Applications/Cursor.app",
+							version: "0.44.0",
+							authenticated: false,
+							warning: "This version of Cursor cannot start a chat.",
+						},
+					],
+				}),
+			});
+			return {
+				route: "/settings/user/agents",
+				after: ({ document }) => click(document, "[role=tab]", "Cursor"),
+				ready: (document) => shows(document, "Validation failed"),
+			};
+		},
+	},
+	{
+		id: "settings-agents-claude-login",
+		group: "Settings",
+		title: "Agents: Claude Code's sign-in dialog, with its setup token command",
+		seed: async (world) => {
+			await seedCast(world);
+			world.answerSidecar({
+				getAgentInstalls: () => ({
+					agents: [
+						{
+							agent: "claude",
+							installed: true,
+							path: "/Users/sam/Library/Application Support/Conducted/bin/claude",
+							source: "managed",
+							version: "2.1.30",
+							authenticated: false,
+						},
+					],
+				}),
+				startAgentLogin: () => ({
+					loginId: "catalogue-claude",
+					command: "claude setup-token",
+					instructions: "Run claude setup-token, then paste the token.",
+				}),
+			});
+			world.holdSidecar("finishAgentLogin");
+			return {
+				route: "/settings/user/agents",
+				after: ({ document }) => click(document, "button", "Run claude /login", { prefix: true }),
+				ready: (document) => shows(document, "Paste code from Claude"),
+			};
+		},
+	},
+	{
+		id: "settings-agents-codex-login",
+		group: "Settings",
+		title: "Agents: Codex's ChatGPT device-code sign-in steps",
+		seed: async (world) => {
+			await seedCast(world);
+			world.answerSidecar({
+				getAgentInstalls: () => ({
+					agents: [
+						{
+							agent: "codex",
+							installed: true,
+							path: "/Users/sam/Library/Application Support/Conducted/bin/codex",
+							source: "managed",
+							version: "0.98.0",
+							authenticated: false,
+						},
+					],
+				}),
+				startAgentLogin: () => ({
+					loginId: "catalogue-codex",
+					url: "https://auth.openai.com/codex/device",
+					userCode: "ABCD-1234",
+					verificationUrl: "https://auth.openai.com/codex/device",
+					instructions: "Enter the code on OpenAI's page.",
+				}),
+			});
+			world.holdSidecar("finishAgentLogin");
+			return {
+				route: "/settings/user/agents",
+				after: ({ document }) => click(document, "button", "Run codex login", { prefix: true }),
+				ready: (document) => shows(document, "Enter this code when OpenAI asks for it:"),
+			};
+		},
+	},
+	{
+		id: "settings-agents-anthropic",
+		group: "Settings",
+		title: "Agents: Claude Code's Anthropic API key form",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/agents",
+				after: ({ document }) => openProviders(document, null, "Anthropic API key"),
+				ready: (document) => shows(document, "Use the key from this Mac"),
+			};
+		},
+	},
+	{
+		id: "settings-agents-subscription",
+		group: "Settings",
+		title: "Agents: Claude Code's subscription token form",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/agents",
+				after: ({ document }) => openProviders(document, null),
+				ready: (document) => shows(document, "Run claude setup-token"),
+			};
+		},
+	},
+	{
+		id: "settings-agents-vertex",
+		group: "Settings",
+		title: "Agents: Claude Code's Google Vertex AI form",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/agents",
+				after: ({ document }) => openProviders(document, null, "Google Vertex AI"),
+				ready: (document) => shows(document, "Vertex project"),
+			};
+		},
+	},
+	{
+		id: "settings-agents-bedrock-api-key",
+		group: "Settings",
+		title: "Agents: Claude Code's Amazon Bedrock form with a Bedrock API key",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/agents",
+				after: ({ document }) => openProviders(document, null, "Amazon Bedrock"),
+				ready: (document) => shows(document, "Bedrock API key"),
+			};
+		},
+	},
+	{
+		id: "settings-agents-codex-chatgpt",
+		group: "Settings",
+		title: "Agents: Codex's ChatGPT account choice",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/agents",
+				after: ({ document }) => openProviders(document, "Codex", "ChatGPT account"),
+				ready: (document) => shows(document, "Sign in with ChatGPT"),
+			};
+		},
+	},
+	{
+		id: "settings-agents-cursor",
+		group: "Settings",
+		title: "Agents: Cursor's API key form",
+		seed: async (world) => {
+			await seedCast(world);
+			world.answerSidecar({
+				getAgentInstalls: () => ({
+					agents: [
+						{
+							agent: "cursor",
+							installed: true,
+							path: "/Applications/Cursor.app",
+							version: "0.44.0",
+							authenticated: false,
+						},
+					],
+				}),
+			});
+			return {
+				route: "/settings/user/agents",
+				after: ({ document }) => openProviders(document, "Cursor"),
+				ready: (document) => shows(document, "Cursor API key"),
+			};
+		},
+	},
+	{
+		id: "settings-agents-custom",
+		group: "Settings",
+		title: "Agents: Claude Code's custom provider form",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/agents",
+				after: ({ document }) => openProviders(document, null, "Custom provider"),
+				ready: (document) => shows(document, "Workspace ID (optional)"),
+			};
+		},
+	},
+	{
+		id: "settings-setting-actions-menu",
+		group: "Settings",
+		title: "General, a changed setting's actions menu open",
+		seed: async (world) => {
+			await seedCast(world);
+			// Queue is the one value besides the default, steer; a value outside the options is dropped on load.
+			await setSetting(world, "default_message_send_mode", "queue");
+			return {
+				route: "/settings/user/general",
+				after: ({ document }) => click(document, "button", "Setting actions"),
+				ready: (document) => shows(document, "Reset"),
+			};
+		},
+	},
+	{
+		id: "settings-account-connect-github",
+		group: "Settings",
+		title: "Account: the Connect GitHub dialog when gh is not signed in",
+		seed: async (world) => {
+			await seedCast(world);
+			world.scriptShell(scriptGitHub({ signedOut: true }));
+			return {
+				route: "/settings/user/account",
+				after: ({ document }) => click(document, "button", "Connect"),
+				ready: (document) => shows(document, "This action needs GitHub access."),
+			};
+		},
+	},
+	{
+		id: "settings-environment-add-file",
+		group: "Settings",
+		title: "atlas: Environment, adding an env file with the system picker",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/environment`,
+				after: ({ document }) => click(document, "button", "Add env file"),
+				ready: (document) => shows(document, "Cancel adding env file"),
+			};
+		},
+	},
+	{
+		id: "settings-environment-edit-variable",
+		group: "Settings",
+		title: "Environment, editing a variable's value",
+		seed: async (world) => {
+			await seedCast(world);
+			await seedEnvVar(world, "ANTHROPIC_API_KEY", "sk-ant-example");
+			return {
+				route: "/settings/user/environment",
+				after: ({ document }) => click(document, "button", "Edit ANTHROPIC_API_KEY"),
+				ready: (document) =>
+					document.querySelector(
+						'textarea[placeholder="Use an empty value to set this variable to an empty string."]',
+					) !== null,
+			};
+		},
+	},
+	{
+		id: "settings-environment-values",
+		group: "Settings",
+		title: "atlas: Environment, a value, an unset variable and a local override",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			await seedEnvVar(world, "ANTHROPIC_API_KEY", "sk-ant-example");
+			const stored = await world.repositories.envVars.set({
+				name: "ANTHROPIC_API_KEY",
+				scope: "repo",
+				repoId: cast.atlas.id,
+				keychainRef: `env:repo:${cast.atlas.id}:ANTHROPIC_API_KEY`,
+			});
+			if (!stored.ok) throw new Error(stored.error.message);
+			world.memory.controls.secrets.set(
+				`env:repo:${cast.atlas.id}:ANTHROPIC_API_KEY`,
+				"sk-ant-local",
+			);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/environment`,
+				after: ({ document }) =>
+					click(document, "button", "Show documented variables", { prefix: true }),
+				ready: (document) => shows(document, "Locally overwritten"),
+			};
+		},
+	},
+	{
+		id: "settings-agents-no-match",
+		group: "Settings",
+		title: "Agents: a provider search with no match",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/agents",
+				after: ({ document }) => typeInto(document, "input", "Search providers", "kilo"),
+				ready: (document) => shows(document, "No providers match your search."),
+			};
+		},
+	},
+	{
+		id: "settings-account-disconnect-github",
+		group: "Settings",
+		title: "Account: asking before GitHub's token is removed",
+		seed: async (world) => {
+			await seedCast(world);
+			world.memory.controls.secrets.set("gh_pat_token", "ghp_catalogue_token");
+			return {
+				route: "/settings/user/account",
+				after: async ({ document }) => {
+					await click(document, "button", "Manage");
+					await click(document, "button", "Disconnect GitHub");
+				},
+				ready: (document) => shows(document, "Disconnect GitHub?"),
+			};
+		},
+	},
+	{
+		id: "settings-environment-import",
+		group: "Settings",
+		title: "atlas: Environment, the banner that imports a dotenv file",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			world.memory.controls.files.set(`${cast.atlas.rootPath}/.env`, "TOKEN=secret\n");
+			return {
+				route: `/settings/repos/${cast.atlas.id}/environment`,
+				ready: (document) => shows(document, "Import local variables"),
+			};
+		},
+	},
+	{
+		id: "settings-mcp-loading",
+		group: "Settings",
+		title: "Agents, the MCP servers still loading",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			world.holdSidecar("listMcpServers");
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await find(document, "button", "MCP status");
+					await app.router.navigate({ to: "/settings/user/$page", params: { page: "agents" } });
+				},
+				ready: (document) => shows(document, "Loading MCP servers"),
+			};
+		},
+	},
+	{
+		id: "settings-mcp-empty",
+		group: "Settings",
+		title: "Agents, the MCP list with no servers",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await find(document, "button", "MCP status");
+					await app.router.navigate({ to: "/settings/user/$page", params: { page: "agents" } });
+				},
+				ready: (document) => shows(document, "No MCP servers configured."),
+			};
+		},
+	},
+	{
+		id: "settings-mcp-no-match",
+		group: "Settings",
+		title: "Agents, an MCP filter with no match",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			world.answerSidecar({
+				listMcpServers: () => ({
+					servers: [{ name: "github", status: "connected", scope: "user", transport: "http" }],
+				}),
+			});
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await find(document, "button", "MCP status");
+					await app.router.navigate({ to: "/settings/user/$page", params: { page: "agents" } });
+					await typeInto(document, "input", "Search MCP servers", "nothing");
+				},
+				ready: (document) => shows(document, "No matching MCP servers."),
+			};
+		},
+	},
+	{
+		id: "settings-mcp-error",
+		group: "Settings",
+		title: "Agents, the MCP servers when the sidecar fails",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			world.failSidecar("listMcpServers");
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await find(document, "button", "MCP status");
+					await app.router.navigate({ to: "/settings/user/$page", params: { page: "agents" } });
+				},
+				ready: (document) => shows(document, "Couldn't load MCP servers"),
+			};
+		},
+	},
 	page("settings-account", "Account", "account", "Account"),
 	page("settings-appearance", "Appearance", "appearance", "Appearance"),
 	page("settings-key-bindings", "Keyboard shortcuts", "key-bindings", "Keyboard shortcuts"),

@@ -225,7 +225,8 @@ describe("SET-04 EnvironmentPage", () => {
 
 		const inherited = (await screen.findByRole("heading", { name: "Inherited from User" }))
 			.parentElement as HTMLElement;
-		const rows = await within(inherited).findAllByRole("row");
+		await within(inherited).findByText("SHARED");
+		const rows = [...inherited.querySelectorAll("tbody tr")];
 		expect(rows.map((row) => row.querySelector(".font-mono")?.textContent)).toEqual([
 			"SHARED",
 			"TOKEN",

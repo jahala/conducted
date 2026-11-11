@@ -6,10 +6,10 @@
  * copy...", "Using .worktreeinclude from this repository..."); services-map.md 4.2.3
  * (file_include_globs). The workspace service copies the settings list and the `.worktreeinclude`
  * list together (services-map.md 5A.5.5); only the settings list is editable here.
- * Must handle: a pattern with no match (shown, not an error), a pattern that reaches outside the
- * repository (refused), a huge match list (first 50 and a count), and a saved list the caller
- * supplies. Detection and the `.worktreeinclude` contents are the caller's; wiring them to the
- * repository is WS-01's.
+ * Must handle: a pattern with no match (shown as "No matching gitignored files found."), a pattern
+ * that reaches outside the repository (refused), a huge match list (first 50 and a count), a
+ * detection that fails ("Could not preview files to copy.") and its Refresh, and a saved list the
+ * caller supplies. The caller supplies the preview (RepoMiscPage asks RepoService.copyPreview).
  * Test first: the pattern "../secret" is refused.
  */
 import { useId, useState } from "react";
@@ -29,12 +29,22 @@ export function isOutsideRepository(pattern: string): boolean {
 
 export interface FilesToCopyFieldProps {
 	patterns: string[];
-	/** Null while no detector is available, so the field shows no false result. */
-	matches: { state: "detecting" } | { state: "ready"; paths: string[] } | null;
+	/**
+	 * What the repository's ignored files match: detecting, the paths, a failure, or null while no
+	 * detector is available, so the field shows no false result.
+	 */
+	matches: { state: "detecting" } | { state: "ready"; paths: string[] } | { state: "error" } | null;
 	onChange: (patterns: string[]) => void;
+	/** Asks for the preview again. Left out when the caller has no detector. */
+	onRefresh?: () => void;
 }
 
-export function FilesToCopyField({ patterns, matches, onChange }: FilesToCopyFieldProps) {
+export function FilesToCopyField({
+	patterns,
+	matches,
+	onChange,
+	onRefresh,
+}: FilesToCopyFieldProps) {
 	const [draft, setDraft] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const inputId = useId();
@@ -109,35 +119,46 @@ export function FilesToCopyField({ patterns, matches, onChange }: FilesToCopyFie
 				file to add or remove them.
 			</p>
 
-			{matches?.state === "detecting" ? (
-				<p role="status" className="text-sm text-fg-muted">
-					Detecting files to copy...
-				</p>
-			) : null}
+			{matches === null ? null : (
+				<div className="flex items-center gap-1.5 text-xs text-fg-muted">
+					{matches.state === "detecting" ? (
+						<span role="status">Detecting files to copy...</span>
+					) : matches.state === "error" ? (
+						<span role="alert">Could not preview files to copy.</span>
+					) : matches.paths.length === 0 ? (
+						<span>No matching gitignored files found.</span>
+					) : (
+						<span>
+							{matches.paths.length === 1
+								? "1 file will be copied"
+								: `${matches.paths.length} files will be copied`}
+						</span>
+					)}
+					{onRefresh === undefined ? null : (
+						<Button
+							size="xs"
+							variant="ghost"
+							aria-label="Refresh files to copy preview"
+							loading={matches.state === "detecting"}
+							onClick={onRefresh}
+						>
+							Refresh
+						</Button>
+					)}
+				</div>
+			)}
 
-			{matches?.state === "ready" ? (
-				<MatchPreview paths={matches.paths} patterns={patterns} />
+			{matches?.state === "ready" && matches.paths.length > 0 ? (
+				<MatchPreview paths={matches.paths} />
 			) : null}
 		</div>
 	);
 }
 
-function MatchPreview({ paths, patterns }: { paths: string[]; patterns: string[] }) {
-	if (paths.length === 0) {
-		return (
-			<p className="text-sm text-fg-muted">
-				{patterns.length === 0
-					? "No files are copied into new workspaces."
-					: "No files match these patterns."}
-			</p>
-		);
-	}
+function MatchPreview({ paths }: { paths: string[] }) {
 	const shown = paths.slice(0, COPY_PREVIEW_LIMIT);
 	return (
 		<div className="flex flex-col gap-1">
-			<p className="text-sm text-fg-muted">
-				{paths.length === 1 ? "1 file will be copied" : `${paths.length} files will be copied`}
-			</p>
 			<ul aria-label="Matching files" className="max-h-40 overflow-y-auto rounded-md bg-muted p-2">
 				{shown.map((path) => (
 					<li key={path} className="truncate font-mono text-xs text-fg-muted">

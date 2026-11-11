@@ -473,6 +473,8 @@ export interface Actions {
 		/** Saves the sidebar's project order by drag (NAV-04). */
 		reorder: Act<[orderedIds: RepoId[]]>;
 		updateConfig: Act<[repoId: RepoId, config: RepoConfig]>;
+		/** The gitignored files a new workspace would copy, for the Misc page's preview (SET-07). */
+		copyPreview: Act<[repoId: RepoId], string[]>;
 		setIcon: Act<[repoId: RepoId, icon: RepoIconChoice]>;
 		/** Drops this Mac's change to a shared run action, so the shared version applies again. */
 		resetRunAction: Act<[repoId: RepoId, actionId: string]>;
