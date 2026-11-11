@@ -135,7 +135,6 @@ describe("COMP-02 favourite models list", () => {
 		expect(screen.queryByRole("button", { name: "Reorder Claude Code · default" })).toBeNull();
 
 		// jsdom has no layout, so give the rows rectangles: the default first, then 32px rows.
-		const target = screen.getByRole("button", { name: "Select Claude Code · m1" });
 		const rows = screen
 			.getAllByRole("button", { name: /^Select / })
 			.map((button) => button.parentElement);

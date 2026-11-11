@@ -11,12 +11,12 @@ import {
 	RouterProvider,
 } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
-import { Sidebar } from "./Sidebar.tsx";
 import { layOut } from "../../test/pointer-drag.ts";
+import { Sidebar } from "./Sidebar.tsx";
 
 afterEach(cleanup);
 
