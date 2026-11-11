@@ -781,14 +781,25 @@ fn require_wrangler_version(wrangler: &Wrangler, cwd: &Path) -> CommandResult<()
     Ok(())
 }
 
-/// The writable temp folder one deploy uses for its config and secret file.
-fn deploy_temp_folder() -> CommandResult<PathBuf> {
+/// A name part no other temp path of this process shares: the process id, the time and a count.
+/// The time alone repeats: macOS clocks tick in microseconds, and two deploys or tests started in
+/// the same tick took the same folder.
+fn unique_temp_part() -> String {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|elapsed| elapsed.as_nanos())
         .unwrap_or_default();
-    let folder =
-        std::env::temp_dir().join(format!("conducted-deploy-{}-{nanos}", std::process::id()));
+    format!(
+        "{}-{nanos}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    )
+}
+
+/// The writable temp folder one deploy uses for its config and secret file, under `temp_root`.
+fn deploy_temp_folder(temp_root: &Path) -> CommandResult<PathBuf> {
+    let folder = temp_root.join(format!("conducted-deploy-{}", unique_temp_part()));
     std::fs::create_dir_all(&folder).map_err(|error| {
         refused(
             "cloud_wrangler_failed",
@@ -964,16 +975,9 @@ fn ensure_bucket(wrangler: &Wrangler, source: &Path, bucket: &str) -> CommandRes
 
 /// Writes the pairing token to a mode-600 file `wrangler deploy --secrets-file` reads, and returns
 /// its path so the caller removes it whatever happens.
-fn write_secret_file(token: &str) -> CommandResult<PathBuf> {
+fn write_secret_file(temp_root: &Path, token: &str) -> CommandResult<PathBuf> {
     use std::os::unix::fs::OpenOptionsExt as _;
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_nanos())
-        .unwrap_or_default();
-    let path = std::env::temp_dir().join(format!(
-        "conducted-deploy-{}-{nanos}.json",
-        std::process::id()
-    ));
+    let path = temp_root.join(format!("conducted-deploy-{}.json", unique_temp_part()));
     let mut file = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -1006,15 +1010,25 @@ pub fn deploy_worker(
     token: &str,
     progress: &dyn Fn(&str),
 ) -> CommandResult<String> {
-    deploy_worker_with(wrangler, resources, worker, token, require_docker, progress)
+    deploy_worker_with(
+        wrangler,
+        resources,
+        worker,
+        token,
+        &std::env::temp_dir(),
+        require_docker,
+        progress,
+    )
 }
 
-/// The deploy's steps with the Docker check passed in, so a test can run them without Docker.
+/// The deploy's steps with the temp root and the Docker check passed in, so a test can run them
+/// without Docker and check what it left in a folder of its own.
 fn deploy_worker_with<F>(
     wrangler: &Wrangler,
     resources: &Path,
     worker: &str,
     token: &str,
+    temp_root: &Path,
     docker: F,
     progress: &dyn Fn(&str),
 ) -> CommandResult<String>
@@ -1047,7 +1061,7 @@ where
     docker()?;
     // wrangler writes its own state under the working folder; use the deploy's temp folder so the
     // app bundle is never written to.
-    let folder = deploy_temp_folder()?;
+    let folder = deploy_temp_folder(temp_root)?;
     progress("Creating the bucket");
     ensure_bucket(wrangler, &folder, worker)?;
     let config = folder.join("wrangler.jsonc");
@@ -1061,7 +1075,7 @@ where
             format!("The deploy config could not be written: {error}"),
         ));
     }
-    let secrets = match write_secret_file(token) {
+    let secrets = match write_secret_file(temp_root, token) {
         Ok(path) => path,
         Err(error) => {
             let _ = std::fs::remove_dir_all(&folder);
@@ -1736,13 +1750,9 @@ mod tests {
 
     impl TestFolder {
         fn new() -> Self {
-            let nanos = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|elapsed| elapsed.as_nanos())
-                .unwrap_or_default();
             let path = std::env::temp_dir().join(format!(
-                "conducted-deploy-test-{}-{nanos}",
-                std::process::id()
+                "conducted-deploy-test-{}",
+                super::unique_temp_part()
             ));
             std::fs::create_dir_all(&path).expect("a temp folder");
             Self(path)
@@ -1821,11 +1831,14 @@ mod tests {
              exit 1\n",
         );
         let resources = resources_folder(&folder);
+        // The deploy's own temp root, so another test's deploy running alongside is never counted.
+        let temp = TestFolder::new();
         let url = deploy_worker_with(
             &wrangler,
             &resources,
             "conducted-dev-c08-test",
             "the-token",
+            temp.path(),
             || Ok(()),
             &|_step| {},
         )
@@ -1856,14 +1869,14 @@ mod tests {
         // The token reaches the deploy's secret file and nothing else.
         assert!(calls.contains("\"PAIRING_TOKEN\":\"the-token\""));
         // The temp folder and the secret file are gone when the deploy returns.
-        let leftovers = std::fs::read_dir(std::env::temp_dir())
+        let leftovers = std::fs::read_dir(temp.path())
             .expect("the temp folder")
             .filter_map(|entry| entry.ok())
             .filter(|entry| {
                 entry
                     .file_name()
                     .to_string_lossy()
-                    .starts_with(&format!("conducted-deploy-{}-", std::process::id()))
+                    .starts_with("conducted-deploy-")
             })
             .count();
         assert_eq!(leftovers, 0);
@@ -1883,11 +1896,13 @@ mod tests {
         let resources = resources_folder(&folder);
         let steps = std::cell::RefCell::new(Vec::new());
         let progress = |step: &str| steps.borrow_mut().push(step.to_string());
+        let temp = TestFolder::new();
         deploy_worker_with(
             &wrangler,
             &resources,
             "conducted-dev-c08-steps",
             "the-token",
+            temp.path(),
             || Ok(()),
             &progress,
         )
