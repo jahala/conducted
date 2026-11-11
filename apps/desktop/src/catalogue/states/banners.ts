@@ -7,7 +7,7 @@
  * a finished turn's More actions menu and the Reset chat? dialog it opens; and a long chat read
  * from its top, with Scroll to bottom.
  * Behaviour: ui-map.md 3.3 (banners in the list: interrupted, compacted, compacting, session limit,
- * sign-in needed, "This message could not be displayed."; the working line; the turn footer's
+ * sign-in needed, "This content could not be displayed."; the working line; the turn footer's
  * menu; the Scroll to bottom button), sessions-and-chats.md (a message sent from another chat).
  * Test first: not applicable; the screenshot run opens every state.
  */
@@ -69,6 +69,12 @@ function noticesChat(): Conversation {
 	});
 	chat.agent(relayed, [{ kind: "notice", notice: "rate_limit", text: "" }]);
 	chat.end(relayed);
+
+	const remote = chat.user("The staging redirect still drops the page; check it too.", {
+		sender: { kind: "claude_ai" },
+	});
+	chat.text(remote, "Staging uses the same `safeNext`; its fix is in the same pull request.");
+	chat.end(remote);
 	return chat;
 }
 
@@ -176,7 +182,7 @@ export const BANNER_STATES: CatalogueState[] = [
 			() => errorsChat(),
 			"Copy details",
 			async ({ document }) => {
-				await rightClick(document, "span", "This message could not be displayed.");
+				await rightClick(document, "span", "This content could not be displayed.");
 			},
 		),
 	},
@@ -271,7 +277,7 @@ export const BANNER_STATES: CatalogueState[] = [
 				after: async ({ app, document }) => {
 					await animateCast(world, cast, app);
 					await refreshGit(app, cast.arbor);
-					await click(document, "button", "More turn actions");
+					await click(document, "button", "Show message actions");
 				},
 				ready: (document) => shows(document, "Copy summary"),
 			};
@@ -288,7 +294,7 @@ export const BANNER_STATES: CatalogueState[] = [
 				after: async ({ app, document }) => {
 					await animateCast(world, cast, app);
 					await refreshGit(app, cast.arbor);
-					await click(document, "button", "More turn actions");
+					await click(document, "button", "Show message actions");
 					await click(document, "[role=menuitem]", "Reset chat");
 				},
 				ready: (document) => shows(document, "Later messages will be deleted."),
