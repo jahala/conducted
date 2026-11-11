@@ -517,12 +517,7 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 					<ContextMenuItem onSelect={() => setNewSectionOpen(true)}>New section...</ContextMenuItem>
 				}
 			>
-				<div
-					role="region"
-					aria-label="Sections"
-					className="flex flex-col"
-					data-sidebar-list=""
-				>
+				<section aria-label="Sections" className="flex flex-col" data-sidebar-list="">
 					{/* Conductor's list header (Rtr, renderApp @10493990): "My workspaces" in 12px semibold
 				    muted text, its actions behind an ellipsis that shows on hover (D098). The header
 				    folds the main list and remembers the fold. */}
@@ -592,7 +587,7 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 						)}
 					</div>
 					<SectionDialog open={newSectionOpen} onOpenChange={setNewSectionOpen} section={null} />
-				</div>
+				</section>
 			</ContextMenu>
 		</WorkspaceDragProvider>
 	);

@@ -13,7 +13,10 @@ import { createTestContainer } from "../../test/container.ts";
 import { toast } from "../../ui/Toast.tsx";
 import { SectionDialog } from "./SectionDialog.tsx";
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	vi.restoreAllMocks();
+});
 
 const section: Section = {
 	id: "s1" as SectionId,
@@ -110,7 +113,6 @@ describe("NAV-04 SectionDialog", () => {
 			});
 			fireEvent.click(screen.getByRole("button", { name: "Create" }));
 			await waitFor(() => expect(reported).toHaveBeenCalledWith("Couldn't create section"));
-			reported.mockRestore();
 		} finally {
 			test.close();
 		}
@@ -129,7 +131,6 @@ describe("NAV-04 SectionDialog", () => {
 			});
 			fireEvent.click(screen.getByRole("button", { name: "Save" }));
 			await waitFor(() => expect(reported).toHaveBeenCalledWith("Section no longer exists"));
-			reported.mockRestore();
 		} finally {
 			test.close();
 		}

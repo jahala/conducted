@@ -140,7 +140,9 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 				return;
 			}
 			if (!agentChanged && started && change.model !== current.model) {
-				toast("FYI: When you switch models mid-chat, your next response will be slower and use more tokens.");
+				toast(
+					"FYI: When you switch models mid-chat, your next response will be slower and use more tokens.",
+				);
 			} else if (!agentChanged && started && change.effort !== current.effort) {
 				toast(
 					"FYI: When you switch effort mid-chat with Claude, your next response will be slower and use more tokens.",

@@ -67,12 +67,7 @@ function BlockContent({
 		case "notice":
 		case "error":
 			return (
-				<ChatBanner
-					block={block}
-					onRetry={onRetry}
-					retryInNewChat={retryInNewChat}
-					agent={agent}
-				/>
+				<ChatBanner block={block} onRetry={onRetry} retryInNewChat={retryInNewChat} agent={agent} />
 			);
 	}
 }

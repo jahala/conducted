@@ -143,7 +143,10 @@ function errorTitle(isAuth: boolean, view: TurnErrorView | undefined): string {
 }
 
 /** The title and help of a sign-in error, in each agent's own words (renderApp @9512696, @9542577, @9543489). */
-function authCopy(agent: AgentKind | undefined, message: string): { title: string; body: string | null } {
+function authCopy(
+	agent: AgentKind | undefined,
+	message: string,
+): { title: string; body: string | null } {
 	const text = message.toLowerCase();
 	if (agent === "codex") {
 		if (/chatgpt|token.*expired|session.*expired|login expired/.test(text)) {

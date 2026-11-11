@@ -346,7 +346,8 @@ export const COMPOSER_STATES: CatalogueState[] = [
 					await refreshGit(app, cast.arbor);
 					await typeInComposer(document, "/");
 				},
-				ready: (document) => shows(document, "Choose Codex's personality for this session and future ones"),
+				ready: (document) =>
+					shows(document, "Choose Codex's personality for this session and future ones"),
 			};
 		},
 	},

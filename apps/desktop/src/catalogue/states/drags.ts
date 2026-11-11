@@ -36,7 +36,9 @@ async function startWorkspaceDrag(document: Document): Promise<void> {
 	const y = rect.top + rect.height / 2;
 	const init = { bubbles: true, cancelable: true, button: 0, pointerId: 1, pointerType: "mouse" };
 	row.dispatchEvent(new PointerEvent("pointerdown", { ...init, clientX: x, clientY: y }));
-	document.dispatchEvent(new PointerEvent("pointermove", { ...init, clientX: x + 40, clientY: y + 40 }));
+	document.dispatchEvent(
+		new PointerEvent("pointermove", { ...init, clientX: x + 40, clientY: y + 40 }),
+	);
 }
 
 export const DRAG_STATES: CatalogueState[] = [

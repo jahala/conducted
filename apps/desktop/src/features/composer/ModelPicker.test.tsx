@@ -494,7 +494,9 @@ describe("COMP-02 model picker", () => {
 		render(<ModelPicker sessionId={sessionId} />, { wrapper });
 		await openPicker();
 		await openFlyout("Agent");
-		expect((await screen.findAllByRole("img", { name: "Opens in new chat" })).length).toBeGreaterThan(0);
+		expect(
+			(await screen.findAllByRole("img", { name: "Opens in new chat" })).length,
+		).toBeGreaterThan(0);
 	});
 
 	it("says 'Could not load models.' when the model list fails", async () => {
