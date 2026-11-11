@@ -157,6 +157,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0018_terminal_placement.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 19,
+            description: "workspace_remote_file_sync",
+            sql: include_str!("../migrations/0019_workspace_remote_file_sync.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
