@@ -699,6 +699,20 @@ describe("CHAT-07 a background helper's late work (D129)", () => {
 		expect(asToolBlock(blocks[1]).toolUseId).toBe("orphan");
 	});
 
+	it("keeps late work at the top level when the turn that started the helper was reverted", () => {
+		const events = [
+			...backgroundTask("turn-a", 100),
+			user("turn-b", "message-b", "next", 200),
+			subAgent("turn-b", 201, [text("late helper text")], "task"),
+			ended("turn-b", 202),
+		];
+
+		const turns = buildTurns(stored(events, new Set([0, 1, 2, 3, 4])), live());
+
+		expect(turns.map((turn) => turn.turnId)).toEqual(["turn-b"]);
+		expect(turns[0]?.blocks).toEqual([{ kind: "text", text: "late helper text" }]);
+	});
+
 	it("keeps both calls at the top level when their parent links loop across turns", () => {
 		const events = [
 			user("turn-a", "message-a", "loop", 100),
