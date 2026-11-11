@@ -1,8 +1,8 @@
 /**
  * @feature NAV-10 Tab item
- * Owns: One tab in the strip: icon by type, label, close button, and for chats the status icon while
- * the agent works or waits for the user, else the unread dot, before the title. An idle chat tab has
- * no icon (Conductor's renderApp chat tab).
+ * Owns: One tab in the strip: icon by type (a file tab shows its language icon), label, close
+ * button, and for chats the status icon while the agent works or waits for the user, else the
+ * unread dot, before the title. An idle chat tab has no icon (Conductor's renderApp chat tab).
  * Behaviour: ui-map.md 3.2 (chat tab: status icon, title, unread dot, fixed width; terminal tab
  * 'Terminal N' with its cloud or laptop host icon in a cloud workspace (CLOUD-09); comment tab
  * 'Comment by <author>'; PR tab 'PR #N'; browser tab shows the URL host),
@@ -17,11 +17,11 @@
  */
 import type { DragEvent, HTMLAttributes, Ref } from "react";
 import { cn } from "../../ui/cn.ts";
+import { FileTypeIcon } from "../../ui/file-icon.tsx";
 import {
 	ChatIcon,
 	CloseIcon,
 	CloudIcon,
-	FileIcon,
 	GlobeIcon,
 	LaptopIcon,
 	PullRequestIcon,
@@ -75,7 +75,7 @@ function TabIcon({ tab }: { tab: TabDescriptor }) {
 			}
 			return <TerminalIcon />;
 		case "file":
-			return <FileIcon />;
+			return <FileTypeIcon path={tab.ref} />;
 		case "comment":
 			return <ChatIcon />;
 		case "pr":

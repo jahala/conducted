@@ -142,3 +142,15 @@ describe("NAV-10 TabItem", () => {
 		expect(onDragStart).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe("NAV-10 file tab icon", () => {
+	it("shows the file's language icon, as Conductor's file tabs do", () => {
+		const fileTab: TabDescriptor = {
+			kind: "file",
+			ref: "src/main.rs",
+			title: "src/main.rs",
+		};
+		render(<TabItem tab={fileTab} active onSelect={vi.fn()} onClose={vi.fn()} />);
+		expect(document.querySelector("[data-file-icon]")?.getAttribute("data-kind")).toBe("rust");
+	});
+});
