@@ -15,6 +15,7 @@
  * Rust shell, the Tauri bridge and the in-memory stand-in. The contract test reads the Rust
  * sources, so a code the shell returns without being listed fails the test.
  */
+import type { ConductorMessageKey, ConductorPlacedRow } from "@conducted/protocol";
 import { type AppError, appError, type ManagedProgram, type Result } from "@conducted/shared";
 
 // ---------------------------------------------------------------- error codes
@@ -994,10 +995,13 @@ export interface ConductorCopy {
  * The tables the import maps, read from a copy, as rows keyed by column name, and the row counts
  * of the tables it leaves behind. A table Conductor's schema does not have is `null`. `env_vars`
  * rows carry `has_value` in place of their value, which never leaves the Rust shell.
+ * `messageRows` counts each chat's sent `session_messages` rows, its history (APP-18); `null`
+ * when the copy has no such table.
  */
 export interface ConductorSnapshot {
 	tables: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[] | null>>;
 	counts: Readonly<Record<string, number | null>>;
+	messageRows: Readonly<Record<string, number>> | null;
 }
 
 /** One environment variable value to move from the copy into the app's Keychain service. */
@@ -1023,6 +1027,23 @@ export interface ConductorImport {
 	copy(sourcePath: string): Promise<Result<ConductorCopy>>;
 	/** Reads a copy this import made. Any other path: `conductor_import_bad_copy`. */
 	read(copyPath: string): Promise<Result<ConductorSnapshot>>;
+	/**
+	 * APP-18, a chat history's first read: up to `limit` sent `session_messages` rows of one chat
+	 * after `afterRowid`, in rowid order, without their content. The next page starts after the
+	 * last rowid given; an empty page is the end.
+	 */
+	readMessageKeys(
+		copyPath: string,
+		sessionId: string,
+		afterRowid: number,
+		limit: number,
+	): Promise<Result<ConductorMessageKey[]>>;
+	/** APP-18, the second read: the sent rows of one chat with these rowids, in rowid order. */
+	readMessages(
+		copyPath: string,
+		sessionId: string,
+		rowids: readonly number[],
+	): Promise<Result<ConductorPlacedRow[]>>;
 	/**
 	 * Moves each value from the copy into the Keychain, all or nothing, and returns the keys it
 	 * wrote. A key the Keychain already holds is `conductor_import_secret_exists`.

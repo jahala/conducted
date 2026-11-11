@@ -1,13 +1,17 @@
 /**
  * @feature DATA-01 Repository for the session_events table
  * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
- * Owns: the chat's append-only event log: append, read in order, mark reverted, find turns cut
- * off by a crash, and sum a workspace's reported agent cost.
+ * @feature APP-18 Chat history from Conductor
+ * Owns: the chat's append-only event log: append, append many in one statement (an imported
+ * chat's history, APP-18), read in order, mark reverted, find turns cut off by a crash, and sum a
+ * workspace's reported agent cost.
  * Behaviour: sessions.md section 5 (durable events, acknowledgement after the write),
  * services-map.md 2.3.3 (append event, revert events), sessions-and-chats.md "How chats are stored".
  * Must handle: append is idempotent on (session_id, event_id) and assigns the next idx in the same
  * statement, so a replayed event adds nothing and two appends never share an idx; the statement
- * returns a row only when it inserted, so an empty result means "duplicate"; reverting marks
+ * returns a row only when it inserted, so an empty result means "duplicate"; appending many
+ * keeps their order after the chat's last idx and reports how many it inserted, so a duplicate
+ * shows as a shortfall; reverting marks
  * events and never deletes them; a bad content column returns an error Result.
  * Test first: appending the same event id twice stores one row, and a new event id gets idx + 1.
  */
@@ -102,6 +106,21 @@ export const SESSION_EVENTS_SQL = {
 		FROM session_events WHERE session_id = $1
 		ON CONFLICT (session_id, event_id) DO NOTHING
 		RETURNING idx`,
+	/**
+	 * Appends `$3`, a JSON list of `[eventId, type, turnId, content]`, after the chat's last idx, in
+	 * the list's order, all received at `$2`. An event id the chat holds is dropped, so the count
+	 * of rows changed says how many were new. The WHERE clause keeps the parser from reading ON
+	 * CONFLICT as a join condition.
+	 */
+	appendMany: `INSERT INTO session_events (session_id, idx, event_id, type, turn_id, content, received_at)
+		SELECT $1, base.next + item.key, json_extract(item.value, '$[0]'),
+			json_extract(item.value, '$[1]'), json_extract(item.value, '$[2]'),
+			json_extract(item.value, '$[3]'), $2
+		FROM json_each($3) AS item,
+			(SELECT COALESCE(MAX(idx), -1) + 1 AS next FROM session_events WHERE session_id = $1) AS base
+		WHERE true
+		ON CONFLICT (session_id, event_id) DO NOTHING`,
+	count: "SELECT COUNT(*) AS n FROM session_events WHERE session_id = $1",
 	listFrom: `SELECT ${COLUMNS} FROM session_events WHERE session_id = $1 AND idx >= $2
 		ORDER BY idx LIMIT $3`,
 	listByTurn: `SELECT ${COLUMNS} FROM session_events WHERE session_id = $1 AND turn_id = $2
@@ -161,6 +180,17 @@ export interface SessionEventRepository {
 		event: SessionEvent,
 		receivedAt: number,
 	): Promise<Result<AppendOutcome>>;
+	/**
+	 * SESSION_EVENTS_SQL.appendMany: the events after the chat's last idx, in order, received at
+	 * `receivedAt`. Answers how many it inserted; fewer than given means some ids were there.
+	 */
+	appendMany(
+		sessionId: SessionId,
+		events: readonly SessionEvent[],
+		receivedAt: number,
+	): Promise<Result<number>>;
+	/** SESSION_EVENTS_SQL.count: how many events the chat holds. */
+	count(sessionId: SessionId): Promise<Result<number>>;
 	/** SESSION_EVENTS_SQL.listFrom. Events with idx >= `fromIdx`, in idx order, at most `limit`. */
 	listFrom(
 		sessionId: SessionId,
@@ -216,6 +246,32 @@ export function createSessionEventRepository(
 			if (!rows.ok) return err(rows.error);
 			const idx = rows.value[0]?.idx;
 			return ok(idx === undefined ? { kind: "duplicate" } : { kind: "appended", idx });
+		},
+		appendMany: async (sessionId, events, receivedAt) => {
+			if (events.length === 0) return ok(0);
+			const entries: [string, string, string, string][] = [];
+			for (const event of events) {
+				const content = stringifyJson(event, "session_events.content");
+				if (!content.ok) return err(content.error);
+				entries.push([event.eventId, event.type, event.turnId, content.value]);
+			}
+			const list = stringifyJson(entries, "session_events batch");
+			if (!list.ok) return err(list.error);
+			return executeStatement(
+				db,
+				SESSION_EVENTS_SQL.appendMany,
+				[sessionId, receivedAt, list.value],
+				"Appending chat events",
+			);
+		},
+		count: async (sessionId) => {
+			const rows = await selectRows<{ n: number }>(
+				db,
+				SESSION_EVENTS_SQL.count,
+				[sessionId],
+				"Counting chat events",
+			);
+			return rows.ok ? ok(Number(rows.value[0]?.n ?? 0)) : err(rows.error);
 		},
 		listFrom: (sessionId, fromIdx, limit) =>
 			list(

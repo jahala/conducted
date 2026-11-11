@@ -868,7 +868,7 @@ export interface Actions {
 		find: Act<[], { bytes: number } | null>;
 		/** The dry run: copies Conductor's database and lists what would come over. */
 		preview: Act<[], ImportPreview>;
-		/** Imports what the last dry run showed, all or nothing. */
+		/** Imports what the last dry run showed, all or nothing, then each chat's history. */
 		run: Act<[], ImportOutcome>;
 		/** Drops the dry run and its copy. */
 		cancel: Act;
@@ -899,8 +899,11 @@ export interface Actions {
 	};
 }
 
-/** The import from Conductor's view types, for its screens (APP-17). */
+/** The import from Conductor's view types, for its screens (APP-17, APP-18). */
+export type { HistoryFailure, HistoryOutcome } from "./conductor-import/history.ts";
 export type {
+	HistoryCount,
+	HistoryPreview,
 	ImportKind,
 	ImportPreview,
 	KindCount,

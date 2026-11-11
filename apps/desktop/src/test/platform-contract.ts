@@ -558,6 +558,13 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	),
 	c(
 		"conductorImport",
+		"history-reads",
+		"a chat's history is read in pages of its rows' columns, then by rowid",
+		"read counts each chat's sent session_messages rows in messageRows; readMessageKeys gives a chat's sent rows after a rowid in rowid order, at most the limit, with the content's length and without the content; readMessages gives that chat's sent rows with these rowids, in rowid order, and no other chat's.",
+		"controls",
+	),
+	c(
+		"conductorImport",
 		"missing",
 		"copying a database that is not there is its own error",
 		"copy of a path with no file returns Err with conductor_import_missing.",
@@ -2069,6 +2076,100 @@ const STEPS: Record<string, ContractStep> = {
 		);
 	},
 
+	"conductorImport.history-reads": async (ctx) => {
+		const seed = ctx.controls?.seedConductorDatabase;
+		ctx.assert(seed !== undefined, "the controls seed no database");
+		if (seed === undefined) return;
+		const source = `${ctx.outside}/conductor/conductor.db`;
+		const message = (id: string, chat: string, content: string | null, sent: string | null) => ({
+			id,
+			session_id: chat,
+			role: "user",
+			content,
+			created_at: "2026-01-02 03:04:05",
+			sent_at: sent,
+			turn_id: "turn-1",
+		});
+		await seed(source, {
+			session_messages: [
+				message("m-1", "chat-a", "Hello", "2026-01-02 03:04:05"),
+				message("m-2", "chat-b", "Elsewhere", "2026-01-02 03:04:06"),
+				message("m-3", "chat-a", "Again", "2026-01-02 03:04:07"),
+				message("m-4", "chat-a", "Queued", null),
+				message("m-5", "chat-a", null, "2026-01-02 03:04:09"),
+			],
+		});
+		const { conductorImport } = ctx.platform;
+		const copy = expectOk(ctx, await conductorImport.copy(source), "copy");
+		const snapshot = expectOk(ctx, await conductorImport.read(copy.copyPath), "read");
+		ctx.assert(
+			JSON.stringify(snapshot.messageRows) === JSON.stringify({ "chat-a": 3, "chat-b": 1 }) ||
+				JSON.stringify(snapshot.messageRows) === JSON.stringify({ "chat-b": 1, "chat-a": 3 }),
+			`messageRows read ${JSON.stringify(snapshot.messageRows)}`,
+		);
+		const first = expectOk(
+			ctx,
+			await conductorImport.readMessageKeys(copy.copyPath, "chat-a", 0, 2),
+			"first page",
+		);
+		ctx.assert(
+			JSON.stringify(first) ===
+				JSON.stringify([
+					{
+						rowid: 1,
+						role: "user",
+						turn_id: "turn-1",
+						sent_at: "2026-01-02 03:04:05",
+						created_at: "2026-01-02 03:04:05",
+						chars: 5,
+					},
+					{
+						rowid: 3,
+						role: "user",
+						turn_id: "turn-1",
+						sent_at: "2026-01-02 03:04:07",
+						created_at: "2026-01-02 03:04:05",
+						chars: 5,
+					},
+				]),
+			`the first page read ${JSON.stringify(first)}`,
+		);
+		const second = expectOk(
+			ctx,
+			await conductorImport.readMessageKeys(copy.copyPath, "chat-a", 3, 2),
+			"second page",
+		);
+		ctx.assert(
+			second.length === 1 && second[0]?.rowid === 5 && second[0]?.chars === 0,
+			`the second page read ${JSON.stringify(second)}`,
+		);
+		const end = expectOk(
+			ctx,
+			await conductorImport.readMessageKeys(copy.copyPath, "chat-a", 5, 2),
+			"past the end",
+		);
+		ctx.assert(end.length === 0, `past the end read ${JSON.stringify(end)}`);
+		const rows = expectOk(
+			ctx,
+			await conductorImport.readMessages(copy.copyPath, "chat-a", [5, 2, 1, 4]),
+			"rows",
+		);
+		ctx.assert(
+			JSON.stringify(rows.map((row) => [row.rowid, row.id, row.content])) ===
+				JSON.stringify([
+					[1, "m-1", "Hello"],
+					[5, "m-5", null],
+				]),
+			`readMessages gave ${JSON.stringify(rows)}`,
+		);
+		const outside = await conductorImport.readMessageKeys(source, "chat-a", 0, 2);
+		ctx.assert(
+			!outside.ok && outside.error.code === "conductor_import_bad_copy",
+			"readMessageKeys opened a file the import did not copy",
+		);
+		expectOk(ctx, await conductorImport.discardCopies(), "discard");
+	},
+
 	"conductorImport.missing": async (ctx) => {
 		const copied = await ctx.platform.conductorImport.copy(`${ctx.outside}/none/conductor.db`);
 		ctx.assert(
@@ -2372,6 +2473,13 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 		"conductorImport.find",
 		"conductorImport.copy",
 		"conductorImport.read",
+		"conductorImport.discardCopies",
+	],
+	"conductorImport.history-reads": [
+		"conductorImport.copy",
+		"conductorImport.read",
+		"conductorImport.readMessageKeys",
+		"conductorImport.readMessages",
 		"conductorImport.discardCopies",
 	],
 	"conductorImport.missing": ["conductorImport.copy"],
