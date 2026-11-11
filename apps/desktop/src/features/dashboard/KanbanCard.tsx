@@ -8,34 +8,36 @@
  * link rather than nested inside it. The status button's accessible name ("Status: Backlog") is
  * ours; Conductor's button shows only the mark. The drag payload names the workspace id, so a column does not
  * need to hold the dragged card itself.
- * Must handle: Dragging starts after the card moves (the browser's own drag threshold) so a click
+ * Must handle: Dragging starts after the card moves past the shared pointer drag's 4px threshold, so a click
  * still opens the workspace; the card is also a link; a card being dragged is dimmed in place;
  * focus ring; a status that has not loaded yet adds no status line; line changes wait for the git
  * state and add nothing until it loads.
  * Test first: Clicking the card without moving opens the workspace; moving it starts a drag.
  */
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
 import { useGitState, useWorkspaceStatus } from "../../core/hooks.ts";
 import type { KanbanStatus, Repo, Workspace } from "../../core/model.ts";
 import { cn } from "../../ui/cn.ts";
 import { Menu, MenuContent, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "../../ui/Menu.tsx";
+import type { PointerDrag } from "../../ui/pointer-drag.ts";
 import { STATUS_TONE_CLASS, statusText } from "../workspace/status-text.ts";
 import { useBranchPrefix } from "../workspace/use-branch-prefix.ts";
 import { workspaceName } from "../workspace/workspace-name.ts";
-import { KANBAN_COLUMNS, KANBAN_DRAG_TYPE, KANBAN_STATUS_MARK, KANBAN_STATUSES } from "./kanban.ts";
+import { KANBAN_COLUMNS, KANBAN_STATUS_MARK, KANBAN_STATUSES } from "./kanban.ts";
 
 export interface KanbanCardProps {
 	workspace: Workspace;
 	repo: Repo;
 	/** Move a card to another column. The screen persists it and rolls back on failure. */
 	onMove: (workspaceId: Workspace["id"], status: KanbanStatus) => void;
+	/** The board's drag, so the card starts one and the click that ends it opens nothing. */
+	pointer: PointerDrag<Workspace, KanbanStatus>;
 }
 
-export function KanbanCard({ workspace, repo, onMove }: KanbanCardProps) {
+export function KanbanCard({ workspace, repo, onMove, pointer }: KanbanCardProps) {
 	const status = useWorkspaceStatus(workspace.id);
 	const git = useGitState(workspace.id);
-	const [dragging, setDragging] = useState(false);
+	const dragging = pointer.drag?.payload.id === workspace.id;
 	const name = workspaceName(workspace, useBranchPrefix());
 	const subtitle = statusText(status);
 	const lines = git.state === "ready" ? git.data : null;
@@ -44,14 +46,10 @@ export function KanbanCard({ workspace, repo, onMove }: KanbanCardProps) {
 		<article
 			data-testid="kanban-card"
 			data-workspace-id={workspace.id}
-			draggable
-			onDragStart={(event) => {
-				setDragging(true);
-				event.dataTransfer?.setData(KANBAN_DRAG_TYPE, workspace.id);
-				if (event.dataTransfer !== null) event.dataTransfer.effectAllowed = "move";
-			}}
-			onDragEnd={() => setDragging(false)}
+			onClickCapture={pointer.consumeClick}
+			onPointerDown={(event) => pointer.start(event, workspace)}
 			className={cn(
+				"touch-none",
 				"flex items-start gap-2 rounded-lg border border-border bg-raised p-3 transition-opacity",
 				dragging && "opacity-50",
 			)}

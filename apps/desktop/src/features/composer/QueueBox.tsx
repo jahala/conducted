@@ -18,7 +18,7 @@
  */
 
 import type { MessageId, SessionId } from "@conducted/shared";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
@@ -26,13 +26,13 @@ import { agentCanSteer, byPosition } from "../../core/follow-up-queue.ts";
 import { useActions } from "../../core/hooks.ts";
 import type { QueuedMessage } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
+import { usePointerDrag } from "../../ui/pointer-drag.ts";
 import { toastError } from "../../ui/Toast.tsx";
 
 export interface QueueBoxProps {
 	sessionId: SessionId;
 }
 
-const QUEUE_DRAG_MIME = "application/x-conducted-queued-message";
 /** Rows beyond this count stay folded away until the queue is expanded. */
 const COLLAPSED_ROW_LIMIT = 3;
 /**
@@ -63,7 +63,7 @@ export function QueueBox({ sessionId }: QueueBoxProps) {
 	const [selectedId, setSelectedId] = useState<MessageId | null>(null);
 	const [editingId, setEditingId] = useState<MessageId | null>(null);
 	const [editText, setEditText] = useState("");
-	const [draggingId, setDraggingId] = useState<MessageId | null>(null);
+	const rowNodes = useRef(new Map<MessageId, HTMLDivElement>());
 
 	const ordered = useMemo(() => [...rows].sort(byPosition), [rows]);
 	const collapsed = collapsedChoice ?? ordered.length > COLLAPSED_ROW_LIMIT;
@@ -165,6 +165,34 @@ export function QueueBox({ sessionId }: QueueBoxProps) {
 			});
 	};
 
+	const pointer = usePointerDrag<QueuedMessage, { row: QueuedMessage; after: boolean }>({
+		targetAt: (point) => {
+			for (const row of shown) {
+				const element = rowNodes.current.get(row.id);
+				if (element === undefined) continue;
+				const rect = element.getBoundingClientRect();
+				if (
+					point.x < rect.left ||
+					point.x > rect.right ||
+					point.y < rect.top ||
+					point.y > rect.bottom
+				)
+					continue;
+				return {
+					target: {
+						row,
+						after: rect.height > 0 && point.y > rect.top + rect.height / 2,
+					},
+					element,
+				};
+			}
+			return undefined;
+		},
+		onDrop: (payload, target) => {
+			if (payload.id !== target.row.id) reorderOnDrop(target.row, target.after, payload.id);
+		},
+	});
+
 	useCommandHandler("chat.queue.steer", "area", () => {
 		if (selected === null || selected.state !== "waiting" || editingId !== null) return false;
 		steer(selected);
@@ -238,40 +266,23 @@ export function QueueBox({ sessionId }: QueueBoxProps) {
 					return (
 						<div
 							key={row.id}
+							ref={(node) => {
+								if (node === null) rowNodes.current.delete(row.id);
+								else rowNodes.current.set(row.id, node);
+							}}
 							role="option"
 							aria-selected={isSelected}
 							tabIndex={0}
 							data-command-scope={isSelected ? "chat-queue" : undefined}
-							draggable={row.state === "waiting" && !isEditing}
+							onClickCapture={pointer.consumeClick}
 							onClick={() => setSelectedId(row.id)}
 							onFocus={() => setSelectedId(row.id)}
 							onKeyUp={() => setSelectedId(row.id)}
-							onDragStart={(event) => {
-								if (row.state !== "waiting") return;
-								event.dataTransfer?.setData(QUEUE_DRAG_MIME, row.id);
-								event.dataTransfer?.setData("text/plain", row.id);
-								setDraggingId(row.id);
+							onPointerDown={(event) => {
+								if (row.state !== "waiting" || isEditing) return;
+								pointer.start(event, row);
 							}}
-							onDragEnd={() => setDraggingId(null)}
-							onDragOver={(event) => {
-								if (draggingId === null) return;
-								event.preventDefault();
-							}}
-							onDrop={(event) => {
-								event.preventDefault();
-								const carried = event.dataTransfer?.getData(QUEUE_DRAG_MIME);
-								const id = (carried === "" ? null : carried) ?? draggingId;
-								if (id === null || id === row.id) {
-									setDraggingId(null);
-									return;
-								}
-								const rect = event.currentTarget.getBoundingClientRect();
-								const after = rect.height > 0 && event.clientY > rect.top + rect.height / 2;
-								const source = ordered.find((entry) => entry.id === id) ?? null;
-								if (source !== null) reorderOnDrop(row, after, source.id);
-								setDraggingId(null);
-							}}
-							className="group flex flex-col gap-1 rounded-md border border-transparent bg-canvas px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							className="group flex touch-none flex-col gap-1 rounded-md border border-transparent bg-canvas px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						>
 							<div className="flex items-start justify-between gap-2">
 								{isEditing ? (

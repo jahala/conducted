@@ -17,20 +17,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { Repo, Workspace } from "../../core/model.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
-import { GroupedWorkspaces, REPO_DRAG_MIME } from "./GroupedWorkspaces.tsx";
-import { WORKSPACE_DRAG_MIME } from "./use-workspace-drag.ts";
+import { dragPointer, layOut } from "../../test/pointer-drag.ts";
+import { GroupedWorkspaces } from "./GroupedWorkspaces.tsx";
 
 afterEach(cleanup);
-
-const dropData = (id: string) => ({
-	getData: (type: string) => (type === WORKSPACE_DRAG_MIME ? id : ""),
-	setData: vi.fn(),
-});
-
-const repoDropData = (id: string) => ({
-	getData: (type: string) => (type === REPO_DRAG_MIME ? id : ""),
-	setData: vi.fn(),
-});
 
 function renderList(
 	container: ReturnType<typeof createTestContainer>["container"],
@@ -90,8 +80,13 @@ describe("NAV-04 GroupedWorkspaces manual order", () => {
 			const targetRow = region.querySelector(`[data-workspace-id="${target}"]`);
 			if (draggedRow === null || targetRow === null) throw new Error("A row is missing.");
 
-			fireEvent.dragStart(draggedRow, { dataTransfer: { setData: vi.fn() } });
-			fireEvent.drop(targetRow, { dataTransfer: dropData(dragged) });
+			// jsdom has no layout: give the rows 40px steps and drop below the target's middle.
+			for (const [index, row] of ordered.entries()) {
+				const element = region.querySelector(`[data-workspace-id="${row}"]`);
+				if (element !== null) layOut(element, { left: 0, top: index * 40, width: 300, height: 40 });
+			}
+			const targetIndex = ordered.indexOf(target);
+			dragPointer(draggedRow, { x: 150, y: targetIndex * 40 + 30 });
 
 			await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
 			const [key, value] = save.mock.calls[0] ?? [];
@@ -121,8 +116,13 @@ describe("NAV-04 GroupedWorkspaces manual order", () => {
 				name: new RegExp(`^${second.name}`),
 			});
 
-			fireEvent.dragStart(draggedHeader, { dataTransfer: { setData: vi.fn() } });
-			fireEvent.drop(targetHeader, { dataTransfer: repoDropData(first.id) });
+			const draggedHeaderBox = draggedHeader.parentElement;
+			const targetHeaderBox = targetHeader.parentElement;
+			if (draggedHeaderBox === null || targetHeaderBox === null) {
+				throw new Error("A project header is missing.");
+			}
+			layOut(targetHeaderBox, { left: 0, top: 0, width: 300, height: 30 });
+			dragPointer(draggedHeader, { x: 150, y: 15 });
 
 			await waitFor(async () => {
 				const rows = await test.database.select<{ id: string }>(

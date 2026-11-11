@@ -1,6 +1,6 @@
 /**
  * @feature NAV-06 Kanban columns and grouping
- * Owns: The fixed list of board columns, the colour mark each status uses, the drag payload name,
+ * Owns: The fixed list of board columns and the colour mark each status uses,
  * and the pure function that puts workspaces into the columns.
  * Behaviour: ui-map.md 2 and 3.8 (Backlog, In progress, In review, Done, Canceled; each status has
  * its own colour token).
@@ -35,9 +35,6 @@ export const KANBAN_STATUS_MARK: Record<KanbanStatus, string> = {
 	done: "bg-status-done",
 	canceled: "bg-status-canceled",
 };
-
-/** The drag-and-drop data type that carries a workspace id from a card to a column. */
-export const KANBAN_DRAG_TYPE = "application/x-conducted-workspace";
 
 /** True when a workspace belongs on the board: an archived one does not. */
 function isOnBoard(workspace: Workspace): boolean {

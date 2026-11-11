@@ -23,7 +23,7 @@
  * Test first: Adding a fifth favourite is refused with a message; an unavailable favourite is muted;
  * the default model is the first row.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { agentDisplayName } from "../../core/agent-catalog.ts";
 import { useServices } from "../../core/context.tsx";
@@ -37,6 +37,7 @@ import {
 	GripVerticalIcon,
 	PlusIcon,
 } from "../../ui/icons.tsx";
+import { usePointerDrag } from "../../ui/pointer-drag.ts";
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { useLoadout } from "./use-loadout.ts";
 
@@ -69,9 +70,6 @@ export function isFavoriteSelected(
 		favorite.effort === config.effort
 	);
 }
-
-/** The drag type of a favourite moved by its grip; its data is the favourite's id. */
-const FAVORITE_MIME = "application/x-conducted-favorite";
 
 const rowClass =
 	"flex w-full items-center gap-2 rounded-md py-1.5 pr-3 text-left text-sm text-fg outline-none hover:bg-hover focus-visible:bg-hover";
@@ -134,6 +132,31 @@ export function FavoriteModels({
 		if (!result.ok) toastError("Couldn't remove the favourite", result.error);
 	};
 
+	const rowNodes = useRef(new Map<string, HTMLDivElement>());
+	const pointer = usePointerDrag<{ id: string }, number>({
+		targetAt: (point) => {
+			if (!editing) return undefined;
+			for (const [_index, entry] of entries.entries()) {
+				const node = rowNodes.current.get(entry.id);
+				if (node === undefined) continue;
+				const rect = node.getBoundingClientRect();
+				if (
+					point.x < rect.left ||
+					point.x > rect.right ||
+					point.y < rect.top ||
+					point.y > rect.bottom
+				)
+					continue;
+				const saved = favorites.findIndex((saved) => saved.id === entry.id);
+				return { target: saved === -1 ? 0 : saved, element: node };
+			}
+			return undefined;
+		},
+		onDrop: (payload, target) => {
+			void moveTo(payload.id, target);
+		},
+	});
+
 	const showAdd = editing || favorites.length < 3;
 
 	return (
@@ -146,41 +169,28 @@ export function FavoriteModels({
 				const newChat = !selected && (opensNewChat?.(favorite.config) ?? false);
 				const effort = effortLabelFor?.(favorite.config) ?? null;
 				return (
-					// biome-ignore lint/a11y/noStaticElementInteractions: the row is where a dragged grip drops; its buttons are the interactive parts.
 					<div
 						key={favorite.id}
+						ref={(node) => {
+							if (node === null) rowNodes.current.delete(favorite.id);
+							else rowNodes.current.set(favorite.id, node);
+						}}
 						className="flex min-w-0 items-center"
-						onDragOver={(event) => {
-							if (editing && event.dataTransfer.types.includes(FAVORITE_MIME)) {
-								event.preventDefault();
-								event.dataTransfer.dropEffect = "move";
-							}
-						}}
-						onDrop={(event) => {
-							const id = event.dataTransfer.getData(FAVORITE_MIME);
-							if (!editing || id === "") return;
-							event.preventDefault();
-							// The default model stays first, so a drop on it moves the favourite to the top.
-							void moveTo(id, favorite.isDefault ? 0 : index);
-						}}
 					>
 						{editing && favorite.isDefault ? <span className="w-6 shrink-0" /> : null}
 						{editing && !favorite.isDefault ? (
 							<button
 								type="button"
-								draggable
 								aria-label={`Reorder ${label}`}
-								onDragStart={(event) => {
-									event.dataTransfer.setData(FAVORITE_MIME, favorite.id);
-									event.dataTransfer.effectAllowed = "move";
-								}}
+								onClickCapture={pointer.consumeClick}
+								onPointerDown={(event) => pointer.start(event, { id: favorite.id })}
 								onKeyDown={(event) => {
 									if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
 									event.preventDefault();
 									event.stopPropagation();
 									void moveTo(favorite.id, index + (event.key === "ArrowUp" ? -1 : 1));
 								}}
-								className="flex w-6 shrink-0 cursor-grab items-center justify-center self-stretch rounded-sm text-fg-muted outline-none focus-visible:bg-hover focus-visible:text-fg focus-visible:ring-1 focus-visible:ring-focus focus-visible:ring-inset active:cursor-grabbing"
+								className="flex w-6 shrink-0 touch-none cursor-grab items-center justify-center self-stretch rounded-sm text-fg-muted outline-none focus-visible:bg-hover focus-visible:text-fg focus-visible:ring-1 focus-visible:ring-focus focus-visible:ring-inset active:cursor-grabbing"
 							>
 								<GripVerticalIcon className="size-3.5" />
 							</button>

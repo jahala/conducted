@@ -21,7 +21,7 @@
  */
 import { idleLiveState } from "@conducted/protocol";
 import { appError, type SessionId, type WorkspaceId } from "@conducted/shared";
-import { useRef, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
@@ -49,12 +49,24 @@ import { neighbourAfterClose, type TabDescriptor } from "./tab-layout.ts";
 import { useNewTab } from "./useNewTab.tsx";
 import type { WorkspaceSearch } from "./workspace-search.ts";
 
+/** The pointer drag the split panes own, so a tab starts one and a drag's click selects nothing. */
+export interface TabPointer {
+	start(event: ReactPointerEvent, tab: TabDescriptor): void;
+	consumeClick(event: { detail: number; preventDefault(): void; stopPropagation(): void }): boolean;
+}
+
 export interface TabStripProps {
 	workspaceId: WorkspaceId;
 	search: WorkspaceSearch;
 	onSearchChange: (patch: Partial<WorkspaceSearch>) => void;
 	/** Tabs that a split pane owns, so the main strip does not show them too. */
 	excludeRefs?: ReadonlySet<string>;
+	/** The drag the split panes own. Without it the strip is not a drag source. */
+	pointer?: TabPointer;
+	/** The group this strip shows, as SplitPanes names it. */
+	group?: string;
+	/** The tab refs in the order the user last dragged them; unlisted tabs follow in their own order. */
+	order?: readonly string[];
 }
 
 const NO_COMMENTS: readonly DiffComment[] = [];
@@ -199,7 +211,15 @@ const NOTHING: Partial<WorkspaceSearch> = {
 	browserUrl: undefined,
 };
 
-export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: TabStripProps) {
+export function TabStrip({
+	workspaceId,
+	search,
+	onSearchChange,
+	excludeRefs,
+	pointer,
+	group = "group-main",
+	order,
+}: TabStripProps) {
 	const actions = useActions();
 	const services = useServices();
 	const sessions = useSessions(workspaceId);
@@ -223,7 +243,7 @@ export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: T
 	const openSessions = sessions.state === "ready" ? sessions.data : [];
 	const openTerminals = terminals.state === "ready" ? terminals.data : [];
 	const prNumber = workspace.state === "ready" ? workspace.data.prNumber : null;
-	const tabs = buildTabs({
+	const naturalTabs = buildTabs({
 		sessions: openSessions,
 		terminals: openTerminals,
 		search,
@@ -234,6 +254,17 @@ export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: T
 		workspaceHostKind:
 			workspace.state === "ready" && workspace.data.host.kind === "cloud" ? "cloud" : undefined,
 	}).filter((tab) => excludeRefs === undefined || !excludeRefs.has(tab.ref));
+	// A saved drag order first; tabs opened since then keep their place after it.
+	const ranks =
+		order === undefined ? undefined : new Map(order.map((ref, position) => [ref, position]));
+	const tabs =
+		ranks === undefined
+			? naturalTabs
+			: [...naturalTabs].sort(
+					(left, right) =>
+						(ranks.get(left.ref) ?? Number.MAX_SAFE_INTEGER) -
+						(ranks.get(right.ref) ?? Number.MAX_SAFE_INTEGER),
+				);
 
 	const activeRef = tabRef(resolveActiveTab(search));
 
@@ -485,6 +516,7 @@ export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: T
 			<div
 				role="tablist"
 				aria-label="Workspace tabs"
+				data-tab-strip={group}
 				className="flex h-10 shrink-0 items-center gap-2 overflow-x-auto border-b border-separator bg-surface px-4"
 			>
 				{tabs.map((tab) => {
@@ -493,15 +525,11 @@ export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: T
 							key={tab.ref}
 							tab={tab}
 							active={tab.ref === activeRef}
+							data-tab-ref={tab.ref}
 							onSelect={() => select(tab)}
 							onClose={() => void close(tab)}
-							onDragStart={(event) => {
-								event.dataTransfer.setData("application/x-conducted-tab", tab.ref);
-								event.dataTransfer.effectAllowed = "move";
-								if (typeof event.dataTransfer.setDragImage === "function") {
-									event.dataTransfer.setDragImage(event.currentTarget, 0, 0);
-								}
-							}}
+							onPointerDown={(event) => pointer?.start(event, tab)}
+							onClickCapture={pointer?.consumeClick}
 						/>
 					);
 					const session =

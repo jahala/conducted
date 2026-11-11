@@ -130,24 +130,31 @@ describe("COMP-02 favourite models list", () => {
 		render(<FavoriteModels onPick={() => {}} editing />, { wrapper });
 		expect(screen.queryByRole("button", { name: /^Move / })).toBeNull();
 		const grip = screen.getByRole("button", { name: "Reorder Claude Code · m3" });
-		expect(grip.getAttribute("draggable")).toBe("true");
+		expect(grip.getAttribute("draggable")).toBeNull();
 		// The default model's row has no grip: it stays first.
 		expect(screen.queryByRole("button", { name: "Reorder Claude Code · default" })).toBeNull();
 
-		const data = new Map<string, string>();
-		const dataTransfer = {
-			setData: (type: string, value: string) => data.set(type, value),
-			getData: (type: string) => data.get(type) ?? "",
-			get types() {
-				return [...data.keys()];
-			},
-			effectAllowed: "move",
-			dropEffect: "move",
-		};
-		fireEvent.dragStart(grip, { dataTransfer });
-		const target = screen.getByRole("button", { name: "Select Claude Code · m1" });
-		fireEvent.dragOver(target, { dataTransfer });
-		fireEvent.drop(target, { dataTransfer });
+		// jsdom has no layout, so give the rows rectangles: the default first, then 32px rows.
+		const rows = screen
+			.getAllByRole("button", { name: /^Select / })
+			.map((button) => button.parentElement);
+		for (const [index, row] of rows.entries()) {
+			if (row === null) continue;
+			vi.spyOn(row, "getBoundingClientRect").mockReturnValue({
+				x: 0,
+				y: index * 32,
+				width: 240,
+				height: 32,
+				top: index * 32,
+				left: 0,
+				right: 240,
+				bottom: index * 32 + 32,
+				toJSON: () => ({}),
+			});
+		}
+		fireEvent.pointerDown(grip, { button: 0, pointerId: 1, clientX: 10, clientY: 10 });
+		fireEvent.pointerMove(document, { pointerId: 1, clientX: 100, clientY: 48 });
+		fireEvent.pointerUp(document, { pointerId: 1, clientX: 100, clientY: 48 });
 
 		await waitFor(() =>
 			expect(service.store.getState().favorites.map((model) => model.config.model)).toEqual([

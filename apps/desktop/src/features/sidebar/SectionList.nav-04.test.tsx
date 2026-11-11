@@ -5,7 +5,14 @@
  * Test first: Placing a workspace into a section calls sections.place with the section id and the
  * drop position.
  */
-import { appError, err, ok, type Result, type SectionId } from "@conducted/shared";
+import {
+	appError,
+	err,
+	ok,
+	type Result,
+	type SectionId,
+	type WorkspaceId,
+} from "@conducted/shared";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -18,9 +25,10 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
+import { dragPointer, layOut } from "../../test/pointer-drag.ts";
 import { toast } from "../../ui/Toast.tsx";
 import { SectionList } from "./SectionList.tsx";
-import { WORKSPACE_DRAG_MIME } from "./use-workspace-drag.ts";
+import { useWorkspaceDragController, WorkspaceDragProvider } from "./workspace-drag-context.tsx";
 
 afterEach(cleanup);
 
@@ -34,7 +42,7 @@ function renderWith(container: ReturnType<typeof createTestContainer>["container
 	const indexRoute = createRoute({
 		getParentRoute: () => rootRoute,
 		path: "/",
-		component: () => <>{ui}</>,
+		component: () => <WorkspaceDragProvider>{ui}</WorkspaceDragProvider>,
 	});
 	const createRouteNode = createRoute({
 		getParentRoute: () => rootRoute,
@@ -57,10 +65,17 @@ function renderWith(container: ReturnType<typeof createTestContainer>["container
 	);
 }
 
-const dropData = (id: string) => ({
-	getData: (type: string) => (type === WORKSPACE_DRAG_MIME ? id : ""),
-	setData: vi.fn(),
-});
+/** A row in another list that starts a workspace drag, as the main list does. */
+function ExternalDrag({ id }: { id: WorkspaceId }) {
+	const drag = useWorkspaceDragController();
+	return (
+		<button type="button" onPointerDown={(event) => drag.start(event, { kind: "workspace", id })}>
+			Start drag
+		</button>
+	);
+}
+
+const SECTION_BOX = { left: 0, top: 0, width: 300, height: 200 };
 
 describe("NAV-04 SectionList", () => {
 	it("places a workspace dropped into a section at the drop position", async () => {
@@ -75,10 +90,14 @@ describe("NAV-04 SectionList", () => {
 				.mockResolvedValue(ok(undefined));
 			renderWith(
 				test.container,
-				<SectionList sections={service.store.getState().sections} workspaces={[workspace]} />,
+				<>
+					<ExternalDrag id={workspace.id} />
+					<SectionList sections={service.store.getState().sections} workspaces={[workspace]} />
+				</>,
 			);
 			const region = await screen.findByRole("region", { name: "Review" });
-			fireEvent.drop(region, { dataTransfer: dropData(workspace.id) });
+			layOut(region, SECTION_BOX);
+			dragPointer(screen.getByRole("button", { name: "Start drag" }), { x: 150, y: 120 });
 			await waitFor(() => expect(place).toHaveBeenCalledWith(workspace.id, created.id, 0));
 		} finally {
 			test.close();
@@ -103,13 +122,17 @@ describe("NAV-04 SectionList", () => {
 			try {
 				renderWith(
 					test.container,
-					<SectionList
-						sections={service.store.getState().sections}
-						workspaces={[first, second, dragged]}
-					/>,
+					<>
+						<ExternalDrag id={dragged.id} />
+						<SectionList
+							sections={service.store.getState().sections}
+							workspaces={[first, second, dragged]}
+						/>
+					</>,
 				);
 				const region = await screen.findByRole("region", { name: "Review" });
-				fireEvent.drop(region, { dataTransfer: dropData(dragged.id) });
+				layOut(region, SECTION_BOX);
+				dragPointer(screen.getByRole("button", { name: "Start drag" }), { x: 150, y: 120 });
 				await waitFor(() =>
 					expect(toasted).toHaveBeenCalledWith("Couldn't move workspace", {
 						description: "The database is locked.",
@@ -162,11 +185,10 @@ describe("NAV-04 SectionList", () => {
 			);
 			const alphaTrigger = await screen.findByRole("button", { name: "Alpha" });
 			const betaTrigger = screen.getByRole("button", { name: "Beta" });
-			fireEvent.dragStart(alphaTrigger, { dataTransfer: { setData: vi.fn() } });
 			const betaHeader = betaTrigger.parentElement;
 			if (betaHeader === null) throw new Error("The section header is missing.");
-			fireEvent.dragOver(betaHeader);
-			fireEvent.drop(betaHeader);
+			layOut(betaHeader, { left: 0, top: 0, width: 300, height: 20 });
+			dragPointer(alphaTrigger, { x: 150, y: 15 });
 			await waitFor(() =>
 				expect(reorder).toHaveBeenCalledWith([beta.id as SectionId, alpha.id as SectionId]),
 			);
@@ -192,13 +214,8 @@ describe("NAV-04 SectionList", () => {
 			const betaTrigger = screen.getByRole("button", { name: "Beta" });
 			const alphaHeader = alphaTrigger.parentElement;
 			if (alphaHeader === null) throw new Error("The section header is missing.");
-			vi.spyOn(alphaHeader, "getBoundingClientRect").mockReturnValue({
-				top: 0,
-				height: 20,
-			} as DOMRect);
-			fireEvent.dragStart(betaTrigger, { dataTransfer: { setData: vi.fn() } });
-			fireEvent.dragOver(alphaHeader);
-			fireEvent.drop(alphaHeader, { clientY: 5 });
+			layOut(alphaHeader, { left: 0, top: 0, width: 300, height: 20 });
+			dragPointer(betaTrigger, { x: 150, y: 5 });
 			await waitFor(() =>
 				expect(reorder).toHaveBeenCalledWith([beta.id as SectionId, alpha.id as SectionId]),
 			);
@@ -242,11 +259,10 @@ describe("NAV-04 SectionList errors and manual order", () => {
 				);
 				const alphaTrigger = await screen.findByRole("button", { name: "Alpha" });
 				const betaTrigger = screen.getByRole("button", { name: "Beta" });
-				fireEvent.dragStart(alphaTrigger, { dataTransfer: { setData: vi.fn() } });
 				const betaHeader = betaTrigger.parentElement;
 				if (betaHeader === null) throw new Error("The section header is missing.");
-				fireEvent.dragOver(betaHeader);
-				fireEvent.drop(betaHeader);
+				layOut(betaHeader, { left: 0, top: 0, width: 300, height: 20 });
+				dragPointer(alphaTrigger, { x: 150, y: 15 });
 				await waitFor(() =>
 					expect(toasted).toHaveBeenCalledWith("Couldn't reorder section", {
 						description: "The database is locked.",
@@ -351,9 +367,9 @@ describe("NAV-04 SectionList errors and manual order", () => {
 			const firstRow = region.querySelector(`[data-workspace-id="${first.id}"]`);
 			const secondRow = region.querySelector(`[data-workspace-id="${second.id}"]`);
 			if (firstRow === null || secondRow === null) throw new Error("A row is missing.");
-			fireEvent.dragStart(firstRow, { dataTransfer: { setData: vi.fn() } });
-			fireEvent.dragOver(secondRow);
-			fireEvent.drop(secondRow, { dataTransfer: dropData(first.id) });
+			layOut(firstRow, { left: 0, top: 0, width: 300, height: 40 });
+			layOut(secondRow, { left: 0, top: 40, width: 300, height: 40 });
+			dragPointer(firstRow, { x: 150, y: 70 });
 			await waitFor(() => expect(place).toHaveBeenCalledWith(first.id, created.id, 1));
 		} finally {
 			test.close();

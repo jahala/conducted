@@ -11,11 +11,11 @@
  * Our design choice: the tab is one focusable element with role "tab"; the close button sits beside
  * the label and never nests a button inside another button.
  * Must handle: Long titles truncate with the full title in a tooltip; the close button is reachable
- * by keyboard and has the label 'Close <title>'; middle click closes; a dragged tab reports its ref;
+ * by keyboard and has the label 'Close <title>'; middle click closes; a pointer press on the tab reports it to the split panes' drag;
  * the active tab is marked by an underline and weight; role 'tab' with aria-selected.
  * Test first: Middle click calls onClose; the close button's name includes the tab title.
  */
-import type { DragEvent, HTMLAttributes, Ref } from "react";
+import type { HTMLAttributes, PointerEvent as ReactPointerEvent, Ref } from "react";
 import { cn } from "../../ui/cn.ts";
 import {
 	ChatIcon,
@@ -37,7 +37,7 @@ export interface TabItemProps extends Omit<HTMLAttributes<HTMLDivElement>, "onSe
 	active: boolean;
 	onSelect: () => void;
 	onClose: () => void;
-	onDragStart?: (event: DragEvent<HTMLDivElement>) => void;
+	onPointerDown?: (event: ReactPointerEvent<HTMLDivElement>) => void;
 	ref?: Ref<HTMLDivElement>;
 }
 
@@ -90,7 +90,7 @@ export function TabItem({
 	active,
 	onSelect,
 	onClose,
-	onDragStart,
+	onPointerDown,
 	ref,
 	...rest
 }: TabItemProps) {
@@ -104,8 +104,7 @@ export function TabItem({
 			aria-label={tab.title}
 			title={tab.title}
 			tabIndex={active ? 0 : -1}
-			draggable={onDragStart !== undefined}
-			onDragStart={onDragStart}
+			onPointerDown={onPointerDown}
 			onClick={onSelect}
 			onAuxClick={(event) => {
 				if (event.button === 1) {
@@ -122,7 +121,7 @@ export function TabItem({
 				}
 			}}
 			className={cn(
-				"group flex h-10 shrink-0 items-center gap-1.5 border-b-2 px-2 text-sm",
+				"group flex h-10 shrink-0 touch-none items-center gap-1.5 border-b-2 px-2 text-sm",
 				tab.kind === "session" ? "w-44" : "w-32",
 				active
 					? "border-accent font-medium text-fg"
