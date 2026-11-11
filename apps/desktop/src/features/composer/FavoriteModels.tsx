@@ -14,7 +14,8 @@
  * Our design choice: from the keyboard, ArrowUp and ArrowDown on a focused grip move its row one place;
  * Conductor's drag library lifts a row with Space first. "Add models" also shows while editing, so a
  * favourite can be added at any count.
- * Must handle: An 'Add models' row, which explains the limit when full; the default model's row,
+ * Must handle: A failed add, reorder or remove shows "Couldn't save loadouts. Try again." (renderApp
+ * @252379); an 'Add models' row, which explains the limit when full; the default model's row,
  * which Edit cannot move or remove (it is Default models' first slot in Settings); a
  * favourite whose model is gone (shown muted and marked unavailable, picking it explains); reorder by
  * keyboard; removing the last favourite; a fifth favourite is refused with a message.
@@ -106,7 +107,7 @@ export function FavoriteModels({
 		const result = await service.add(config);
 		setBusy(false);
 		if (!result.ok) {
-			toastError("Couldn't add the favourite", result.error);
+			toastError("Couldn't save loadouts. Try again.", result.error);
 			return;
 		}
 		toast("Favourite saved", {
@@ -124,12 +125,12 @@ export function FavoriteModels({
 		if (moved === undefined) return;
 		next.splice(to, 0, moved);
 		const result = await service.reorder(next.map((favorite) => favorite.id));
-		if (!result.ok) toastError("Couldn't reorder the favourites", result.error);
+		if (!result.ok) toastError("Couldn't save loadouts. Try again.", result.error);
 	};
 
 	const remove = async (id: string) => {
 		const result = await service.remove(id);
-		if (!result.ok) toastError("Couldn't remove the favourite", result.error);
+		if (!result.ok) toastError("Couldn't save loadouts. Try again.", result.error);
 	};
 
 	const rowNodes = useRef(new Map<string, HTMLDivElement>());

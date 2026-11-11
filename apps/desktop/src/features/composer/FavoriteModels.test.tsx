@@ -74,7 +74,7 @@ describe("COMP-02 favourite models list", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Add models" }));
 		await waitFor(() =>
 			expect(toastSpy).toHaveBeenCalledWith(
-				"Couldn't add the favourite",
+				"Couldn't save loadouts. Try again.",
 				expect.objectContaining({
 					description: "The loadout holds the default model and four more. Remove one first.",
 				}),

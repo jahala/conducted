@@ -19,12 +19,13 @@
  * menus (the composer's own menu leaves them out and reaches other models through favourites and
  * search). Search also lists matching agents.
  * Our design choice: A started chat keeps its agent: picking another agent opens a new chat. A
- * model change in a started chat is applied live when the agent allows it (the sidecar decides) and
- * warns that the next reply may be slower and cost more.
+ * model or effort change in a started chat is applied live when the agent allows it (the sidecar
+ * decides) and says Conductor's "FYI: When you switch models mid-chat..." or "...switch effort
+ * mid-chat with Claude..." warning (renderApp @8889053, @8889231).
  * Keyboard: Cmd+/ (open), Cmd+Shift+E (fast mode), Cmd+Shift+/ (cycle effort) and the five loadout
  * keys are command handlers (NAV-14), so a shortcut the user rebinds moves with it. The picker stays
  * mounted while its popover is closed, so the handlers are always registered.
- * Must handle: Models not loaded (loading row); the agent is not installed or not signed in (item
+ * Must handle: Models not loaded (loading row, or "Could not load models." when the read fails); the agent is not installed or not signed in (item
  * disabled); a model that lacks the current effort (switch to its default and say so); fast mode not
  * available for the model or the account (toggle hidden); no models match the search; ACP agents
  * (OpenCode, Pi) listed under Agent; a cloud workspace reads its own model list and shows the
@@ -46,6 +47,7 @@ import { useActions, useLiveShortcut, useModels, useSetting } from "../../core/h
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import {
+	ArrowUpRightIcon,
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -137,14 +139,12 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 				});
 				return;
 			}
-			if (
-				!agentChanged &&
-				started &&
-				(change.model !== current.model || change.effort !== current.effort)
-			) {
-				toast("The next reply may be slower and cost more.", {
-					description: "You changed the model or effort in a chat that already started.",
-				});
+			if (!agentChanged && started && change.model !== current.model) {
+				toast("FYI: When you switch models mid-chat, your next response will be slower and use more tokens.");
+			} else if (!agentChanged && started && change.effort !== current.effort) {
+				toast(
+					"FYI: When you switch effort mid-chat with Claude, your next response will be slower and use more tokens.",
+				);
 			}
 			const updated = await actions.sessions.updateConfig(sessionId, nextConfig);
 			if (!updated.ok) toastError("Couldn't change the model", updated.error);
@@ -440,7 +440,13 @@ export function ModelMenu({
 				className={flyoutRow}
 			>
 				<span className="flex-1 truncate">{agentDisplayName(choice)}</span>
-				{selected ? <CheckIcon className="size-3.5 shrink-0" /> : null}
+				{selected ? (
+					<CheckIcon className="size-3.5 shrink-0" />
+				) : started ? (
+					<span role="img" aria-label="Opens in new chat" className="flex shrink-0">
+						<ArrowUpRightIcon className="size-3.5 text-fg-muted" />
+					</span>
+				) : null}
 			</button>
 		);
 	};
@@ -570,7 +576,7 @@ export function ModelMenu({
 											<p className="px-2 py-1.5 text-sm text-fg-muted">Loading models…</p>
 										) : null}
 										{models.state === "error" ? (
-											<p className="px-2 py-1.5 text-sm text-fg-muted">Couldn't load models.</p>
+											<p className="px-2 py-1.5 text-sm text-fg-muted">Could not load models.</p>
 										) : null}
 										{models.state === "ready" && pickerModels.length === 0 ? (
 											<p className="px-2 py-1.5 text-sm text-fg-muted">No models found</p>
