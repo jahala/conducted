@@ -6,7 +6,8 @@
  * fixed width with status icon, title and unread dot; '+' menu 'New chat', 'Browser', 'Local
  * terminal'; the tab limit; 'View chat history'; chat tab menu 'Fork to new tab'), 5.4 (previous,
  * next, close, reopen and fork shortcuts).
- * Our design choice: The open chats and workspace terminals are the tabs. A file, comment, PR or
+ * Our design choice: The open chats and the workspace's centre terminals are the tabs. A terminal
+ * made in the right panel is listed there, not here (issue #482). A file, comment, PR or
  * browser tab is the tab the URL names, so the URL stays the one source of truth for the open tab.
  * The tab limit is five, or ten with Tab Freak Mode. A browser URL that does not parse is shown as-is.
  * Must handle: Many tabs (scroll); at the tab limit (new-tab menu disabled); closing the active tab
@@ -156,13 +157,13 @@ export function chatTabs(
 	});
 }
 
-/** A workspace's terminal tabs. A cloud workspace shows each terminal's host (CLOUD-09). */
+/** A workspace's centre terminal tabs. A terminal made in the panel is listed there instead. */
 export function terminalTabs(
 	terminals: readonly Terminal[],
 	hostKind?: "local" | "cloud",
 ): TabDescriptor[] {
 	return terminals
-		.filter((terminal) => terminal.kind === "terminal")
+		.filter((terminal) => terminal.kind === "terminal" && terminal.placement === "centre")
 		.map((terminal, index) => ({
 			kind: "terminal",
 			ref: tabRef({ kind: "terminal", terminalId: terminal.id }) ?? "",

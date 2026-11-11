@@ -1,15 +1,30 @@
 /**
  * @feature catalogue States of the full pages in the main layout: Home, new workspace, backlog, diagnostics
- * Owns: the seeds for Home with the cast, the new workspace page with a project chosen, the backlog
- * with saved workspaces and empty, and the Diagnostics page.
+ * Owns: the seeds for Home with the cast, the new workspace page with a project chosen and in
+ * cloud mode (ready, and waiting for the Worker's GitHub token, CLOUD-19), the backlog with saved
+ * workspaces and empty, and the Diagnostics page.
  * Behaviour: ui-map.md 2 (routes /all-workspaces, /create, /backlog, /diagnostics), WS-11 (backlog),
  * APP-03 (diagnostics).
  * Test first: not applicable; the screenshot run opens every state.
  */
+
+import { ok } from "@conducted/shared";
+import type { CloudReadiness } from "../../core/organization.ts";
 import { animateCast, seedCast } from "../cast.ts";
 import { click, find, shows, typeInto } from "../dom.ts";
-import { CLAUDE_CONFIG, must } from "../seeds.ts";
+import { CLAUDE_CONFIG, must, setSetting } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
+import type { World } from "../world.ts";
+
+/** The cast with the paired Worker chosen in the switcher, answering `readiness` (CLOUD-19). */
+async function seedCloudOrganization(world: World, readiness: CloudReadiness) {
+	const cast = await seedCast(world);
+	await setSetting(world, "active_organization", "cloud");
+	world.memory.controls.scriptCloud((request) =>
+		request.path === "/readiness" ? ok({ status: 200, body: JSON.stringify(readiness) }) : null,
+	);
+	return cast;
+}
 
 export const PAGE_STATES: CatalogueState[] = [
 	{
@@ -103,6 +118,37 @@ export const PAGE_STATES: CatalogueState[] = [
 			return {
 				route: `/create?repo=${cast.atlas.id}`,
 				ready: (document) => document.querySelector('[role="dialog"] textarea') !== null,
+			};
+		},
+	},
+	{
+		id: "new-workspace-cloud",
+		group: "Pages",
+		title: "New workspace dialog in the cloud: the Worker's repository picker",
+		seed: async (world) => {
+			await seedCloudOrganization(world, {
+				github: true,
+				agents: { anthropic: true, openai: false, cursor: false },
+			});
+			return {
+				route: "/create",
+				ready: (document) =>
+					document.querySelector('[role="dialog"] button[aria-label="Repository"]') !== null,
+			};
+		},
+	},
+	{
+		id: "new-workspace-cloud-not-ready",
+		group: "Pages",
+		title: "New workspace dialog in the cloud while the Worker has no GitHub token",
+		seed: async (world) => {
+			await seedCloudOrganization(world, {
+				github: false,
+				agents: { anthropic: true, openai: false, cursor: false },
+			});
+			return {
+				route: "/create",
+				ready: (document) => shows(document, "GitHub isn't connected."),
 			};
 		},
 	},

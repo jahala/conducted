@@ -84,7 +84,10 @@ export function useNewTab({
 				bigTerminalMode && startupCommand !== null && startupCommand.trim() !== ""
 					? { command: startupCommand.trim() }
 					: undefined;
-			const created = await actions.terminals.create(workspaceId, command);
+			const created = await actions.terminals.create(workspaceId, {
+				placement: "centre",
+				...(command === undefined ? {} : command),
+			});
 			if (!created.ok) {
 				toastError("Couldn't open a terminal", created.error);
 				return false;

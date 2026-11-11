@@ -2,7 +2,8 @@
  * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
  * @feature RUN-01 Scripts panel tab strip
  * Owns: the tab buttons of the scripts panel and the collapse button. Fixed tabs Setup, Run and
- * Ports; one tab per terminal, with its host in a cloud workspace; a "new terminal" button.
+ * Ports; one tab per terminal made in this panel, with its host in a cloud workspace; a "new
+ * terminal" button.
  * Behaviour: ui-map.md 3.7 (tabs; "New terminal", "Close terminal", "Maximum N terminals
  * allowed"; Cmd+J "Toggle terminal panel"; a cloud workspace's terminal tabs carry a cloud or
  * laptop host icon, CLOUD-09).
@@ -44,6 +45,8 @@ export interface ScriptsPanelTabsProps {
 	runActive: boolean;
 	showPorts: boolean;
 	terminalLimit: number;
+	/** Every interactive terminal the workspace has, in either strip. Defaults to the tabs shown. */
+	terminalCount?: number;
 	collapsed: boolean;
 	/** A cloud workspace's file-sync state; undefined on a Mac workspace (CLOUD-11). */
 	fileSync?: FileSyncView;
@@ -80,6 +83,7 @@ export function ScriptsPanelTabs({
 	runActive,
 	showPorts,
 	terminalLimit,
+	terminalCount,
 	collapsed,
 	fileSync,
 	cloudWorkspace = false,
@@ -88,7 +92,7 @@ export function ScriptsPanelTabs({
 	onCloseTerminal,
 	onToggleCollapsed,
 }: ScriptsPanelTabsProps) {
-	const atLimit = terminals.length >= terminalLimit;
+	const atLimit = (terminalCount ?? terminals.length) >= terminalLimit;
 	const reason = `Maximum ${terminalLimit} terminals allowed`;
 	const tab = (
 		id: ScriptsPanelTabId,

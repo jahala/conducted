@@ -193,6 +193,7 @@ export const sampleTerminal: Terminal & { screenState: string | null } = {
 	kind: "run",
 	title: "dev server",
 	cwd: "/code/workspaces/oslo",
+	placement: "panel",
 	hostKind: "local",
 	startCommand: "bun dev",
 	screenState: null,

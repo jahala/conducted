@@ -23,12 +23,15 @@
  * models loading or failing per agent; an agent not installed; a full loadout (Enter
  * replaces the last slot, as Conductor's does); a choice already in another slot (it moves there);
  * a save that fails (a toast with the reason).
+ * Our design choice: a drag is a pointer drag, as Conductor's Loadout is (renderApp, its slot and
+ * model rows use motion's pointer drag). The app window's drag-drop handler answers every native
+ * drag for file drops, so the page never gets a drag's drop (issue #481).
  * Test first: Enter on a model row puts it in the next empty slot.
  */
 import type { ModelInfo } from "@conducted/protocol";
 import type { Result } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
-import { type DragEvent, useEffect, useRef, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { AGENT_CHOICES, agentDisplayName } from "../../../core/agent-catalog.ts";
 import { useServices } from "../../../core/context.tsx";
 import { type FavoriteModel, LOADOUT_SIZE } from "../../../core/favorite-model.ts";
@@ -55,37 +58,23 @@ type Choice = FavoriteModel["config"];
 
 type AgentColumnSpec = (typeof AGENT_CHOICES)[number];
 
-const MODEL_MIME = "application/x-conducted-loadout-model";
-const SLOT_MIME = "application/x-conducted-loadout-slot";
+/** What a drag carries: a model from an agent's column, or a filled slot being moved. */
+type DragPayload =
+	| { kind: "model"; choice: Choice }
+	| { kind: "slot"; from: number; entry: LoadoutEntry };
 
-/**
- * While a slot is dragged, lets the whole page take its drop: a drop anywhere outside the slots
- * takes the model out of the loadout. The drop itself decides, not the effect dragend reports,
- * because WebKit (the app window's engine) reports that effect unlike Chromium. A drag cancelled
- * with Escape drops nowhere and changes nothing. Returns the function that stops listening.
- */
-function watchDropOutsideSlots(page: Document, onDropOutside: () => void): () => void {
-	const carriesSlot = (event: globalThis.DragEvent) =>
-		event.dataTransfer?.types.includes(SLOT_MIME) === true;
-	const onSlots = (target: EventTarget | null) =>
-		target instanceof Element && target.closest("[data-loadout-slots]") !== null;
-	const over = (event: globalThis.DragEvent) => {
-		if (!carriesSlot(event) || onSlots(event.target)) return;
-		event.preventDefault();
-		if (event.dataTransfer !== null) event.dataTransfer.dropEffect = "move";
-	};
-	const drop = (event: globalThis.DragEvent) => {
-		if (!carriesSlot(event) || onSlots(event.target)) return;
-		event.preventDefault();
-		onDropOutside();
-	};
-	page.addEventListener("dragover", over);
-	page.addEventListener("drop", drop);
-	return () => {
-		page.removeEventListener("dragover", over);
-		page.removeEventListener("drop", drop);
-	};
+/** A pointer drag in flight: the payload, the distance moved, and the slot under the pointer. */
+interface DragState {
+	payload: DragPayload;
+	dx: number;
+	dy: number;
+	target: number | undefined;
 }
+
+/** Conductor's hit-test margin around a slot's rectangle, in pixels (renderApp's loadout editor). */
+const SLOT_MARGIN = 16;
+/** How far the pointer moves before a press becomes a drag; a shorter press stays a click. */
+const DRAG_THRESHOLD = 4;
 
 const sameModel = (left: Choice, right: Choice): boolean =>
 	left.agent === right.agent && left.acpAgent === right.acpAgent && left.model === right.model;
@@ -116,7 +105,14 @@ export function LoadoutEditor() {
 	}, [actions, installsAsked]);
 	const favorites = useServices().services.favoriteModels;
 	const saves = useSettingSaves();
-	const [dropTarget, setDropTarget] = useState<number | null>(null);
+	const [drag, setDrag] = useState<DragState | null>(null);
+	const slotNodes = useRef<(HTMLLIElement | null)[]>([]);
+	const stopListening = useRef<(() => void) | null>(null);
+	// Conductor suppresses the click that ends a drag on a slot (its `onClickCapture`), so a drag
+	// never opens the slot's choices; the next press starts the question again.
+	const clickAfterDrag = useRef(false);
+	useEffect(() => () => stopListening.current?.(), []);
+	const offset = entries[0]?.isDefault === true ? 1 : 0;
 
 	const report = (title: string, result: Result<unknown>) => {
 		if (!result.ok) toastError(title, result.error);
@@ -156,53 +152,127 @@ export function LoadoutEditor() {
 
 	const move = async (from: number, to: number) => {
 		const ids = entries.filter((entry) => !entry.isDefault).map((entry) => entry.id);
-		const offset = entries[0]?.isDefault === true ? 1 : 0;
 		const [moved] = ids.splice(from - offset, 1);
 		if (moved === undefined) return;
 		ids.splice(Math.max(0, to - offset), 0, moved);
 		report("Couldn't reorder the loadout", await favorites.reorder(ids));
 	};
 
-	const dropOn = (index: number) => (event: DragEvent<HTMLElement>) => {
-		event.preventDefault();
-		setDropTarget(null);
-		const model = event.dataTransfer.getData(MODEL_MIME);
-		if (model !== "") {
-			const choice = JSON.parse(model) as Choice;
-			if (index === 0 && choice.agent !== "claude") return;
-			void equip(choice, Math.min(index, entries.length));
-			return;
-		}
-		const from = Number(event.dataTransfer.getData(SLOT_MIME));
-		if (Number.isInteger(from) && from > 0 && index > 0 && from !== index) {
-			void move(from, Math.min(index, entries.length - 1));
-		}
+	/**
+	 * The slot under the pointer, as Conductor finds it: each slot's rectangle, widened by
+	 * `SLOT_MARGIN`, and the nearest centre on the horizontal axis winning. Outside every slot
+	 * gives undefined, which a dragged slot reads as "remove".
+	 */
+	const targetAt = (x: number, y: number): number | undefined => {
+		let found: number | undefined;
+		let nearest = Number.POSITIVE_INFINITY;
+		slotNodes.current.forEach((node, index) => {
+			if (node === null) return;
+			const rect = node.getBoundingClientRect();
+			if (
+				x < rect.left - SLOT_MARGIN ||
+				x > rect.right + SLOT_MARGIN ||
+				y < rect.top - SLOT_MARGIN ||
+				y > rect.bottom + SLOT_MARGIN
+			)
+				return;
+			const distance = Math.abs(x - (rect.left + rect.width / 2));
+			if (distance < nearest) {
+				nearest = distance;
+				found = index;
+			}
+		});
+		return found;
 	};
 
-	const allowDrop = (index: number) => (event: DragEvent<HTMLElement>) => {
-		event.preventDefault();
-		setDropTarget(index);
+	/** The slot a drag rings: a model reaches the next empty slot, a slot moves among filled ones. */
+	const shownTarget = (payload: DragPayload, raw: number | undefined): number | undefined => {
+		if (raw === undefined) return undefined;
+		if (payload.kind === "model") return raw <= entries.length ? raw : undefined;
+		return Math.min(Math.max(raw, offset), Math.max(offset, entries.length - 1));
+	};
+
+	const drop = (payload: DragPayload, raw: number | undefined) => {
+		if (payload.kind === "model") {
+			if (raw === undefined || raw > entries.length) return;
+			if (raw === 0 && payload.choice.agent !== "claude") return;
+			void equip(payload.choice, raw);
+			return;
+		}
+		if (raw === undefined) {
+			void remove(payload.entry);
+			return;
+		}
+		const to = Math.min(Math.max(raw, offset), Math.max(offset, entries.length - 1));
+		if (to !== payload.from) void move(payload.from, to);
+	};
+
+	const startDrag = (event: ReactPointerEvent, payload: DragPayload) => {
+		if (event.button !== 0 || event.ctrlKey || event.metaKey) return;
+		stopListening.current?.();
+		const startX = event.clientX;
+		const startY = event.clientY;
+		const pointerId = event.pointerId;
+		let active = false;
+		const clean = () => {
+			document.removeEventListener("pointermove", moved);
+			document.removeEventListener("pointerup", ended);
+			document.removeEventListener("pointercancel", ended);
+			document.removeEventListener("keydown", keyed);
+			if (stopListening.current === clean) stopListening.current = null;
+		};
+		const moved = (moveEvent: PointerEvent) => {
+			if (moveEvent.pointerId !== pointerId) return;
+			const dx = moveEvent.clientX - startX;
+			const dy = moveEvent.clientY - startY;
+			if (!active && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+			active = true;
+			clickAfterDrag.current = true;
+			setDrag({
+				payload,
+				dx,
+				dy,
+				target: shownTarget(payload, targetAt(moveEvent.clientX, moveEvent.clientY)),
+			});
+		};
+		const ended = (endEvent: PointerEvent) => {
+			if (endEvent.pointerId !== pointerId) return;
+			clean();
+			setDrag(null);
+			// A cancelled pointer changes nothing, as a drag cancelled with Escape does.
+			if (endEvent.type === "pointercancel" || !active) return;
+			drop(payload, targetAt(endEvent.clientX, endEvent.clientY));
+		};
+		const keyed = (keyEvent: KeyboardEvent) => {
+			if (keyEvent.key !== "Escape") return;
+			clean();
+			setDrag(null);
+		};
+		document.addEventListener("pointermove", moved);
+		document.addEventListener("pointerup", ended);
+		document.addEventListener("pointercancel", ended);
+		document.addEventListener("keydown", keyed);
+		stopListening.current = clean;
 	};
 
 	return (
 		<div className="flex w-full max-w-2xl select-none flex-col">
-			{/* Dropping a slot anywhere outside the slots removes it, as in Conductor. */}
+			{/* A slot dragged anywhere outside the slots is taken out of the loadout, as in Conductor. */}
 			<ul
 				aria-label="Loadout"
-				data-loadout-slots
 				className="relative m-0 grid list-none grid-cols-5 border-t border-l border-border p-0"
 			>
 				{Array.from({ length: LOADOUT_SIZE }, (_, index) => {
 					const entry = entries[index];
-					const highlighted = dropTarget === index;
+					const highlighted = drag?.target === index;
 					return (
 						<li
 							// biome-ignore lint/suspicious/noArrayIndexKey: a slot is its position.
 							key={index}
+							ref={(node) => {
+								slotNodes.current[index] = node;
+							}}
 							aria-label={`Slot ${index + 1}`}
-							onDragOver={allowDrop(index)}
-							onDragLeave={() => setDropTarget(null)}
-							onDrop={dropOn(index)}
 							className={cn(
 								"relative aspect-square border-r border-b border-border transition-shadow duration-100",
 								highlighted && "ring-1 ring-focus ring-inset",
@@ -214,6 +284,11 @@ export function LoadoutEditor() {
 								<SlotCard
 									entry={entry}
 									index={index}
+									dragging={
+										drag?.payload.kind === "slot" && drag.payload.from === index ? drag : null
+									}
+									clickAfterDrag={clickAfterDrag}
+									onDragStart={(event) => startDrag(event, { kind: "slot", from: index, entry })}
 									onChange={(choice) =>
 										entry.isDefault
 											? void saveDefault(choice)
@@ -222,7 +297,6 @@ export function LoadoutEditor() {
 													.then((result) => report("Couldn't change the loadout", result))
 									}
 									onRemove={() => void remove(entry)}
-									onDragOut={() => void remove(entry)}
 								/>
 							)}
 						</li>
@@ -236,6 +310,8 @@ export function LoadoutEditor() {
 						spec={spec}
 						isEquipped={(choice) => entries.some((entry) => sameModel(entry.config, choice))}
 						onAdd={addNext}
+						drag={drag?.payload.kind === "model" ? drag : null}
+						onDragStart={startDrag}
 					/>
 				))}
 			</div>
@@ -258,63 +334,67 @@ function EmptySlot({ index, next }: { index: number; next: boolean }) {
 function SlotCard({
 	entry,
 	index,
+	dragging,
+	clickAfterDrag,
+	onDragStart,
 	onChange,
 	onRemove,
-	onDragOut,
 }: {
 	entry: LoadoutEntry;
 	index: number;
+	/** The offset to draw the card at while it is dragged, or null. */
+	dragging: { dx: number; dy: number } | null;
+	clickAfterDrag: { current: boolean };
+	onDragStart: (event: ReactPointerEvent) => void;
 	onChange: (choice: Choice) => void;
 	onRemove: () => void;
-	onDragOut: () => void;
 }) {
 	const models = useModels(entry.config.agent, entry.config.acpAgent);
 	const list = models.state === "ready" ? models.data : [];
 	const model = list.find((item) => item.id === entry.config.model);
 	const label = model?.label ?? entry.config.model;
 	const effort = effortLabel(model, entry.config);
-	const stopWatching = useRef<(() => void) | null>(null);
-	useEffect(() => () => stopWatching.current?.(), []);
 	const [menuOpen, setMenuOpen] = useState(false);
 
 	return (
 		<Menu open={menuOpen} onOpenChange={setMenuOpen}>
 			{/*
 			 * Conductor opens a slot's choices when the press is released, so a press that starts a
-			 * drag never opens them (Hrr's openOnPressRelease). The menu opens its trigger on press and
-			 * cancels the press's default, which in Chromium also cancels the drag. So the press stops
-			 * here, before the menu sees it, with its default kept; a click, which no drag produces,
-			 * opens the choices, and the keyboard still opens them through the menu.
+			 * drag never opens them (Hrr's openOnPressRelease). The menu opens its trigger on press, so
+			 * the press stops here, before the menu sees it, and starts the drag instead. A click that
+			 * ends no drag opens the choices; a click that ends a drag is suppressed, as Hrr's
+			 * onClickCapture suppresses it; the keyboard still opens them through the menu.
 			 */}
 			<span
 				className="contents"
 				onPointerDownCapture={(event) => {
-					if (event.button === 0 && !event.ctrlKey) event.stopPropagation();
+					if (event.button !== 0 || event.ctrlKey) return;
+					event.stopPropagation();
+					clickAfterDrag.current = false;
+					if (!entry.isDefault) onDragStart(event);
 				}}
 			>
 				<MenuTrigger asChild>
 					<button
 						type="button"
 						aria-label={`${agentDisplayName(entry.config)} ${label}, ${effort}`}
-						draggable={!entry.isDefault}
 						onClick={(event) => {
+							if (clickAfterDrag.current && event.detail !== 0) {
+								event.preventDefault();
+								event.stopPropagation();
+								return;
+							}
 							if (event.detail !== 0) setMenuOpen((open) => !open);
 						}}
-						onDragStart={(event) => {
-							event.dataTransfer.setData(SLOT_MIME, String(index));
-							event.dataTransfer.effectAllowed = "move";
-							// Released outside every slot: Conductor takes the model out of the loadout.
-							stopWatching.current?.();
-							stopWatching.current = watchDropOutsideSlots(
-								event.currentTarget.ownerDocument,
-								onDragOut,
-							);
-						}}
-						onDragEnd={() => {
-							stopWatching.current?.();
-							stopWatching.current = null;
-						}}
-						className="group absolute inset-0 flex flex-col justify-end gap-1 bg-canvas px-3 pb-1.5 text-left font-mono text-xs outline-none hover:bg-hover focus-visible:ring-1 focus-visible:ring-focus focus-visible:ring-inset"
+						style={
+							dragging === null
+								? undefined
+								: { transform: `translate(${dragging.dx}px, ${dragging.dy}px)` }
+						}
+						className={cn(
+							"group absolute inset-0 flex touch-none flex-col justify-end gap-1 bg-canvas px-3 pb-1.5 text-left font-mono text-xs outline-none hover:bg-hover focus-visible:ring-1 focus-visible:ring-focus focus-visible:ring-inset",
+							dragging !== null && "z-20 shadow-lg ring-1 ring-border",
+						)}
 					>
 						{entry.isDefault ? (
 							<span className="pointer-events-none absolute top-2.5 right-2.5 rounded-xs border border-accent px-1 font-mono text-[8px] leading-3 text-accent">
@@ -435,10 +515,15 @@ function AgentColumn({
 	spec,
 	isEquipped,
 	onAdd,
+	drag,
+	onDragStart,
 }: {
 	spec: AgentColumnSpec;
 	isEquipped: (choice: Choice) => boolean;
 	onAdd: (choice: Choice) => void;
+	/** The model drag in flight, so the row it started from can follow the pointer. */
+	drag: DragState | null;
+	onDragStart: (event: ReactPointerEvent, payload: DragPayload) => void;
 }) {
 	const navigate = useNavigate();
 	const installs = useAgentInstalls();
@@ -483,22 +568,30 @@ function AgentColumn({
 						.filter((model) => model.status === "picker")
 						.map((model) => {
 							const choice = choiceFor(spec, model);
+							const dragging =
+								drag?.payload.kind === "model" && sameModel(drag.payload.choice, choice)
+									? drag
+									: null;
 							return (
 								<button
 									key={model.id}
 									type="button"
-									draggable
 									aria-label={`Add ${model.label} to loadout`}
 									title={model.label}
-									onDragStart={(event) => {
-										event.dataTransfer.setData(MODEL_MIME, JSON.stringify(choice));
-										event.dataTransfer.effectAllowed = "copy";
-									}}
+									onPointerDown={(event) => onDragStart(event, { kind: "model", choice })}
 									onClick={(event) => {
 										// A mouse drags a model into a slot; Enter or Space adds it, as in Conductor.
 										if (event.detail === 0) onAdd(choice);
 									}}
-									className="relative flex h-10 w-full cursor-grab items-center gap-1.5 border-b border-border bg-canvas pr-9 pl-3 text-left text-xs text-fg outline-none hover:bg-muted active:cursor-grabbing focus-visible:ring-1 focus-visible:ring-focus focus-visible:ring-inset"
+									style={
+										dragging === null
+											? undefined
+											: { transform: `translate(${dragging.dx}px, ${dragging.dy}px)` }
+									}
+									className={cn(
+										"relative flex h-10 w-full touch-none cursor-grab items-center gap-1.5 border-b border-border bg-canvas pr-9 pl-3 text-left text-xs text-fg outline-none hover:bg-muted active:cursor-grabbing focus-visible:ring-1 focus-visible:ring-focus focus-visible:ring-inset",
+										dragging !== null && "z-20 shadow-lg ring-1 ring-border",
+									)}
 								>
 									<span className="min-w-0 truncate">{model.label}</span>
 									{isEquipped(choice) ? (

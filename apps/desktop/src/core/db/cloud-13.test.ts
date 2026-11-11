@@ -123,6 +123,7 @@ async function seed(host: Host, name: string, port: number): Promise<WorkspaceId
 			kind: "terminal",
 			title: name,
 			cwd: `/code/workspaces/${name}`,
+			placement: "centre",
 			startCommand: null,
 		}),
 	);
@@ -158,9 +159,20 @@ describe("CLOUD-13 cloud rows kept apart by host", () => {
 		await seed(CLOUD, "lisbon", 55101);
 
 		expect(must(await repositories.workspaces.listPorts())).toEqual([55100]);
-		expect(must(await repositories.workspaces.listDirectoryNames(sampleRepo.id))).toEqual(["oslo"]);
 		expect(must(await repositories.workspaces.listByState("ready")).map((ws) => ws.id)).toEqual([
 			localId,
+		]);
+	});
+
+	it("the folder names hold every host's rows, because the unique index spans hosts", async () => {
+		await seed({ kind: "local" }, "oslo", 55100);
+		await seed(CLOUD, "lisbon", 55101);
+
+		// CLOUD-19: a name a cloud workspace holds must not be picked again for either host, or the
+		// (repo, directory name) unique index refuses the new row.
+		expect(must(await repositories.workspaces.listDirectoryNames(sampleRepo.id)).sort()).toEqual([
+			"lisbon",
+			"oslo",
 		]);
 	});
 

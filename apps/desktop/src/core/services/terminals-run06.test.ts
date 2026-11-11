@@ -61,6 +61,7 @@ const terminal = (patch: Partial<Terminal> = {}): Terminal => ({
 	kind: "terminal",
 	title: "Terminal 1",
 	cwd: "/ws/oslo",
+	placement: "centre",
 	hostKind: "local",
 	startCommand: null,
 	startedAt: 1000,

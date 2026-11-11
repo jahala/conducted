@@ -8,6 +8,7 @@
  * @feature WS-11 Backlog workspaces: save now, start later
  * @feature PR-10 Link a pull request by URL or number: storing the linked pull request on the
  * workspace.
+ * @feature CLOUD-19 Create cloud workspaces: the organisation switcher and the new-workspace page in cloud mode
  * Owns: the list of workspaces and their lifecycle as far as it is built: creating a worktree and
  * its first chat from the default branch, an existing local branch, a pull request or an issue,
  * creating one at a commit another feature resolved (CHAT-21), running the setup script,
@@ -91,7 +92,14 @@
  * composition root passes it.
  * CLOUD-01: setup, the first-message branch rename, archive, unarchive, delete and Open in check
  * the workspace's host before they touch its folder (core/host.ts). Creating a workspace makes a
- * worktree on this Mac, so it stores the local host.
+ * worktree on this Mac and stores the local host, unless the page names the paired Worker.
+ * CLOUD-19: a create that names a Worker (`cloudUrl`) runs the same path with a cloud host: the
+ * row gets its own sandbox name and the folder `/workspace/<name>` in it, then the sandbox is
+ * started, the project's GitHub repository is cloned into that folder and the new branch is
+ * checked out from `origin/<base>` (a pull request's head is fetched first). The worktree config,
+ * the copy of the Mac's included files and the Mac's base fetch do not apply in a sandbox; the
+ * file count, setup, section and first chat are shared. A project with no GitHub remote is refused
+ * before the Worker is asked anything, because the Worker clones from GitHub only (D104). D127.
  * CLOUD-10: archive and delete stop the workspace's port forwards first, since its sandbox sleeps
  * (D110). Every path that archives or deletes one does this: the menu, archive-on-merge and a
  * repository removal.
@@ -102,12 +110,13 @@
  * unarchive re-adds the worktree on the same branch, restores the archive checkpoint, and clears
  * the archive time; a branch checked out elsewhere asks for a new name.
  */
-import { LOCAL_HOST, type SessionConfig } from "@conducted/protocol";
+import { type Host, LOCAL_HOST, type SessionConfig } from "@conducted/protocol";
 import {
 	type AppError,
 	appError,
 	createKeyedQueue,
 	err,
+	type IdSource,
 	ok,
 	type RepoId,
 	type Result,
@@ -123,8 +132,11 @@ import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
 import { cursorStoreFolder, setupLogFile, viewedFilesFile } from "../app-paths.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import {
+	cloudWorkspaceFolder,
+	cloudWorkspaceName,
 	removeCloudWorkspace,
 	restartCloudWorkspace,
+	startCloudWorkspace,
 	stopCloudWorkspace,
 } from "../cloud/lifecycle.ts";
 import { ensureSshSession, openRemoteWorkspace, type SshDeps, sshCommand } from "../cloud/ssh.ts";
@@ -134,6 +146,9 @@ import { copyFileKeepingMode, FILE_COPY_FAILED, trashIfPresent } from "../fs-hel
 import {
 	branchDeleteForce,
 	branchShowCurrent,
+	checkoutNewBranch,
+	cloneWithProgress,
+	configSet,
 	diffQuietHead,
 	diffToolKsdiff,
 	fetch,
@@ -149,6 +164,7 @@ import { archiveRef } from "../git/refs.ts";
 import { renameBranchInWorktree } from "../git/rename.ts";
 import type { GitRunner } from "../git/runner.ts";
 import {
+	addContextFolder,
 	addWorktreeOnBranch,
 	branchNameIsTaken,
 	createWorktree,
@@ -160,6 +176,7 @@ import {
 	resolveBaseCommit,
 	restoreArchiveCheckpoint,
 	saveArchiveSnapshot,
+	WORKTREE_CONFIG_SKIPPED_MESSAGE,
 } from "../git/worktree.ts";
 import { checkHost } from "../host.ts";
 import type {
@@ -171,6 +188,7 @@ import type {
 	Session,
 	Workspace,
 } from "../model.ts";
+import { cloudRepositories } from "../organization.ts";
 import { PLACE_GAZETTEER, type PlaceTier, placeFolderName } from "../place-gazetteer.ts";
 import { isArchivedWorkspace } from "../status/archived.ts";
 import {
@@ -562,6 +580,16 @@ export const ARCHIVE_NOT_READY_MESSAGE = "This workspace is still being created.
 export const ARCHIVE_DETACHED_HEAD_MESSAGE =
 	"Git is not on a branch in this workspace. Check out its branch, then archive it again.";
 
+/** Why a project cannot become a cloud workspace: the Worker clones from GitHub only (D104). */
+export const CLOUD_REPO_NOT_GITHUB_MESSAGE =
+	"A cloud workspace is cloned from GitHub, and this project has no GitHub remote.";
+
+const cloudRepoNotGithub = (): AppError =>
+	appError("cloud_repo_not_github", CLOUD_REPO_NOT_GITHUB_MESSAGE);
+
+const cloudCreateUnavailable = (): AppError =>
+	appError("cloud_unavailable", "Cloud workspaces cannot be created in this window.");
+
 /** Shown when archive-on-merge finds a ready workspace whose folder is gone (services-map 5B.1.9). */
 export const WORKSPACE_CORRUPTED_MESSAGE =
 	"This workspace's folder is missing, so it can't be archived. Check the folder or remove the workspace.";
@@ -628,8 +656,10 @@ export interface BranchNameSuggester {
 
 export interface WorkspaceServiceDeps {
 	platform: Pick<Platform, "fs" | "opener" | "shell" | "portForward">;
-	/** The Worker door a cloud workspace's archive and delete use (CLOUD-08). */
+	/** The Worker door a cloud workspace's creation, archive and delete use (CLOUD-08, CLOUD-19). */
 	cloud?: Cloud;
+	/** Names a new cloud workspace's sandbox (CLOUD-19). The composition root passes its ids. */
+	ids?: IdSource;
 	/**
 	 * The restart cache of each workspace's changes and pull request info (DATA-07). Deleting a
 	 * workspace removes its entries. The composition root supplies it.
@@ -698,6 +728,11 @@ export class WorkspaceService {
 	readonly #setupStarting = new Map<WorkspaceId, number>();
 	/** A commit resolved for a workspace before its row existed, so Retry setup reuses it. */
 	readonly #baseShas = new Map<WorkspaceId, string>();
+	/**
+	 * Where a cloud workspace's branch starts in its sandbox, and the ref to fetch first, kept until
+	 * its checkout is made so Retry setup reuses it (CLOUD-19).
+	 */
+	readonly #cloudStarts = new Map<WorkspaceId, { fetch: string | null; startPoint: string }>();
 
 	constructor(deps: WorkspaceServiceDeps) {
 		this.#deps = deps;
@@ -852,6 +887,11 @@ export class WorkspaceService {
 			);
 		}
 
+		// A cloud workspace is cloned from the project's GitHub repository in its own sandbox, so a
+		// project the Worker cannot clone is refused before anything is asked of it (CLOUD-19).
+		const cloud = input.cloudUrl === undefined ? null : this.#cloudTarget(repo, input.cloudUrl);
+		if (cloud !== null && !cloud.ok) return cloud;
+
 		const remoteRead = await this.#remoteFor(repo);
 		if (!remoteRead.ok) return remoteRead;
 		const remote = remoteRead.value;
@@ -859,6 +899,7 @@ export class WorkspaceService {
 		let targetBranch: string;
 		let baseSha: string | null = presetBaseSha;
 		let baseWarning: string | null = null;
+		let cloudStart: { fetch: string | null; startPoint: string } | null = null;
 		// A preset commit (a fork's checkpoint head) is already known, so its branch is only named.
 		// Resolving it would read or fetch the branch for nothing, and fail offline or when the
 		// branch is gone.
@@ -866,6 +907,21 @@ export class WorkspaceService {
 			const target = baseBranchFor(repo.defaultBranch, input.from);
 			if (!target.ok) return target;
 			targetBranch = target.value;
+		} else if (cloud !== null) {
+			// The sandbox's clone has the remote's branches; a pull request's head is fetched there.
+			const target =
+				input.from.kind === "branch"
+					? baseBranchFor(repo.defaultBranch, input.from)
+					: ok(repo.defaultBranch);
+			if (!target.ok) return target;
+			targetBranch = target.value;
+			if (input.from.kind === "pull_request") {
+				if (!Number.isSafeInteger(input.from.number) || input.from.number <= 0) {
+					return err(appError("pull_request_unavailable", "Could not load that pull request"));
+				}
+				const ref = `refs/conducted/pull/${input.from.number}`;
+				cloudStart = { fetch: `refs/pull/${input.from.number}/head:${ref}`, startPoint: ref };
+			}
 		} else {
 			const resolved = await this.resolveBase(repo.id, input.from);
 			if (!resolved.ok) return resolved;
@@ -915,7 +971,14 @@ export class WorkspaceService {
 		const port = await portService.allocateForNewWorkspace();
 		if (!port.ok) return port;
 
-		const worktreePath = worktreeFolderFor(root, repo.name, folder.value);
+		let host: Host = LOCAL_HOST;
+		let worktreePath = worktreeFolderFor(root, repo.name, folder.value);
+		if (cloud !== null) {
+			const vmId = cloudWorkspaceName(cloud.value.ids.uuid());
+			host = { kind: "cloud", url: cloud.value.url, vmId };
+			worktreePath = cloudWorkspaceFolder(vmId);
+			cloudStart ??= { fetch: null, startPoint: baseSha ?? `origin/${targetBranch}` };
+		}
 		const row = await this.#deps.repos.workspaces.create({
 			repoId: repo.id,
 			directoryName: folder.value,
@@ -926,15 +989,15 @@ export class WorkspaceService {
 			port: port.value,
 			linkedPaths: [],
 			setupLogPath: null,
-			// Creating a workspace makes a worktree on this Mac. A cloud workspace is made by its
-			// Worker (CLOUD-03).
-			host: LOCAL_HOST,
+			// A worktree on this Mac, or the named Worker's sandbox (CLOUD-19).
+			host,
 		});
 		if (!row.ok) return row;
 		this.#upsert(row.value);
 		const wantsChat = input.prompt.trim() !== "" || input.attachmentPaths.length > 0;
 		if (wantsChat) this.#rememberFirstInput(row.value.id, input);
-		if (baseSha !== null) this.#baseShas.set(row.value.id, baseSha);
+		if (baseSha !== null && cloudStart === null) this.#baseShas.set(row.value.id, baseSha);
+		if (cloudStart !== null) this.#cloudStarts.set(row.value.id, cloudStart);
 
 		const materialised = await this.#materialise(row.value, repo, remote);
 		if (!materialised.ok) {
@@ -963,44 +1026,12 @@ export class WorkspaceService {
 		repo: Repo,
 		remote: string,
 	): Promise<Result<{ workspace: Workspace; warnings: string[] }>> {
-		const warnings: string[] = [];
-		const exists = await this.#deps.platform.fs.exists(workspace.path);
-		if (!exists) {
-			const baseSha = this.#baseShas.get(workspace.id);
-			const created = await createWorktree(this.#deps.git, {
-				repoRootPath: repo.rootPath,
-				remote,
-				baseBranch: workspace.targetBranch,
-				newBranch: workspace.branch,
-				worktreePath: workspace.path,
-				allowLocalBase: repo.remoteUrl === null,
-				...(baseSha === undefined ? {} : { baseSha }),
-			});
-			if (!created.ok) return this.#fail(workspace, created.error);
-			if (created.value.warning !== null) warnings.push(created.value.warning);
-		}
-
-		const prepared = await prepareWorktree(this.#deps.git, {
-			repoRootPath: repo.rootPath,
-			worktreePath: workspace.path,
-			autoSetupUpstream: this.#deps.setting<boolean>("worktree_push_auto_setup_remote"),
-			fs: this.#deps.platform.fs,
-		});
-		if (!prepared.ok) return this.#fail(workspace, prepared.error);
-		if (prepared.value.warning !== null) warnings.push(prepared.value.warning);
-
-		const copied = await copyIncludedFiles(
-			{
-				fs: this.#deps.platform.fs,
-				shell: this.#deps.platform.shell,
-				git: this.#deps.git,
-				repoConfig: this.#deps.repoConfig,
-			},
-			repo,
-			workspace,
-		);
-		if (!copied.ok) return this.#fail(workspace, copied.error);
-		warnings.push(...copied.value);
+		const placed =
+			workspace.host.kind === "cloud"
+				? await this.#placeInSandbox(workspace, workspace.host, repo)
+				: await this.#placeWorktree(workspace, repo, remote);
+		if (!placed.ok) return this.#fail(workspace, placed.error);
+		const warnings = placed.value;
 
 		const counted = await this.#countWorktreeFiles(workspace);
 		if (!counted.ok) return this.#fail(workspace, counted.error);
@@ -1017,6 +1048,124 @@ export class WorkspaceService {
 			);
 		}
 		return ok({ workspace: final.value, warnings });
+	}
+
+	/**
+	 * A Mac workspace's folder: the worktree when it is missing, its config, and the copy of the
+	 * repository's included files. Returns the warnings to show.
+	 */
+	async #placeWorktree(
+		workspace: Workspace,
+		repo: Repo,
+		remote: string,
+	): Promise<Result<string[]>> {
+		const warnings: string[] = [];
+		const exists = await this.#deps.platform.fs.exists(workspace.path);
+		if (!exists) {
+			const baseSha = this.#baseShas.get(workspace.id);
+			const created = await createWorktree(this.#deps.git, {
+				repoRootPath: repo.rootPath,
+				remote,
+				baseBranch: workspace.targetBranch,
+				newBranch: workspace.branch,
+				worktreePath: workspace.path,
+				allowLocalBase: repo.remoteUrl === null,
+				...(baseSha === undefined ? {} : { baseSha }),
+			});
+			if (!created.ok) return created;
+			if (created.value.warning !== null) warnings.push(created.value.warning);
+		}
+
+		const prepared = await prepareWorktree(this.#deps.git, {
+			repoRootPath: repo.rootPath,
+			worktreePath: workspace.path,
+			autoSetupUpstream: this.#deps.setting<boolean>("worktree_push_auto_setup_remote"),
+			fs: this.#deps.platform.fs,
+		});
+		if (!prepared.ok) return prepared;
+		if (prepared.value.warning !== null) warnings.push(prepared.value.warning);
+
+		const copied = await copyIncludedFiles(
+			{
+				fs: this.#deps.platform.fs,
+				shell: this.#deps.platform.shell,
+				git: this.#deps.git,
+				repoConfig: this.#deps.repoConfig,
+			},
+			repo,
+			workspace,
+		);
+		if (!copied.ok) return copied;
+		warnings.push(...copied.value);
+		return ok(warnings);
+	}
+
+	/**
+	 * A cloud workspace's folder (CLOUD-19): the sandbox is started, the project is cloned into the
+	 * workspace's folder when it is not there yet, the new branch is checked out when it is not the
+	 * current one, and the `.context` folder is kept out of git. The workspace's folder belongs to
+	 * its sandbox, so these git and file calls reach the Worker. Returns the warnings to show.
+	 */
+	async #placeInSandbox(
+		workspace: Workspace,
+		host: Extract<Host, { kind: "cloud" }>,
+		repo: Repo,
+	): Promise<Result<string[]>> {
+		const cloud = this.#deps.cloud;
+		if (cloud === undefined) return err(cloudCreateUnavailable());
+		const warnings: string[] = [];
+		const started = await startCloudWorkspace(cloud, host);
+		if (!started.ok) return started;
+
+		const fs = this.#deps.platform.fs;
+		const git = this.#deps.git;
+		const cwd = workspace.path;
+		const start = this.#cloudStarts.get(workspace.id) ?? {
+			fetch: null,
+			startPoint: `origin/${workspace.targetBranch}`,
+		};
+		if (!(await fs.exists(cwd))) {
+			const source = cloudRepositories([repo])[0];
+			if (source === undefined) return err(cloudRepoNotGithub());
+			const made = await fs.mkdirp(cwd);
+			if (!made.ok) return made;
+			const cloned = await git.runChecked(cloneWithProgress(source.cloneUrl, "."), { cwd });
+			if (!cloned.ok) return cloned;
+		}
+		const current = await git.stdout(branchShowCurrent(), { cwd });
+		if (!current.ok) return current;
+		if (current.value !== workspace.branch) {
+			if (start.fetch !== null) {
+				const fetched = await git.runChecked(fetch("origin", [start.fetch]), { cwd });
+				if (!fetched.ok) {
+					return err(
+						appError("pull_request_unavailable", "Could not load that pull request", fetched.error),
+					);
+				}
+			}
+			const checkedOut = await git.runChecked(
+				checkoutNewBranch(workspace.branch, start.startPoint),
+				{ cwd },
+			);
+			if (!checkedOut.ok) return checkedOut;
+		}
+		this.#cloudStarts.delete(workspace.id);
+
+		if (this.#deps.setting<boolean>("worktree_push_auto_setup_remote")) {
+			const upstream = await git.runChecked(configSet("push.autoSetupRemote", "true"), { cwd });
+			if (!upstream.ok) warnings.push(WORKTREE_CONFIG_SKIPPED_MESSAGE);
+		}
+		const context = await addContextFolder(git, { worktreePath: cwd, fs });
+		if (!context.ok) return context;
+		return ok(warnings);
+	}
+
+	/** The Worker and ids a cloud create needs, or the refusal when the project cannot go there. */
+	#cloudTarget(repo: Repo, url: string): Result<{ url: string; ids: IdSource }> {
+		if (cloudRepositories([repo]).length === 0) return err(cloudRepoNotGithub());
+		const ids = this.#deps.ids;
+		if (ids === undefined || this.#deps.cloud === undefined) return err(cloudCreateUnavailable());
+		return ok({ url, ids });
 	}
 
 	/** Counts the files in the new worktree with `git ls-files`, for the Setup tab (3.1). */

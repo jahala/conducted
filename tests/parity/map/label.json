@@ -3288,8 +3288,8 @@
 	},
 	"label:R11440532": {
 		"status": "decided",
-		"decision": "D025",
-		"note": "Conductor's hosted cloud computer. Our cloud is D018's, on the user's own account.",
+		"decision": "D127",
+		"note": "Built by CLOUD-19: when the paired Worker does not answer, the new-workspace page's action opens Connections, where the Worker is paired.",
 		"by": "hand"
 	},
 	"label:R11440860": {
