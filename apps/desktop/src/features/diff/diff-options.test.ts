@@ -8,7 +8,6 @@ import type { DiffPreferences } from "./diff-types.ts";
 
 const preferences: DiffPreferences = {
 	layout: "unified",
-	entireFile: false,
 	hideWhitespaceChanges: false,
 	wrapLines: false,
 	ligatures: true,
@@ -30,13 +29,13 @@ describe("REV-02 toDiffOptions", () => {
 		expect(options.overflow).toBe("scroll");
 	});
 
-	it("maps the entire file and whitespace preferences", () => {
+	it("maps the whitespace preference and keeps line numbers on", () => {
 		const options = toDiffOptions(
-			{ ...preferences, entireFile: true, hideWhitespaceChanges: true },
+			{ ...preferences, hideWhitespaceChanges: true },
 			{ name: "pierre-light", type: "light" },
 		);
-		expect(options.expandUnchanged).toBe(true);
 		expect(options.parseDiffOptions?.ignoreWhitespace).toBe(true);
+		expect(options.disableLineNumbers).toBe(false);
 	});
 
 	it("falls back to the renderer's matching default theme", () => {

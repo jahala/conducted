@@ -8,6 +8,8 @@
  * downloads Claude Code and Codex by itself at launch (PLAT-28); install and update actions on this
  * step are not built, so a missing program shows how to install it instead.
  * The sign-in state machine lives in `core/use-agent-login.ts` and is shared with Agents settings.
+ * A finished sign-in toasts Conductor's sentence ("Claude login successful." plus whether its idle
+ * chats were stopped) from the hook's `onSignedIn` callback.
  * Must handle: detection still running (a spinner per row); an agent installed but not signed in
  * (Sign in, then its instructions, code or link); none installed (instructions and Refresh); detection
  * fails (message and Retry); the version when it is known.
@@ -26,6 +28,7 @@ import { Button } from "../../ui/Button.tsx";
 import { Input } from "../../ui/Input.tsx";
 import { LoadableView } from "../../ui/LoadableView.tsx";
 import { Spinner } from "../../ui/Spinner.tsx";
+import { toast } from "../../ui/Toast.tsx";
 
 interface AgentSelection {
 	agent: AgentKind;
@@ -79,6 +82,7 @@ export function AgentStep() {
 	const { busyKey, login, code, setCode, start, finish, cancel, setLoginError } = useAgentLogin({
 		onRefresh: refresh,
 		onCancelFailed: (message) => setNotice(message),
+		onSignedIn: (message) => toast.success(message),
 	});
 
 	useEffect(() => {

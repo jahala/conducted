@@ -5,10 +5,13 @@ import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner, GitRunOptions } from "../git/runner.ts";
 import {
 	GithubService,
+	type MergedPullRequest,
+	mergedBranchDiffers,
 	type PrWorkspaceContext,
 	parseGithubPullRequest,
 	parseGraphqlBudget,
 	parsePrBatchAnswers,
+	stackHasOpenPullRequests,
 } from "./github.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
@@ -173,7 +176,7 @@ function fakeGit(options: FakeOptions = {}): FakeGit {
 function makeService(
 	git: GitRunner,
 	contextOf: (id: WorkspaceId) => Promise<Result<PrWorkspaceContext>> = async () => ok(context),
-	onMerged: (id: WorkspaceId, prNumber: number) => void = () => {},
+	onMerged: (id: WorkspaceId, merged: MergedPullRequest) => void = () => {},
 ): GithubService {
 	return new GithubService({
 		git,
@@ -612,6 +615,45 @@ describe("PR-03 live poll rules", () => {
 		await vi.advanceTimersByTimeAsync(20_000);
 		await flush();
 		expect(polls).toBe(1);
+	});
+});
+
+describe("PR-03 archive-on-merge signal", () => {
+	it("keeps a stack with open work and a single merged pull request apart", () => {
+		expect(stackHasOpenPullRequests([{ state: "open" }, { state: "merged" }])).toBe(true);
+		expect(stackHasOpenPullRequests([{ state: "draft" }])).toBe(true);
+		expect(stackHasOpenPullRequests([{ state: "merged" }, { state: "closed" }])).toBe(false);
+		expect(stackHasOpenPullRequests([])).toBe(false);
+	});
+
+	it("keeps the workspace when a failed stack read finds another branch merged", () => {
+		expect(mergedBranchDiffers("feature/other", "feature/mine")).toBe(true);
+		expect(mergedBranchDiffers("feature/mine", "feature/mine")).toBe(false);
+		expect(mergedBranchDiffers(null, "feature/mine")).toBe(false);
+	});
+
+	it("tells the container when a poll first sees the pull request merged", async () => {
+		const answers = [answer(prNode({ state: "OPEN" })), answer(prNode({ state: "MERGED" }))];
+		let index = 0;
+		const merged: MergedPullRequest[] = [];
+		const git = fakeGit({ graphql: () => output(answers[index++] ?? answers[1]) });
+		const service = makeService(
+			git,
+			async () => ok({ ...context, branch: "feature" }),
+			(_id, pullRequest) => merged.push(pullRequest),
+		);
+
+		await service.pollNow(workspaceId);
+		expect(merged).toEqual([]);
+
+		await service.pollNow(workspaceId);
+
+		expect(merged).toHaveLength(1);
+		expect(merged[0]).toEqual({
+			number: 4,
+			url: "https://github.com/o/r/pull/4",
+			stackHasOpenPrs: false,
+		});
 	});
 });
 

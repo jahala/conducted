@@ -59,18 +59,7 @@ const KNOWN_UNUSED_SETTINGS: readonly string[] = [
 ];
 
 /** Commands of a done feature that no handler or caller names yet. */
-const KNOWN_UNUSED_COMMANDS: readonly string[] = [
-	"terminal.clear",
-	"terminal.close",
-	"terminal.deleteLine",
-	"terminal.find",
-	"terminal.lineEnd",
-	"terminal.lineStart",
-	"terminal.new",
-	"terminal.newline",
-	"terminal.wordBack",
-	"terminal.wordForward",
-];
+const KNOWN_UNUSED_COMMANDS: readonly string[] = [];
 
 describe("registry entries are used", () => {
 	it("reads the status of a feature from the backlog", () => {

@@ -6,6 +6,9 @@
  * terminal" Cmd+W) and 3.2 (terminals can sit in the center, setting "Big terminal mode").
  * Data: useTerminalConnection(terminalId) gives the PTY stream, input, resize and saved history.
  * Children: TerminalSurface, TerminalFindBar, TerminalEndedBanner.
+ * Commands: terminal.new, terminal.close and terminal.find are registered here (RUN-06). They act
+ * only on the terminal that has focus, because hidden tabs and the centre surface stay mounted; the
+ * panel's keys call the same functions, and the seven keys xterm owns are in terminal-keys.ts.
  * Our design choice: in a centre terminal tab and in the Run tab the view is drawn by the app shell's
  * surface layer (NAV-15, app/surface-registry.tsx, ui-map.md 8), so it stays mounted while another
  * tab or workspace is open. The Scripts panel's Setup and Terminal N tabs mount it directly. Either way it still tolerates being unmounted and mounted again
@@ -26,6 +29,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useActions, useSetting, useTerminalConnection, useTerminals } from "../../core/hooks.ts";
 import type { TerminalConnection, TerminalUnsubscribe } from "../../core/model.ts";
 import { terminalLimit as limitForMode } from "../../core/terminals.ts";
@@ -200,6 +204,7 @@ export function TerminalView({
 	);
 
 	const resolved = useResolvedTerminalAppearance(appearance);
+	const rootRef = useRef<HTMLDivElement>(null);
 	const surfaceRef = useRef<TerminalSurfaceHandle>(null);
 	const [findOpen, setFindOpen] = useState(false);
 	const [query, setQuery] = useState("");
@@ -227,6 +232,28 @@ export function TerminalView({
 			: 0;
 	const limitReached = workspaceTerminals.state === "ready" && liveTerminals >= effectiveLimit;
 	const startNewAllowed = canStartNew ?? !limitReached;
+
+	// The three registry commands the terminal panel offers act on the terminal the user is in.
+	// Several terminal views stay mounted (a hidden tab, the centre surface), so a command invoked
+	// from the palette finds the focused one; a key press reaches this view's own key handler below.
+	const openFind = () => {
+		setFindOpen(true);
+		return true;
+	};
+	const startNewTerminal = () => {
+		if (!startNewAllowed || onNewTerminal === undefined) return false;
+		onNewTerminal();
+		return true;
+	};
+	const closeTerminal = () => {
+		if (onClose === undefined) return false;
+		onClose();
+		return true;
+	};
+	const ownsFocus = () => rootRef.current?.contains(document.activeElement) === true;
+	useCommandHandler("terminal.new", "area", () => (ownsFocus() ? startNewTerminal() : false));
+	useCommandHandler("terminal.close", "area", () => (ownsFocus() ? closeTerminal() : false));
+	useCommandHandler("terminal.find", "area", () => (ownsFocus() ? openFind() : false));
 
 	const restart = async () => {
 		const result = await actions.terminals.restart(terminalId);
@@ -297,17 +324,15 @@ export function TerminalView({
 		const meta = event.metaKey && !event.ctrlKey && !event.altKey;
 		if (meta && event.key.toLowerCase() === "f") {
 			event.preventDefault();
-			setFindOpen(true);
+			openFind();
 			return;
 		}
-		if (meta && event.key.toLowerCase() === "w" && onClose) {
-			event.preventDefault();
-			onClose();
+		if (meta && event.key.toLowerCase() === "w") {
+			if (closeTerminal()) event.preventDefault();
 			return;
 		}
-		if (meta && !event.shiftKey && event.key.toLowerCase() === "t" && onNewTerminal) {
-			event.preventDefault();
-			onNewTerminal();
+		if (meta && !event.shiftKey && event.key.toLowerCase() === "t") {
+			if (startNewTerminal()) event.preventDefault();
 			return;
 		}
 		if (event.key === "Escape" && findOpen) {
@@ -319,6 +344,7 @@ export function TerminalView({
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: xterm's textarea handles the keys; this catches the panel shortcuts that bubble out of it.
 		<div
+			ref={rootRef}
 			className="flex h-full min-h-0 w-full flex-col bg-canvas"
 			data-terminal-view={terminalId}
 			onKeyDown={handleKeyDown}

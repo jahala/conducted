@@ -4,8 +4,8 @@
  * the preview components.
  * Behaviour: ui-map.md 3.2 (previews for Markdown, SVG with "View raw SVG code" and "View rendered
  * SVG", images, PDF, CSV, video; "Preview unavailable").
- * Children: preview/MarkdownPreview, ImagePreview, SvgPreview, PdfPreview, CsvPreview,
- * VideoPreview, PreviewUnavailable.
+ * Children: CodeFileView (a text file with no richer preview), preview/MarkdownPreview,
+ * ImagePreview, SvgPreview, PdfPreview, CsvPreview, VideoPreview, PreviewUnavailable.
  * Must handle: a preview that fails to load (the preview's own error card, with Retry), a file
  * with no preview (the unavailable notice), a binary file with no URL the webview can load, and a
  * Markdown file's links: a web link opens in the browser, a relative link opens that workspace
@@ -28,6 +28,7 @@ import {
 	useWorkspace,
 } from "../../core/hooks.ts";
 import { toastError } from "../../ui/Toast.tsx";
+import { CodeFileView } from "./CodeFileView.tsx";
 import { FileTabState } from "./FileTabState.tsx";
 import { CsvPreview } from "./preview/CsvPreview.tsx";
 import { ImagePreview } from "./preview/ImagePreview.tsx";
@@ -149,9 +150,5 @@ export function FilePreviewPane({ workspaceId, path, onOpenFile }: FilePreviewPa
 			<CsvPreview text={data.text} delimiter={path.toLowerCase().endsWith(".tsv") ? "\t" : ","} />
 		);
 	}
-	return (
-		<pre className="h-full overflow-auto p-4 font-mono text-code text-fg">
-			<code>{data.text}</code>
-		</pre>
-	);
+	return <CodeFileView path={path} text={data.text} />;
 }

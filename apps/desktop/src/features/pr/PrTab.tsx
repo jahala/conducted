@@ -149,9 +149,9 @@ export function PrTab({ workspaceId }: { workspaceId: WorkspaceId }) {
 		if (!result.ok) {
 			setBlockedReason(result.error.message);
 			toastError("Couldn't merge the pull request", result.error);
-			return;
 		}
-		toast.success("Merged the pull request");
+		// The merged-and-archived toast belongs to the poll that sees the merge (PR-06), so this
+		// action says nothing on success, as Conductor's does.
 	};
 
 	const markReady = async () => {

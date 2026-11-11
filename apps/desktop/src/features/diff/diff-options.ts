@@ -6,9 +6,9 @@
  * the Shiki code theme setting).
  * Renderer reference (checked in node_modules/@pierre/diffs/dist): `FileDiffOptions` from
  * "@pierre/diffs/react" has diffStyle ("unified" or "split"), overflow ("scroll" or "wrap"),
- * expandUnchanged (boolean, the "Entire file" switch), theme, themeType, disableFileHeader, and
- * parseDiffOptions.ignoreWhitespace for hiding whitespace changes, and unsafeCSS (a style sheet
- * added inside the renderer; used to switch ligatures off when the setting is off).
+ * theme, themeType, disableLineNumbers, disableFileHeader, parseDiffOptions.ignoreWhitespace for
+ * hiding whitespace changes, and unsafeCSS (a style sheet added inside the renderer; used to switch
+ * ligatures off when the setting is off).
  * Must handle: ignoreWhitespace only applying when the diff is computed from the two texts (when
  * only a patch exists, the services must produce a whitespace-free patch instead). An empty theme
  * name, or "default", means the renderer's own default for the light or dark type.
@@ -35,11 +35,11 @@ export function toDiffOptions(
 	return {
 		diffStyle: preferences.layout === "split" ? "split" : "unified",
 		overflow: preferences.wrapLines ? "wrap" : "scroll",
-		expandUnchanged: preferences.entireFile,
 		theme:
 			theme.name.length > 0 && theme.name !== "default" ? theme.name : DEFAULT_THEMES[theme.type],
 		themeType: theme.type,
 		disableFileHeader: true,
+		disableLineNumbers: false,
 		...(preferences.ligatures ? {} : { unsafeCSS: NO_LIGATURES_CSS }),
 		parseDiffOptions: { ignoreWhitespace: preferences.hideWhitespaceChanges },
 	};

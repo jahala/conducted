@@ -15,11 +15,14 @@
  * Must handle: root path and workspaces path shown read-only with the warning not to move them; an
  * ordered list of preview URL templates, each with an optional name and a URL validated with the
  * workspace port variable, saved 500 ms after the last edit, with add, remove and move up or down;
- * files to copy as patterns; and removal that also removes workspaces (confirm with the count). The
- * icon row shows the current avatar and opens the Change repository icon picker (PRJ-05).
+ * files to copy as patterns; and removal that also removes workspaces (confirm with the count).
+ * A removed repository toasts "Repository removed successfully" and opens the user Git settings,
+ * replacing the current history entry, as Conductor does (renderApp @11298112). The icon row shows
+ * the current avatar and opens the Change repository icon picker (PRJ-05).
  * Test first: removing a repository with two workspaces asks for confirmation naming the count.
  */
 import type { RepoId } from "@conducted/shared";
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import {
 	useActions,
@@ -38,7 +41,7 @@ import { Input } from "../../../ui/Input.tsx";
 import { ArrowDownIcon, ArrowUpIcon, PlusIcon, TrashIcon } from "../../../ui/icons.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
-import { toastError } from "../../../ui/Toast.tsx";
+import { toast, toastError } from "../../../ui/Toast.tsx";
 import { RepoIconAvatar } from "../../sidebar/RepoIcon.tsx";
 import { RepoIconPicker } from "../../sidebar/RepoIconPicker.tsx";
 import { FilesToCopyField } from "./FilesToCopyField.tsx";
@@ -78,6 +81,7 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 	const workspaces = useWorkspaces();
 	const rootPath = useSetting<string>("conductor_root_path");
 	const actions = useActions();
+	const navigate = useNavigate();
 	const nextRowId = useRef(0);
 	const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const lastSaved = useRef<string | null>(null);
@@ -382,6 +386,12 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 												toastError("Couldn't remove the repository", removed.error);
 												return false;
 											}
+											toast.success("Repository removed successfully");
+											void navigate({
+												to: "/settings/user/$page",
+												params: { page: "git" },
+												replace: true,
+											});
 											return true;
 										}}
 									/>

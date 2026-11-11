@@ -1,10 +1,18 @@
-import { ok } from "@conducted/shared";
+import { appError, err, ok } from "@conducted/shared";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { AgentProgramView } from "../../../core/model.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
+import { toast } from "../../../ui/Toast.tsx";
 import { AdvancedPage } from "./AdvancedPage.tsx";
+
+const navigate = vi.hoisted(() => vi.fn());
+
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@tanstack/react-router")>()),
+	useNavigate: () => navigate,
+}));
 
 const claude: AgentProgramView = {
 	status: {
@@ -25,6 +33,8 @@ let test: TestContainer | undefined;
 
 afterEach(() => {
 	cleanup();
+	vi.restoreAllMocks();
+	navigate.mockReset();
 	test?.close();
 	test = undefined;
 });
@@ -222,6 +232,89 @@ describe("SET-02 AdvancedPage", () => {
 		expect(install).toHaveBeenCalledWith("cursor");
 	});
 
+	it("toasts Installed <name>. when an agent program installs, as Conductor does", async () => {
+		const mounted = await mountPage();
+		const success = vi.spyOn(toast, "success");
+		act(() => {
+			mounted.container.services.system.store.setState({
+				programs: {
+					state: "ready",
+					data: [
+						{
+							...claude,
+							status: { ...claude.status, state: "missing", version: null, path: null },
+						},
+					],
+				},
+			});
+		});
+
+		fireEvent.click(await screen.findByRole("button", { name: "Install" }));
+
+		await waitFor(() => expect(success).toHaveBeenCalledWith("Installed Claude Code."));
+	});
+
+	it("says Failed to install <name>: <reason> when an install fails, as Conductor does", async () => {
+		const mounted = await mountPage();
+		const failure = vi.spyOn(toast, "error");
+		vi.spyOn(mounted.container.platform.programs, "install").mockResolvedValue(
+			err(appError("program_install_failed", "The download was interrupted.")),
+		);
+		act(() => {
+			mounted.container.services.system.store.setState({
+				programs: {
+					state: "ready",
+					data: [
+						{
+							...claude,
+							status: { ...claude.status, state: "missing", version: null, path: null },
+						},
+					],
+				},
+			});
+		});
+
+		fireEvent.click(await screen.findByRole("button", { name: "Install" }));
+
+		await waitFor(() =>
+			expect(failure).toHaveBeenCalledWith(
+				"Failed to install Claude Code: The download was interrupted.",
+			),
+		);
+	});
+
+	it("toasts Installed <name>. when a helper program installs, as Conductor does", async () => {
+		const mounted = await mountPage();
+		const success = vi.spyOn(toast, "success");
+		act(() => {
+			mounted.container.services.system.store.setState({
+				helpers: {
+					state: "ready",
+					data: [
+						{
+							status: {
+								program: "gh",
+								state: "missing",
+								version: null,
+								bytesDownloaded: 0,
+								bytesTotal: null,
+								attempt: 0,
+								nextAttemptAt: null,
+								error: null,
+								path: null,
+							},
+							userPath: null,
+						},
+					],
+				},
+			});
+		});
+
+		fireEvent.click(await screen.findByRole("button", { name: "Install" }));
+
+		await waitFor(() => expect(success).toHaveBeenCalledWith("Installed GitHub CLI (gh)."));
+	});
+
 	it("D088 shows a failed helper program with Retry, so the app never falls back to PATH", async () => {
 		const mounted = await mountPage();
 		const install = vi.spyOn(mounted.container.platform.programs, "install");
@@ -335,6 +428,32 @@ describe("SET-02 AdvancedPage", () => {
 });
 
 describe("SET-02 AdvancedPage root path dialog", () => {
+	it("reloads chats and refreshes projects and workspaces, then goes Home", async () => {
+		const mounted = await mountPage();
+		vi.spyOn(mounted.container.actions.app, "pickFolder").mockResolvedValue(ok("/work/new"));
+		const reloadChats = vi
+			.spyOn(mounted.container.services.sessions, "start")
+			.mockResolvedValue(ok(undefined));
+		const refreshRepos = vi
+			.spyOn(mounted.container.services.repo, "start")
+			.mockResolvedValue(ok(undefined));
+		const refreshWorkspaces = vi
+			.spyOn(mounted.container.services.workspace, "start")
+			.mockResolvedValue(ok(undefined));
+		const success = vi.spyOn(toast, "success");
+
+		fireEvent.click(await screen.findByRole("button", { name: "Browse" }));
+		fireEvent.click(await screen.findByRole("button", { name: "Change root path" }));
+
+		await waitFor(() =>
+			expect(success).toHaveBeenCalledWith("Conducted root path changed successfully"),
+		);
+		expect(reloadChats).toHaveBeenCalledTimes(1);
+		expect(refreshRepos).toHaveBeenCalledTimes(1);
+		expect(refreshWorkspaces).toHaveBeenCalledTimes(1);
+		expect(navigate).toHaveBeenCalledWith({ to: "/" });
+	});
+
 	it("names the old and new root path, as Conductor's dialog does", async () => {
 		const mounted = await mountPage();
 		await mounted.container.actions.settings.set("conductor_root_path", "/work/old");

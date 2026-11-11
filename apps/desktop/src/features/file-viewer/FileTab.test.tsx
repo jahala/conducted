@@ -226,3 +226,41 @@ describe("REV-08 FileTab", () => {
 		}
 	});
 });
+
+describe("REV-08 FileTab code view", () => {
+	it("shows a coloured, line-numbered Entire file for a Rust file", async () => {
+		const test = createTestContainer();
+		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+		try {
+			const workspace = await seedWorkspace(test.container, {
+				path: "/code/workspaces/tab-rust",
+			});
+			await test.container.platform.fs.writeTextAtomic(
+				`${workspace.path}/src/main.rs`,
+				"fn main() {\n    let count = 1;\n}",
+			);
+			render(
+				<FileTab
+					workspaceId={workspace.id}
+					path="src/main.rs"
+					mode="edit"
+					scope={{ kind: "branch" }}
+				/>,
+				{ wrapper: wrapper(test.container, client) },
+			);
+			fireEvent.click(await screen.findByRole("button", { name: "Entire file" }));
+			await waitFor(
+				() => {
+					const host = document.querySelector("diffs-container");
+					const html = host?.shadowRoot?.innerHTML ?? "";
+					expect(html).toContain("var(--color-code-keyword)");
+					expect(html).toContain("data-line-number-content");
+				},
+				{ timeout: 8_000 },
+			);
+		} finally {
+			client.clear();
+			test.close();
+		}
+	}, 20_000);
+});

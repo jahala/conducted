@@ -18,6 +18,7 @@ const settings = vi.hoisted(() => ({
 	group: "repo",
 	sort: "updated",
 	filter: "",
+	collapsed: false,
 	set: vi.fn(() => Promise.resolve({ ok: true })),
 }));
 
@@ -25,6 +26,7 @@ vi.mock("../../core/hooks.ts", () => ({
 	useSetting: (key: string) => {
 		if (key === "sidebar_group_by") return settings.group;
 		if (key === "sidebar_sort_by") return settings.sort;
+		if (key === "sidebar_my_workspaces_collapsed") return settings.collapsed;
 		return settings.filter;
 	},
 	useActions: () => ({
@@ -80,6 +82,7 @@ beforeEach(() => {
 	settings.group = "repo";
 	settings.sort = "updated";
 	settings.filter = "";
+	settings.collapsed = false;
 	settings.set.mockClear();
 });
 
@@ -215,14 +218,42 @@ describe("NAV-03 GroupedWorkspaces", () => {
 		expect(screen.getByRole("region", { name: "In progress" })).toBeTruthy();
 	});
 
-	it("shows the empty note when no project matches the filter", async () => {
+	it("shows the filtered project's empty group with its + instead of the empty note", async () => {
 		settings.group = "repo";
 		settings.filter = "api";
 		renderWithRouter(
 			<GroupedWorkspaces repos={[repo("app"), repo("api")]} workspaces={[workspace("one")]} />,
 		);
-		expect(await screen.findByText("No matching workspaces")).toBeTruthy();
+		const api = await screen.findByRole("region", { name: "api" });
+		expect(within(api).getByRole("link", { name: "Create workspace in api" })).toBeTruthy();
+		expect(within(api).queryByTestId("workspace-row")).toBeNull();
+		expect(screen.queryByText("No matching workspaces")).toBeNull();
 		settings.filter = "";
+	});
+
+	it("shows the empty note when a filter leaves no status group", async () => {
+		settings.group = "status";
+		settings.filter = "api";
+		renderWithRouter(
+			<GroupedWorkspaces repos={[repo("app"), repo("api")]} workspaces={[workspace("one")]} />,
+		);
+		expect(await screen.findByText("No matching workspaces")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Clear filter" })).toBeTruthy();
+		settings.filter = "";
+	});
+
+	it("keeps a project's group and its + when its last workspace is archived", async () => {
+		renderWithRouter(
+			<GroupedWorkspaces
+				repos={[repo("app"), repo("api")]}
+				workspaces={[workspace("one", { state: "archived", archivedAt: 1 })]}
+			/>,
+		);
+		const app = await screen.findByRole("region", { name: "app" });
+		const api = screen.getByRole("region", { name: "api" });
+		expect(within(app).queryByTestId("workspace-row")).toBeNull();
+		expect(within(app).getByRole("link", { name: "Create workspace in app" })).toBeTruthy();
+		expect(within(api).getByRole("link", { name: "Create workspace in api" })).toBeTruthy();
 	});
 
 	it("puts the project header and its + action in one row above the workspaces", async () => {

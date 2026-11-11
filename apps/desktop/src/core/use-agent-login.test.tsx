@@ -5,13 +5,14 @@
  * Test first: a second start that finishes first keeps its panel when the first start answers
  * later, and the first sign-in is cancelled.
  */
-import type { AgentLogin } from "@conducted/protocol";
+import { type AgentLogin, idleLiveState } from "@conducted/protocol";
 import { appError, err, ok, type Result } from "@conducted/shared";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestContainer, type TestContainer } from "../test/container.ts";
 import { ServicesProvider } from "./context.tsx";
+import { sampleSession, sampleWorkspace, sessionId } from "./db/test-fixtures.ts";
 import { type UseAgentLoginOptions, useAgentLogin } from "./use-agent-login.ts";
 
 afterEach(cleanup);
@@ -152,6 +153,78 @@ describe("APP-02 shared agent sign-in", () => {
 
 			expect(result.current.login?.error).toBe("The code expired.");
 			expect(result.current.login?.finishing).toBe(false);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("says Claude signed in and restarts Claude's idle local chats", async () => {
+		const test = createTestContainer();
+		test.container.services.workspace.store.setState({
+			loaded: true,
+			workspacesById: { [sampleWorkspace.id]: sampleWorkspace },
+		});
+		test.container.services.sessions.store.setState({
+			sessions: { [sessionId]: sampleSession },
+			byWorkspace: {},
+			liveStates: { [sessionId]: idleLiveState },
+		});
+		const restart = vi
+			.spyOn(test.container.services.sessions, "restartAgent")
+			.mockResolvedValue(ok(undefined));
+		vi.spyOn(test.container.services.agentCatalog, "login").mockResolvedValue(ok(flow("claude-1")));
+		vi.spyOn(test.container.services.agentCatalog, "finishLogin").mockResolvedValue(
+			ok({ outcome: "signed_in", message: null }),
+		);
+		const onSignedIn = vi.fn();
+		try {
+			const { result } = renderLogin(test, { onSignedIn });
+			await act(async () => {
+				await result.current.start({ agent: "claude" });
+			});
+			await act(async () => {
+				await result.current.finish("claude-1", "123-456");
+			});
+
+			await waitFor(() => expect(restart).toHaveBeenCalledWith(sessionId));
+			expect(onSignedIn).toHaveBeenCalledWith(
+				"Claude login successful. Idle sessions were stopped automatically.",
+			);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("leaves a working chat alone and says so without the idle sentence", async () => {
+		const test = createTestContainer();
+		test.container.services.workspace.store.setState({
+			loaded: true,
+			workspacesById: { [sampleWorkspace.id]: sampleWorkspace },
+		});
+		test.container.services.sessions.store.setState({
+			sessions: { [sessionId]: sampleSession },
+			byWorkspace: {},
+			liveStates: { [sessionId]: { ...idleLiveState, status: "working" } },
+		});
+		const restart = vi
+			.spyOn(test.container.services.sessions, "restartAgent")
+			.mockResolvedValue(ok(undefined));
+		vi.spyOn(test.container.services.agentCatalog, "login").mockResolvedValue(ok(flow("claude-1")));
+		vi.spyOn(test.container.services.agentCatalog, "finishLogin").mockResolvedValue(
+			ok({ outcome: "signed_in", message: null }),
+		);
+		const onSignedIn = vi.fn();
+		try {
+			const { result } = renderLogin(test, { onSignedIn });
+			await act(async () => {
+				await result.current.start({ agent: "claude" });
+			});
+			await act(async () => {
+				await result.current.finish("claude-1", "123-456");
+			});
+
+			expect(restart).not.toHaveBeenCalled();
+			expect(onSignedIn).toHaveBeenCalledWith("Claude login successful.");
 		} finally {
 			test.close();
 		}

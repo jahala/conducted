@@ -24,7 +24,8 @@
  * being archived, sends the route Home instead of drawing a dead screen (an archived workspace stays open
  * read-only, as in Conductor); a bare workspace address reopens that workspace's
  * stored chat tab; "/" reopens the last workspace route and falls back to a ready one; the Go back and Go
- * forward commands follow the same history as the window buttons.
+ * forward commands follow the same history as the window buttons; closing diagnostics goes back to the
+ * previous screen, as Conductor's `diagnostics.close` does.
  * Test first: navigating to /all-workspaces renders the Home screen area; "/" renders the centre empty state.
  */
 import type { RepoId, SessionId, WorkspaceId } from "@conducted/shared";
@@ -70,8 +71,10 @@ import { NotFoundScreen, RouteErrorScreen } from "./route-states.tsx";
 
 /**
  * The window controls' keyboard shortcuts, which follow the same history the buttons use, and the
- * root shortcuts that open a full page: Cmd+Shift+N the new workspace page, Cmd+, Settings. Cmd+Q
- * (and Quit in the palette) quits the way the menu's Quit does, asking first while agents work.
+ * root shortcuts that open a full page: Cmd+Shift+N the new workspace page, Cmd+N Create, Cmd+, Settings,
+ * Cmd+Shift+H Home, and the palette's View archived workspaces (Home with Only archived, via
+ * `?archived=1`). Cmd+Q (and Quit in the palette) quits the way the menu's Quit does, asking first
+ * while agents work.
  */
 function NavigationShortcuts() {
 	const router = useRouter();
@@ -84,7 +87,7 @@ function NavigationShortcuts() {
 	});
 	useCommandHandler("app.closeDiagnostics", "base", () => {
 		if (pathname !== "/diagnostics") return false;
-		void navigate({ to: "/" });
+		router.history.back();
 		return true;
 	});
 	useCommandHandler("nav.back", "base", () => {
@@ -97,6 +100,20 @@ function NavigationShortcuts() {
 	});
 	useCommandHandler("workspace.createFromSource", "base", () => {
 		void navigate({ to: "/create" });
+		return true;
+	});
+	useCommandHandler("workspace.create", "base", () => {
+		void navigate({ to: "/create" });
+		return true;
+	});
+	useCommandHandler("nav.home", "base", () => {
+		void navigate({ to: "/all-workspaces" });
+		return true;
+	});
+	// Conductor's handler sets the Home view's showArchived flag and clears its search (renderApp
+	// @11366783). The flag travels in the URL, so it works whether Home is open already or not.
+	useCommandHandler("nav.viewArchived", "base", () => {
+		void navigate({ to: "/all-workspaces", search: { archived: "1" } });
 		return true;
 	});
 	useCommandHandler("app.openSettings", "base", () => {
@@ -202,16 +219,38 @@ function SessionRouteRepair({
 	sessionId: string;
 }) {
 	const { services } = useServices();
-	const navigate = useNavigate();
+	const navigate = workspaceRoute.useNavigate();
 	const state = useStore(services.sessions.store, (value) => value);
+	const workspaceState = useStore(services.workspace.store, (value) => value);
 
 	useEffect(() => {
 		if (!state.loaded) return;
 		const session = state.sessions[sessionId];
 		if (session === undefined || session.workspaceId !== workspaceId) {
 			void navigate({ to: "/all-workspaces", replace: true });
+			return;
 		}
-	}, [navigate, sessionId, state, workspaceId]);
+		// A chat that was closed must not stay on screen. Conductor opens the chat that became
+		// active; with none, the empty tab group shows.
+		if (session.closedAt === null) return;
+		const active = workspaceState.workspacesById[workspaceId]?.activeSessionId ?? null;
+		const activeOpen = active === null ? undefined : state.sessions[active];
+		if (active !== null && active !== sessionId && activeOpen?.closedAt === null) {
+			void navigate({
+				search: (previous) => ({ ...previous, tab: "session", sessionId: active }),
+				replace: true,
+			});
+			return;
+		}
+		void navigate({
+			search: (previous) => ({
+				...previous,
+				tab: undefined,
+				sessionId: undefined,
+			}),
+			replace: true,
+		});
+	}, [navigate, sessionId, state, workspaceId, workspaceState]);
 
 	return null;
 }
@@ -275,12 +314,18 @@ const workspaceRoute = createRoute({
 			if (!workspaceState.loaded || workspace === undefined) return;
 			if (!canShowWorkspaceRoute(workspace)) return;
 			if (search.tab !== undefined || workspace.activeSessionId === null) return;
+			// A chat that is closed is not reopened: the close path has already chosen its replacement.
+			const sessionsState = services.sessions.store.getState();
+			if (sessionsState.loaded) {
+				const stored = sessionsState.sessions[workspace.activeSessionId];
+				if (stored !== undefined && stored.closedAt !== null) return;
+			}
 			const sessionId = workspace.activeSessionId;
 			void navigate({
 				search: (previous) => ({ ...previous, tab: "session", sessionId }),
 				replace: true,
 			});
-		}, [navigate, search.tab, workspace, workspaceState.loaded]);
+		}, [navigate, search.tab, services, workspace, workspaceState.loaded]);
 
 		// Keep the stored chat tab current as the user moves between tabs.
 		useEffect(() => {
@@ -290,6 +335,9 @@ const workspaceRoute = createRoute({
 			if (state.loaded) {
 				const session = state.sessions[search.sessionId];
 				if (session === undefined || session.workspaceId !== workspaceId) return;
+				// A closed chat never becomes the remembered tab: the close path already chose the
+				// next one, and this effect would put the closed chat back while the URL still names it.
+				if (session.closedAt !== null) return;
 			}
 			void actions.workspaces.setActiveSession(
 				workspaceId as WorkspaceId,
@@ -317,9 +365,15 @@ const workspaceRoute = createRoute({
 	},
 });
 
+const zHomeSearch = z.object({
+	/** The nav.viewArchived intent: open Home with the archive filter on "Only archived". */
+	archived: z.literal("1").optional().catch(undefined),
+});
+
 const homeRoute = createRoute({
 	getParentRoute: () => mainLayoutRoute,
 	path: "/all-workspaces",
+	validateSearch: zHomeSearch,
 	component: () => (
 		<NotBuiltYet area="Home">
 			<HomeScreen />
