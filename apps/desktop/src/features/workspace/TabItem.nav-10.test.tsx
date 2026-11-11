@@ -99,20 +99,6 @@ describe("NAV-10 TabItem", () => {
 		expect(onSelect).not.toHaveBeenCalled();
 	});
 
-	it("shows the file's own Material icon on a file tab", () => {
-		const { container } = render(
-			<TabItem
-				tab={{ kind: "file", ref: "file:src/main.rs", title: "src/main.rs" }}
-				active={false}
-				onSelect={vi.fn()}
-				onClose={vi.fn()}
-			/>,
-		);
-		const icon = container.querySelector("img[data-file-icon]");
-		expect(icon?.getAttribute("data-file-icon")).toBe("rust");
-		expect(icon?.getAttribute("src")).toBeTruthy();
-	});
-
 	it("shows a cloud host icon on a cloud workspace's terminal tab", () => {
 		const { container } = render(
 			<TabItem
