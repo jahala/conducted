@@ -30,11 +30,11 @@ describe("REV-06 file tree row", () => {
 	it("chooses the file icon from the file type", () => {
 		const view = render(<FileTreeRow {...row()} />);
 		const icon = view.container.querySelector("[data-file-icon]");
-		expect(icon?.getAttribute("data-kind")).toBe("typescript");
+		expect(icon?.getAttribute("data-kind")).toBe("code");
 
 		view.rerender(<FileTreeRow {...row({ name: "README.md", path: "README.md" })} />);
 		expect(view.container.querySelector("[data-file-icon]")?.getAttribute("data-kind")).toBe(
-			"markdown",
+			"document",
 		);
 	});
 
