@@ -63,7 +63,7 @@ async function open(browser: Browser, url: string, state: string): Promise<Page>
 
 /** The element's text, or empty when it has gone; only a check's detail, never a pass condition. */
 async function text(locator: Locator): Promise<string> {
-	return locator.textContent({ timeout: 2_000 }).catch(() => "");
+	return locator.textContent({ timeout: 2_000 }).then((value) => value ?? "", () => "");
 }
 
 /** The point at the middle of an element. */
