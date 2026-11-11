@@ -4,12 +4,14 @@
  * branch, and by the header to change the workspace's target branch (GIT-08).
  * Behaviour: ui-map.md 3.6 ("Select target branch..."); services-map.md 3.6.6 (remote branch list,
  * newest first, without HEAD) and 3.11 (retarget).
- * Must handle: loading the branch list (it fetches), a list that failed to load (the error's own
- * message shows), no match for the query, and the current target marked. Branches checked out in
- * another worktree and cached remote branches while offline come with GIT-08.
+ * Must handle: loading the branch list (it fetches), a list that failed to load ("Couldn't load
+ * branches." with Try again), no branch for the query ("No branch found."), and the current target
+ * marked. Branches checked out in another worktree and cached remote branches while offline come
+ * with GIT-08.
  * Test first: typing "rel" narrows ["main", "release/1"] to the second entry.
  */
 import { useId, useState } from "react";
+import { Button } from "../../../ui/Button.tsx";
 import { SearchIcon } from "../../../ui/icons.tsx";
 import { menuItemClass } from "../../../ui/Menu.tsx";
 
@@ -20,6 +22,8 @@ export interface TargetBranchPickerProps {
 	loading: boolean;
 	/** Why the list could not be loaded, or null. */
 	error: string | null;
+	/** Loads the list again after a failure; without it the error shows no Try again button. */
+	onRetry?: () => void;
 }
 
 export function TargetBranchPicker({
@@ -28,6 +32,7 @@ export function TargetBranchPicker({
 	onSelect,
 	loading,
 	error,
+	onRetry,
 }: TargetBranchPickerProps) {
 	const [query, setQuery] = useState("");
 	const listId = useId();
@@ -50,9 +55,16 @@ export function TargetBranchPicker({
 				/>
 			</div>
 			{error !== null ? (
-				<p role="alert" className="px-2 pt-2 text-xs text-danger">
-					Couldn't load the branches. {error}
-				</p>
+				<div className="flex flex-col items-center gap-2 px-2 pt-2">
+					<p role="alert" className="text-sm text-fg-muted">
+						Couldn't load branches.
+					</p>
+					{onRetry === undefined ? null : (
+						<Button variant="outline" size="sm" onClick={onRetry}>
+							Try again
+						</Button>
+					)}
+				</div>
 			) : null}
 			<div
 				id={listId}
@@ -62,10 +74,10 @@ export function TargetBranchPicker({
 			>
 				{loading ? (
 					<p role="status" className="px-2 py-2 text-sm text-fg-subtle">
-						Loading branches
+						Loading branches...
 					</p>
 				) : error !== null ? null : matches.length === 0 ? (
-					<p className="px-2 py-2 text-sm text-fg-muted">No branches match</p>
+					<p className="px-2 py-2 text-sm text-fg-muted">No branch found.</p>
 				) : (
 					matches.map((branch) => (
 						<button
