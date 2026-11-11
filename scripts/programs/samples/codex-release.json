@@ -1,0 +1,23 @@
+{
+	"tag_name": "rust-v0.167.1",
+	"assets": [
+		{
+			"name": "codex-aarch64-apple-darwin.zst",
+			"size": 77535807,
+			"digest": "sha256:c4c2695799c9d9d3681dfcb58d4ff5e8b383c0e92c984096cbb616376faeb2b8",
+			"browser_download_url": "https://github.com/openai/codex/releases/download/rust-v0.167.1/codex-aarch64-apple-darwin.zst"
+		},
+		{
+			"name": "codex-x86_64-apple-darwin.zst",
+			"size": 84943319,
+			"digest": "sha256:0168963577ca59779cb7ff9e00bfd08e7c7fcd6ef7d6b8609a684c7f89a730b5",
+			"browser_download_url": "https://github.com/openai/codex/releases/download/rust-v0.167.1/codex-x86_64-apple-darwin.zst"
+		},
+		{
+			"name": "codex-x86_64-unknown-linux-musl.tar.gz",
+			"size": 122650782,
+			"digest": "sha256:64bcc99c32e434b4bcb0508a97df9b7aeecdb97e956d976fb13661096ec4e3e2",
+			"browser_download_url": "https://github.com/openai/codex/releases/download/rust-v0.167.1/codex-x86_64-unknown-linux-musl.tar.gz"
+		}
+	]
+}
