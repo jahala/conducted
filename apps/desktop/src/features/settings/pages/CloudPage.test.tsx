@@ -47,10 +47,58 @@ async function mountPage(settings: { current: unknown } | null) {
 }
 
 describe("CLOUD-17 CloudPage", () => {
-	it("says how to pair a Mac that has no Worker", async () => {
+	it("offers Deploy and Pair on an unpaired Mac, without sending it to Connections", async () => {
 		await mountPage(null);
-		expect(await screen.findByText("No Worker is paired")).toBeTruthy();
-		expect(screen.getByText(/Connections page/)).toBeTruthy();
+		expect(await screen.findByText("Not paired")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Deploy to Cloudflare" })).toBeTruthy();
+		expect(screen.getByLabelText("Worker URL")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Pair" })).toBeTruthy();
+		expect(screen.queryByText(/Connections page/)).toBeNull();
+	});
+
+	it("pairs with a Worker URL and a token, then unpairs", async () => {
+		const test = await mountPage(null);
+		fireEvent.change(screen.getByLabelText("Worker URL"), {
+			target: { value: "https://conducted.example.workers.dev/" },
+		});
+		fireEvent.change(screen.getByLabelText("Pairing token"), {
+			target: { value: "32-random-bytes" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Pair" }));
+
+		expect(
+			await screen.findByText("Paired with https://conducted.example.workers.dev."),
+		).toBeTruthy();
+		expect((await test.container.platform.cloud.status()).ok).toBe(true);
+
+		fireEvent.click(screen.getByRole("button", { name: "Unpair" }));
+		expect(await screen.findByText("Not paired")).toBeTruthy();
+	});
+
+	it("shows why a Worker URL was refused and does not pair", async () => {
+		const test = await mountPage(null);
+		fireEvent.change(screen.getByLabelText("Worker URL"), {
+			target: { value: "http://conducted.example.workers.dev" },
+		});
+		fireEvent.change(screen.getByLabelText("Pairing token"), {
+			target: { value: "32-random-bytes" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Pair" }));
+
+		expect(await screen.findByText("A Worker URL must be https and name a host.")).toBeTruthy();
+		const status = await test.container.platform.cloud.status();
+		expect(status.ok && status.value.paired).toBe(false);
+	});
+
+	it("deploys the app's Worker and pairs this Mac", async () => {
+		const test = await mountPage(null);
+		fireEvent.click(screen.getByRole("button", { name: "Deploy to Cloudflare" }));
+
+		expect(
+			await screen.findByText("Paired with https://conducted-cloud.example.workers.dev."),
+		).toBeTruthy();
+		expect(test.memory.controls.cloudDeploys).toEqual([{}]);
+		expect((await test.container.platform.cloud.status()).ok).toBe(true);
 	});
 
 	it("lists the Worker's personal variables and saves a new one", async () => {
