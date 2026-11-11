@@ -17,8 +17,9 @@
  * programs and of Cursor's SDK (AGENT-09, installed only from here, D083), with Install or Retry,
  * Re-download and Remove. PLAT-35 adds a Helper programs section for gh and watchexec, kept apart
  * from the agent programs, so a failed or missing download of either shows its error and Retry
- * here instead of running a copy on PATH (D088). The programs themselves are downloaded and
- * verified by the system service, not by this page.
+ * here instead of running a copy on PATH (D088). A successful install toasts "Installed <name>.",
+ * as Conductor does (renderApp @10982892); Re-download and Remove have no success toast there. The
+ * programs themselves are downloaded and verified by the system service, not by this page.
  */
 import type { ManagedProgram, Result } from "@conducted/shared";
 import { useState } from "react";
@@ -158,11 +159,19 @@ function AgentBinaries() {
 	const actions = useActions();
 	const [busy, setBusy] = useState<ManagedProgram | null>(null);
 
-	const run = async (program: ManagedProgram, action: () => Promise<Result<void>>) => {
+	const run = async (
+		program: ManagedProgram,
+		action: () => Promise<Result<void>>,
+		successMessage?: string,
+	) => {
 		setBusy(program);
 		const result = await action();
 		setBusy(null);
-		if (!result.ok) toastError("Couldn't update the agent program", result.error);
+		if (!result.ok) {
+			toastError("Couldn't update the agent program", result.error);
+			return;
+		}
+		if (successMessage !== undefined) toast.success(successMessage);
 	};
 
 	return (
@@ -190,7 +199,11 @@ function AgentBinaries() {
 							view={view}
 							busy={busy === view.status.program}
 							onInstall={() =>
-								void run(view.status.program, () => actions.programs.install(view.status.program))
+								void run(
+									view.status.program,
+									() => actions.programs.install(view.status.program),
+									`Installed ${PROGRAM_DISPLAY_NAMES[view.status.program]}.`,
+								)
 							}
 							onRedownload={() =>
 								void run(view.status.program, () =>
@@ -218,11 +231,19 @@ function HelperPrograms() {
 	const actions = useActions();
 	const [busy, setBusy] = useState<ManagedProgram | null>(null);
 
-	const run = async (program: ManagedProgram, action: () => Promise<Result<void>>) => {
+	const run = async (
+		program: ManagedProgram,
+		action: () => Promise<Result<void>>,
+		successMessage?: string,
+	) => {
 		setBusy(program);
 		const result = await action();
 		setBusy(null);
-		if (!result.ok) toastError("Couldn't update the helper program", result.error);
+		if (!result.ok) {
+			toastError("Couldn't update the helper program", result.error);
+			return;
+		}
+		if (successMessage !== undefined) toast.success(successMessage);
 	};
 
 	return (
@@ -249,7 +270,11 @@ function HelperPrograms() {
 							view={view}
 							busy={busy === view.status.program}
 							onInstall={() =>
-								void run(view.status.program, () => actions.programs.install(view.status.program))
+								void run(
+									view.status.program,
+									() => actions.programs.install(view.status.program),
+									`Installed ${PROGRAM_DISPLAY_NAMES[view.status.program]}.`,
+								)
 							}
 							onRedownload={() =>
 								void run(view.status.program, () =>

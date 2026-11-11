@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { AgentProgramView } from "../../../core/model.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
+import { toast } from "../../../ui/Toast.tsx";
 import { AdvancedPage } from "./AdvancedPage.tsx";
 
 const claude: AgentProgramView = {
@@ -25,6 +26,7 @@ let test: TestContainer | undefined;
 
 afterEach(() => {
 	cleanup();
+	vi.restoreAllMocks();
 	test?.close();
 	test = undefined;
 });
@@ -220,6 +222,60 @@ describe("SET-02 AdvancedPage", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Install" }));
 
 		expect(install).toHaveBeenCalledWith("cursor");
+	});
+
+	it("toasts Installed <name>. when an agent program installs, as Conductor does", async () => {
+		const mounted = await mountPage();
+		const success = vi.spyOn(toast, "success");
+		act(() => {
+			mounted.container.services.system.store.setState({
+				programs: {
+					state: "ready",
+					data: [
+						{
+							...claude,
+							status: { ...claude.status, state: "missing", version: null, path: null },
+						},
+					],
+				},
+			});
+		});
+
+		fireEvent.click(await screen.findByRole("button", { name: "Install" }));
+
+		await waitFor(() => expect(success).toHaveBeenCalledWith("Installed Claude Code."));
+	});
+
+	it("toasts Installed <name>. when a helper program installs, as Conductor does", async () => {
+		const mounted = await mountPage();
+		const success = vi.spyOn(toast, "success");
+		act(() => {
+			mounted.container.services.system.store.setState({
+				helpers: {
+					state: "ready",
+					data: [
+						{
+							status: {
+								program: "gh",
+								state: "missing",
+								version: null,
+								bytesDownloaded: 0,
+								bytesTotal: null,
+								attempt: 0,
+								nextAttemptAt: null,
+								error: null,
+								path: null,
+							},
+							userPath: null,
+						},
+					],
+				},
+			});
+		});
+
+		fireEvent.click(await screen.findByRole("button", { name: "Install" }));
+
+		await waitFor(() => expect(success).toHaveBeenCalledWith("Installed GitHub CLI (gh)."));
 	});
 
 	it("D088 shows a failed helper program with Retry, so the app never falls back to PATH", async () => {
