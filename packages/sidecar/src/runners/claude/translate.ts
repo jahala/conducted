@@ -312,7 +312,7 @@ export class ClaudeTranslator {
 
 type ErrorItem = Extract<AgentItem, { kind: "error" }>;
 
-/** Conductor's prefix for an error line that only carries diagnostics (renderApp Npa @9566059). */
+/** Conductor's prefix for an error line that only carries diagnostics (renderApp Npa @9565934). */
 const DIAGNOSTIC_PREFIX = "[ede_diagnostic]";
 
 /**
@@ -321,7 +321,7 @@ const DIAGNOSTIC_PREFIX = "[ede_diagnostic]";
  * Conductor's rules (renderApp Rpa @9564247):
  *  - the text is the first error line that is not a diagnostic, else the result text, reworded
  *    by TQi @9537800 ("Session cancelled:" reads "Session interrupted:")
- *  - a success result whose text is a sign-in error (SQi @9517413) shows the sign-in view
+ *  - a success result whose text is a sign-in error (SQi @9517557) shows the sign-in view
  *  - a result whose error lines are all diagnostics shows nothing
  *  - every other failed result reads "Claude Code error: <text>", or "Claude Code error" without
  *    text, with Retry (GFe @9534766 offers it by default)
