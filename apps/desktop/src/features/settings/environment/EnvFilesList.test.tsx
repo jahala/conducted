@@ -49,6 +49,32 @@ describe("SET-04 EnvFilesList", () => {
 		await waitFor(() => expect(onAdd).toHaveBeenCalledWith(".env.local"));
 	});
 
+	it("fills the path from the system picker", async () => {
+		const onBrowse = vi.fn(async () => ".env.local");
+		render(
+			<EnvFilesList
+				files={[]}
+				candidates={[]}
+				repositoryRoot="/repo"
+				onAdd={async () => true}
+				onRemove={async () => true}
+				onBrowse={onBrowse}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "Add env file" }));
+		fireEvent.click(screen.getByRole("button", { name: "Browse for env file" }));
+
+		await waitFor(() =>
+			expect((screen.getByLabelText("Environment file path") as HTMLInputElement).value).toBe(
+				".env.local",
+			),
+		);
+		expect((screen.getByRole("button", { name: "Browse for env file" }) as HTMLElement).title).toBe(
+			"Browse for env file. Press Cmd+Shift+. to show hidden files.",
+		);
+	});
+
 	it("cancels adding an env file without changing anything", () => {
 		const onAdd = vi.fn(async () => true);
 		render(
