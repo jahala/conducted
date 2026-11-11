@@ -13,10 +13,8 @@
  */
 import type { Result } from "@conducted/shared";
 import { useEffect, useId, useRef, useState } from "react";
-import { useStore } from "zustand";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
-import { useServices } from "../../core/context.tsx";
-import { useActions } from "../../core/hooks.ts";
+import { useActions, useSections } from "../../core/hooks.ts";
 import type { Section } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
@@ -41,12 +39,12 @@ function sectionToast(section: Section | null, code: string): string {
 
 export function SectionDialog({ open, onOpenChange, section }: SectionDialogProps) {
 	const actions = useActions();
-	const loadedSections = useStore(useServices().services.sections.store, (state) => state);
-	const sections = loadedSections.sections;
+	const loadedSections = useSections();
+	const sections = loadedSections.state === "ready" ? loadedSections.data : [];
 	const sectionsRef = useRef(sections);
 	sectionsRef.current = sections;
-	const loadedRef = useRef(loadedSections.loaded);
-	loadedRef.current = loadedSections.loaded;
+	const loadedRef = useRef(loadedSections.state === "ready");
+	loadedRef.current = loadedSections.state === "ready";
 	/** True when the section was in the loaded list as the dialog opened, so its absence now means it went. */
 	const presentOnOpen = useRef(false);
 	const nameId = useId();

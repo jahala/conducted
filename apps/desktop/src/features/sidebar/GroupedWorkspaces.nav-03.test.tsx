@@ -40,6 +40,7 @@ vi.mock("../../core/hooks.ts", () => ({
 			{ id: "api", name: "api", hidden: false, displayOrder: 1 },
 		],
 	}),
+	useSections: () => ({ state: "ready", data: [] }),
 	useShortcutOverrides: () => ({ overrides: {}, error: null }),
 }));
 
