@@ -140,6 +140,13 @@ function StackSection({
 	const { services } = useServices();
 	// Where the last plain or Cmd click landed, so a Shift-click chooses the block from there.
 	const [anchor, setAnchor] = useState<number | undefined>(undefined);
+	if (stack.state === "error") {
+		return (
+			<p className="px-3 py-4 text-xs text-fg-muted">
+				Couldn't load this stack. Open the PR on GitHub to see it.
+			</p>
+		);
+	}
 	if (stack.state !== "ready" || stack.data.length === 0 || config.state !== "ready") return null;
 	// A remote name git cannot use also fails the stack read, so this only guards the type.
 	const remote = remoteNameFromConfig(config.data);
@@ -257,6 +264,12 @@ export function ChangesTab({
 		});
 	};
 
+	const setViewed = (path: string, viewed: boolean) => {
+		void actions.git.setViewed(workspaceId, path, viewed).then((result) => {
+			if (!result.ok) toastError("Couldn't change the viewed mark", result.error);
+		});
+	};
+
 	// Every checkout waits for the one running, as Conductor's list does. A branch Graphite knows
 	// is switched with `gt checkout` (GitService.switchBranch).
 	const checkoutBranch = (branch: string) => {
@@ -278,7 +291,7 @@ export function ChangesTab({
 
 	const body = (() => {
 		if (operation !== "none") {
-			return <ChangesEmpty reason="operation_in_progress" operation={operation} />;
+			return <ChangesEmpty reason="operation_in_progress" />;
 		}
 		if (git.state === "error") {
 			return <ChangesEmpty reason="no_git_status" message={git.error.message} />;
@@ -340,6 +353,7 @@ export function ChangesTab({
 					onToggleFolder={toggleFolder}
 					collapsedFolders={collapsedFolders}
 					onDiscard={scope.kind === "commit" || scope.kind === "range" ? undefined : discard}
+					onToggleViewed={setViewed}
 					uncommittedPaths={uncommittedPaths}
 				/>
 				{git.state === "ready" && git.data.untrackedFilesTruncated && includesWorkingTree ? (
