@@ -75,6 +75,7 @@ import {
 	type ShortcutOverrides,
 } from "../core/registries/commands.ts";
 import { resolveSendKey, type SendIntent, type SendWith } from "../features/composer/send-key.ts";
+import { TERMINAL_OWNED_COMMAND_IDS } from "../features/terminal/terminal-keys.ts";
 import type { MenuShortcut } from "../platform/platform.ts";
 import { Kbd } from "../ui/Kbd.tsx";
 import { toast, toastError } from "../ui/Toast.tsx";
@@ -401,14 +402,19 @@ export function useScopedKeyMatch(scope: CommandScope): (press: KeyPress) => Sco
 	);
 }
 
-/** Every live binding in table order, with the user's overrides applied. */
+/**
+ * Every live binding in table order, with the user's overrides applied. The terminal keys xterm
+ * handles itself are left out: the surface applies them, and a binding here would dispatch them a
+ * second time and report them as unbuilt (features/terminal/terminal-keys.ts).
+ */
 export function keyBindings(overrides: ShortcutOverrides = {}): KeyBinding[] {
-	return COMMANDS.flatMap((command) =>
-		effectiveShortcuts(command, overrides).map((shortcut) => ({
-			commandId: command.id,
-			scope: command.scope,
-			shortcut,
-		})),
+	return COMMANDS.filter((command) => !TERMINAL_OWNED_COMMAND_IDS.includes(command.id)).flatMap(
+		(command) =>
+			effectiveShortcuts(command, overrides).map((shortcut) => ({
+				commandId: command.id,
+				scope: command.scope,
+				shortcut,
+			})),
 	);
 }
 
