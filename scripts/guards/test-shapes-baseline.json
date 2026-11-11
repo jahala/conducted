@@ -14,7 +14,7 @@
 		"apps/desktop/src/core/registries/commands.test.ts": 4,
 		"apps/desktop/src/core/registries/settings.test.ts": 12,
 		"apps/desktop/src/core/services/git.rev-01.test.ts": 2,
-		"apps/desktop/src/core/services/github.test.ts": 3,
+		"apps/desktop/src/core/services/github.test.ts": 2,
 		"apps/desktop/src/core/services/pr-polling.pr-03.test.ts": 2,
 		"apps/desktop/src/core/services/settings.test.ts": 2,
 		"apps/desktop/src/core/services/workspace.setup.test.ts": 1,

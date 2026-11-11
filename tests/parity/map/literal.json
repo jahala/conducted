@@ -1616,12 +1616,12 @@
 		"by": "seed"
 	},
 	"literal:R4986695": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Conductor shows \"Edit action\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "run-edit-action",
+		"via": "text",
+		"role": "heading",
+		"selector": "div:nth-of-type(3) > div > h2",
+		"by": "seed"
 	},
 	"literal:R4988948": {
 		"status": "gap",
@@ -1632,12 +1632,12 @@
 		"owner": "hand"
 	},
 	"literal:R4997852": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Run empty: 'Add action', 'Add action manually', 'Configure actions'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "run-empty",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div > div > button:nth-of-type(4) > span",
+		"by": "seed"
 	},
 	"literal:R5023567": {
 		"status": "gap",
@@ -1721,12 +1721,12 @@
 		"owner": "hand"
 	},
 	"literal:R5655678": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-06",
-		"item": "Find in terminal reports 'Invalid regular expression'.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "terminal-find-invalid",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div > search > span",
+		"by": "seed"
 	},
 	"literal:R5655738": {
 		"status": "gap",
@@ -2611,14 +2611,10 @@
 		"owner": "hand"
 	},
 	"literal:R11342763": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"note": "Checked by hand: the wording differs. Ours reads \"added\" (text) in chat-finished.",
-		"by": "hand",
-		"backlog": "PRJ-03",
-		"item": "A template already added shows an 'Added' badge.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The 'Added' badge of Conductor's community artifact library, a hosted service D025 leaves out.",
+		"by": "hand"
 	},
 	"literal:R11345973": {
 		"status": "matched",
@@ -2867,12 +2863,12 @@
 		"by": "seed"
 	},
 	"literal:R11708982": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Scripts panel with tabs Setup, Run, Terminal N, Ports",
-		"owner": "hand"
+		"status": "matched",
+		"state": "run-ports",
+		"via": "text",
+		"role": "tab",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(1) > div > button:nth-of-type(3)",
+		"by": "seed"
 	},
 	"literal:R11713772": {
 		"status": "matched",

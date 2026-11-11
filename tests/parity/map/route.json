@@ -180,12 +180,9 @@
 		"by": "rule:team-route"
 	},
 	"route:R1960039": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03",
-		"item": "Conductor shows \"/settings/user/account\" (route, inventory-ui-text Projects and workspaces); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "/settings/user/account",
+		"by": "seed"
 	},
 	"route:R2049956": {
 		"status": "matched",
@@ -380,12 +377,10 @@
 		"by": "rule:team-route"
 	},
 	"route:R11779761": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "PRJ-03",
-		"item": "Conductor shows \"/settings/user/account\" (route, inventory-ui-text Projects and workspaces); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:quote"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's settings landing address. Ours redirects it to /settings/user/general, as Conductor's own index redirects, so no distinct screen opens it.",
+		"by": "hand"
 	},
 	"route:R11783496": {
 		"status": "gap",
