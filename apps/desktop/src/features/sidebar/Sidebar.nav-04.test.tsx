@@ -16,7 +16,7 @@ import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
 import { Sidebar } from "./Sidebar.tsx";
-import { WORKSPACE_DRAG_MIME } from "./use-workspace-drag.ts";
+import { layOut } from "../../test/pointer-drag.ts";
 
 afterEach(cleanup);
 
@@ -146,10 +146,17 @@ describe("NAV-04 Sidebar", () => {
 	});
 });
 
-const dragData = (id: string) => ({
-	getData: (type: string) => (type === WORKSPACE_DRAG_MIME ? id : ""),
-	setData: vi.fn(),
-});
+/** Presses a row and moves past the drag threshold, so the drag is running. */
+function startDrag(row: HTMLElement): void {
+	fireEvent.pointerDown(row, { button: 0, pointerId: 1, clientX: 0, clientY: 0 });
+	fireEvent.pointerMove(document, { pointerId: 1, clientX: 10, clientY: 10 });
+}
+
+/** Moves a running drag and releases it at a point. */
+function releaseAt(point: { x: number; y: number }): void {
+	fireEvent.pointerMove(document, { pointerId: 1, clientX: point.x, clientY: point.y });
+	fireEvent.pointerUp(document, { pointerId: 1, clientX: point.x, clientY: point.y });
+}
 
 /** The draggable row of a workspace in the live list. */
 function listRow(id: string): HTMLElement {
@@ -175,18 +182,24 @@ describe("NAV-04 dragging in the live sidebar", () => {
 			await screen.findByText("To pin");
 			expect(screen.queryByRole("region", { name: "Pinned workspaces" })).toBeNull();
 
-			fireEvent.dragStart(listRow(workspace.id), { dataTransfer: dragData(workspace.id) });
+			startDrag(listRow(workspace.id));
 
 			const pinned = await screen.findByRole("region", { name: "Pinned workspaces" });
 			expect(within(pinned).getByText("Drag a workspace here")).toBeTruthy();
-			fireEvent.drop(pinned, { dataTransfer: dragData(workspace.id) });
+			layOut(pinned, { left: 0, top: 0, width: 300, height: 200 });
+			releaseAt({ x: 150, y: 120 });
 
 			await waitFor(() =>
 				expect(
 					test.container.services.workspace.store.getState().workspacesById[workspace.id]?.pinnedAt,
 				).not.toBeNull(),
 			);
-			expect(await within(pinned).findByText("To pin")).toBeTruthy();
+			await waitFor(() => {
+				const row = document.querySelector<HTMLElement>(
+					`[data-sidebar-list] [data-workspace-id="${workspace.id}"]`,
+				);
+				expect(row?.closest('[aria-label="Pinned workspaces"]')).not.toBeNull();
+			});
 		} finally {
 			test.close();
 		}
@@ -208,8 +221,9 @@ describe("NAV-04 dragging in the live sidebar", () => {
 			const section = await screen.findByRole("region", { name: "Review" });
 			expect(within(section).queryByText("To move")).toBeNull();
 
-			fireEvent.dragStart(listRow(workspace.id), { dataTransfer: dragData(workspace.id) });
-			fireEvent.drop(section, { dataTransfer: dragData(workspace.id) });
+			startDrag(listRow(workspace.id));
+			layOut(section, { left: 0, top: 0, width: 300, height: 200 });
+			releaseAt({ x: 150, y: 120 });
 
 			expect(await within(section).findByText("To move")).toBeTruthy();
 		} finally {

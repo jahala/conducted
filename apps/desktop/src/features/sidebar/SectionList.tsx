@@ -18,26 +18,21 @@
  */
 import type { SectionId, WorkspaceId } from "@conducted/shared";
 import { Link, useParams } from "@tanstack/react-router";
-import { type DragEvent, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useActions, useRepos, useSetting } from "../../core/hooks.ts";
 import type { Repo, Section, Workspace } from "../../core/model.ts";
 import { AlertDialog, AlertDialogContent } from "../../ui/AlertDialog.tsx";
 import { Button } from "../../ui/Button.tsx";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/Collapsible.tsx";
 import { cn } from "../../ui/cn.ts";
-import { ChevronRightIcon, PencilIcon, PlusIcon } from "../../ui/icons.tsx";
+import { PencilIcon, PlusIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "../../ui/Menu.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { SectionDialog } from "./SectionDialog.tsx";
 import { HeaderChevron, HeaderCount } from "./section-header.tsx";
-import {
-	draggedSection,
-	draggedWorkspace,
-	SECTION_DRAG_MIME,
-	useWorkspaceDrag,
-	WORKSPACE_DRAG_MIME,
-} from "./use-workspace-drag.ts";
+import { useWorkspaceDrag } from "./use-workspace-drag.ts";
 import { WorkspaceRow } from "./WorkspaceRow.tsx";
+import { useWorkspaceDragController, useWorkspaceHitTest } from "./workspace-drag-context.tsx";
 
 export interface SectionListProps {
 	sections: readonly Section[];
@@ -57,7 +52,12 @@ function orderedSections(sections: readonly Section[]): Section[] {
 	);
 }
 
-const carriedWorkspace = (event: DragEvent): WorkspaceId | null => draggedWorkspace(event);
+/** True when a point lies inside a rectangle. jsdom gives every element a zero rectangle. */
+function containsPoint(rect: DOMRect, point: { x: number; y: number }): boolean {
+	return (
+		point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
+	);
+}
 
 export function SectionList({
 	sections,
@@ -73,8 +73,6 @@ export function SectionList({
 	const [editing, setEditing] = useState<Section | null>(null);
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [deleting, setDeleting] = useState<Section | null>(null);
-	const [draggingSection, setDraggingSection] = useState<SectionId | null>(null);
-	const [overSection, setOverSection] = useState<SectionId | null>(null);
 
 	const repoById = useMemo(
 		() =>
@@ -107,19 +105,14 @@ export function SectionList({
 		});
 	};
 
-	const reorderSection = (target: Section, after: boolean) => {
-		if (draggingSection === null || draggingSection === target.id) {
-			setDraggingSection(null);
-			setOverSection(null);
-			return;
-		}
+	const reorderSection = (dragged: SectionId, target: Section, after: boolean) => {
+		if (dragged === target.id) return;
 		const current = orderedSections(sections).map((section) => section.id);
-		const without = current.filter((id) => id !== draggingSection);
+		const without = current.filter((id) => id !== dragged);
 		const targetIndex = without.indexOf(target.id);
+		if (targetIndex === -1) return;
 		const index = Math.max(0, after ? targetIndex + 1 : targetIndex);
-		const next = [...without.slice(0, index), draggingSection, ...without.slice(index)];
-		setDraggingSection(null);
-		setOverSection(null);
+		const next = [...without.slice(0, index), dragged, ...without.slice(index)];
 		void actions.sections.reorder(next).then((result) => {
 			if (!result.ok) toastError(REORDER_TITLE, result.error);
 		});
@@ -142,19 +135,7 @@ export function SectionList({
 						repoById={repoById}
 						selectedId={selectedId}
 						manualOrder={manualOrder}
-						over={overSection === section.id}
-						draggingSection={draggingSection !== null}
-						onDragSectionStart={(event) => {
-							event.dataTransfer?.setData(SECTION_DRAG_MIME, section.id);
-							event.dataTransfer?.setData("text/plain", section.id);
-							setDraggingSection(section.id);
-						}}
-						onDragSectionEnd={() => {
-							setDraggingSection(null);
-							setOverSection(null);
-						}}
-						onDragOverSection={() => setOverSection(section.id)}
-						onDropSection={(after) => reorderSection(section, after)}
+						onReorderSection={reorderSection}
 						onRename={() => openRename(section)}
 						onDelete={() => setDeleting(section)}
 						onNewSection={openCreate}
@@ -189,12 +170,7 @@ interface SectionGroupProps {
 	repoById: ReadonlyMap<Repo["id"], Repo>;
 	selectedId: WorkspaceId | null;
 	manualOrder: boolean;
-	over: boolean;
-	draggingSection: boolean;
-	onDragSectionStart: (event: DragEvent) => void;
-	onDragSectionEnd: () => void;
-	onDragOverSection: () => void;
-	onDropSection: (after: boolean) => void;
+	onReorderSection: (dragged: SectionId, target: Section, after: boolean) => void;
 	onRename: () => void;
 	onDelete: () => void;
 	onNewSection: () => void;
@@ -206,16 +182,13 @@ function SectionGroup({
 	repoById,
 	selectedId,
 	manualOrder,
-	over,
-	draggingSection,
-	onDragSectionStart,
-	onDragSectionEnd,
-	onDragOverSection,
-	onDropSection,
+	onReorderSection,
 	onRename,
 	onDelete,
 	onNewSection,
 }: SectionGroupProps) {
+	const pointer = useWorkspaceDragController();
+	const sectionRef = useRef<HTMLElement | null>(null);
 	const actions = useActions();
 	// The saved collapse state is the source, so a failed write leaves the list where it was.
 	const open = !section.collapsed;
@@ -234,54 +207,72 @@ function SectionGroup({
 		});
 	};
 
-	const drop = (event: DragEvent) => {
-		event.preventDefault();
-		drag.dragOver(null);
-		// A dragged section header only reorders sections; it is not a workspace.
-		if (draggingSection) return;
-		const carried = carriedWorkspace(event);
-		if (carried === null) return;
-		drag.dropOn(`section:${section.id}`, members.length, carried);
-	};
+	useWorkspaceHitTest((point) => {
+		const root = sectionRef.current;
+		if (root === null) return undefined;
+		for (const row of root.querySelectorAll<HTMLElement>("[data-workspace-id]")) {
+			const rect = row.getBoundingClientRect();
+			if (!containsPoint(rect, point)) continue;
+			const workspaceId = row.dataset.workspaceId as WorkspaceId | undefined;
+			if (workspaceId === undefined) continue;
+			return {
+				key: `row:${workspaceId}`,
+				element: row,
+				drop: (payload, at) => {
+					if (payload.kind !== "workspace") return;
+					const after = rect.height > 0 && at.y > rect.top + rect.height / 2;
+					drag.dropOn(`row:${workspaceId}`, after ? 1 : 0, payload.id);
+				},
+			};
+		}
+		const header = root.querySelector<HTMLElement>("[data-section-header]");
+		if (header !== null) {
+			const rect = header.getBoundingClientRect();
+			if (containsPoint(rect, point)) {
+				return {
+					key: `section-header:${section.id}`,
+					element: header,
+					drop: (payload, at) => {
+						if (payload.kind === "workspace") {
+							drag.dropOn(`section:${section.id}`, members.length, payload.id);
+							return;
+						}
+						if (payload.kind !== "section") return;
+						const after = rect.height === 0 || at.y >= rect.top + rect.height / 2;
+						onReorderSection(payload.id, section, after);
+					},
+				};
+			}
+		}
+		const rect = root.getBoundingClientRect();
+		if (!containsPoint(rect, point)) return undefined;
+		return {
+			key: `section:${section.id}`,
+			element: root,
+			drop: (payload) => {
+				if (payload.kind !== "workspace") return;
+				drag.dropOn(`section:${section.id}`, members.length, payload.id);
+			},
+		};
+	});
 
 	return (
 		<section
+			ref={sectionRef}
 			aria-label={section.name}
-			className={cn("rounded-md px-1.5 pt-1.5 pb-3", over && "bg-hover")}
-			onDragOver={(event) => {
-				if (draggingSection) return;
-				event.preventDefault();
-				drag.dragOver(`section:${section.id}`);
-			}}
-			onDragLeave={() => drag.dragOver(null)}
-			onDrop={drop}
+			className={cn(
+				"rounded-md px-1.5 pt-1.5 pb-3",
+				pointer.drag?.target?.key === `section:${section.id}` && "bg-hover",
+			)}
 		>
 			<Collapsible open={open} onOpenChange={changeOpen}>
-				{/* biome-ignore lint/a11y/noStaticElementInteractions: the header is the drop target that reorders sections. */}
 				<div
-					className="group/header mt-0.5 mb-1 flex items-center gap-0.5"
-					onDragOver={(event) => {
-						if (!draggingSection) return;
-						event.preventDefault();
-						event.stopPropagation();
-						onDragOverSection();
-					}}
-					onDrop={(event) => {
-						if (!draggingSection) return;
-						event.preventDefault();
-						event.stopPropagation();
-						// The upper half of a header puts the section before it, the lower half after.
-						const rect = event.currentTarget.getBoundingClientRect();
-						const after = rect.height === 0 || event.clientY >= rect.top + rect.height / 2;
-						onDropSection(after);
-					}}
+					data-section-header={section.id}
+					className="group/header mt-0.5 mb-1 flex touch-none items-center gap-0.5"
+					onClickCapture={pointer.consumeClick}
+					onPointerDown={(event) => pointer.start(event, { kind: "section", id: section.id })}
 				>
-					<CollapsibleTrigger
-						draggable
-						onDragStart={onDragSectionStart}
-						onDragEnd={onDragSectionEnd}
-						className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1.5 text-left text-xs font-medium text-sidebar-fg-muted hover:bg-hover"
-					>
+					<CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1.5 text-left text-xs font-medium text-sidebar-fg-muted hover:bg-hover">
 						{section.emoji === null ? null : (
 							<span
 								aria-hidden="true"
@@ -334,30 +325,14 @@ function SectionGroup({
 						{members.map((workspace) => {
 							const repo = repoById.get(workspace.repoId);
 							return (
-								// biome-ignore lint/a11y/noStaticElementInteractions: a sidebar row is a drag source; its link is the interactive part.
 								<div
 									key={workspace.id}
-									draggable
 									data-workspace-id={workspace.id}
-									onDragStart={(event) => {
-										event.dataTransfer?.setData(WORKSPACE_DRAG_MIME, workspace.id);
-										event.dataTransfer?.setData("text/plain", workspace.id);
+									className="touch-none"
+									onClickCapture={pointer.consumeClick}
+									onPointerDown={(event) => {
 										drag.startDrag(workspace.id);
-									}}
-									onDragEnd={drag.cancel}
-									onDragOver={(event) => {
-										if (draggingSection) return;
-										event.preventDefault();
-										event.stopPropagation();
-										drag.dragOver(`row:${workspace.id}`);
-									}}
-									onDrop={(event) => {
-										event.preventDefault();
-										event.stopPropagation();
-										if (draggedSection(event) !== null) return;
-										const carried = carriedWorkspace(event);
-										if (carried === null) return;
-										drag.dropOn(`row:${workspace.id}`, 1, carried);
+										pointer.start(event, { kind: "workspace", id: workspace.id });
 									}}
 								>
 									{repo === undefined ? (
