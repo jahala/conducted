@@ -28,6 +28,10 @@ jobs:
   shots:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    # Microsoft's Playwright image for the locked playwright-core (1.64.0): Chromium and its system
+    # packages are already in it, so the job never needs Ubuntu's package mirror (issue #540).
+    container:
+      image: mcr.microsoft.com/playwright@sha256:06a9939e57531807f8d5fd76ce44b53165ffb7d7501d87ab10e285c20b1e971f # v1.64.0-noble
     # A full run takes about 14 minutes (2026-11-08), so 15 cut normal runs off. The limit catches
     # a hang, not slowness.
     timeout-minutes: 30
@@ -42,8 +46,6 @@ jobs:
         with:
           bun-version-file: .bun-version
       - run: pnpm install --frozen-lockfile
-      # The Chromium build that matches the locked playwright-core, with the system libraries it needs.
-      - run: pnpm exec playwright-core install --with-deps chromium
       - run: bun scripts/catalogue/shots.ts
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
         with:

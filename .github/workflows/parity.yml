@@ -34,6 +34,10 @@ env:
 jobs:
   harness:
     runs-on: ubuntu-latest
+    # Microsoft's Playwright image for the locked playwright-core (1.64.0): Chromium and its system
+    # packages are already in it, so the job never needs Ubuntu's package mirror (issue #540).
+    container:
+      image: mcr.microsoft.com/playwright@sha256:06a9939e57531807f8d5fd76ce44b53165ffb7d7501d87ab10e285c20b1e971f # v1.64.0-noble
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
@@ -46,7 +50,6 @@ jobs:
         with:
           bun-version-file: .bun-version
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright-core install --with-deps chromium
       - name: Dump every catalogue state
         run: bun scripts/parity/dump.ts --out "$RUNNER_TEMP/parity" --commit "${{ github.event.pull_request.head.sha || github.sha }}"
       - name: Run the flows
@@ -68,6 +71,10 @@ jobs:
 
   instrument:
     runs-on: ubuntu-latest
+    # Microsoft's Playwright image for the locked playwright-core (1.64.0): Chromium and its system
+    # packages are already in it, so the job never needs Ubuntu's package mirror (issue #540).
+    container:
+      image: mcr.microsoft.com/playwright@sha256:06a9939e57531807f8d5fd76ce44b53165ffb7d7501d87ab10e285c20b1e971f # v1.64.0-noble
     timeout-minutes: 30
     env:
       BEFORE_345: 29e65165e39c1d389b99621b3f6b1c048b38950a
@@ -84,7 +91,6 @@ jobs:
         with:
           bun-version-file: .bun-version
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright-core install --with-deps chromium
       - name: Check out the commit before #345 beside this one
         run: git worktree add --detach "$RUNNER_TEMP/before-345" "$BEFORE_345"
       - name: Install it
