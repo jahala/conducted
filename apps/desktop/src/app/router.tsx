@@ -24,7 +24,8 @@
  * being archived, sends the route Home instead of drawing a dead screen (an archived workspace stays open
  * read-only, as in Conductor); a bare workspace address reopens that workspace's
  * stored chat tab; "/" reopens the last workspace route and falls back to a ready one; the Go back and Go
- * forward commands follow the same history as the window buttons.
+ * forward commands follow the same history as the window buttons; closing diagnostics goes back to the
+ * previous screen, as Conductor's `diagnostics.close` does.
  * Test first: navigating to /all-workspaces renders the Home screen area; "/" renders the centre empty state.
  */
 import type { RepoId, SessionId, WorkspaceId } from "@conducted/shared";
@@ -84,7 +85,7 @@ function NavigationShortcuts() {
 	});
 	useCommandHandler("app.closeDiagnostics", "base", () => {
 		if (pathname !== "/diagnostics") return false;
-		void navigate({ to: "/" });
+		router.history.back();
 		return true;
 	});
 	useCommandHandler("nav.back", "base", () => {
