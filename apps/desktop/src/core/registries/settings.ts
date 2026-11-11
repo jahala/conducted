@@ -1625,6 +1625,23 @@ const SETTINGS_TABLE = [
 		min: 1000000,
 		max: 1000000000,
 	},
+	// CLOUD-19: the organisation switcher's choice, this Mac or the paired Worker. A stored "cloud"
+	// on a Mac that is not paired reads as this Mac (core/organization.ts).
+	{
+		key: "active_organization",
+		page: "state",
+		scopes: ["user"],
+		title: "Organization",
+		description: "Where new workspaces are created: this Mac or your cloud Worker.",
+		searchTerms: ["organization", "cloud", "worker", "local", "mac"],
+		feature: "CLOUD-19",
+		type: "enum",
+		default: "local",
+		options: [
+			{ value: "local", label: "This Mac" },
+			{ value: "cloud", label: "Cloud" },
+		],
+	},
 	{
 		key: "left_panel_visible",
 		page: "state",

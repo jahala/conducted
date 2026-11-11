@@ -4,7 +4,9 @@
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
  * @feature CLOUD-17 Cloud settings page
- * Owns: the query hooks for the cloud connection: the pairing the Connections page reads, a
+ * @feature CLOUD-19 Create cloud workspaces: the organisation switcher and the new-workspace page in cloud mode
+ * Owns: the query hooks for the cloud connection: the pairing the Connections page reads, the
+ * organisation switcher's entries and active entry and the paired Worker's readiness (CLOUD-19), a
  * cloud workspace's forwarding view, the status, resources and agent cost its header shows, and
  * the Mac's personal cloud settings (Git and Cloud pages).
  * Behaviour: core/hooks.ts states the contract; the pairing, forwarding, workspace and settings
@@ -13,11 +15,13 @@
  * state with its message).
  * Test first: ConnectionsPage.test.tsx pairs with a Worker URL and a token, then unpairs.
  */
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
-import type { Queries } from "../api.ts";
+import type { Loadable, OrganizationsView, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
+import { activeOrganization, type Organization, organizationsFor } from "../organization.ts";
 import { EMPTY_CLOUD_WORKSPACE_VIEW } from "../services/cloud-workspace.ts";
+import { useSetting } from "./settings.ts";
 
 export const useFileSyncStatus: Queries["useFileSyncStatus"] = (workspaceId) => {
 	const container = useServices();
@@ -41,6 +45,43 @@ export const useCloudPairing: Queries["useCloudPairing"] = () => {
 	if (state.state === "unknown") return { state: "loading" };
 	if (state.state === "error") return { state: "error", error: state.error };
 	return { state: "ready", data: state.pairing };
+};
+
+export const useOrganizations: Queries["useOrganizations"] = () => {
+	const pairing = useCloudPairing();
+	const choice = useSetting<string>("active_organization");
+	return useMemo<Loadable<OrganizationsView>>(() => {
+		if (pairing.state === "loading") return { state: "loading" };
+		// A Keychain read that failed lists this Mac only, so the app keeps working locally.
+		const organizations = organizationsFor(
+			pairing.state === "ready" ? pairing.data : { paired: false, url: null },
+		);
+		return {
+			state: "ready",
+			data: { organizations, active: activeOrganization(choice, organizations) },
+		};
+	}, [pairing, choice]);
+};
+
+/**
+ * The active organisation for the lists that follow it. Until the pairing is read it is this Mac,
+ * as Conductor lists local workspaces while no organisation is known (main `wue`).
+ */
+export function useActiveOrganization(): Organization {
+	const organizations = useOrganizations();
+	return organizations.state === "ready"
+		? organizations.data.active
+		: activeOrganization("local", organizationsFor({ paired: false, url: null }));
+}
+
+export const useCloudReadiness: Queries["useCloudReadiness"] = (url) => {
+	const service = useServices().services.cloudPairing;
+	const state = useStore(service.readinessStore, (current) => current);
+	useEffect(() => {
+		if (url !== null) void service.refreshReadiness(url);
+	}, [service, url]);
+	if (url === null || state.url !== url) return { state: "loading" };
+	return state.readiness;
 };
 
 export const useCloudSettings: Queries["useCloudSettings"] = () => {

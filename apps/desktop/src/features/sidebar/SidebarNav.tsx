@@ -1,10 +1,12 @@
 /**
  * @feature NAV-03 Sidebar navigation rows
  * @feature NAV-16 Draft markers on the Create row and on workspaces
- * Owns: the rows under the window controls: Dashboard (with its setting on), Home, Create and Search,
- * and the Create row's draft marker.
+ * @feature CLOUD-19 Create cloud workspaces: the organisation switcher and the new-workspace page in cloud mode
+ * Owns: the rows under the window controls: the organisation switcher (CLOUD-19), Dashboard (with
+ * its setting on), Home, Create and Search, and the Create row's draft marker.
  * Behaviour: ui-map.md 4 item 3 (nav rows, each with a hover shortcut hint: Home, Create, Search; Dashboard
  * appears behind a setting) and 4.3 (Create shows a draft marker when the new-workspace draft is non-empty).
+ * The switcher is the block's first row, as Conductor mounts it above Dashboard (renderApp `R8a`).
  * Our design choice: the current route's row is marked with a filled background, not the accent. Search opens
  * the command palette through the overlay store. Shortcut hints read the live binding from the command
  * registry so they follow the user's rebinds.
@@ -21,6 +23,7 @@ import { HomeIcon, ListTodoIcon, PlusIcon, SearchIcon } from "../../ui/icons.tsx
 import { Kbd } from "../../ui/Kbd.tsx";
 import { useNewWorkspaceDraft } from "../composer/draft-sources.ts";
 import { DraftMarker } from "./DraftMarker.tsx";
+import { OrganizationSwitcher } from "./OrganizationSwitcher.tsx";
 
 /** Conductor's nav row: 6px padding, 8px gap, 6px radius, the hover tint, a 16px icon box. */
 const rowClass =
@@ -60,6 +63,7 @@ export function SidebarNav() {
 	const newWorkspaceDraft = useNewWorkspaceDraft();
 	return (
 		<nav aria-label="Main" className="flex shrink-0 flex-col gap-0.5 border-b border-border p-1.5">
+			<OrganizationSwitcher />
 			{dashboardEnabled ? (
 				<Link
 					to="/dashboard"

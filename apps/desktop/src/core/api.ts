@@ -85,6 +85,7 @@ import type {
 	Workspace,
 	WorkspaceStatus,
 } from "./model.ts";
+import type { CloudReadiness, Organization } from "./organization.ts";
 
 // ---------------------------------------------------------------- query results
 
@@ -170,6 +171,12 @@ export interface PortForwardEntry {
 export interface DetectedRemotePort {
 	port: number;
 	processName: string | null;
+}
+
+/** The organisation switcher's entries and the active one (CLOUD-19). */
+export interface OrganizationsView {
+	organizations: Organization[];
+	active: Organization;
 }
 
 /** What a cloud workspace's header shows (CLOUD-15). */
@@ -417,6 +424,16 @@ export interface Queries {
 	useLinearAccess(): Loadable<LinearAccess>;
 	/** The Worker this Mac is paired with, for the Connections page (CLOUD-07). */
 	useCloudPairing(): Loadable<CloudPairing>;
+	/**
+	 * The organisation switcher's entries, this Mac and the paired Worker, and the active one
+	 * (CLOUD-19). Loading until the pairing has been read.
+	 */
+	useOrganizations(): Loadable<OrganizationsView>;
+	/**
+	 * What the Worker at `url` holds, for the new-workspace page's cloud mode (CLOUD-19). It is read
+	 * when the hook mounts with a URL; null reads nothing.
+	 */
+	useCloudReadiness(url: string | null): Loadable<CloudReadiness>;
 	/** The Mac's personal cloud settings, for the Git and Cloud pages (CLOUD-17). */
 	useCloudSettings(): Loadable<{ settings: CloudSettings; paired: boolean }>;
 	/** A cloud workspace's file-sync state, for the scripts panel (CLOUD-11). */
