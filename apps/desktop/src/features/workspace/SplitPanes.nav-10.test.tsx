@@ -46,6 +46,8 @@ const session = (id: string, title: string): TabDescriptor => ({
 });
 
 vi.mock("../../core/hooks.ts", () => ({
+	// No test here drops a panel terminal, so no action is called.
+	useActions: () => ({}),
 	useSetting: () => state.split,
 	useSessions: () => state.sessions,
 	useTerminals: () => state.terminals,
@@ -113,6 +115,7 @@ vi.mock("./TabItem.tsx", () => ({
 }));
 
 const { SplitPanes } = await import("./SplitPanes.tsx");
+const { TabDragProvider } = await import("./tab-drag.tsx");
 
 const workspaceId = "w1" as WorkspaceId;
 
@@ -134,8 +137,9 @@ const renderPanes = ({
 		search,
 		onSearchChange: vi.fn(),
 	});
+	const dragged = createElement(TabDragProvider, null, element);
 	const rendered = render(
-		withRegistry ? createElement(CommandRegistryProvider, { registry }, element) : element,
+		withRegistry ? createElement(CommandRegistryProvider, { registry }, dragged) : dragged,
 	);
 	return { ...rendered, registry };
 };
@@ -282,14 +286,22 @@ describe("NAV-10 SplitPanes", () => {
 		const { rerender } = renderPanes();
 		dropOn(screen.getByTestId("split-centre"), "session:two");
 		state.tabs = [session("one", "One")];
-		rerender(<SplitPanes workspaceId={workspaceId} search={{}} onSearchChange={vi.fn()} />);
+		rerender(
+			<TabDragProvider>
+				<SplitPanes workspaceId={workspaceId} search={{}} onSearchChange={vi.fn()} />
+			</TabDragProvider>,
+		);
 		expect(screen.queryByRole("region", { name: "Split pane: Two" })).toBeNull();
 	});
 
 	it("clears the split when the workspace changes", async () => {
 		const { rerender } = renderPanes();
 		dropOn(screen.getByTestId("split-centre"), "session:two");
-		rerender(<SplitPanes workspaceId={"w2" as WorkspaceId} search={{}} onSearchChange={vi.fn()} />);
+		rerender(
+			<TabDragProvider>
+				<SplitPanes workspaceId={"w2" as WorkspaceId} search={{}} onSearchChange={vi.fn()} />
+			</TabDragProvider>,
+		);
 		await waitFor(() =>
 			expect(screen.queryByRole("region", { name: "Split pane: Two" })).toBeNull(),
 		);

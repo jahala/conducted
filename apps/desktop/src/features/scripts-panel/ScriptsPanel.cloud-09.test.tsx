@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
 import { WithSurfaces } from "../../test/surfaces.tsx";
+import { TabDragProvider } from "../workspace/tab-drag.tsx";
 import { ScriptsPanel } from "./ScriptsPanel.tsx";
 
 const containers: ReturnType<typeof createTestContainer>[] = [];
@@ -36,7 +37,9 @@ describe("CLOUD-09 cloud Ports tab", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<WithSurfaces>
-					<ScriptsPanel workspaceId={workspace.id} />
+					<TabDragProvider>
+						<ScriptsPanel workspaceId={workspace.id} />
+					</TabDragProvider>
 				</WithSurfaces>
 			</ServicesProvider>,
 		);

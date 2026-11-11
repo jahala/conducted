@@ -1,9 +1,11 @@
 /**
  * @feature catalogue States that show an in-app drag before the user starts it
  * Owns: a sidebar where a workspace can be pinned, moved into a section, or reordered by project and
- * by row; a workspace with two chat tabs and split panes on; and a working chat with three queued
+ * by row; a workspace with two chat tabs and split panes on; a workspace with a terminal in the
+ * bottom panel and one in the centre, split panes on; and a working chat with three queued
  * follow-ups.
- * Behaviour: issue #529 (every in-app drag is pointer driven), ui-map.md 3.2, 3.4 and 4.
+ * Behaviour: issue #529 (every in-app drag is pointer driven), issue #527 (a terminal drags between
+ * the bottom panel and the centre), ui-map.md 3.2, 3.4 and 4.
  * Test first: not applicable; the pointer-drag browser run opens every state.
  */
 
@@ -54,6 +56,29 @@ export const DRAG_STATES: CatalogueState[] = [
 				},
 				ready: (document) =>
 					document.querySelector('[role="tab"][aria-label="Second chat"]') !== null,
+			};
+		},
+	},
+	{
+		id: "workspace-terminal-drag",
+		group: "Workspace chat",
+		title: "A terminal in the bottom panel and one in the centre, split panes on",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			await setSetting(world, "experimental_configurable_center_panel", true);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async (context) => {
+					await refreshGit(context.app, cast.arbor);
+					const terminals = context.app.container.actions.terminals;
+					must(await terminals.create(cast.arbor.id, { placement: "panel" }));
+					must(await terminals.create(cast.arbor.id, { placement: "centre" }));
+				},
+				ready: (document) =>
+					document.querySelector('[role="tab"][aria-label="Terminal 2"]') !== null &&
+					[...document.querySelectorAll('[role="tab"]')].some(
+						(tab) => tab.getAttribute("aria-label") === null && tab.textContent === "Terminal 1",
+					),
 			};
 		},
 	},
