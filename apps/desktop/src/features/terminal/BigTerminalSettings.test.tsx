@@ -110,7 +110,9 @@ describe("RUN-06 big terminal presets", () => {
 			experimental_big_terminal_mode: true,
 			big_terminal_preset: "gemini",
 		});
-		set.mockResolvedValue(err(appError("settings_write_failed", "The settings file is read-only.")));
+		set.mockResolvedValue(
+			err(appError("settings_write_failed", "The settings file is read-only.")),
+		);
 		render(<Toaster />);
 		fireEvent.click(screen.getByText("Codex"));
 		expect(await screen.findByText("The settings file is read-only.")).toBeTruthy();
