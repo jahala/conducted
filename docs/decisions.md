@@ -851,6 +851,20 @@ Chosen:
 
 Why: each choice keeps rule 1 (nothing of Conductor's is written) and rule 7 (once per item) true by construction rather than by care, or follows what Conductor itself reads. The deviations from the plan's letter are facts the plan's author did not have.
 
+## D125. Large services are split along their feature ids when next changed, with no size gate (2026-11-08)
+
+Proposed by the lead, closing #397; not yet ruled on by the owner.
+
+Context: the system audit (docs/reports/audits/system-2026-11-07.md, item 10) found services that own many features: `GithubService` (12 feature ids, 42 public methods), `SessionsService` (65 public methods), `WorkspaceService`, `GitService`, `binaries.rs`, and `createContainer` as one long function. It asked for each to be split along its feature ids when it is next changed, with no behaviour change in the split, and for a failing test first.
+
+Chosen:
+
+- **When a change touches one of these, the change's PR first moves the feature it touches into its own service or module**, in a commit of its own that changes no behaviour. The rest of the change follows in later commits. The feature ids in the file headers (`@feature`) name the seams; one feature per new module.
+- **No size or method-count gate.** The owner's rule is that counts show where to look and are never a target, a gate or a measure of progress (CLAUDE.md, "No theater"). A line or method limit would make builders shape code to the number. The audit's list is where to look.
+- **Nothing holds this rule yet beyond review.** A split commit is checked by the lead's diff read: the moved feature's tests pass unchanged, and no test changes in the split commit. This is said here, as the owner's rules require for a rule with no guard.
+
+Why: a split done on its own, all at once, is a large change with no user-visible gain and a high chance of breaking something; done when a feature is next touched, each split is small and its tests already exercise it. A size gate would measure the wrong thing.
+
 ## D126. Screens depend on core's API and pure helpers, never its services, and Biome holds the line (2026-11-08)
 
 Proposed by the lead, closing #396; not yet ruled on by the owner.
