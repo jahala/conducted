@@ -39,7 +39,9 @@
  * Must handle: git state loading (skeleton header), git state error with retry, no git status
  * because a rebase or merge is underway (the Changes tab says so), the commands "Create PR",
  * "Commit and push", "Start an AI code review" and "Show uncommitted changes" handled only while
- * the panel is mounted, through the command dispatcher so a rebind applies, "Commit and push",
+ * the panel is mounted, through the command dispatcher so a rebind applies, the palette's Show
+ * checks, Show changes, Show all files and Mark ready for review acting on this panel's tabs and
+ * draft pull request, "Commit and push",
  * "Merge the pull request" (Cmd+Shift+M) and "Fix errors" (Cmd+Shift+X) only while the header
  * offers that action, "Open the pull request" (Cmd+Shift+G, PR-07) opening it where "Open pull
  * requests in" says whatever tab is on screen, one review request at a time per workspace, and a
@@ -514,6 +516,31 @@ export function GitPanel({
 	// Cmd+Shift+R starts the same review as the Review button.
 	useCommandHandler("review.start", "area", () => {
 		void startReview(null);
+		return true;
+	});
+
+	// The palette's workspace actions show a tab of this panel. Conductor sets the panel's tab and,
+	// for Show changes, the branch-wide diff scope (renderApp @11369192: "changes" with type "all",
+	// "tree", "pr-status").
+	useCommandHandler("review.showChanges", "area", () => {
+		setTab("changes");
+		setScope({ kind: "branch" });
+		return true;
+	});
+	useCommandHandler("review.showAllFiles", "area", () => {
+		setTab("files");
+		return true;
+	});
+	useCommandHandler("pr.showChecks", "area", () => {
+		setTab("checks");
+		return true;
+	});
+
+	// Mark ready for review is the header's action while the pull request is a draft, as Conductor's
+	// handler is (renderApp @11370438: it needs the pull request number).
+	useCommandHandler("pr.markReady", "area", () => {
+		const offered = headerInputs === null ? null : computeGitHeader(headerInputs).action?.id;
+		if (offered === "ready_for_review") void runGuarded("ready_for_review");
 		return true;
 	});
 

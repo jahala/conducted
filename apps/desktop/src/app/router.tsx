@@ -70,8 +70,10 @@ import { NotFoundScreen, RouteErrorScreen } from "./route-states.tsx";
 
 /**
  * The window controls' keyboard shortcuts, which follow the same history the buttons use, and the
- * root shortcuts that open a full page: Cmd+Shift+N the new workspace page, Cmd+, Settings. Cmd+Q
- * (and Quit in the palette) quits the way the menu's Quit does, asking first while agents work.
+ * root shortcuts that open a full page: Cmd+Shift+N the new workspace page, Cmd+N Create, Cmd+, Settings,
+ * Cmd+Shift+H Home, and the palette's View archived workspaces (Home with Only archived, via
+ * `?archived=1`). Cmd+Q (and Quit in the palette) quits the way the menu's Quit does, asking first
+ * while agents work.
  */
 function NavigationShortcuts() {
 	const router = useRouter();
@@ -97,6 +99,20 @@ function NavigationShortcuts() {
 	});
 	useCommandHandler("workspace.createFromSource", "base", () => {
 		void navigate({ to: "/create" });
+		return true;
+	});
+	useCommandHandler("workspace.create", "base", () => {
+		void navigate({ to: "/create" });
+		return true;
+	});
+	useCommandHandler("nav.home", "base", () => {
+		void navigate({ to: "/all-workspaces" });
+		return true;
+	});
+	// Conductor's handler sets the Home view's showArchived flag and clears its search (renderApp
+	// @11366783). The flag travels in the URL, so it works whether Home is open already or not.
+	useCommandHandler("nav.viewArchived", "base", () => {
+		void navigate({ to: "/all-workspaces", search: { archived: "1" } });
 		return true;
 	});
 	useCommandHandler("app.openSettings", "base", () => {
@@ -317,9 +333,15 @@ const workspaceRoute = createRoute({
 	},
 });
 
+const zHomeSearch = z.object({
+	/** The nav.viewArchived intent: open Home with the archive filter on "Only archived". */
+	archived: z.literal("1").optional().catch(undefined),
+});
+
 const homeRoute = createRoute({
 	getParentRoute: () => mainLayoutRoute,
 	path: "/all-workspaces",
+	validateSearch: zHomeSearch,
 	component: () => (
 		<NotBuiltYet area="Home">
 			<HomeScreen />
