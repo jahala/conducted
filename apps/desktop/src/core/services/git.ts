@@ -110,15 +110,12 @@ import {
 	configGet,
 	configPullFf,
 	configPullRebase,
-	diffQuietHead,
-	diffToolKsdiff,
 	diffWorkingTree,
 	fetch,
 	fetchBranchRefspec,
 	firstPushSteps,
 	forEachRefRemoteBranches,
 	isAncestor,
-	lsFilesUntrackedPath,
 	lsTreeTopLevelDirectories,
 	mergeBase,
 	mergeFastForwardOnly,
@@ -175,8 +172,6 @@ import { resolveBaseCommit } from "../git/worktree.ts";
 import {
 	branchNameWithoutRemote,
 	CONTINUE_NOTE_FAILED_MESSAGE,
-	PULL_UP_TO_DATE_MESSAGE,
-	PULLED_LATEST_MESSAGE,
 	workspaceRelativePath,
 } from "../git-text.ts";
 import type { GitState, PullRequestAction, SparseCheckoutSettings } from "../model.ts";
@@ -2214,35 +2209,5 @@ export class GitService {
 		}
 		const value = result.value.stdout.trim().toLowerCase();
 		return ok(value === "true" || value === "1" || value === "yes" || value === "on");
-	}
-
-	/**
-	 * Backs `Actions.git.openInDiffTool`: opens the file's changes in Kaleidoscope when the file
-	 * has any. A file with no changes opens nothing and is not an error. A new file git does not
-	 * track yet has no earlier version, so `git diff --quiet` calls it unchanged and difftool would
-	 * show nothing; that is an error that says so, never a silent success.
-	 */
-	async openInDiffTool(workspaceId: WorkspaceId, path: string): Promise<Result<void>> {
-		const checked = workspaceRelativePath(path);
-		if (!checked.ok) return checked;
-		const found = await this.#deps.contextOf(workspaceId);
-		if (!found.ok) return found;
-		const cwd = found.value.workspacePath;
-
-		const changed = await this.#deps.git.runChecked(diffQuietHead(checked.value), { cwd });
-		if (!changed.ok) return changed;
-		if (changed.value.exitCode === 0) {
-			const untracked = await this.#deps.git.stdout(lsFilesUntrackedPath(checked.value), { cwd });
-			if (!untracked.ok) return untracked;
-			if (untracked.value.length === 0) return ok(undefined);
-			return err(
-				appError(
-					"diff_tool_untracked",
-					`${checked.value} is a new file, so there is no earlier version to compare it with.`,
-				),
-			);
-		}
-		const opened = await this.#deps.git.runChecked(diffToolKsdiff(checked.value), { cwd });
-		return opened.ok ? ok(undefined) : opened;
 	}
 }
