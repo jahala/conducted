@@ -548,7 +548,8 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		title: "General, a changed setting's actions menu open",
 		seed: async (world) => {
 			await seedCast(world);
-			await setSetting(world, "default_message_send_mode", "custom");
+			// Queue is the one value besides the default, steer; a value outside the options is dropped on load.
+			await setSetting(world, "default_message_send_mode", "queue");
 			return {
 				route: "/settings/user/general",
 				after: ({ document }) => click(document, "button", "Setting actions"),
