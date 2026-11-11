@@ -3,12 +3,13 @@
  * Owns: tests for the preset commands and the Big terminal settings block.
  * Test first: the Gemini preset gives "gemini -y".
  */
-import { ok } from "@conducted/shared";
+import { appError, err, ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { SettingValue } from "../../core/registries/settings.ts";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
+import { Toaster } from "../../ui/Toast.tsx";
 import { BigTerminalSettings } from "./BigTerminalSettings.tsx";
 import {
 	bigTerminalCommand,
@@ -92,6 +93,27 @@ describe("RUN-06 big terminal presets", () => {
 		});
 		fireEvent.click(screen.getByRole("button", { name: "Add custom command" }));
 		expect(screen.getByPlaceholderText("my-agent --flag")).toBeTruthy();
+	});
+
+	it("shows a custom row by its command alone, as Conductor's row does (renderApp @10680293)", () => {
+		renderWith({
+			experimental_big_terminal_mode: true,
+			big_terminal_preset: "custom:0",
+			big_terminal_custom_commands: "my-agent --fast",
+		});
+		expect(screen.getByText("my-agent --fast")).toBeTruthy();
+		expect(screen.queryByText("Custom command")).toBeNull();
+	});
+
+	it("shows the error's own message when a preset cannot be saved", async () => {
+		const { set } = renderWith({
+			experimental_big_terminal_mode: true,
+			big_terminal_preset: "gemini",
+		});
+		set.mockResolvedValue(err(appError("settings_write_failed", "The settings file is read-only.")));
+		render(<Toaster />);
+		fireEvent.click(screen.getByText("Codex"));
+		expect(await screen.findByText("The settings file is read-only.")).toBeTruthy();
 	});
 
 	it("shows nothing while big terminal mode is off", () => {

@@ -9,7 +9,7 @@
  * settings tab (D098 keeps the setting where our page groups it); its rows are the registry's two
  * keys, drawn here so a preset shows its command as Conductor's rows do.
  * Must handle: big terminal mode off (nothing shows), no preset chosen, a custom command chosen,
- * a custom line that is empty (the placeholder shows), and a save that fails (the row says so).
+ * a custom line that is empty (the placeholder shows), and a save that fails (a toast shows the error's own message).
  * Test first: stores the chosen preset.
  */
 import { useEffect, useState } from "react";
@@ -17,7 +17,7 @@ import { useActions, useSetting } from "../../core/hooks.ts";
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import { Input } from "../../ui/Input.tsx";
-import { toastError } from "../../ui/Toast.tsx";
+import { toast } from "../../ui/Toast.tsx";
 import {
 	BIG_TERMINAL_PRESETS,
 	bigTerminalPresetCommand,
@@ -46,13 +46,14 @@ export function BigTerminalSettings({ focusSettingKey = null }: BigTerminalSetti
 	const selected = preset === "" ? "none" : preset;
 	const savePreset = (value: string): void => {
 		void actions.settings.set("big_terminal_preset", value).then((saved) => {
-			if (!saved.ok) toastError("Couldn't save the preset", saved.error);
+			// Conductor saves without a word (fire and forget); ours shows the error's own message.
+			if (!saved.ok) toast.error(saved.error.message);
 		});
 	};
 	const saveCommands = (next: string[]): void => {
 		setLines(next);
 		void actions.settings.set("big_terminal_custom_commands", next.join("\n")).then((saved) => {
-			if (!saved.ok) toastError("Couldn't save the custom commands", saved.error);
+			if (!saved.ok) toast.error(saved.error.message);
 		});
 	};
 
@@ -60,7 +61,8 @@ export function BigTerminalSettings({ focusSettingKey = null }: BigTerminalSetti
 		...BIG_TERMINAL_PRESETS,
 		...lines.map((command, index) => ({
 			value: `custom:${index}`,
-			label: "Custom command",
+			// Conductor's custom row shows its command only (renderApp @10680293).
+			label: "",
 			command,
 		})),
 	];
@@ -107,7 +109,9 @@ export function BigTerminalSettings({ focusSettingKey = null }: BigTerminalSetti
 								onChange={() => savePreset(row.value)}
 								className="sr-only"
 							/>
-							<span className="shrink-0 text-sm font-medium text-fg">{row.label}</span>
+							{row.label === "" ? null : (
+								<span className="shrink-0 text-sm font-medium text-fg">{row.label}</span>
+							)}
 							{row.value === "none" ? null : (
 								<span className="ml-auto min-w-0 flex-1 truncate text-right font-mono text-xs text-fg-muted">
 									{row.command === ""
@@ -124,7 +128,6 @@ export function BigTerminalSettings({ focusSettingKey = null }: BigTerminalSetti
 					// biome-ignore lint/suspicious/noArrayIndexKey: a custom command line has no id; its position names it.
 					<div key={`custom-line-${index}`} className="flex items-center gap-2 pl-6">
 						<Input
-							aria-label="Custom command"
 							value={command}
 							placeholder="my-agent --flag"
 							autoComplete="new-password"
