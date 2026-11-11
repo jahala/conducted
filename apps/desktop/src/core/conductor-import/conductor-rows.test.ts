@@ -25,6 +25,7 @@ describe("APP-17 Conductor's rows", () => {
 				workspaces: null,
 			},
 			counts: {},
+			messageRows: null,
 		});
 		expect(rows.repos.map((repo) => repo.id)).toEqual(["r-1"]);
 		expect(rows.repos[0]).toMatchObject({ hidden: false, root_path: null });
