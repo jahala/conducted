@@ -19,6 +19,21 @@ describe("APP-05 Select", () => {
 		expect(screen.getByRole("combobox", { name: "Method" }).textContent).toContain("Automatic");
 	});
 
+	it("shows its placeholder when no option is chosen", () => {
+		render(
+			<Select
+				aria-label="Owner"
+				value=""
+				options={[{ value: "sam", label: "sam" }]}
+				placeholder="Select an owner"
+				onValueChange={() => {}}
+			/>,
+		);
+		expect(screen.getByRole("combobox", { name: "Owner" }).textContent).toContain(
+			"Select an owner",
+		);
+	});
+
 	it("hands back the empty string when that option is chosen", async () => {
 		const onValueChange = vi.fn();
 		render(
