@@ -1,19 +1,19 @@
 {
 	"title:M948377": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "PR-01",
-		"item": "A GitHub sign-in that expired or a rejected token shows a notification, with Open account settings.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "create-github-repo-owners-error",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"title:M952355": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "PR-01",
-		"item": "A GitHub sign-in that expired or a rejected token shows a notification, with Open account settings.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "github-token-rejected",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"title:M1183209": {
 		"status": "gap",
@@ -1394,12 +1394,10 @@
 		"owner": "rule:cite"
 	},
 	"title:R2031302": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PRJ-03",
-		"item": "'Create project' dialog: Project name, Parent folder, Template",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "The title our app passes to the macOS folder picker. It is the window's title, not a control or text on our screen.",
+		"by": "hand"
 	},
 	"title:R2093263": {
 		"status": "gap",
@@ -1737,56 +1735,52 @@
 		"by": "seed"
 	},
 	"title:R8062469": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-06",
-		"item": "Callouts Note, Tip, Important, Warning, Caution",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-markdown",
+		"via": "text",
+		"role": "div",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > blockquote:nth-of-type(3) > div",
+		"by": "seed"
 	},
 	"title:R8062604": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-06",
-		"item": "Callouts Note, Tip, Important, Warning, Caution",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-markdown",
+		"via": "text",
+		"role": "div",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > blockquote:nth-of-type(4) > div",
+		"by": "seed"
 	},
 	"title:R8062746": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-06",
-		"item": "Callouts Note, Tip, Important, Warning, Caution",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-markdown",
+		"via": "text",
+		"role": "div",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > blockquote:nth-of-type(5) > div",
+		"by": "seed"
 	},
 	"title:R8062882": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-06",
-		"item": "Callouts Note, Tip, Important, Warning, Caution",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-markdown",
+		"via": "text",
+		"role": "div",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > blockquote:nth-of-type(6) > div",
+		"by": "seed"
 	},
 	"title:R8864204": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-14",
-		"item": "Usage details list Reasoning output, Service tier and Speed.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Requested and Returned headings of the turn-metadata card behind the Internal setting internal_request_metadata; staff and developer tools stay out (D025).",
+		"by": "hand"
 	},
 	"title:R8864972": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-14",
-		"item": "Usage details list Reasoning output, Service tier and Speed.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Requested and Returned headings of the turn-metadata card behind the Internal setting internal_request_metadata; staff and developer tools stay out (D025).",
+		"by": "hand"
 	},
 	"title:R9608858": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CHAT-06",
 		"item": "Per-turn error boundary 'This chat turn failed to render'",
@@ -1794,7 +1788,7 @@
 	},
 	"title:R9617731": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CHAT-06",
 		"item": "Chat tab content: message list and composer",
@@ -2195,21 +2189,20 @@
 		"by": "seed"
 	},
 	"title:R11057103": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "PR-01",
-		"item": "Account: GitHub through the gh CLI",
-		"owner": "hand"
+		"status": "matched",
+		"state": "account-github",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(3) > div > fieldset > button > span",
+		"by": "seed"
 	},
 	"title:R11058782": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "PR-01",
-		"item": "Account: GitHub personal access token field (Keychain)",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "account-github",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(4) > label",
+		"by": "seed"
 	},
 	"title:R11092223": {
 		"status": "decided",
@@ -3270,14 +3263,12 @@
 		"owner": "rule:neighbour"
 	},
 	"title:R11302969": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"class": "wording",
-		"backlog": "RUN-06",
-		"item": "Experimental: 'Big terminal mode' with preset and custom commands",
-		"owner": "hand",
-		"note": "Conductor's 'Big terminal settings' is the title of its Terminal settings panel. Ours is the switch row, whose label is Conductor's 'Big terminal mode' (ui-map 6). Different control."
+		"status": "matched",
+		"state": "settings-big-terminal",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section > div > h3",
+		"by": "seed"
 	},
 	"title:R11303199": {
 		"status": "decided",

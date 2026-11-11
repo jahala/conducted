@@ -17,8 +17,9 @@
 import { useState } from "react";
 import type { KanbanStatus, Repo, Workspace } from "../../core/model.ts";
 import { cn } from "../../ui/cn.ts";
+import type { PointerDrag } from "../../ui/pointer-drag.ts";
 import { KanbanCard } from "./KanbanCard.tsx";
-import { KANBAN_COLUMNS, KANBAN_DRAG_TYPE, KANBAN_STATUS_MARK } from "./kanban.ts";
+import { KANBAN_COLUMNS, KANBAN_STATUS_MARK } from "./kanban.ts";
 
 /** Cards shown before the column offers "Show N more". */
 export const KANBAN_COLUMN_LIMIT = 10;
@@ -29,36 +30,33 @@ export interface KanbanColumnProps {
 	repos: Repo[];
 	/** Persist a drop or a menu choice; the screen rolls the card back when the write fails. */
 	onMove: (workspaceId: Workspace["id"], status: KanbanStatus) => void;
+	/** The board's drag, so a card starts one and this column is its target. */
+	pointer: PointerDrag<Workspace, KanbanStatus>;
+	/** The column's element, so the board can hit-test a pointer against it. */
+	columnRef: (node: HTMLElement | null) => void;
 }
 
-export function KanbanColumn({ status, workspaces, repos, onMove }: KanbanColumnProps) {
-	const [over, setOver] = useState(false);
+export function KanbanColumn({
+	status,
+	workspaces,
+	repos,
+	onMove,
+	pointer,
+	columnRef,
+}: KanbanColumnProps) {
 	const [expanded, setExpanded] = useState(false);
+	const over = pointer.drag?.target === status;
 	const label = KANBAN_COLUMNS[status].label;
 	const reposById = new Map(repos.map((repo) => [repo.id, repo]));
 	const long = workspaces.length > KANBAN_COLUMN_LIMIT;
 	const shown = expanded || !long ? workspaces : workspaces.slice(0, KANBAN_COLUMN_LIMIT);
 	const hidden = workspaces.length - shown.length;
 
-	const drop = (event: React.DragEvent<HTMLElement>) => {
-		event.preventDefault();
-		setOver(false);
-		const workspaceId = event.dataTransfer.getData(KANBAN_DRAG_TYPE);
-		if (workspaceId === "") return;
-		onMove(workspaceId as Workspace["id"], status);
-	};
-
 	return (
 		<section
+			ref={columnRef}
 			aria-label={label}
 			data-testid={`kanban-column-${status}`}
-			onDragOver={(event) => {
-				event.preventDefault();
-				if (event.dataTransfer !== null) event.dataTransfer.dropEffect = "move";
-				setOver(true);
-			}}
-			onDragLeave={() => setOver(false)}
-			onDrop={drop}
 			className="relative flex min-h-0 w-[300px] shrink-0 flex-col"
 		>
 			<header className="flex shrink-0 items-center gap-2 px-2 pb-2">
@@ -79,7 +77,7 @@ export function KanbanColumn({ status, workspaces, repos, onMove }: KanbanColumn
 						if (repo === undefined) return null;
 						return (
 							<li key={workspace.id}>
-								<KanbanCard workspace={workspace} repo={repo} onMove={onMove} />
+								<KanbanCard workspace={workspace} repo={repo} onMove={onMove} pointer={pointer} />
 							</li>
 						);
 					})}

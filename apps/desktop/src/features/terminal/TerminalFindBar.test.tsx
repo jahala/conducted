@@ -151,7 +151,7 @@ describe("RUN-06 terminal find bar", () => {
 		expect(onClose).toHaveBeenCalledTimes(1);
 	});
 
-	it("shows 'Invalid pattern' instead of 'No results' for a broken regular expression", () => {
+	it("shows Conductor's 'Invalid regular expression' instead of 'No results' for a broken regular expression", () => {
 		render(
 			<TerminalFindBar
 				query="["
@@ -166,7 +166,7 @@ describe("RUN-06 terminal find bar", () => {
 				onClose={vi.fn()}
 			/>,
 		);
-		expect(screen.getByText("Invalid pattern")).toBeTruthy();
+		expect(screen.getByText("Invalid regular expression")).toBeTruthy();
 		expect(screen.queryByText("No results")).toBeNull();
 	});
 

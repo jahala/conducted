@@ -9,7 +9,7 @@ import type { SessionConfig, SessionEvent } from "@conducted/protocol";
 import type { EventId, SessionId, TurnId } from "@conducted/shared";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import {
 	createTestContainer,
@@ -154,7 +154,8 @@ describe("CHAT-14 context wheel", () => {
 			addUsage(test, session.id);
 			render(<ContextWheel sessionId={session.id} />, { wrapper });
 			fireEvent.focus(screen.getByRole("button", { name: "Context usage" }));
-			expect(await screen.findByText("Window used: 72,000 of 100,000 tokens")).toBeTruthy();
+			expect(await screen.findByText("Window used")).toBeTruthy();
+			expect(screen.getByText("72,000 of 100,000 tokens")).toBeTruthy();
 			expect(screen.getByText("Input")).toBeTruthy();
 			expect(screen.getByText("1,200")).toBeTruthy();
 			expect(screen.getByText("Cached input")).toBeTruthy();
@@ -166,6 +167,21 @@ describe("CHAT-14 context wheel", () => {
 			expect(screen.getByText("claude-sonnet-4-5")).toBeTruthy();
 			expect(screen.getByText("high")).toBeTruthy();
 			expect(screen.getByText("standard")).toBeTruthy();
+		} finally {
+			await teardown(test);
+		}
+	});
+
+	it("says its details are loading while the answer is on its way", async () => {
+		const { test, session, wrapper } = await setup();
+		try {
+			addUsage(test, session.id);
+			vi.spyOn(test.container.services.sessions, "contextUsage").mockReturnValue(
+				new Promise(() => undefined),
+			);
+			render(<ContextWheel sessionId={session.id} />, { wrapper });
+			fireEvent.focus(screen.getByRole("button", { name: "Context usage" }));
+			expect(await screen.findByText("Loading details…")).toBeTruthy();
 		} finally {
 			await teardown(test);
 		}
@@ -251,7 +267,7 @@ describe("CHAT-14 context wheel", () => {
 			addUsage(test, session.id);
 			render(<ContextWheel sessionId={session.id} />, { wrapper });
 			fireEvent.focus(screen.getByRole("button", { name: "Context usage" }));
-			await screen.findByText("Window used: 72,000 of 100,000 tokens");
+			await screen.findByText("Window used");
 			expect(screen.queryByText("Cost")).toBeNull();
 
 			setSetting(test, "experimental_show_agent_cost", true);

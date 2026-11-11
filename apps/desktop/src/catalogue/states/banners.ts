@@ -70,6 +70,12 @@ function noticesChat(): Conversation {
 	});
 	chat.agent(relayed, [{ kind: "notice", notice: "rate_limit", text: "" }]);
 	chat.end(relayed);
+
+	const remote = chat.user("The staging redirect still drops the page; check it too.", {
+		sender: { kind: "claude_ai" },
+	});
+	chat.text(remote, "Staging uses the same `safeNext`; its fix is in the same pull request.");
+	chat.end(remote);
 	return chat;
 }
 
@@ -301,7 +307,7 @@ export const BANNER_STATES: CatalogueState[] = [
 				after: async ({ app, document }) => {
 					await animateCast(world, cast, app);
 					await refreshGit(app, cast.arbor);
-					await click(document, "button", "More turn actions");
+					await click(document, "button", "Show message actions");
 				},
 				ready: (document) => shows(document, "Copy summary"),
 			};
@@ -318,7 +324,7 @@ export const BANNER_STATES: CatalogueState[] = [
 				after: async ({ app, document }) => {
 					await animateCast(world, cast, app);
 					await refreshGit(app, cast.arbor);
-					await click(document, "button", "More turn actions");
+					await click(document, "button", "Show message actions");
 					await click(document, "[role=menuitem]", "Reset chat");
 				},
 				ready: (document) => shows(document, "Later messages will be deleted."),

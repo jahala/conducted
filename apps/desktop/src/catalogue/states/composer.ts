@@ -10,8 +10,9 @@
  */
 import type { Session, Workspace } from "../../core/model.ts";
 import { chatRoute, type GitWorld, refreshGit, seedCast } from "../cast.ts";
-import { click, find, shows } from "../dom.ts";
-import { addChat } from "../seeds.ts";
+import { conversation } from "../conversation.ts";
+import { click, find, hover, shows } from "../dom.ts";
+import { addChat, addEvents, CLAUDE_CONFIG, must, setSetting } from "../seeds.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, DAY, HOUR } from "../time.ts";
 import type { World } from "../world.ts";
@@ -57,7 +58,84 @@ async function typeInComposer(document: Document, text: string): Promise<void> {
 	document.execCommand("insertText", false, text);
 }
 
+/** arbor's chat with a finished turn whose usage the context wheel can show. */
+async function contextUsageChat(world: World, holdDetails = false): Promise<Scene> {
+	const cast = await seedCast(world);
+	await setSetting(world, "always_show_context_wheel", true);
+	must(await world.repositories.modelContextWindows.record("claude", "claude-opus-4-7", 200_000));
+	const chat = await addChat(world, cast.arbor, {
+		title: "How the redirect keeps its page",
+		config: { ...CLAUDE_CONFIG, model: "claude-opus-4-7", fastMode: true },
+	});
+	const talk = conversation("arbor-usage", CATALOGUE_NOW - 10 * 60_000);
+	const turn = talk.user("Explain how a sign-in keeps the page the user asked for.");
+	talk.usage(turn, 150_000, { fastMode: true, serviceTier: "priority" });
+	talk.text(
+		turn,
+		"The login form carries `next`, and `safeNext` keeps it only when it is a path on this site.",
+	);
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	if (holdDetails) world.holdSidecar("getContextUsage");
+	return {
+		route: chatRoute(cast.arbor, chat),
+		after: async ({ app, document }) => {
+			await refreshGit(app, cast.arbor);
+			await hover(document, "button", "Context usage");
+		},
+		ready: (document) => shows(document, holdDetails ? "Loading details…" : "Window used"),
+	};
+}
+
+/** A chat with no reported window (or a Cursor chat), so the card shows the matching note. */
+async function contextNoteChat(world: World, agent: "claude" | "cursor"): Promise<Scene> {
+	const cast = await seedCast(world);
+	await setSetting(world, "always_show_context_wheel", true);
+	const chat = await addChat(world, cast.arbor, {
+		title: agent === "cursor" ? "Cursor context" : "Context size not reported",
+		config: { ...CLAUDE_CONFIG, agent },
+	});
+	return {
+		route: chatRoute(cast.arbor, chat),
+		after: async ({ app, document }) => {
+			await refreshGit(app, cast.arbor);
+			await hover(document, "button", "Context usage");
+		},
+		ready: (document) =>
+			shows(
+				document,
+				agent === "cursor"
+					? "Context usage is unavailable for Cursor."
+					: "Context window size not yet available.",
+			),
+	};
+}
+
 export const COMPOSER_STATES: CatalogueState[] = [
+	{
+		id: "chat-context-unknown",
+		group: "Composer",
+		title: "The context card before any window size was reported",
+		seed: (world) => contextNoteChat(world, "claude"),
+	},
+	{
+		id: "chat-context-cursor",
+		group: "Composer",
+		title: "The context card for a Cursor chat, which has no usage to show",
+		seed: (world) => contextNoteChat(world, "cursor"),
+	},
+	{
+		id: "chat-context-usage",
+		group: "Composer",
+		title: "The context usage card open: window used, token breakdown, model and service tier",
+		seed: (world) => contextUsageChat(world),
+	},
+	{
+		id: "chat-context-loading",
+		group: "Composer",
+		title: "The context usage card while its details are still loading",
+		seed: (world) => contextUsageChat(world, true),
+	},
 	{
 		id: "composer-empty",
 		group: "Composer",

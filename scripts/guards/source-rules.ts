@@ -41,11 +41,26 @@ export function checkHeaders(root: string): Problem[] {
 	return problems;
 }
 
-const MARKERS: { pattern: RegExp; files: RegExp; message: string }[] = [
+/**
+ * `text` with the contents of ordinary string literals blanked, keeping line breaks. Conductor's
+ * user-facing words may contain "TODO" (its empty-chat starter "Fix a TODO"), which is wording, not
+ * a marker; a marker rule that names comments reads the source without strings.
+ */
+function withoutStringLiterals(text: string): string {
+	const blank = (match: string) => match.replace(/[^\n]/g, " ");
+	// An opening quote never follows a letter, so the apostrophes in a comment ("don't ... it's")
+	// are not read as a string that would hide a TODO between them.
+	return text
+		.replace(/(?<!\w)"(?:[^"\\\n]|\\.)*"/g, blank)
+		.replace(/(?<!\w)'(?:[^'\\\n]|\\.)*'/g, blank);
+}
+
+const MARKERS: { pattern: RegExp; files: RegExp; message: string; skipStrings?: boolean }[] = [
 	{
 		pattern: /\b(TODO|FIXME|XXX)\b/,
 		files: /\.(ts|tsx|rs|sh)$/,
 		message: "has a TODO-style comment; use a backlog id and notImplemented instead",
+		skipStrings: true,
 	},
 	{
 		pattern: /\b(todo|unimplemented)!\s*\(/,
@@ -69,7 +84,7 @@ export function checkMarkers(root: string): Problem[] {
 		const text = read(path);
 		for (const marker of MARKERS) {
 			if (!marker.files.test(file)) continue;
-			const lines = text.split("\n");
+			const lines = (marker.skipStrings === true ? withoutStringLiterals(text) : text).split("\n");
 			const at = lines.findIndex((line) => marker.pattern.test(line));
 			if (at !== -1)
 				problems.push({ guard: "markers", message: `${file}:${at + 1} ${marker.message}` });

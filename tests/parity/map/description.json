@@ -1,21 +1,17 @@
 {
 	"description:M948441": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "PR-01",
-		"owner": "hand",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "create-github-repo-owners-error",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:M952385": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "PR-01",
-		"owner": "hand",
-		"note": "Our app shows one sign-in message for both the `gh` CLI and a saved token, and takes Conductor's generic expired-sign-in wording (description:M948441). This PAT-specific line belongs to Conductor's token broker, which D029 replaces."
+		"status": "decided",
+		"decision": "D029",
+		"note": "Conductor's personal access token broker line. D029 replaces the broker: ours keeps the user's own gh login or the Keychain token and has one expired-sign-in notice, whose token variant uses Conductor's own line.",
+		"by": "hand"
 	},
 	"description:M1183257": {
 		"status": "decided",
@@ -1764,13 +1760,12 @@
 		"by": "seed"
 	},
 	"description:R11302999": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"class": "wording",
-		"backlog": "RUN-06",
-		"owner": "hand",
-		"note": "Conductor's description belongs to its Terminal settings panel. Our switch row keeps the research's description for that setting. Different control."
+		"status": "matched",
+		"state": "settings-big-terminal",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section > div > p",
+		"by": "seed"
 	},
 	"description:R11303228": {
 		"status": "decided",

@@ -909,12 +909,12 @@
 		"owner": "hand"
 	},
 	"label:M952497": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "PR-01",
-		"item": "A GitHub sign-in that expired or a rejected token shows a notification, with Open account settings.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "github-token-rejected",
+		"via": "text",
+		"role": "button",
+		"selector": "div > section > ol > li > button",
+		"by": "seed"
 	},
 	"label:M1092304": {
 		"status": "gap",
@@ -2076,40 +2076,34 @@
 		"owner": "rule:cite"
 	},
 	"label:R8857286": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"note": "Checked by hand: the wording differs. Ours reads \"Input:\" (text) in chat-working.",
-		"by": "hand",
-		"backlog": "CHAT-14",
-		"item": "Usage details list Reasoning output, Service tier and Speed.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-turn-details",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R8857310": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-14",
-		"item": "Turn footer hover card: start to end time, Fast mode, tokens Input, Output, Cache read, Cache write",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-context-usage",
+		"via": "text",
+		"role": "dt",
+		"selector": "div:nth-of-type(2) > div > div > dl > dt:nth-of-type(2)",
+		"by": "seed"
 	},
 	"label:R8857359": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"note": "Not drawn yet: the seed matched it to the Node REPL card's \"Output:\", which is another control; Conductor's is a row of the turn's token hover card.",
-		"backlog": "CHAT-14",
-		"item": "Turn footer hover card: start to end time, Fast mode, tokens Input, Output, Cache read, Cache write",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "chat-turn-details",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R8857397": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-14",
-		"item": "Usage details list Reasoning output, Service tier and Speed.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Shown only in the Requested/Returned turn-metadata card behind the Internal setting internal_request_metadata; staff and developer tools stay out (D025).",
+		"by": "hand"
 	},
 	"label:R8863451": {
 		"status": "matched",
@@ -2136,12 +2130,12 @@
 		"by": "seed"
 	},
 	"label:R8863884": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-14",
-		"item": "Usage details list Reasoning output, Service tier and Speed.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-context-usage",
+		"via": "text",
+		"role": "dt",
+		"selector": "div:nth-of-type(2) > div > div > dl > dt:nth-of-type(7)",
+		"by": "seed"
 	},
 	"label:R8864029": {
 		"status": "matched",
@@ -2152,12 +2146,10 @@
 		"by": "seed"
 	},
 	"label:R8864825": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-14",
-		"item": "Usage details list Reasoning output, Service tier and Speed.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Shown only in the Requested/Returned turn-metadata card behind the Internal setting internal_request_metadata; staff and developer tools stay out (D025).",
+		"by": "hand"
 	},
 	"label:R9079981": {
 		"status": "gap",
@@ -2354,12 +2346,12 @@
 		"by": "seed"
 	},
 	"label:R9380779": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-06",
-		"item": "Empty chat starters",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-context-unknown",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(3) > button:nth-of-type(3)",
+		"by": "seed"
 	},
 	"label:R9406451": {
 		"status": "gap",
@@ -2386,12 +2378,12 @@
 		"owner": "rule:cite"
 	},
 	"label:R9627220": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-29",
-		"item": "Attachment viewer for images and videos with 'Copy image', 'Download file' and open in default app",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-attachment-viewer",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > button:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"label:R9640929": {
 		"status": "gap",
@@ -2868,31 +2860,28 @@
 		"by": "seed"
 	},
 	"label:R10676910": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-06",
-		"item": "'Amp' row in the Big terminal 'New tab preset' radio list (bundle @10676910), with `amp` shown as its command",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "settings-big-terminal",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section > fieldset > div:nth-of-type(1) > label:nth-of-type(4) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R10676977": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-06",
-		"item": "'Copilot' row in the Big terminal 'New tab preset' radio list (bundle @10676977), with `copilot --allow-all` shown as its command",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "settings-big-terminal",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section > fieldset > div:nth-of-type(1) > label:nth-of-type(5) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R10677047": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-06",
-		"item": "'Gemini' row in the Big terminal 'New tab preset' radio list (bundle @10677047), with `gemini -y` shown as its command",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "settings-big-terminal",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section > fieldset > div:nth-of-type(1) > label:nth-of-type(6) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R10677114": {
 		"status": "matched",
@@ -3259,12 +3248,12 @@
 		"by": "seed"
 	},
 	"label:R11433415": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "CHAT-29",
-		"item": "Attachment viewer for images and videos with 'Copy image', 'Download file' and open in default app",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-attachment-viewer",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"label:R11440151": {
 		"status": "gap",

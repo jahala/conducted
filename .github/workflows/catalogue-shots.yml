@@ -5,7 +5,8 @@ name: Catalogue shots
 # browser run on the owner's Mac. Runs on pull requests that touch the desktop's screens. The same
 # job runs the browser check of the Codex visualization frame under the app's production policy
 # (scripts/visualization/frame-policy.browser.ts, issue #466), the Loadout's pointer drag
-# (scripts/catalogue/loadout-drag.browser.ts, issue #481) and the Settings sidebar's measure
+# (scripts/catalogue/loadout-drag.browser.ts, issue #481), the pointer checks for every in-app
+# drag (scripts/catalogue/pointer-drag.browser.ts, issue #529) and the Settings sidebar's measure
 # (scripts/settings-nav.browser.ts, issue #488).
 on:
   pull_request:
@@ -65,6 +66,9 @@ jobs:
       - name: The Loadout takes a model from a real pointer drag
         if: ${{ !cancelled() }}
         run: bun scripts/catalogue/loadout-drag.browser.ts
+      - name: Every in-app drag takes a real pointer drag
+        if: ${{ !cancelled() }}
+        run: bun scripts/catalogue/pointer-drag.browser.ts
       - name: The settings sidebar never scrolls sideways
         if: ${{ !cancelled() }}
         run: bun scripts/settings-nav.browser.ts

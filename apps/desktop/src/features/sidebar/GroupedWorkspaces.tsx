@@ -36,7 +36,7 @@
 
 import type { RepoId, Result, WorkspaceId } from "@conducted/shared";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useCommandHandler, useRunCommandHandlers } from "../../app/command-dispatcher.ts";
 import { useActions, useSetting } from "../../core/hooks.ts";
 import type { Repo, Section, Workspace } from "../../core/model.ts";
@@ -63,17 +63,21 @@ import {
 	type SidebarView,
 	writeGroupBySetting,
 } from "./sidebar-view.ts";
-import {
-	draggedSection,
-	draggedWorkspace,
-	useWorkspaceDrag,
-	WORKSPACE_DRAG_MIME,
-} from "./use-workspace-drag.ts";
+import { useWorkspaceDrag } from "./use-workspace-drag.ts";
 import { ViewOptionsMenu } from "./ViewOptionsMenu.tsx";
 import { WorkspaceRow } from "./WorkspaceRow.tsx";
+import {
+	useWorkspaceDragController,
+	useWorkspaceHitTest,
+	WorkspaceDragProvider,
+} from "./workspace-drag-context.tsx";
 
-/** The drag payload for a project group header, so a drop knows which project moved (NAV-04). */
-export const REPO_DRAG_MIME = "application/x-conducted-repo";
+/** True when a point lies inside a rectangle. jsdom gives every element a zero rectangle. */
+function containsPoint(rect: DOMRect, point: { x: number; y: number }): boolean {
+	return (
+		point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
+	);
+}
 
 export interface GroupedWorkspacesProps {
 	repos: Repo[];
@@ -167,6 +171,8 @@ function GroupSection({
 	onReorderRepo: (draggedId: string, targetId: string) => void;
 }) {
 	const actions = useActions();
+	const pointer = useWorkspaceDragController();
+	const sectionRef = useRef<HTMLElement | null>(null);
 	const repoId = group.key.kind === "project" ? group.key.repoId : null;
 	const repo =
 		repoId === null ? null : (repos.find((candidate) => candidate.id === repoId) ?? null);
@@ -180,29 +186,49 @@ function GroupSection({
 		reorder: onReorder,
 		onError: toastError,
 	});
+	useWorkspaceHitTest((point) => {
+		const root = sectionRef.current;
+		if (root === null) return undefined;
+		for (const row of root.querySelectorAll<HTMLElement>("[data-workspace-id]")) {
+			const rect = row.getBoundingClientRect();
+			if (!containsPoint(rect, point)) continue;
+			const workspaceId = row.dataset.workspaceId as WorkspaceId | undefined;
+			if (workspaceId === undefined) continue;
+			return {
+				key: `row:${workspaceId}`,
+				element: row,
+				drop: (payload, at) => {
+					if (payload.kind !== "workspace") return;
+					const after = rect.height > 0 && at.y > rect.top + rect.height / 2;
+					drag.dropOn(`row:${workspaceId}`, after ? 1 : 0, payload.id);
+				},
+			};
+		}
+		if (!canReorderRepo || repo === null) return undefined;
+		const header = root.querySelector<HTMLElement>("[data-repo-id]");
+		if (header === null) return undefined;
+		const rect = header.getBoundingClientRect();
+		if (!containsPoint(rect, point)) return undefined;
+		return {
+			key: `repo:${repo.id}`,
+			element: header,
+			drop: (payload) => {
+				if (payload.kind === "repo" && payload.id !== repo.id) {
+					onReorderRepo(payload.id, repo.id);
+				}
+			},
+		};
+	});
 	return (
-		<section aria-label={group.label} className="px-1.5 pt-1.5 pb-3">
+		<section ref={sectionRef} aria-label={group.label} className="px-1.5 pt-1.5 pb-3">
 			<Collapsible open={open} onOpenChange={onOpenChange}>
-				{/* biome-ignore lint/a11y/noStaticElementInteractions: a project header is a drag source; its trigger and create link are the interactive parts. */}
 				<div
-					className="group/header mt-0.5 mb-1 flex items-center gap-0.5"
+					className="group/header mt-0.5 mb-1 flex touch-none items-center gap-0.5"
 					data-repo-id={repo?.id}
-					draggable={canReorderRepo}
-					onDragStart={(event) => {
+					onClickCapture={pointer.consumeClick}
+					onPointerDown={(event) => {
 						if (!canReorderRepo || repo === null) return;
-						event.dataTransfer?.setData(REPO_DRAG_MIME, repo.id);
-						event.dataTransfer?.setData("text/plain", repo.id);
-					}}
-					onDragOver={(event) => {
-						if (!canReorderRepo) return;
-						event.preventDefault();
-					}}
-					onDrop={(event) => {
-						if (!canReorderRepo || repo === null) return;
-						const dragged = event.dataTransfer?.getData(REPO_DRAG_MIME) ?? "";
-						if (dragged === "" || dragged === repo.id) return;
-						event.preventDefault();
-						onReorderRepo(dragged, repo.id);
+						pointer.start(event, { kind: "repo", id: repo.id });
 					}}
 				>
 					<CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1.5 text-left text-sm font-semibold text-sidebar-fg-muted hover:bg-hover">
@@ -246,29 +272,14 @@ function GroupSection({
 							const row = rows.get(workspaceId);
 							if (row === undefined) return null;
 							return (
-								// biome-ignore lint/a11y/noStaticElementInteractions: a sidebar row is a drag source; its link is the interactive part.
 								<div
 									key={workspaceId}
-									draggable
 									data-workspace-id={workspaceId}
-									onDragStart={(event) => {
-										event.dataTransfer?.setData(WORKSPACE_DRAG_MIME, workspaceId);
-										event.dataTransfer?.setData("text/plain", workspaceId);
+									className="touch-none"
+									onClickCapture={pointer.consumeClick}
+									onPointerDown={(event) => {
 										drag.startDrag(workspaceId);
-									}}
-									onDragEnd={drag.cancel}
-									onDragOver={(event) => {
-										event.preventDefault();
-										event.stopPropagation();
-										drag.dragOver(`row:${workspaceId}`);
-									}}
-									onDrop={(event) => {
-										event.preventDefault();
-										event.stopPropagation();
-										if (draggedSection(event) !== null) return;
-										const carried = draggedWorkspace(event, drag.state.draggingId);
-										if (carried === null) return;
-										drag.dropOn(`row:${workspaceId}`, 1, carried);
+										pointer.start(event, { kind: "workspace", id: workspaceId });
 									}}
 								>
 									<WorkspaceRow
@@ -498,82 +509,84 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 	};
 
 	return (
-		<ContextMenu
-			items={
-				<ContextMenuItem onSelect={() => setNewSectionOpen(true)}>New section...</ContextMenuItem>
-			}
-		>
-			<div className="flex flex-col" data-sidebar-list="">
-				{/* Conductor's list header (Rtr, renderApp @10493990): "My workspaces" in 12px semibold
+		<WorkspaceDragProvider>
+			<ContextMenu
+				items={
+					<ContextMenuItem onSelect={() => setNewSectionOpen(true)}>New section...</ContextMenuItem>
+				}
+			>
+				<div className="flex flex-col" data-sidebar-list="">
+					{/* Conductor's list header (Rtr, renderApp @10493990): "My workspaces" in 12px semibold
 				    muted text, its actions behind an ellipsis that shows on hover (D098). The header
 				    folds the main list and remembers the fold. */}
-				<div className="group/header relative mt-0.5 px-2">
-					<button
-						type="button"
-						aria-expanded={!myWorkspacesCollapsed}
-						onClick={toggleMyWorkspaces}
-						className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1.5 text-left group-hover/header:bg-hover"
-					>
-						<span className="min-w-0 flex-1 truncate text-xs font-semibold text-sidebar-fg-muted">
-							My workspaces
-						</span>
-						<span aria-hidden="true" className="w-6 shrink-0" />
-						<HeaderChevron open={!myWorkspacesCollapsed} focusWithin />
-					</button>
-					<ViewOptionsMenu
-						view={view}
-						repos={repos}
-						onChange={changeView}
-						onNewSection={() => setNewSectionOpen(true)}
-						onAddProject={() => runCommand("project.add")}
+					<div className="group/header relative mt-0.5 px-2">
+						<button
+							type="button"
+							aria-expanded={!myWorkspacesCollapsed}
+							onClick={toggleMyWorkspaces}
+							className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1.5 text-left group-hover/header:bg-hover"
+						>
+							<span className="min-w-0 flex-1 truncate text-xs font-semibold text-sidebar-fg-muted">
+								My workspaces
+							</span>
+							<span aria-hidden="true" className="w-6 shrink-0" />
+							<HeaderChevron open={!myWorkspacesCollapsed} focusWithin />
+						</button>
+						<ViewOptionsMenu
+							view={view}
+							repos={repos}
+							onChange={changeView}
+							onNewSection={() => setNewSectionOpen(true)}
+							onAddProject={() => runCommand("project.add")}
+						/>
+						<AddProjectMenu />
+					</div>
+					<PinnedSection
+						workspaces={pinnedWorkspaces}
+						allWorkspaces={workspaces}
+						onReorder={saveOrder("pinned")}
 					/>
-					<AddProjectMenu />
+					<SectionList
+						sections={sections}
+						workspaces={workspaces}
+						excludedIds={pinnedIds}
+						onNewSection={() => setNewSectionOpen(true)}
+					/>
+					<div hidden={myWorkspacesCollapsed}>
+						{groups.length === 0 ? (
+							<div className="flex flex-col items-center gap-2 p-4 text-center text-sm text-fg-muted">
+								<p>No matching workspaces</p>
+								{view.projectFilter.length > 0 ? (
+									<Button variant="secondary" size="sm" onClick={clearFilter}>
+										Clear filter
+									</Button>
+								) : null}
+							</div>
+						) : (
+							mainGroups.map((group) => {
+								const key = groupKey(group);
+								return (
+									<GroupSection
+										key={key}
+										group={group}
+										rows={rows}
+										repos={repos}
+										selectedId={selectedId}
+										shortcutIndexes={shortcutIndexes}
+										manualOrder={view.manualOrder}
+										open={!isCollapsed(group)}
+										onOpenChange={(open) => setGroupOpen(key, open)}
+										onReorder={saveOrder(key)}
+										repoReorderable={projectGroupCount > 1}
+										onReorderRepo={reorderProjects}
+									/>
+								);
+							})
+						)}
+					</div>
+					<SectionDialog open={newSectionOpen} onOpenChange={setNewSectionOpen} section={null} />
 				</div>
-				<PinnedSection
-					workspaces={pinnedWorkspaces}
-					allWorkspaces={workspaces}
-					onReorder={saveOrder("pinned")}
-				/>
-				<SectionList
-					sections={sections}
-					workspaces={workspaces}
-					excludedIds={pinnedIds}
-					onNewSection={() => setNewSectionOpen(true)}
-				/>
-				<div hidden={myWorkspacesCollapsed}>
-					{groups.length === 0 ? (
-						<div className="flex flex-col items-center gap-2 p-4 text-center text-sm text-fg-muted">
-							<p>No matching workspaces</p>
-							{view.projectFilter.length > 0 ? (
-								<Button variant="secondary" size="sm" onClick={clearFilter}>
-									Clear filter
-								</Button>
-							) : null}
-						</div>
-					) : (
-						mainGroups.map((group) => {
-							const key = groupKey(group);
-							return (
-								<GroupSection
-									key={key}
-									group={group}
-									rows={rows}
-									repos={repos}
-									selectedId={selectedId}
-									shortcutIndexes={shortcutIndexes}
-									manualOrder={view.manualOrder}
-									open={!isCollapsed(group)}
-									onOpenChange={(open) => setGroupOpen(key, open)}
-									onReorder={saveOrder(key)}
-									repoReorderable={projectGroupCount > 1}
-									onReorderRepo={reorderProjects}
-								/>
-							);
-						})
-					)}
-				</div>
-				<SectionDialog open={newSectionOpen} onOpenChange={setNewSectionOpen} section={null} />
-			</div>
-		</ContextMenu>
+			</ContextMenu>
+		</WorkspaceDragProvider>
 	);
 }

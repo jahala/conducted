@@ -6,7 +6,7 @@
  * A finished turn folds runs of its tool calls and messages into one row each (fold-turn.ts), unless
  * "Expand all tool calls" is on.
  * Behaviour: frontend.md 5 (one item per turn), ui-map.md 3.3 (user message with attachments and
- * mention chips; assistant text; thinking; footer; 'Interrupted by user'; per-turn boundary;
+ * mention chips; assistant text; thinking; footer; 'Cancelled' on a stopped turn; per-turn boundary;
  * 'Something went wrong, retrying n/m' with Retry now and Retry in new chat).
  * Measured from Conductor 0.92.1 (renderApp @9595770): the turn is a column with 4px gaps, 28px sides and
  * 8px top and bottom; the user message gets 12px more above and below. The working line sits in the
@@ -202,7 +202,7 @@ export const TurnItem = memo(function TurnItem({
 				resetKey={turn.turnId}
 				fallback={() => (
 					<div role="status" className="rounded-lg border border-border bg-surface px-4 py-3">
-						<p className="text-sm font-medium text-fg">This chat turn failed to render.</p>
+						<p className="text-sm font-medium text-fg">This chat turn failed to render</p>
 						<p className="text-xs text-fg-muted">Other turns are still available.</p>
 					</div>
 				)}

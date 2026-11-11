@@ -19,7 +19,7 @@ export function TaskListCard({ call, defaultExpanded }: ToolCardProps) {
 			raw.length > 0 ? (
 				<ToolOutput muted>{raw}</ToolOutput>
 			) : (
-				<p className="text-xs text-fg-subtle">Loading tasks.</p>
+				<p className="text-xs text-fg-subtle">Loading task...</p>
 			)
 		) : tasks.length === 0 ? null : (
 			<ul className="flex max-h-64 flex-col gap-1 overflow-auto">

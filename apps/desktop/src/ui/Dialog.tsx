@@ -22,7 +22,7 @@ export const DialogClose = Radix.Close;
 
 export interface DialogContentProps {
 	title: string;
-	description?: string;
+	description?: ReactNode;
 	hideTitle?: boolean;
 	size?: DialogSize;
 	className?: string;

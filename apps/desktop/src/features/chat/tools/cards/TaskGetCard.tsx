@@ -2,10 +2,11 @@
  * @feature CHAT-20 Task details card
  * Owns: The card for the agent reading one task, and the task field readers the other task cards
  * share.
- * Behaviour: ui-map.md 3.3 (Tasks: 'Task details' with Status, Subject, Blocked by, Blocks).
+ * Behaviour: ui-map.md 3.3 (Tasks: 'Task details' with Status:, Subject:, Blocked by:, Blocks: and
+ * Task ID:, renderApp @8791800).
  * Must handle: A task that no longer exists (the read fails and the agent's text is shown, with the
  * task id still in the header); empty Blocked by and Blocks lists ('None'); a result that is JSON
- * or the agent's text form.
+ * or the agent's text form; a task that has not loaded yet ('Loading task...').
  * Test first: A task_get result renders 'Task details' with its status and subject.
  */
 import { Fragment } from "react";
@@ -186,13 +187,13 @@ export function mergeTaskFields(base: TaskFields, extra: TaskFields | null): Tas
 /** The Status, Subject, Blocked by and Blocks rows shared by every task card. */
 export function TaskFieldsBody({ fields }: { fields: TaskFields }) {
 	const rows = [
-		{ label: "Status", value: fields.status ?? "Not set" },
-		{ label: "Subject", value: fields.subject ?? "Not set" },
+		{ label: "Status:", value: fields.status ?? "Not set" },
+		{ label: "Subject:", value: fields.subject ?? "Not set" },
 		{
-			label: "Blocked by",
+			label: "Blocked by:",
 			value: fields.blockedBy.length > 0 ? fields.blockedBy.join(", ") : "None",
 		},
-		{ label: "Blocks", value: fields.blocks.length > 0 ? fields.blocks.join(", ") : "None" },
+		{ label: "Blocks:", value: fields.blocks.length > 0 ? fields.blocks.join(", ") : "None" },
 	];
 	return (
 		<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
@@ -204,8 +205,14 @@ export function TaskFieldsBody({ fields }: { fields: TaskFields }) {
 			))}
 			{fields.description ? (
 				<>
-					<dt className="text-fg-muted">Description</dt>
+					<dt className="text-fg-muted">Description:</dt>
 					<dd className="min-w-0 whitespace-pre-wrap break-words text-fg">{fields.description}</dd>
+				</>
+			) : null}
+			{fields.id ? (
+				<>
+					<dt className="text-fg-muted">Task ID:</dt>
+					<dd className="min-w-0 break-words font-mono text-fg">{fields.id}</dd>
 				</>
 			) : null}
 		</dl>
@@ -217,10 +224,10 @@ export function TaskGetCard({ call, defaultExpanded }: ToolCardProps) {
 	// A failed read carries no task, only the agent's text saying why, so the card shows that text
 	// instead of the fields the input asked about.
 	const failed = call.result?.isError === true;
+	const loading = call.result === null;
 	const resultFields = call.result === null || failed ? null : readTask(call.result.output);
-	const fields = failed
-		? null
-		: (resultFields ?? (hasTaskFields(inputFields) ? inputFields : null));
+	const fields =
+		failed || loading ? null : (resultFields ?? (hasTaskFields(inputFields) ? inputFields : null));
 	const named = fields ?? inputFields;
 	const raw = call.result?.output ?? "";
 	return (
@@ -230,14 +237,14 @@ export function TaskGetCard({ call, defaultExpanded }: ToolCardProps) {
 			status={toolStatus(call)}
 			expandAll={defaultExpanded}
 			body={
-				fields !== null ? (
+				loading ? (
+					<p className="text-xs text-fg-subtle">Loading task...</p>
+				) : fields !== null ? (
 					<TaskFieldsBody fields={fields} />
 				) : raw.length > 0 ? (
 					<ToolOutput muted>{raw}</ToolOutput>
 				) : (
-					<p className="text-xs text-fg-subtle">
-						{call.result === null ? "Loading task details." : "No task details were returned."}
-					</p>
+					<p className="text-xs text-fg-subtle">No task details were returned.</p>
 				)
 			}
 		/>

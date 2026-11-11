@@ -133,7 +133,7 @@ export function MessageList({ sessionId, workspaceId, listRef: parentListRef }: 
 			value={chat}
 			loadingLabel="Loading messages"
 			loading={<LoadingTurns />}
-			errorTitle="Couldn't load this chat"
+			errorTitle="Error loading messages"
 		>
 			{(data: ChatView) =>
 				data.turns.length === 0 ? (

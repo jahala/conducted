@@ -109,11 +109,13 @@ const renderStrip = ({
 	search = {},
 	onSearchChange = vi.fn(),
 	excludeRefs,
+	pointer,
 	withRegistry = false,
 }: {
 	search?: WorkspaceSearch;
 	onSearchChange?: (patch: Partial<WorkspaceSearch>) => void;
 	excludeRefs?: ReadonlySet<string>;
+	pointer?: Parameters<typeof TabStrip>[0]["pointer"];
 	withRegistry?: boolean;
 } = {}) => {
 	const registry = createCommandRegistry();
@@ -122,6 +124,7 @@ const renderStrip = ({
 		search,
 		onSearchChange,
 		excludeRefs,
+		pointer,
 	});
 	const rendered = render(
 		withRegistry ? createElement(CommandRegistryProvider, { registry }, element) : element,
@@ -282,19 +285,14 @@ describe("NAV-10 TabStrip", () => {
 		expect(screen.getByRole("tab", { name: "Comment by Ada" })).toBeTruthy();
 	});
 
-	it("sets a drag image when a tab starts dragging", () => {
+	it("reports a pressed tab to the split panes' pointer drag", () => {
 		state.sessions = { state: "ready", data: [session("one", "One")] };
-		renderStrip();
-		const setDragImage = vi.fn();
-		fireEvent.dragStart(screen.getByRole("tab", { name: "One" }), {
-			dataTransfer: {
-				setData: vi.fn(),
-				effectAllowed: "",
-				setDragImage,
-				types: [],
-			},
-		});
-		expect(setDragImage).toHaveBeenCalledTimes(1);
+		const start = vi.fn();
+		renderStrip({ pointer: { start, consumeClick: () => false } });
+		const tab = screen.getByRole("tab", { name: "One" });
+		expect(tab.getAttribute("draggable")).toBeNull();
+		fireEvent.pointerDown(tab, { button: 0, pointerId: 1, clientX: 5, clientY: 5 });
+		expect(start).toHaveBeenCalledTimes(1);
 	});
 
 	it("closes the active tab with Cmd+W", async () => {

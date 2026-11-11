@@ -27,7 +27,10 @@ vi.mock("../../core/hooks.ts", () => ({
 
 vi.mock("../../core/context.tsx", () => ({
 	useServices: () => ({
-		services: { sessions: { create: state.create, createFromDefaults: state.createFromDefaults } },
+		services: {
+			sessions: { create: state.create, createFromDefaults: state.createFromDefaults },
+			settings: { store: { getState: () => ({ loaded: true, warnings: [] }) } },
+		},
 	}),
 }));
 
@@ -73,7 +76,7 @@ describe("NAV-10 NewTabMenu", () => {
 	it("starts a big terminal with its startup command", async () => {
 		state.settings = {
 			experimental_big_terminal_mode: true,
-			big_terminal_preset: "npm run dev",
+			big_terminal_preset: "gemini",
 		};
 		state.createTerminal.mockResolvedValue({ ok: true, value: { id: "t2" } });
 		await openMenu();
@@ -81,7 +84,7 @@ describe("NAV-10 NewTabMenu", () => {
 		await waitFor(() =>
 			expect(state.createTerminal).toHaveBeenCalledWith(workspaceId, {
 				placement: "centre",
-				command: "npm run dev",
+				command: "gemini -y",
 			}),
 		);
 	});

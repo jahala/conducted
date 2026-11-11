@@ -1,10 +1,10 @@
 /**
  * @feature CHAT-20 Send message card
  * Owns: The card for the agent sending a message to another chat.
- * Behaviour: ui-map.md 3.3 (send message).
+ * Behaviour: ui-map.md 3.3 (send message: a 'To:' row naming the target chat, renderApp @8824972).
  * Must handle: A target chat that was closed or deleted (the result text is shown); a long message
  * (it scrolls); a call that names no target.
- * Test first: A send_message call names the chat it went to.
+ * Test first: A send_message call shows a 'To:' row naming the chat it went to.
  */
 import { asRecord, ToolCardFrame, ToolOutput, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
@@ -36,8 +36,9 @@ export function SendMessageCard({ call, defaultExpanded }: ToolCardProps) {
 			body={
 				<div className="flex flex-col gap-2">
 					{target ? (
-						<p className="text-xs text-fg-muted">
-							Sent to <span className="font-medium text-fg">{target}</span>
+						<p className="flex gap-1 text-xs text-fg-muted">
+							<span>To:</span>
+							<span className="font-medium text-fg">{target}</span>
 						</p>
 					) : (
 						<p className="text-xs text-fg-subtle">This call names no target chat.</p>

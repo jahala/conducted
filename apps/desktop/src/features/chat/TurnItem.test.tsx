@@ -114,13 +114,13 @@ describe("CHAT-06 chat turn", () => {
 				/>
 			</>,
 		);
-		expect(screen.getByText("This chat turn failed to render.")).toBeTruthy();
+		expect(screen.getByText("This chat turn failed to render")).toBeTruthy();
 		expect(screen.getByText("Other turns are still available.")).toBeTruthy();
 		expect(screen.getByText("block:fine")).toBeTruthy();
 		log.mockRestore();
 	});
 
-	it("says the user interrupted a cancelled turn", () => {
+	it("names a cancelled turn", () => {
 		const value = turn({ outcome: "cancelled", endedAt: 20 });
 		render(<TurnItem turn={value} sessionId={sessionId} />);
 		expect(screen.getByText("banner:Interrupted by user")).toBeTruthy();

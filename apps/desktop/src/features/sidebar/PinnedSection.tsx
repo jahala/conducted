@@ -13,22 +13,18 @@
  */
 import type { Result, WorkspaceId } from "@conducted/shared";
 import { useParams } from "@tanstack/react-router";
-import { type DragEvent, useState } from "react";
+import { useRef, useState } from "react";
 import { useActions, useRepos, useSetting } from "../../core/hooks.ts";
 import type { Workspace } from "../../core/model.ts";
 import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/Collapsible.tsx";
 import { cn } from "../../ui/cn.ts";
-import { ChevronRightIcon, PinIcon } from "../../ui/icons.tsx";
+import { PinIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { HeaderChevron, HeaderCount } from "./section-header.tsx";
-import {
-	draggedWorkspace,
-	useWorkspaceDrag,
-	useWorkspaceDragActive,
-	WORKSPACE_DRAG_MIME,
-} from "./use-workspace-drag.ts";
+import { useWorkspaceDrag } from "./use-workspace-drag.ts";
 import { WorkspaceRow } from "./WorkspaceRow.tsx";
+import { useWorkspaceDragController, useWorkspaceHitTest } from "./workspace-drag-context.tsx";
 
 export interface PinnedSectionProps {
 	/** The pinned workspaces, in the order the list should show them. */
@@ -41,12 +37,21 @@ export interface PinnedSectionProps {
 	onReorder?: (orderedIds: readonly WorkspaceId[]) => Promise<Result<unknown>> | undefined;
 }
 
+/** True when a point lies inside a rectangle. jsdom gives every element a zero rectangle. */
+function containsPoint(rect: DOMRect, point: { x: number; y: number }): boolean {
+	return (
+		point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
+	);
+}
+
 export function PinnedSection({
 	workspaces,
 	allWorkspaces,
 	dragging = false,
 	onReorder,
 }: PinnedSectionProps) {
+	const pointer = useWorkspaceDragController();
+	const sectionRef = useRef<HTMLElement | null>(null);
 	const actions = useActions();
 	const repos = useRepos();
 	const params = useParams({ strict: false });
@@ -63,50 +68,67 @@ export function PinnedSection({
 	});
 
 	// A drag that starts in the main list or a section also shows an empty Pinned as a drop target.
-	const dragInAnyList = useWorkspaceDragActive();
-	const isDragging = dragging || dragInAnyList || drag.state.draggingId !== null;
-	if (workspaces.length === 0 && !isDragging) return null;
+	const isDragging = dragging || pointer.drag !== null;
 
 	const repoById = new Map(
 		repos.state === "ready" ? repos.data.map((repo) => [repo.id, repo]) : [],
 	);
 
-	const carried = (event: DragEvent): WorkspaceId | null =>
-		draggedWorkspace(event, drag.state.draggingId);
-
-	const drop = (event: DragEvent) => {
-		event.preventDefault();
-		const carriedId = carried(event);
-		drag.dragOver(null);
-		if (carriedId === null) {
-			drag.cancel();
-			return;
-		}
-		// Look the workspace up in the full list: the pinned list does not hold one dragged from
-		// the main list.
-		const workspace = allWorkspaces.find((candidate) => candidate.id === carriedId);
-		// An archived workspace is not a sidebar row, so it cannot be pinned by a drop.
+	// Look the workspace up in the full list: the pinned list does not hold one dragged from the
+	// main list. An archived workspace is not a sidebar row, so it cannot be pinned by a drop.
+	const pinWorkspace = (workspaceId: WorkspaceId) => {
+		const workspace = allWorkspaces.find((candidate) => candidate.id === workspaceId);
 		if (workspace === undefined || isArchivedWorkspace(workspace)) {
 			drag.cancel();
 			return;
 		}
-		drag.dropOn("pinned", 0, carriedId);
+		drag.dropOn("pinned", 0, workspaceId);
 	};
+
+	useWorkspaceHitTest((point) => {
+		const root = sectionRef.current;
+		if (root === null) return undefined;
+		for (const row of root.querySelectorAll<HTMLElement>("[data-workspace-id]")) {
+			const rect = row.getBoundingClientRect();
+			if (!containsPoint(rect, point)) continue;
+			const workspaceId = row.dataset.workspaceId as WorkspaceId | undefined;
+			if (workspaceId === undefined) continue;
+			return {
+				key: `row:${workspaceId}`,
+				element: row,
+				drop: (payload, at) => {
+					if (payload.kind !== "workspace") return;
+					if (manualOrder && order.includes(payload.id)) {
+						const after = rect.height > 0 && at.y > rect.top + rect.height / 2;
+						drag.dropOn(`row:${workspaceId}`, after ? 1 : 0, payload.id);
+						return;
+					}
+					pinWorkspace(payload.id);
+				},
+			};
+		}
+		const rect = root.getBoundingClientRect();
+		if (!containsPoint(rect, point)) return undefined;
+		return {
+			key: "pinned",
+			element: root,
+			drop: (payload) => {
+				if (payload.kind === "workspace") pinWorkspace(payload.id);
+			},
+		};
+	});
+
+	if (workspaces.length === 0 && !isDragging) return null;
 
 	return (
 		<section
+			ref={sectionRef}
 			aria-label="Pinned workspaces"
 			data-workspace-pinned-drop=""
 			className={cn(
 				"rounded-md px-1.5 pt-1.5 pb-3",
-				isDragging && drag.state.overTarget === "pinned" && "bg-hover",
+				isDragging && pointer.drag?.target?.key === "pinned" && "bg-hover",
 			)}
-			onDragOver={(event) => {
-				event.preventDefault();
-				drag.dragOver("pinned");
-			}}
-			onDragLeave={() => drag.dragOver(null)}
-			onDrop={drop}
 		>
 			<Collapsible open={open} onOpenChange={setOpen}>
 				<div className="group/header mt-0.5 mb-1 flex items-center gap-0.5">
@@ -127,32 +149,14 @@ export function PinnedSection({
 							{workspaces.map((workspace) => {
 								const repo = repoById.get(workspace.repoId);
 								return (
-									// biome-ignore lint/a11y/noStaticElementInteractions: a sidebar row is a drag source; its link is the interactive part.
 									<div
 										key={workspace.id}
-										draggable
 										data-workspace-id={workspace.id}
-										onDragStart={(event) => {
-											event.dataTransfer?.setData(WORKSPACE_DRAG_MIME, workspace.id);
-											event.dataTransfer?.setData("text/plain", workspace.id);
+										className="touch-none"
+										onClickCapture={pointer.consumeClick}
+										onPointerDown={(event) => {
 											drag.startDrag(workspace.id);
-										}}
-										onDragEnd={drag.cancel}
-										onDragOver={(event) => {
-											event.preventDefault();
-											event.stopPropagation();
-											drag.dragOver(`row:${workspace.id}`);
-										}}
-										onDrop={(event) => {
-											event.preventDefault();
-											event.stopPropagation();
-											const carriedId = carried(event);
-											if (carriedId === null) return;
-											if (manualOrder && order.includes(carriedId)) {
-												drag.dropOn(`row:${workspace.id}`, 1, carriedId);
-												return;
-											}
-											drop(event);
+											pointer.start(event, { kind: "workspace", id: workspace.id });
 										}}
 									>
 										{repo === undefined ? (

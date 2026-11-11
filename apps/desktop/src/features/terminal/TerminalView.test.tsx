@@ -50,6 +50,7 @@ vi.mock("./TerminalSurface.tsx", () => ({
 		ended?: boolean;
 		onOpenLink?: (url: string) => void;
 		onCopy?: (text: string) => void;
+		onSelectionChange?: (text: string) => void;
 		ref?: { current: typeof state.surface } | null;
 	}) => {
 		if (props.ref) props.ref.current = state.surface;
@@ -69,6 +70,9 @@ vi.mock("./TerminalSurface.tsx", () => ({
 				</button>
 				<button type="button" onClick={() => props.onCopy?.("picked text")}>
 					copy-selection
+				</button>
+				<button type="button" onClick={() => props.onSelectionChange?.("picked text")}>
+					select-text
 				</button>
 			</div>
 		);
@@ -459,6 +463,87 @@ describe("RUN-06 terminal view", () => {
 		);
 	});
 
+	it("adds the selection to the workspace's chat as a terminal-selection file", async () => {
+		const session = {
+			id: "s1",
+			workspaceId,
+			title: "Fix the login redirect",
+			config: {},
+			agentSessionId: null,
+			forkResumeNativeMessageId: null,
+			unreadCount: 0,
+			contextUsedTokens: null,
+			queuePausedAt: null,
+			closedAt: null,
+			lastUserMessageAt: null,
+			createdAt: 0,
+			updatedAt: 0,
+		} as unknown as import("../../core/model.ts").Session;
+		test.container.services.sessions.store.setState((current) => ({
+			...current,
+			loaded: true,
+			sessions: { ...current.sessions, s1: session },
+			byWorkspace: { ...current.byWorkspace, [workspaceId]: [session.id] },
+		}));
+		const addText = vi
+			.spyOn(test.container.services.composer, "addText")
+			.mockResolvedValue(ok("/tmp/terminal-selection.txt"));
+		state.connection = { state: "ready", data: fakeConnection() };
+		renderView(
+			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "select-text" }));
+		fireEvent.click(screen.getByRole("button", { name: "Add to chat" }));
+		await waitFor(() =>
+			expect(addText).toHaveBeenCalledWith(
+				"s1",
+				expect.stringMatching(/^terminal-selection-/),
+				"picked text",
+			),
+		);
+		expect(screen.queryByRole("button", { name: "Add to chat" })).toBeNull();
+	});
+
+	it("reports a selection that could not be attached", async () => {
+		const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "toast-id");
+		const session = {
+			id: "s1",
+			workspaceId,
+			title: null,
+			config: {},
+			agentSessionId: null,
+			forkResumeNativeMessageId: null,
+			unreadCount: 0,
+			contextUsedTokens: null,
+			queuePausedAt: null,
+			closedAt: null,
+			lastUserMessageAt: null,
+			createdAt: 0,
+			updatedAt: 0,
+		} as unknown as import("../../core/model.ts").Session;
+		test.container.services.sessions.store.setState((current) => ({
+			...current,
+			loaded: true,
+			sessions: { ...current.sessions, s1: session },
+			byWorkspace: { ...current.byWorkspace, [workspaceId]: [session.id] },
+		}));
+		vi.spyOn(test.container.services.composer, "addText").mockResolvedValue(
+			err(appError("attachment_write_failed", "The file could not be written.")),
+		);
+		state.connection = { state: "ready", data: fakeConnection() };
+		renderView(
+			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "select-text" }));
+		fireEvent.click(screen.getByRole("button", { name: "Add to chat" }));
+		await waitFor(() =>
+			expect(toastSpy).toHaveBeenCalledWith(
+				"Failed to attach terminal selection",
+				expect.anything(),
+			),
+		);
+	});
+
 	it("copies the surface's selection through the app action and reports a failure", async () => {
 		const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "toast-id");
 		state.copyText.mockRejectedValue(new Error("The clipboard is busy."));
@@ -497,7 +582,7 @@ describe("RUN-06 terminal view", () => {
 			);
 		});
 
-		it("shows 'Invalid pattern' and does not search for a broken regular expression", () => {
+		it("shows Conductor's 'Invalid regular expression' and does not search for a broken regular expression", () => {
 			state.connection = { state: "ready", data: fakeConnection() };
 			renderView(
 				<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
@@ -505,7 +590,7 @@ describe("RUN-06 terminal view", () => {
 			const input = openFind();
 			fireEvent.click(screen.getByRole("button", { name: "Use regular expression" }));
 			fireEvent.change(input, { target: { value: "[" } });
-			expect(screen.getByText("Invalid pattern")).toBeTruthy();
+			expect(screen.getByText("Invalid regular expression")).toBeTruthy();
 			expect(screen.queryByText("No results")).toBeNull();
 			expect(state.surface.find).not.toHaveBeenCalled();
 		});

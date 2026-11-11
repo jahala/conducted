@@ -3,8 +3,8 @@
  * Owns: The card for an image the agent generated.
  * Behaviour: ui-map.md 3.3 ('Preview image', 'Loading image'); other-runners.md 3 (Codex copies
  * generated images into the workspace).
- * Must handle: Generation still running ('Loading image'); a copy into the workspace that failed
- * (the result text is shown); a finished image with its prompt.
+ * Must handle: Generation still running ('Loading image'); an image that cannot be shown
+ * ('Couldn’t load image'); a copy into the workspace that failed (the result text is shown); a finished image with its prompt.
  * Test first: A finished image_generation call shows the image preview.
  */
 import { useState } from "react";
@@ -48,12 +48,12 @@ export function ImageGenerationCard({ call, defaultExpanded }: ToolCardProps) {
 							className="max-h-80 max-w-full rounded-sm object-contain"
 						/>
 					) : null}
-					{failed ? <p className="text-xs text-danger">Image could not be loaded: {path}</p> : null}
+					{failed ? <p className="text-xs text-danger">Couldn’t load image</p> : null}
 					{path === null && output.length > 0 ? <ToolOutput muted>{output}</ToolOutput> : null}
-					{path === null && output.length === 0 ? (
+					{path === null && output.length === 0 && status !== "running" ? (
 						<p className="text-xs text-fg-subtle">No generated image was returned.</p>
 					) : null}
-					{status === "running" ? <p className="text-xs text-fg-subtle">Loading image.</p> : null}
+					{status === "running" ? <p className="text-xs text-fg-subtle">Loading image</p> : null}
 				</div>
 			}
 		/>

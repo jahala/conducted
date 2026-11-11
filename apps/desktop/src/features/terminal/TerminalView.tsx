@@ -17,6 +17,8 @@
  * cannot be found, the PTY failing to spawn, output arriving before the view is ready (buffer it),
  * output faster than rendering (acknowledge bytes only after they are written, for flow control),
  * a resize while hidden (fit on show), and find with no matches.
+ * The selected text gets Conductor's bar with "Add to chat": it attaches the selection to the
+ * workspace's newest chat as `terminal-selection-<time>.txt`, clears it, and names a failed attach.
  * Test first: output written to a connection before mount appears in the terminal buffer after
  * mount, and bytes are acknowledged once.
  */
@@ -30,7 +32,13 @@ import {
 	useState,
 } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
-import { useActions, useSetting, useTerminalConnection, useTerminals } from "../../core/hooks.ts";
+import {
+	useActions,
+	useSessions,
+	useSetting,
+	useTerminalConnection,
+	useTerminals,
+} from "../../core/hooks.ts";
 import type { TerminalConnection, TerminalUnsubscribe } from "../../core/model.ts";
 import { terminalLimit as limitForMode } from "../../core/terminals.ts";
 import { Button } from "../../ui/Button.tsx";
@@ -195,8 +203,11 @@ export function TerminalView({
 	const connection = useTerminalConnection(terminalId);
 	const actions = useActions();
 	const workspaceTerminals = useTerminals(workspaceId);
+	const openChats = useSessions(workspaceId);
+	const chatForSelection = openChats.state === "ready" ? openChats.data[0] : undefined;
 	const tabFreakMode = useSetting<boolean>("experimental_tab_freak_mode");
 	const [pendingLink, setPendingLink] = useState<string | null>(null);
+	const [selectedText, setSelectedText] = useState("");
 	const source = connection.state === "ready" ? connection.data : null;
 	const buffered = useMemo(
 		() => (source ? new BufferedTerminalConnection(source) : null),
@@ -269,6 +280,26 @@ export function TerminalView({
 		void actions.app.copyText(text).then((result) => {
 			if (!result.ok) toastError("Couldn't copy the selection", result.error);
 		});
+	};
+
+	/** Conductor's file name for a terminal selection: our instant, with colons and dots as hyphens. */
+	const selectionFileName = (): string =>
+		`terminal-selection-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, -5)}`;
+
+	const addSelectionToChat = async () => {
+		const session = chatForSelection;
+		const text = selectedText.trim();
+		if (session === undefined || text === "") return;
+		const attached = await actions.attachments.addText(session.id, selectionFileName(), text);
+		if (!attached.ok) {
+			toastError("Failed to attach terminal selection", attached.error);
+			return;
+		}
+		setSelectedText("");
+		surfaceRef.current?.clear();
+		if (typeof document !== "undefined") {
+			document.querySelector<HTMLElement>(".ProseMirror")?.focus();
+		}
 	};
 
 	const openPendingLink = () => {
@@ -368,6 +399,7 @@ export function TerminalView({
 									focusOnMount={focusOnMount}
 									onOpenLink={setPendingLink}
 									onCopy={copySelection}
+									onSelectionChange={setSelectedText}
 								/>
 							</>
 						) : (
@@ -378,6 +410,19 @@ export function TerminalView({
 						)
 					}
 				</LoadableView>
+				{selectedText.trim() !== "" && chatForSelection !== undefined ? (
+					<div
+						role="status"
+						className="absolute inset-x-0 top-0 z-10 flex items-center gap-2 bg-canvas px-2 py-1"
+					>
+						<span className="min-w-0 flex-1 truncate font-mono text-xs text-fg-muted">
+							{selectedText.replace(/\s+/g, " ")}
+						</span>
+						<Button variant="outline" size="xs" onClick={() => void addSelectionToChat()}>
+							Add to chat
+						</Button>
+					</div>
+				) : null}
 				{findOpen ? (
 					<TerminalFindBar
 						query={query}

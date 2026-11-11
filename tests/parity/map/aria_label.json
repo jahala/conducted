@@ -32,11 +32,12 @@
 		"owner": "rule:cite"
 	},
 	"aria_label:R1959218": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "create-github-repo",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div > div:nth-of-type(1) > label",
+		"by": "seed"
 	},
 	"aria_label:R2049152": {
 		"status": "matched",
@@ -112,13 +113,12 @@
 		"owner": "hand"
 	},
 	"aria_label:R2996778": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"class": "wording",
-		"backlog": "CHAT-06",
-		"owner": "hand",
-		"note": "Same job, different control: our message actions are a right-click menu on the message bubble, so there is no visible trigger to name. Conductor's 'Show message actions' names an icon button; building that button is a UI change, not wording."
+		"status": "matched",
+		"state": "sidebar-sections",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(3) > span > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R3015261": {
 		"status": "decided",
@@ -180,12 +180,12 @@
 		"by": "seed"
 	},
 	"aria_label:R4632115": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Conductor shows \"Choose action icon\" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-repo-add-action",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(4) > div:nth-of-type(1) > button",
+		"by": "seed"
 	},
 	"aria_label:R4987086": {
 		"status": "matched",
@@ -212,13 +212,12 @@
 		"by": "seed"
 	},
 	"aria_label:R5017441": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-01",
-		"item": "Run empty: 'Add action', 'Add action manually', 'Configure actions'",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "settings-repo-add-action",
+		"via": "text",
+		"role": "heading",
+		"selector": "div:nth-of-type(3) > div > h2",
+		"by": "seed"
 	},
 	"aria_label:R5434122": {
 		"status": "matched",
@@ -401,13 +400,12 @@
 		"by": "hand"
 	},
 	"aria_label:R8874837": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "CHAT-14",
-		"owner": "hand",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "chat-context-unknown",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > div > div:nth-of-type(3) > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R8880898": {
 		"status": "matched",
@@ -492,12 +490,12 @@
 		"by": "seed"
 	},
 	"aria_label:R9327423": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-04",
-		"item": "Queue row with attachment thumbs ('Queued attachments') and preview text",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-working",
+		"via": "aria-label",
+		"role": "ul",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(5) > section > div:nth-of-type(2) > div > ul",
+		"by": "seed"
 	},
 	"aria_label:R9340087": {
 		"status": "matched",
@@ -638,7 +636,7 @@
 	},
 	"aria_label:R9987343": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CHAT-29",
 		"item": "Attachment viewer for images and videos with 'Copy image', 'Download file' and open in default app",

@@ -154,7 +154,7 @@ async function seedChat(checkpointed: boolean) {
 }
 
 async function openMenu(): Promise<void> {
-	const trigger = screen.getByRole("button", { name: "More turn actions" });
+	const trigger = screen.getByRole("button", { name: "Show message actions" });
 	trigger.focus();
 	fireEvent.keyDown(trigger, { key: "Enter" });
 }

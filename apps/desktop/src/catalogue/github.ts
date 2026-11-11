@@ -4,8 +4,9 @@
  * the batched pull request query (one pull request per head branch, or none, in any of the states
  * the header tells apart), the review threads a pull request's reviewers left, and empty general
  * comments, the GitHub stacks pull requests belong to (the stack entry, its members and each
- * member's merge state); or failing every API request as `gh` does when this Mac is offline or
- * GitHub refuses the sign-in.
+ * member's merge state); the accounts and organisations the owner pickers offer; whether
+ * `gh repo view` finds a name; a signed-out `gh` login; or failing every API request as `gh` does
+ * when this Mac is offline or GitHub refuses the sign-in.
  * Behaviour: core/git/gh-commands.ts builds the commands; core/services/github.ts reads the answers
  * (parsePrBatchAnswers and the GraphQL node fields in PR_FIELDS_FRAGMENT; parsePrStackEntry,
  * parseStackMembers and parseStackReadiness for a stack, services-map.md 3.8.2).
@@ -356,6 +357,12 @@ export interface ScriptedGitHub {
 	issues?: readonly ScriptedIssue[];
 	/** The merge methods the repository allows; all three unless given. */
 	mergeMethods?: { squash: boolean; rebase: boolean; merge: boolean };
+	/** The accounts and organisations the owner pickers offer, the signed-in user first. */
+	owners?: readonly string[];
+	/** The owner/name repositories `gh repo view` finds, so a name check answers "taken". */
+	takenRepos?: readonly string[];
+	/** The `gh` login has expired: `gh auth status` answers as GitHub does when not signed in. */
+	signedOut?: boolean;
 }
 
 /**
@@ -368,6 +375,9 @@ export function scriptGitHub({
 	stacks = [],
 	issues = [],
 	mergeMethods = { squash: true, rebase: true, merge: true },
+	owners = ["sam", "acme"],
+	takenRepos = [],
+	signedOut = false,
 }: ScriptedGitHub = {}): ShellScript {
 	return (command) => {
 		if (command.program !== "gh") return null;
@@ -376,9 +386,26 @@ export function scriptGitHub({
 		if (failure !== undefined && args[0] === "api") {
 			return ok({ stdout: "", stderr: FAILURE_OUTPUT[failure], exitCode: 1 });
 		}
-		if (joined === "auth status")
-			return out("github.com\n  ✓ Logged in to github.com account sam\n");
+		if (joined === "auth status") {
+			return signedOut
+				? ok({
+						stdout: "",
+						stderr: "You are not logged into any GitHub hosts. To log in, run: gh auth login\n",
+						exitCode: 1,
+					})
+				: out("github.com\n  ✓ Logged in to github.com account sam\n");
+		}
+		if (args[0] === "api" && args[1] === "user/orgs") return out(`${owners.join("\n")}\n`);
 		if (joined.startsWith("api user")) return out("sam\n");
+		if (args[0] === "repo" && args[1] === "view") {
+			const target = args[2] ?? "";
+			if (takenRepos.includes(target)) return out(target.split("/")[1] ?? "");
+			return ok({
+				stdout: "",
+				stderr: "GraphQL: Could not resolve to a Repository with the name 'x'.\n",
+				exitCode: 1,
+			});
+		}
 		if (joined === "config get git_protocol") return out("ssh\n");
 		if (joined === "api rate_limit") {
 			const graphql = { limit: 5_000, used: 10, remaining: 4_990, reset: 1_793_966_400 };

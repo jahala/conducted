@@ -12,6 +12,33 @@ import { appError, err, ok, type Result } from "@conducted/shared";
 /** Shown by the Account page when the text in the token field is not shaped like a GitHub token. */
 export const GITHUB_TOKEN_WARNING = "That doesn't look like a GitHub token. Are you sure?";
 export const GITHUB_UNAUTHORIZED_MESSAGE = "Reconnect GitHub in Settings to keep pushing changes.";
+/** Shown when a refresh of GitHub data fails for a reason the service cannot classify. */
+export const GITHUB_REFRESH_FAILED_MESSAGE = "Couldn't refresh GitHub";
+/** The personal access token's own expired line (Conductor's token broker wording, kept by D029). */
+export const GITHUB_TOKEN_REJECTED_MESSAGE =
+	"Your personal access token may be expired or revoked. Update it in Settings.";
+
+/**
+ * The notification Conductor raises when GitHub refuses the sign-in (main @948377 and @952355):
+ * a different title, line and button for the user's `gh` login and for a saved token.
+ */
+export function githubUnauthorizedNotice(authMethod: "cli" | "pat"): {
+	title: string;
+	description: string;
+	action: string;
+} {
+	return authMethod === "pat"
+		? {
+				title: "GitHub token rejected",
+				description: GITHUB_TOKEN_REJECTED_MESSAGE,
+				action: "Open account settings",
+			}
+		: {
+				title: "GitHub sign-in expired",
+				description: GITHUB_UNAUTHORIZED_MESSAGE,
+				action: "Reconnect",
+			};
+}
 export const GITHUB_SAML_SSO_MESSAGE =
 	"GitHub requires single sign-on for this organization. Authorize your account for the organization, then try again.";
 /** Shown when the workspace's HEAD is not the pull request's head, so a merge would act on other code. */

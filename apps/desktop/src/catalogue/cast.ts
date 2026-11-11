@@ -30,6 +30,7 @@ import { deliverEvents, openInteraction, setLiveState } from "./live.ts";
 import { addChat, addEvents, addRepo, addWorkspace } from "./seeds.ts";
 import { CATALOGUE_NOW, DAY, HOUR, MINUTE } from "./time.ts";
 import type { World } from "./world.ts";
+import { HOME } from "./world.ts";
 
 export interface Cast {
 	atlas: Repo;
@@ -359,7 +360,7 @@ export async function animateCast(world: World, cast: Cast, app: StartedApp): Pr
 	const queued = await app.container.actions.sessions.send(
 		cast.chats.beacon.id,
 		"Also return a Retry-After header with the number of seconds to wait.",
-		[],
+		[`${HOME}/Desktop/retry-after.md`],
 		"queue",
 	);
 	if (!queued.ok) throw new Error(`Queueing the follow-up failed: ${queued.error.message}`);
