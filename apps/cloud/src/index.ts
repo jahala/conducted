@@ -8,8 +8,10 @@
  * @feature CLOUD-12 SSH into a cloud workspace and open it in a local editor
  * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
  * @feature CLOUD-17 Cloud settings page
+ * @feature CLOUD-19 Create cloud workspaces: the organisation switcher and the new-workspace page in cloud mode
  * Owns: the Worker's front door: it checks the pairing token on every request, answers the
- * desktop's pairing check (`/pair`), reads and writes the Mac's personal cloud settings at
+ * desktop's pairing check (`/pair`) and readiness check (`/readiness`, CLOUD-19), reads and
+ * writes the Mac's personal cloud settings at
  * `/settings`, and routes each workspace's git, shell, file, terminal, preview and sidecar-relay
  * calls to that workspace's Durable Object. Its outbound handler also carries the sandbox entry's
  * turn-end backup call.
@@ -42,6 +44,7 @@ import { pairAnswer } from "./auth.ts";
 import type { Env } from "./env.ts";
 import { routeRequest } from "./front-door.ts";
 import { Outbound } from "./outbound.ts";
+import { readinessOf } from "./readiness.ts";
 import { readCloudSettings, writeCloudSettings, zCloudSettings } from "./settings.ts";
 import { previewToken, previewTokenMatches } from "./terminal.ts";
 import { Workspace } from "./workspace.ts";
@@ -117,6 +120,7 @@ export default {
 		const routed = routeRequest(request, env.PAIRING_TOKEN);
 		if ("refusal" in routed) return routed.refusal;
 		if ("pair" in routed) return pairAnswer();
+		if ("readiness" in routed) return Response.json(readinessOf(env));
 		if ("settings" in routed) {
 			if (routed.settings === "read") {
 				try {

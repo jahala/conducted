@@ -16,9 +16,11 @@
  * CLOUD-01: the host columns (migration 0009) read back as the workspace's `host`. A local row has
  * no URL or sandbox id and a cloud row has both; any other mix is an error Result, so a half-written
  * cloud row is never read as local.
- * CLOUD-13: the lists local work runs over (ports, folder names and the states startup repair
- * scans) hold local rows only. `listAll` stays the merged list the sidebar draws, so a cloud
- * workspace still appears with its host.
+ * CLOUD-13: the lists local work runs over (ports and the states startup repair scans) hold local
+ * rows only. `listAll` stays the merged list the sidebar draws, so a cloud workspace still appears
+ * with its host. CLOUD-19: the folder names hold every host's rows, because the
+ * (repo, directory name) unique index spans hosts, so a name a cloud workspace took is never
+ * picked again for either host.
  * Test first: workspaceFromRow returns an error Result when linked_paths is not a JSON list.
  */
 import type { Host } from "@conducted/protocol";
@@ -196,8 +198,7 @@ export const WORKSPACES_SQL = {
 		ORDER BY created_at, id`,
 	get: `SELECT ${COLUMNS} FROM workspaces WHERE id = $1`,
 	getSetupLogPath: "SELECT setup_log_path FROM workspaces WHERE id = $1",
-	listDirectoryNames: `SELECT directory_name FROM workspaces
-		WHERE repo_id = $1 AND host_kind = 'local'`,
+	listDirectoryNames: "SELECT directory_name FROM workspaces WHERE repo_id = $1",
 	listPorts: "SELECT port FROM workspaces WHERE host_kind = 'local'",
 	insert: `INSERT INTO workspaces (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
 		$11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)`,
@@ -252,7 +253,10 @@ export interface WorkspaceRepository {
 	get(id: WorkspaceId): Promise<Result<Workspace | null>>;
 	/** WORKSPACES_SQL.getSetupLogPath. `ok(null)` when the workspace is missing or has no log. */
 	getSetupLogPath(id: WorkspaceId): Promise<Result<string | null>>;
-	/** WORKSPACES_SQL.listDirectoryNames, local rows only, so the name generator avoids them. */
+	/**
+	 * WORKSPACES_SQL.listDirectoryNames, every host's rows, so the name generator avoids each name
+	 * the (repo, directory name) unique index holds.
+	 */
 	listDirectoryNames(repoId: RepoId): Promise<Result<string[]>>;
 	/** WORKSPACES_SQL.listPorts, local rows only, so the port allocator avoids them. */
 	listPorts(): Promise<Result<number[]>>;

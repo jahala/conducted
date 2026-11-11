@@ -2,7 +2,8 @@
  * @feature catalogue States of the sidebar's sections and view options
  * Owns: the sidebar with a pinned workspace and two of the user's sections (one collapsed, with its
  * count), a section's actions menu, the section dialog opened by Rename, the list's View options
- * menu (group, filter by project, sort), and the new-workspace dialog's "Create in section" menu.
+ * menu (group, filter by project, sort), the new-workspace dialog's "Create in section" menu, and
+ * the organisation switcher open with this Mac and the paired Worker (CLOUD-19).
  * Behaviour: ui-map.md 4 items 4 to 7 (Pinned, sections with name, emoji, collapse and count,
  * "Create in section", rename and delete; View options: group by Status or Project, filter by
  * project, sort by Updated or Created).
@@ -81,6 +82,23 @@ export const SIDEBAR_STATES: CatalogueState[] = [
 		"Filter by project",
 		({ document }) => click(document, "button", "My workspaces actions"),
 	),
+	{
+		id: "sidebar-organization-switcher",
+		group: "App shell",
+		title: "Sidebar: the organisation switcher open, with this Mac and the paired Worker",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async (context) => {
+					await refreshGit(context.app, cast.arbor);
+					await click(context.document, "button", "Account menu");
+				},
+				ready: (document) =>
+					document.querySelector("[role=menu]") !== null && shows(document, "Cloud organization"),
+			};
+		},
+	},
 	{
 		id: "new-workspace-in-section",
 		group: "Pages",

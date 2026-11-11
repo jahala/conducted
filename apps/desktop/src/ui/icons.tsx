@@ -311,6 +311,14 @@ export const RadioIcon = (p: P) => (
 		{...p}
 	/>
 );
+/** An organisation with no picture of its own, as the switcher marks one. */
+export const BuildingIcon = (p: P) => (
+	<Icon d="M3.5 13.5V3.5h6v10M9.5 6.5h3v7M2 13.5h12M5.5 5.5h1M5.5 8h1M5.5 10.5h1" {...p} />
+);
+/** A person with no picture, inside the switcher's round avatar. */
+export const UserRoundIcon = (p: P) => (
+	<Icon d="M8 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM3.5 13.5a4.5 4.5 0 0 1 9 0" {...p} />
+);
 export const LaptopIcon = (p: P) => <Icon d="M3.5 4h9v6.5h-9zM1.5 12.5h13" {...p} />;
 export const CloudIcon = (p: P) => (
 	<Icon d="M4.7 12.5h6.8a2.7 2.7 0 0 0 .2-5.4 4 4 0 0 0-7.8-.6 3 3 0 0 0 .8 6z" {...p} />

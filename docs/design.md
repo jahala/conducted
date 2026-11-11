@@ -102,7 +102,8 @@ The owner ruled that the UI is exactly Conductor's: a control Conductor also has
 - Helper programs and the Cursor SDK rows: on Advanced, beside the managed agent programs, because Conductor's Advanced holds the app's technical paths and programs.
 - The Linear key form: behind "Connect" on Account's Linear row, where Conductor connects Linear.
 - The GitHub token field, the sign-in method and "Check again": in the "GitHub" dialog that Account's GitHub row opens ("Manage" or "Connect"), where Conductor keeps its GitHub authentication choices.
-- "Add to backlog" for local projects: the outlined "Add to backlog ⌥↵" button beside Create in the new-workspace dialog, Conductor's own look for its cloud version, with its switch on Experimental and the saved workspaces on the Backlog page.
+- "Add to backlog" for local projects: the outlined "Add to backlog ⌥↵" button beside Create in the new-workspace dialog, Conductor's own look for its cloud version, with its switch on Experimental and the saved workspaces on the Backlog page. In the cloud entry the button is not shown, because a backlog row has no host (D127).
+- The paired Worker's entry in the organisation switcher: in Conductor's switcher, where its cloud organisations are, named by the Worker's host name because a Worker has no organisation name (D127).
 - The agent switch in the model picker: the Agent and Model submenus above Effort, and the agent's name beside each model in search, inside Conductor's picker frame.
 - The optional message on the approval card's "No": one more full-width row right under "No", drawn as Conductor's question card draws its "Other…" row, since the message goes only with "No".
 - "Yes always" where Conductor offers no second choice, and a choice the second one displaced: more full-width rows in the approval card's one column of choices.

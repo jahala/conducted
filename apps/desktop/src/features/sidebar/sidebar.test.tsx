@@ -28,6 +28,8 @@ const hooks = vi.hoisted(() => {
 vi.mock("../../core/hooks.ts", () => ({
 	useRepos: () => hooks.repos,
 	useWorkspaces: () => hooks.workspaces,
+	// The list holds the active organisation's workspaces (CLOUD-19); this Mac's until it is known.
+	useOrganizations: () => ({ state: "loading" }),
 }));
 
 vi.mock("../../core/context.tsx", () => ({
@@ -55,7 +57,7 @@ const { SidebarEmptyState } = await import("./SidebarEmptyState.tsx");
 afterEach(cleanup);
 
 const repo = { id: "r1", name: "app" } as unknown as Repo;
-const workspace = { id: "w1" } as unknown as Workspace;
+const workspace = { id: "w1", host: { kind: "local" } } as unknown as Workspace;
 
 describe("NAV-03 WorkspaceList", () => {
 	it("announces loading while projects load", () => {

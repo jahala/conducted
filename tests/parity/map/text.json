@@ -3459,9 +3459,9 @@
 	},
 	"text:R10377244": {
 		"status": "decided",
-		"decision": "D004",
-		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
-		"by": "rule:team-wording"
+		"decision": "D127",
+		"note": "Built by CLOUD-19: the cloud entry's mark in the organisation switcher (state sidebar-organization-switcher).",
+		"by": "hand"
 	},
 	"text:R10377924": {
 		"status": "decided",
@@ -3483,9 +3483,9 @@
 	},
 	"text:R10385019": {
 		"status": "decided",
-		"decision": "D004",
-		"note": "Wording of a team feature: organisations, teammates, shared access, pokes or single sign-on. Team features stay out (D004, kept by D018).",
-		"by": "rule:team-wording"
+		"decision": "D127",
+		"note": "Built by CLOUD-19: the switcher's line while data privacy mode is on.",
+		"by": "hand"
 	},
 	"text:R10385358": {
 		"status": "decided",
@@ -5567,14 +5567,14 @@
 	},
 	"text:R11502876": {
 		"status": "decided",
-		"decision": "D025",
-		"note": "Enterprise data privacy is an organisation policy managed by Conductor's service, which D025 leaves out.",
+		"decision": "D127",
+		"note": "Built by CLOUD-19: shown on the new-workspace page in cloud mode while data privacy mode is on.",
 		"by": "hand"
 	},
 	"text:R11502916": {
 		"status": "decided",
-		"decision": "D025",
-		"note": "Enterprise data privacy is an organisation policy managed by Conductor's service, which D025 leaves out.",
+		"decision": "D127",
+		"note": "Built by CLOUD-19: the new-workspace page's launch reason and the Cloud disabled tooltip while data privacy mode is on.",
 		"by": "hand"
 	},
 	"text:R11503507": {
