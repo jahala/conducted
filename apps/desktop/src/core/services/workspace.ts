@@ -46,21 +46,25 @@
  * viewed-files file, Cursor run store and git cache files (DATA-07) to the Trash, deletes its chats with their
  * attachment files, then deletes the row and forgets it in the store. A repository removal stops
  * every workspace's processes first.
- * Built now (WS-05): archive. It refuses while a chat is running, stops a setup or run process
+ * Built now (WS-05): archive. It refuses while a chat is running unless the caller has asked to
+ * stop the agents (`stopRunningAgents`), refuses a folder that is missing as `workspace_corrupted`,
+ * stops a setup or run process
  * that is still running and clears the workspace's run state, cancels the remaining chats, saves
  * the archive snapshot, reads the branch git reports (a detached HEAD or a failed read stops the
  * archive), pins HEAD under the archive ref, runs the archive script, removes the worktree,
  * optionally deletes the branch (never the default branch; a failed delete is recorded as a
  * warning because the archive already finished), and records the archive commit and time.
  * Archive-on-merge is refused for a corrupted workspace and ignores a merged PR that is not the
- * workspace's own. The stack rule for archive-on-merge, the open-PR check, the write-access
- * refusal, the screen's discard confirmation and the screen that shows the branch-delete warning
- * are not built; the service refuses a busy checkout and accepts `discardGitOperationState` from
- * a caller that has already asked.
+ * workspace's own. The open-PR check and the write-access refusal are not built (they exist only
+ * for cloud workspaces, which have no linked-PR rows here); the stack rule is decided by the
+ * GitHub poll before this call. The service refuses a busy checkout and accepts
+ * `discardGitOperationState` from a caller that has already asked.
  * Built now (WS-06): unarchive. It classifies the branch as gone, taken, moved or fine, re-adds
  * the worktree (creating a missing branch from the archive commit), restores the archive
  * checkpoint, and sets the branch, folder, path and ready state while clearing the archive time
- * and moving the workspace's recent activity to the restore time (services-map.md 3.10).
+ * and moving the workspace's recent activity to the restore time (services-map.md 3.10). A
+ * complete restore then runs the setup script again, as Conductor does, and a setup failure is
+ * left to the Setup tab rather than failing the unarchive.
  * A branch open in another worktree or moved since the archive returns `needsBranchName` and
  * changes nothing. A checkpoint restore that fails only sets `uncommittedChangesLost`. A worktree
  * that cannot be restored is rolled back: the re-added folder and a branch the call created are
@@ -1387,14 +1391,22 @@ export class WorkspaceService {
 	/** Backs `Actions.workspaces.archive`: the six steps of services-map 3.10, then the row. */
 	archive(
 		id: WorkspaceId,
-		options: { deleteBranch: boolean; discardGitOperationState?: boolean },
+		options: {
+			deleteBranch: boolean;
+			discardGitOperationState?: boolean;
+			stopRunningAgents?: boolean;
+		},
 	): Promise<Result<void>> {
 		return this.#archives.run(`archive:${id}`, () => this.#archiveNow(id, options));
 	}
 
 	async #archiveNow(
 		id: WorkspaceId,
-		options: { deleteBranch: boolean; discardGitOperationState?: boolean },
+		options: {
+			deleteBranch: boolean;
+			discardGitOperationState?: boolean;
+			stopRunningAgents?: boolean;
+		},
 	): Promise<Result<void>> {
 		// CLOUD-10: the sandbox sleeps with the archive, so its forwards stop first (D110).
 		await this.#deps.portForwards?.pauseWorkspace(id);
@@ -1413,7 +1425,10 @@ export class WorkspaceService {
 		if (workspace.state === "initializing") {
 			return err(appError("workspace_not_ready", ARCHIVE_NOT_READY_MESSAGE));
 		}
-		if (this.#deps.sessions.hasWorkingChats(id)) {
+		if (!(await this.#deps.platform.fs.exists(workspace.path))) {
+			return err(appError("workspace_corrupted", WORKSPACE_CORRUPTED_MESSAGE));
+		}
+		if (this.#deps.sessions.hasWorkingChats(id) && options.stopRunningAgents !== true) {
 			return err(appError("workspace_has_running_sessions", ARCHIVE_RUNNING_CHATS_MESSAGE));
 		}
 
@@ -1898,6 +1913,10 @@ export class WorkspaceService {
 			if (!cleared.ok) return cleared;
 		}
 
+		// A complete restore was archived with its dependencies in place. Conductor runs the setup
+		// script again here; a setup failure belongs to the Setup tab, not to the unarchive.
+		await this.runSetup(id);
+
 		return ok({ needsBranchName: false, uncommittedChangesLost });
 	}
 
@@ -2120,7 +2139,8 @@ export class WorkspaceService {
 
 	/**
 	 * Called by the GitHub service when a PR merges; archives when `archive_on_merge` asks for it.
-	 * The stack rule is not built: without its open-PR data a stacked workspace archives too early.
+	 * The stack exception is decided by the poll before this call, because the stack belongs to
+	 * GitHub.
 	 */
 	async onPullRequestMerged(id: WorkspaceId, prNumber: number): Promise<Result<void>> {
 		if (!this.#deps.setting<boolean>("archive_on_merge")) return ok(undefined);
