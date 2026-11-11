@@ -26,7 +26,9 @@
  * through the visible order, wrapping at the ends; a right click on the list offers "New section...".
  * The collapsed state of the main groups lives here so the visible order can leave them out; a row
  * the user cannot see gets no shortcut number. The "+" on a project header carries the project to the
- * create page as the search param `repo`.
+ * create page as the search param `repo`. The row menu's Create section, Archive and Copy link
+ * commands are registered here for the selected workspace, so their shortcuts and the palette
+ * reach the same actions as the menu (workspace.createSection, workspace.archive, workspace.copyLink).
  * Test first: Given three workspaces in two repos, grouping by project gives two groups; pinning
  * one moves it to Pinned and removes it from its group; dragging one project header onto another
  * saves the new project order.
@@ -38,6 +40,8 @@ import { useCallback, useMemo, useState } from "react";
 import { useCommandHandler, useRunCommandHandlers } from "../../app/command-dispatcher.ts";
 import { useActions, useSetting } from "../../core/hooks.ts";
 import type { Repo, Section, Workspace } from "../../core/model.ts";
+import { buildDeepLink } from "../../core/notifications.ts";
+import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/Collapsible.tsx";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
@@ -420,6 +424,29 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 	useCommandHandler("workspace.switch9", "base", () => goToIndex(8));
 	useCommandHandler("workspace.previous", "base", goToPrevious);
 	useCommandHandler("workspace.next", "base", goToNext);
+
+	// The list owns the selected workspace, so the row menu's commands also run from a shortcut or
+	// the palette, not only from a right click (Cmd+Shift+A archive, Cmd+Shift+C copy link).
+	useCommandHandler("workspace.createSection", "base", () => {
+		setNewSectionOpen(true);
+		return true;
+	});
+	useCommandHandler("workspace.archive", "base", () => {
+		if (selectedId === null) return false;
+		const row = rows.get(selectedId);
+		if (row === undefined || isArchivedWorkspace(row.workspace)) return false;
+		void actions.workspaces.archive(selectedId, { deleteBranch: false }).then((result) => {
+			if (!result.ok) toastError("Couldn't archive the workspace", result.error);
+		});
+		return true;
+	});
+	useCommandHandler("workspace.copyLink", "base", () => {
+		if (selectedId === null) return false;
+		void actions.app.copyText(buildDeepLink(selectedId, null)).then((result) => {
+			if (!result.ok) toastError("Couldn't copy the link", result.error);
+		});
+		return true;
+	});
 
 	const changeView = (next: SidebarView) => {
 		const writes: [string, unknown][] = [];
