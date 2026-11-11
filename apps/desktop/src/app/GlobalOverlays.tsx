@@ -6,7 +6,8 @@
  * search in files and the shortcuts dialog, and Send feedback (Cmd+Alt+F and Help > Send
  * Feedback, APP-09).
  * Behaviour: ui-map.md 5.1 (the palette is a dialog mounted once), 3.10 (quick open and search in files),
- * 1.1 (global overlays are mounted once at the root).
+ * 1.1 (global overlays are mounted once at the root); PR-01's GitHub sign-in notice is raised here
+ * so every screen hears it.
  * Our design choice: an overlay is mounted only while it is open. Its state resets on every open, and an
  * unbuilt overlay shows a small card with a close button instead of an empty frame.
  * Must handle: Escape or outside click closes (the overlay calls onOpenChange(false)); opening a second overlay
@@ -29,6 +30,7 @@ import { QuickOpen } from "../features/palette/QuickOpen.tsx";
 import { SearchInFiles } from "../features/palette/SearchInFiles.tsx";
 import { ShortcutsDialog } from "../features/palette/ShortcutsDialog.tsx";
 import { PassportDialog } from "../features/passport/PassportDialog.tsx";
+import { GitHubSignInNotice } from "../features/settings/GitHubSignInNotice.tsx";
 import { NotBuiltYet } from "../ui/not-built-yet.tsx";
 import type { OverlayProps } from "../ui/overlay-props.ts";
 import { toastError } from "../ui/Toast.tsx";
@@ -99,10 +101,18 @@ export function GlobalOverlays() {
 		});
 		return true;
 	});
-	if (open === null) return <SnippetOverlays />;
+	if (open === null) {
+		return (
+			<>
+				<GitHubSignInNotice />
+				<SnippetOverlays />
+			</>
+		);
+	}
 	const { area, Component } = overlays[open];
 	return (
 		<>
+			<GitHubSignInNotice />
 			<SnippetOverlays />
 			<NotBuiltYet area={area} variant="overlay" onDismiss={close} resetKey={open}>
 				<Component

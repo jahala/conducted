@@ -202,6 +202,7 @@ import { readOperation, readUpstreamDivergence } from "../git/status.ts";
 import {
 	forgeForRemoteUrl,
 	GITHUB_HEAD_MISMATCH_MESSAGE,
+	GITHUB_REFRESH_FAILED_MESSAGE,
 	type GithubFailureClass,
 	type GithubRemote,
 	type GithubRepository,
@@ -268,8 +269,6 @@ export const PR_TEMPLATE_PATHS = [
 
 /** The Keychain entry the Account page writes and `gh` receives as GH_TOKEN (D029). */
 export const GH_PAT_KEYCHAIN_KEY = "gh_pat_token";
-/** Shown when a refresh of GitHub data fails for a reason the service cannot classify. */
-export const GITHUB_REFRESH_FAILED_MESSAGE = "Couldn't refresh GitHub";
 
 export type GithubAuthMethod = "cli" | "pat";
 
