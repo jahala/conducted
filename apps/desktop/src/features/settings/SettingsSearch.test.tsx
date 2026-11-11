@@ -46,10 +46,15 @@ describe("SET-02 SettingsSearch", () => {
 		const input = screen.getByRole("searchbox", { name: "Search settings" });
 		fireEvent.change(input, { target: { value: "setting" } });
 
+		// Conductor empties the query after a pick, so each wrap is its own search.
 		fireEvent.keyDown(input, { key: "ArrowUp" });
 		fireEvent.keyDown(input, { key: "Enter" });
 		expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ key: "two" }));
 
+		// The pick emptied the query, so the second wrap starts from its own search.
+		expect((input as HTMLInputElement).value).toBe("");
+		fireEvent.change(input, { target: { value: "setting" } });
+		fireEvent.keyDown(input, { key: "ArrowDown" });
 		fireEvent.keyDown(input, { key: "ArrowDown" });
 		fireEvent.keyDown(input, { key: "Enter" });
 		expect(onOpen).toHaveBeenLastCalledWith(expect.objectContaining({ key: "one" }));
@@ -71,6 +76,41 @@ describe("SET-02 SettingsSearch", () => {
 			target: { value: "nothing" },
 		});
 		expect(screen.getByText("No settings match your search.")).toBeTruthy();
+	});
+});
+
+describe("SET-02 SettingsSearch field and popover", () => {
+	it("sizes the field the way Conductor does and keeps the results outside the sidebar", () => {
+		render(<SettingsSearch index={[setting("zoom", "App zoom")]} onOpen={() => undefined} />);
+		const input = screen.getByRole("searchbox", { name: "Search settings" });
+		const field = input.parentElement as HTMLElement;
+		expect(field.className).toContain("relative");
+		expect(field.className).toContain("w-full");
+		expect(field.className).toContain("min-w-0");
+		expect(input.className).toContain("h-7");
+		expect(input.className).not.toContain("h-8");
+		expect(input.className).toContain("pl-8");
+		expect(input.className).toContain("pr-10");
+		expect(input.className).toContain("w-full");
+		expect(input.getAttribute("spellcheck")).toBe("false");
+
+		fireEvent.change(input, { target: { value: "zoom" } });
+		const list = screen.getByRole("list", { name: "Settings search results" });
+		expect(field.contains(list)).toBe(false);
+	});
+
+	it("hides the shortcut hint while the query is typed", () => {
+		render(
+			<SettingsSearch
+				index={[setting("zoom", "App zoom")]}
+				onOpen={() => undefined}
+				searchShortcut="⌘F"
+			/>,
+		);
+		const input = screen.getByRole("searchbox", { name: "Search settings" });
+		expect(screen.getByLabelText("Search settings shortcut")).toBeTruthy();
+		fireEvent.change(input, { target: { value: "z" } });
+		expect(screen.queryByLabelText("Search settings shortcut")).toBeNull();
 	});
 });
 
