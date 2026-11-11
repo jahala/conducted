@@ -142,7 +142,6 @@ export function createActions(
 			switchBranch: (workspaceId, branch) => services.git.switchBranch(workspaceId, branch),
 			continueOnNewBranch: (workspaceId, name) =>
 				services.git.continueOnNewBranch(workspaceId, name),
-			openInDiffTool: (workspaceId, path) => services.git.openInDiffTool(workspaceId, path),
 			sparseCheckoutSettings: (workspaceId) => services.git.sparseCheckoutSettings(workspaceId),
 			setSparseCheckoutDirectories: (workspaceId, directories) =>
 				services.git.setSparseCheckoutDirectories(workspaceId, directories),
