@@ -308,7 +308,7 @@ async function checkRows(
 }
 
 /** JSON with sorted keys, so two equal rows compare equal whatever order their fields are in. */
-function stable(value: unknown): string {
+export function stable(value: unknown): string {
 	return JSON.stringify(value, (_key, inner: unknown) =>
 		inner !== null && typeof inner === "object" && !Array.isArray(inner)
 			? Object.fromEntries(

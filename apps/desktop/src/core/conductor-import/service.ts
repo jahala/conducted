@@ -1,14 +1,18 @@
 /**
  * @feature APP-17 Import from Conductor: find, dry run, import, cancel
+ * @feature APP-18 Chat history from Conductor
  * Owns: `ConductorImportService`, which finds Conductor's database, makes the read-only copy, reads
  * the repository folders it names, builds the plan and shows it as a dry run, writes it when the
- * user goes ahead, reloads the stores that show the imported rows, and removes the copy when the
- * import ends, is cancelled or fails, and at every start.
+ * user goes ahead, then brings each chat's history (history.ts), reloads the stores that show the
+ * imported rows, and removes the copy when the import ends, is cancelled or fails, and at every
+ * start.
  * Behaviour: docs/plans/migrate-from-conductor.md (safety rules 1 to 7, "Where it lives").
  * Must handle: a dry run or an import while one runs is refused, never started twice; a cancel
  * while the dry run reads drops its copy once the read ends; the import
  * writes only the plan the user saw, and a plan is used once; any failure leaves Conducted as it
- * was (apply.ts) and drops the copy, so the next try starts from a fresh dry run; the copy left by
+ * was (apply.ts) and drops the copy, so the next try starts from a fresh dry run; chat history is
+ * written once the rows have committed, chat by chat, so a chat whose history fails comes over
+ * without it and is named in the outcome, and the copy stays until the last chat is read; the copy left by
  * a crash is removed at the next start; nothing of Conductor's is written: its database is copied
  * by the Rust shell, and its repository files and worktree list are only read; a store error
  * never carries a secret value, because values never leave the Rust shell.
@@ -31,8 +35,10 @@ import {
 	type SettingsService,
 	type TomlCodec,
 } from "../services/settings.ts";
+import type { SidecarClient } from "../sidecar/tunnel.ts";
 import { applyImportPlan, type ImportedCounts } from "./apply.ts";
 import { parseConductorRows } from "./conductor-rows.ts";
+import { type HistoryLimits, type HistoryOutcome, importChatHistories } from "./history.ts";
 import {
 	type ChatDefaults,
 	type ConductedState,
@@ -57,11 +63,14 @@ export interface ConductorImportState {
 	phase: ImportPhase;
 	preview: ImportPreview | null;
 	imported: ImportedCounts | null;
+	/** What became of each chat's history in the last import. */
+	history: HistoryOutcome | null;
 	error: AppError | null;
 }
 
 export interface ImportOutcome {
 	imported: ImportedCounts;
+	history: HistoryOutcome;
 }
 
 export interface ConductorImportServiceDeps {
@@ -70,6 +79,10 @@ export interface ConductorImportServiceDeps {
 	repositories: () => Repositories;
 	repositoriesOn: (db: Database) => Repositories;
 	git: Pick<GitRunner, "stdout">;
+	/** The sidecar, which maps chat history (APP-18). */
+	sidecar: Pick<SidecarClient, "request">;
+	/** How much one history read takes; the defaults unless a test sets them. */
+	historyLimits?: HistoryLimits;
 	toml: TomlCodec;
 	settings: Pick<SettingsService, "updateSettingsFile" | "excludeLocalSettingsFromGit">;
 	/** The config a new chat starts with, which an imported chat starts from. */
@@ -103,6 +116,7 @@ export class ConductorImportService {
 			phase: "idle",
 			preview: null,
 			imported: null,
+			history: null,
 			error: null,
 		}));
 	}
@@ -130,7 +144,13 @@ export class ConductorImportService {
 		if (this.#working) return err(busy());
 		this.#working = true;
 		this.#cancelled = false;
-		this.store.setState({ phase: "planning", preview: null, imported: null, error: null });
+		this.store.setState({
+			phase: "planning",
+			preview: null,
+			imported: null,
+			history: null,
+			error: null,
+		});
 		try {
 			const cleared = await this.#dropCopy();
 			if (!cleared.ok) {
@@ -190,24 +210,42 @@ export class ConductorImportService {
 				copyPath: planned.copyPath,
 				now: this.#deps.now(),
 			});
+			const done: Result<ImportOutcome> = applied.ok
+				? ok({
+						imported: applied.value,
+						history: await importChatHistories(planned.plan.history, {
+							db: this.#deps.db,
+							repositoriesOn: this.#deps.repositoriesOn,
+							conductorImport: this.#deps.platform.conductorImport,
+							sidecar: this.#deps.sidecar,
+							copyPath: planned.copyPath,
+							now: this.#deps.now(),
+							limits: this.#deps.historyLimits,
+						}),
+					})
+				: applied;
 			const dropped = await this.#dropCopy();
 			if (!dropped.ok) {
 				// The next start removes it; the import's own outcome is what the user needs now.
 				this.#deps.log("warn", `The import's copy could not be removed: ${dropped.error.message}`);
 			}
-			if (!applied.ok) {
-				this.store.setState({ phase: "failed", error: applied.error });
-				this.#deps.log("warn", `The import from Conductor stopped: ${applied.error.message}`);
-				return applied;
+			if (!done.ok) {
+				this.store.setState({ phase: "failed", error: done.error });
+				this.#deps.log("warn", `The import from Conductor stopped: ${done.error.message}`);
+				return done;
+			}
+			const { imported, history } = done.value;
+			for (const failure of history.failed) {
+				this.#deps.log("warn", `A chat's history did not come over: ${failure.reason}`);
 			}
 			await this.#excludeLocalFiles(planned.plan.files);
 			const reloaded = await this.#deps.reload();
 			if (!reloaded.ok) {
 				this.#deps.log("warn", `The imported rows did not load: ${reloaded.error.message}`);
 			}
-			this.store.setState({ phase: "imported", imported: applied.value });
+			this.store.setState({ phase: "imported", imported, history });
 			this.#deps.log("info", "Imported from Conductor");
-			return ok({ imported: applied.value });
+			return done;
 		} finally {
 			this.#working = false;
 		}
@@ -354,6 +392,7 @@ export class ConductorImportService {
 			repos: repos.value,
 			workspaces: workspaces.value,
 			sessionIds: ids.value.sessionIds,
+			sessionIdsWithEvents: ids.value.sessionIdsWithEvents,
 			commentIds: ids.value.commentIds,
 			sectionIds: ids.value.sectionIds,
 			sectionCount: ids.value.sectionIds.size,

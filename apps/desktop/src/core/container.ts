@@ -1367,6 +1367,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repositories: () => repositories,
 		repositoriesOn: (tx) => createRepositories(tx, repositoryDeps),
 		git: gitRunner,
+		sidecar: client,
 		toml: inputs.toml,
 		settings,
 		chatDefaults: () => newChatConfig(LOCAL_HOST, setting),

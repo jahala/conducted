@@ -1,5 +1,6 @@
 /**
  * @feature APP-17 The import's plan: Conductor's rows in, our rows and what stays behind out
+ * @feature APP-18 Chat history from Conductor: which chats bring their history
  * Owns: `planConductorImport`, the pure step that turns a snapshot of Conductor's database, the
  * repository folders it names and the rows Conducted already has into the rows to write, the
  * values to move into the Keychain, the settings files to write and the dry run's lists;
@@ -17,6 +18,11 @@
  * repository's worktrees are left out, each with its reason; an archived workspace keeps its
  * archived state; a chat or comment whose workspace stays behind stays behind too; at most four
  * favourites, as the model picker keeps; a setting or variable Conducted already has is kept.
+ * Chat history (APP-18): a chat with sent messages brings them when its agent has a mapping
+ * (`CONDUCTOR_MAPPED_AGENTS`) and the chat is in Conducted after the import with no event of its
+ * own: one the import brings now, or one an earlier import brought without history. A chat that
+ * holds any event already has its history or turns of its own, and nothing is added. Chats of
+ * other agents, and chats that stay behind, are counted apart; a count is chats and their rows.
  * Our design choice: an imported branch is never a placeholder, so Conducted never renames a branch
  * Conductor's workspace still uses (D124). An imported workspace has no setup log path, because
  * Conductor's log lives in Conductor's folder and removing the workspace would remove it.
@@ -24,6 +30,7 @@
  * the reason.
  */
 import {
+	CONDUCTOR_MAPPED_AGENTS,
 	type Host,
 	LOCAL_HOST,
 	type SessionConfig,
@@ -66,6 +73,7 @@ import { NEW_CHAT_EFFORT_FALLBACK, NEW_CHAT_MODEL_FALLBACK } from "../workspace-
 import {
 	type ConductorRepo,
 	type ConductorRows,
+	type ConductorSession,
 	type ConductorWorkspace,
 	conductorTime,
 	parseConductorRows,
@@ -147,9 +155,37 @@ export interface ScriptMention {
 	newName: string;
 }
 
+/** Chats and the sent message rows they hold. */
+export interface HistoryCount {
+	chats: number;
+	rows: number;
+}
+
+/** What the dry run says of chat history (APP-18). */
+export interface HistoryPreview {
+	/** Chats whose history comes over: ones the import brings and ones here without history. */
+	comes: HistoryCount;
+	/** Chats here that already hold history or turns of their own; nothing is added to them. */
+	alreadyThere: HistoryCount;
+	/** Chats of agents with no mapping yet, by Conductor's agent; they come without history. */
+	notMapped: ({ agent: string } & HistoryCount)[];
+	/** Chats that stay behind, whose history stays with them. */
+	withChatsLeftOut: HistoryCount;
+}
+
+/** A chat whose history the import brings, with the config its user messages carry. */
+export interface HistoryChat {
+	sessionId: SessionId;
+	label: string;
+	agent: AgentKind;
+	config: SessionConfig;
+	rows: number;
+}
+
 /** What the dry run shows. It holds names, counts and reasons, never a secret value. */
 export interface ImportPreview {
 	kinds: Record<ImportKind, KindCount>;
+	history: HistoryPreview;
 	leftOut: LeftOut[];
 	parts: PartNote[];
 	notBrought: NotBrought[];
@@ -188,6 +224,8 @@ export interface ImportRows {
 
 export interface ImportPlan {
 	rows: ImportRows;
+	/** The chats whose history comes over, written after the rows, one chat at a time. */
+	history: HistoryChat[];
 	secretMoves: ConductorSecretMove[];
 	files: SettingsFileWrite[];
 	preview: ImportPreview;
@@ -223,6 +261,8 @@ export interface ConductedState {
 		state: WorkspaceState;
 	}[];
 	sessionIds: ReadonlySet<string>;
+	/** Chats that hold any event. */
+	sessionIdsWithEvents: ReadonlySet<string>;
 	commentIds: ReadonlySet<string>;
 	sectionIds: ReadonlySet<string>;
 	sectionCount: number;
@@ -351,6 +391,12 @@ function agentOf(type: string | null): AgentKind | { reason: string } {
 		};
 	}
 	return { reason: "Conductor names an agent Conducted does not know." };
+}
+
+/** A chat's agent for its history: Conductor's four, and "other" for a name it does not know. */
+function historyAgentOf(type: string | null): string {
+	if (type === null || type === "claude") return "claude";
+	return type === "codex" || type === "cursor" || type === "acp" ? type : "other";
 }
 
 const effortOf = (raw: string | null): SessionConfig["effort"] => {
@@ -596,15 +642,34 @@ export function planConductorImport(input: PlanInput): ImportPlan {
 	kinds.workspaces.toImport = newWorkspaces.length;
 
 	// ---- chats
-	const newSessions: Session[] = [];
-	for (const session of rows.sessions) {
-		kinds.chats.found++;
+	const titleOf = (session: ConductorSession): string | null =>
+		session.title === null || session.title === "Untitled" ? null : session.title;
+	const labelOf = (session: ConductorSession): string => {
 		const workspaceLabel =
 			session.workspace_id === null
 				? "no workspace"
 				: (conductorWorkspaceLabel.get(session.workspace_id) ?? session.workspace_id);
-		const title = session.title === null || session.title === "Untitled" ? null : session.title;
-		const label = title ?? `A chat in ${workspaceLabel}`;
+		return titleOf(session) ?? `A chat in ${workspaceLabel}`;
+	};
+	const configOf = (session: ConductorSession, agent: AgentKind): SessionConfig => {
+		const personality = zCodexPersonality.safeParse(session.agent_personality);
+		return {
+			...input.chatDefaults,
+			agent,
+			model: session.model ?? NEW_CHAT_MODEL_FALLBACK,
+			effort: effortOf(
+				agent === "codex" ? session.codex_thinking_level : session.claude_effort_level,
+			),
+			fastMode: session.fast_mode,
+			planMode: session.permission_mode === "plan",
+			...(agent === "codex" && personality.success ? { codexPersonality: personality.data } : {}),
+		};
+	};
+	const newSessions: Session[] = [];
+	for (const session of rows.sessions) {
+		kinds.chats.found++;
+		const title = titleOf(session);
+		const label = labelOf(session);
 		if (!SAFE_ID.test(session.id)) {
 			leave("chats", label, "Its id cannot be used as a Conducted id.");
 			continue;
@@ -628,18 +693,7 @@ export function planConductorImport(input: PlanInput): ImportPlan {
 			leave("chats", label, agent.reason);
 			continue;
 		}
-		const personality = zCodexPersonality.safeParse(session.agent_personality);
-		const config: SessionConfig = {
-			...input.chatDefaults,
-			agent,
-			model: session.model ?? NEW_CHAT_MODEL_FALLBACK,
-			effort: effortOf(
-				agent === "codex" ? session.codex_thinking_level : session.claude_effort_level,
-			),
-			fastMode: session.fast_mode,
-			planMode: session.permission_mode === "plan",
-			...(agent === "codex" && personality.success ? { codexPersonality: personality.data } : {}),
-		};
+		const config = configOf(session, agent);
 		const createdAt = timeOr(session.created_at, now);
 		const updatedAt = timeOr(session.updated_at, createdAt);
 		newSessions.push({
@@ -662,6 +716,50 @@ export function planConductorImport(input: PlanInput): ImportPlan {
 		});
 	}
 	kinds.chats.toImport = newSessions.length;
+
+	// ---- chat history (APP-18)
+	const mapped: ReadonlySet<string> = new Set(CONDUCTOR_MAPPED_AGENTS);
+	const bringing = new Set<string>(newSessions.map((session) => session.id));
+	const history: HistoryChat[] = [];
+	const historyPreview: HistoryPreview = {
+		comes: { chats: 0, rows: 0 },
+		alreadyThere: { chats: 0, rows: 0 },
+		notMapped: [],
+		withChatsLeftOut: { chats: 0, rows: 0 },
+	};
+	const add = (count: HistoryCount, rows: number): void => {
+		count.chats++;
+		count.rows += rows;
+	};
+	for (const session of rows.sessions) {
+		const messageRows = input.snapshot.messageRows?.[session.id] ?? 0;
+		if (messageRows === 0) continue;
+		const agent = historyAgentOf(session.agent_type);
+		if (!mapped.has(agent)) {
+			const known = historyPreview.notMapped.find((entry) => entry.agent === agent);
+			const entry = known ?? { agent, chats: 0, rows: 0 };
+			if (known === undefined) historyPreview.notMapped.push(entry);
+			add(entry, messageRows);
+			continue;
+		}
+		const here = bringing.has(session.id) || conducted.sessionIds.has(session.id);
+		if (!here) {
+			add(historyPreview.withChatsLeftOut, messageRows);
+			continue;
+		}
+		if (conducted.sessionIdsWithEvents.has(session.id)) {
+			add(historyPreview.alreadyThere, messageRows);
+			continue;
+		}
+		add(historyPreview.comes, messageRows);
+		history.push({
+			sessionId: session.id as SessionId,
+			label: labelOf(session),
+			agent: agent as AgentKind,
+			config: configOf(session, agent as AgentKind),
+			rows: messageRows,
+		});
+	}
 	// A workspace Conductor marks unread shows unread here through its newest chat, as
 	// `markWorkspaceUnread` does.
 	for (const workspaceId of unreadWorkspaces) {
@@ -1045,10 +1143,10 @@ export function planConductorImport(input: PlanInput): ImportPlan {
 	};
 	notBrought.push(
 		{
-			what: "chat history",
-			count: sum("session_events", "session_messages"),
+			what: "Conductor's event log",
+			count: sum("session_events"),
 			reason:
-				"Chats come over without their messages; each one resumes from the agent's own transcript. The history comes over once a check on real data shows it maps whole (D100).",
+				"Conductor's chat is built from its stored messages, which come over, so the import does not read this log.",
 		},
 		{
 			what: "terminal tabs",
@@ -1063,7 +1161,7 @@ export function planConductorImport(input: PlanInput): ImportPlan {
 		{
 			what: "attachments",
 			count: sum("attachments"),
-			reason: "They belong to chat history, which stays behind.",
+			reason: "Imported chats show their messages without the files attached to them.",
 		},
 		{
 			what: "messages waiting to send",
@@ -1084,6 +1182,7 @@ export function planConductorImport(input: PlanInput): ImportPlan {
 	);
 
 	return {
+		history,
 		rows: {
 			repos: newRepos,
 			workspaces: newWorkspaces,
@@ -1099,6 +1198,7 @@ export function planConductorImport(input: PlanInput): ImportPlan {
 		files,
 		preview: {
 			kinds,
+			history: historyPreview,
 			leftOut,
 			parts,
 			notBrought,

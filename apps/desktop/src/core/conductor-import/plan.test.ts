@@ -31,6 +31,7 @@ const nothing = (): ConductedState => ({
 	repos: [],
 	workspaces: [],
 	sessionIds: new Set(),
+	sessionIdsWithEvents: new Set(),
 	commentIds: new Set(),
 	sectionIds: new Set(),
 	sectionCount: 0,
