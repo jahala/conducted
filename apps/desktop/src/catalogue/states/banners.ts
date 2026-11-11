@@ -19,7 +19,7 @@ import { animateCast, type Cast, chatRoute, refreshGit, seedCast } from "../cast
 import { type Conversation, conversation } from "../conversation.ts";
 import { click, has, rightClick, shows } from "../dom.ts";
 import { deliverEvents, setLiveState } from "../live.ts";
-import { addChat, addEvents } from "../seeds.ts";
+import { addChat, addEvents, CLAUDE_CONFIG } from "../seeds.ts";
 import type { AfterContext, CatalogueState } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
 import type { World } from "../world.ts";
@@ -149,6 +149,37 @@ async function waitForElement(document: Document, selector: string): Promise<HTM
 	return element;
 }
 
+/** A chat whose first turn ended because its agent needs signing in, worded as `message`. */
+const authChat = (
+	id: string,
+	title: string,
+	agent: "codex" | "cursor",
+	message: string,
+	ready: string,
+): CatalogueState => ({
+	id,
+	group: "Workspace chat",
+	title,
+	seed: async (world) => {
+		const cast = await seedCast(world);
+		const config = { ...CLAUDE_CONFIG, agent, model: agent === "codex" ? "gpt-5.5" : "default" };
+		const chat = await addChat(world, cast.arbor, { title, config });
+		const talk = conversation(id, CATALOGUE_NOW - 20 * MINUTE);
+		const turn = talk.user("Start on the next task.", { config });
+		talk.agent(turn, [{ kind: "error", code: "agent_auth_required", message, retryable: false }]);
+		talk.end(turn, undefined, "error");
+		await addEvents(world, chat.id, talk.events);
+		return {
+			route: chatRoute(cast.arbor, chat),
+			after: async ({ app }) => {
+				await animateCast(world, cast, app);
+				await refreshGit(app, cast.arbor);
+			},
+			ready: (document) => shows(document, ready),
+		};
+	},
+});
+
 /** A long finished chat: twelve turns of small questions about the code base. */
 function longChat(): Conversation {
 	const chat = conversation("long", CATALOGUE_NOW - 3 * 60 * MINUTE, 30_000);
@@ -206,6 +237,27 @@ export const BANNER_STATES: CatalogueState[] = [
 			},
 		),
 	},
+	authChat(
+		"chat-errors-codex",
+		"Auth needed: Codex",
+		"codex",
+		"Codex authentication required. Sign in to Codex in the agent settings.",
+		"Please configure Codex authentication in Settings to use Codex.",
+	),
+	authChat(
+		"chat-errors-chatgpt",
+		"Auth expired: ChatGPT",
+		"codex",
+		"ChatGPT login expired. Sign in to ChatGPT in the agent settings.",
+		"Your ChatGPT login has expired. Reconnect ChatGPT, then send your message again.",
+	),
+	authChat(
+		"chat-errors-cursor",
+		"Auth needed: Cursor",
+		"cursor",
+		"Cursor API key is not configured",
+		"Add a Cursor API key in provider settings to use Cursor.",
+	),
 	{
 		id: "chat-error-views",
 		group: "Workspace chat",

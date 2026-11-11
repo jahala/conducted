@@ -173,7 +173,7 @@ export const APPROVAL_STATES: CatalogueState[] = [
 				},
 			],
 		},
-		ready: "Select other response",
+		ready: "Which checks should run before a release?",
 	}),
 	{
 		id: "chat-question-answer-failed",

@@ -14,7 +14,7 @@
 import type { Workspace } from "../../core/model.ts";
 import { animateCast, type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, hover, shows } from "../dom.ts";
+import { click, has, hover, shows } from "../dom.ts";
 import { addChat, addEvents, must } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
@@ -210,7 +210,7 @@ export const CHAT_STATES: CatalogueState[] = [
 			must(await world.repositories.sessions.close(chat.id));
 			return {
 				route: `/repository/${cast.grove.repoId}/workspace/${cast.grove.id}`,
-				ready: (document) => shows(document, "View chat history"),
+				ready: (document) => has(document, "button", "View chat history"),
 			};
 		},
 	},

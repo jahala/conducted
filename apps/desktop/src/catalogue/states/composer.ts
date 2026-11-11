@@ -12,7 +12,7 @@
 import type { Session, Workspace } from "../../core/model.ts";
 import { chatRoute, type GitWorld, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, find, hover, shows } from "../dom.ts";
+import { click, find, has, hover, shows } from "../dom.ts";
 import { addChat, addEvents, CLAUDE_CONFIG, must, setSetting } from "../seeds.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, DAY, HOUR } from "../time.ts";
@@ -295,6 +295,25 @@ export const COMPOSER_STATES: CatalogueState[] = [
 			),
 	},
 	{
+		id: "composer-model-load-failed",
+		group: "Composer",
+		title: "The model picker's Model submenu when the model list fails",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			world.failSidecar("listModels");
+			const chat = await addChat(world, cast.arbor, { title: null });
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await click(document, "button", "Model picker");
+					await click(document, "button", "Model");
+				},
+				ready: (document) => shows(document, "Could not load models."),
+			};
+		},
+	},
+	{
 		id: "composer-model-effort-unsupported",
 		group: "Composer",
 		title: "The Effort submenu for a level the model does not support",
@@ -328,7 +347,7 @@ export const COMPOSER_STATES: CatalogueState[] = [
 			return {
 				route: chatRoute(cast.arbor, chat),
 				after: async ({ app }) => refreshGit(app, cast.arbor),
-				ready: (document) => shows(document, "Fast mode on"),
+				ready: (document) => has(document, "[role=img]", "Fast mode on"),
 			};
 		},
 	},
@@ -373,7 +392,7 @@ export const COMPOSER_STATES: CatalogueState[] = [
 					await refreshGit(app, cast.arbor);
 					await typeInComposer(document, "/");
 				},
-				ready: (document) => shows(document, "Skills"),
+				ready: (document) => shows(document, "Create a skill"),
 			};
 		},
 	},
