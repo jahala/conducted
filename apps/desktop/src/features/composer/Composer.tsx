@@ -371,12 +371,8 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					void startTerminalCommand(command);
 					return;
 				case "clear":
-					// The tab strip's own new-chat handler opens the fresh chat and shows it.
-					if (!runCommand("chat.newTab")) {
-						toast.error(COMMAND_UNAVAILABLE);
-						return;
-					}
-					void actions.sessions.close(sessionId).then((result) => {
+					// The clear action starts a replacement chat, shows it and stops the old agent.
+					void actions.sessions.clear(sessionId).then((result) => {
 						if (!result.ok) toastError("Couldn't close the chat", result.error);
 					});
 					return;

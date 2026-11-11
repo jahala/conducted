@@ -5,7 +5,7 @@
  * CHAT-26 Start a chat with earlier chats and plans; CHAT-27 Retry a failed turn in a new chat;
  * WS-10 Delete a workspace's chats
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
- * create, close, reopen, rename, set-title-if-empty, delete (which also removes the chat's
+ * create, close, clear, reopen, rename, set-title-if-empty, delete (which also removes the chat's
  * checkpoint refs) and open paths, deleting every chat of a workspace with its attachment files
  * and drafts, starting a review chat with the review model, sending a user message as a new turn
  * or a steer, running the composition root's first-message hook (WS-04's branch rename),
@@ -25,7 +25,10 @@
  * 3.2, sessions-and-chats.md "What happens when
  * you send a message" and "While the agent is working" (cancel), sessions.md 6.
  * Must handle: a closed chat stays in history and leaves the open list; a reopened chat returns to
- * the open list; an empty title is refused; stored events load once, in `idx` order; a message is
+ * the open list; closing a chat stops its agent unseen and makes the next chat active, and closing
+ * the last chat starts a replacement so the pane never keeps showing a chat that is gone; `/clear`
+ * does the same with a replacement and hides the old chat (success-side-effects.md row 6);
+ * an empty title is refused; stored events load once, in `idx` order; a message is
  * held in memory as pending before the sidecar is asked; a queued row is sent under its own id,
  * so a crash before the row is removed cannot send it twice; an explicit steer for an agent that
  * cannot steer is refused (CHAT-03); a message to an idle chat whose agent program is still being
@@ -159,7 +162,13 @@ import { trashIfPresent } from "../fs-helpers.ts";
 import { turnCheckpointId } from "../git/refs.ts";
 import { parseEffortSetting } from "../lookups.ts";
 import type { ChatView, DiagnosticsCapture, PlanEntry, Session } from "../model.ts";
-import { type FailedSend, GOAL_EMPTY, GOAL_UNAVAILABLE, sessionWaitsForUser } from "../sessions.ts";
+import {
+	chatIsWorking,
+	type FailedSend,
+	GOAL_EMPTY,
+	GOAL_UNAVAILABLE,
+	sessionWaitsForUser,
+} from "../sessions.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
 import type { HistoryHit } from "../transcript.ts";
 import type { ComposerService } from "./composer.ts";
@@ -423,6 +432,14 @@ export interface SessionsServiceDeps {
 	 * row and its loaded copy move together.
 	 */
 	touchWorkspaceActivity?: (workspaceId: WorkspaceId, at: number) => Promise<Result<void>>;
+	/**
+	 * Remembers which chat the workspace shows next, so a launch reopens it. The composition root
+	 * passes the workspace service. Closing a chat makes the next one active, as Conductor's
+	 * hideSession does; a failure is logged because the tab still opens on that chat.
+	 */
+	setActiveSession?: (workspaceId: WorkspaceId, sessionId: SessionId) => Promise<Result<void>>;
+	/** The chat a workspace shows now. Closing another chat keeps it active. */
+	activeSessionOf?: (workspaceId: WorkspaceId) => SessionId | null;
 	/** Reports work that runs beside the send, such as the first-message branch rename. */
 	log?: (level: "warn" | "info", message: string) => void;
 	/** Folders and branch facts the sidecar needs to place a chat on disk. */
@@ -633,10 +650,61 @@ export class SessionsService implements AgentMessenger {
 		return sent;
 	}
 
-	/** Backs `Actions.sessions.close`: hides the tab, keeps the chat in history. */
-	async close(id: SessionId): Promise<Result<void>> {
+	/**
+	 * Backs `Actions.sessions.close`: hides the chat and keeps it in history. Conductor's hideSession
+	 * hides it, stops its agent, and makes the next chat active; closing the last chat starts a new
+	 * one, so the pane never keeps showing a chat that is gone. The chat that becomes active is
+	 * returned, so the caller opens its tab.
+	 */
+	async close(id: SessionId): Promise<Result<Session>> {
 		const found = await this.#session(id);
 		if (!found.ok) return found;
+		const workspaceId = found.value.workspaceId;
+		const open = this.store.getState().byWorkspace[workspaceId] ?? [];
+		const index = open.indexOf(id);
+		const remaining = open.filter((openId) => openId !== id);
+		let next: Session | undefined;
+		if (remaining.length > 0) {
+			// Conductor keeps the chat the workspace shows now if it is still open; otherwise the
+			// tab's right neighbour, else its left.
+			const active = this.#deps.activeSessionOf?.(workspaceId) ?? null;
+			const keepActive =
+				active !== null && remaining.includes(active) ? remaining.indexOf(active) : null;
+			const at = keepActive ?? (index === -1 ? 0 : Math.min(index, remaining.length - 1));
+			const nextId = remaining[at];
+			next = nextId === undefined ? undefined : this.store.getState().sessions[nextId];
+		}
+		if (next === undefined) {
+			// The last chat is closed. Conductor starts a fresh chat and shows it.
+			const created = await this.createFromDefaults(workspaceId);
+			if (!created.ok) return created;
+			next = created.value;
+		}
+		const hidden = await this.#hide(id, found.value);
+		if (!hidden.ok) return hidden;
+		await this.#rememberActiveChat(workspaceId, next.id);
+		return ok(next);
+	}
+
+	/**
+	 * Backs `/clear` (COMP-06): Conductor's clearSession starts a replacement chat with the
+	 * workspace's defaults, makes it active and hides the old chat. The old chat's agent is stopped
+	 * too, so it does not keep working unseen.
+	 */
+	async clear(id: SessionId): Promise<Result<Session>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const created = await this.createFromDefaults(found.value.workspaceId);
+		if (!created.ok) return created;
+		const hidden = await this.#hide(id, found.value);
+		if (!hidden.ok) return hidden;
+		await this.#rememberActiveChat(found.value.workspaceId, created.value.id);
+		return created;
+	}
+
+	/** Hides a chat and stops its agent. The repo write comes first, so a failure hides nothing. */
+	async #hide(id: SessionId, session: Session): Promise<Result<void>> {
+		const working = this.#chatIsWorking(id);
 		const closed = await this.#deps.repositories().sessions.close(id);
 		if (!closed.ok) return closed;
 		const at = this.#deps.now();
@@ -653,13 +721,47 @@ export class SessionsService implements AgentMessenger {
 				sessions: next,
 				byWorkspace: {
 					...state.byWorkspace,
-					[found.value.workspaceId]: (state.byWorkspace[found.value.workspaceId] ?? []).filter(
+					[session.workspaceId]: (state.byWorkspace[session.workspaceId] ?? []).filter(
 						(openId) => openId !== id,
 					),
 				},
 			};
 		});
+		// Conductor stops a hidden chat's agent after hiding it, and a failure there is logged
+		// rather than blocking the close.
+		if (working) {
+			fireAndForget(
+				() => this.#stopHiddenChat(id),
+				(error) =>
+					this.#deps.log?.(
+						"warn",
+						`Couldn't stop a hidden chat's agent: ${
+							error instanceof Error ? error.message : String(error)
+						}`,
+					),
+			);
+		}
 		return ok(undefined);
+	}
+
+	/**
+	 * Stops a hidden chat's agent the way cancel stops a visible one, without the follow-up queue
+	 * and the draft: the chat is gone from the strip, so those would restore work nobody sees.
+	 */
+	async #stopHiddenChat(id: SessionId): Promise<Result<void>> {
+		const stopped = await this.#cancelTurn(id, false);
+		if (!stopped.ok) {
+			this.#deps.log?.("warn", `Couldn't stop a hidden chat's agent: ${stopped.error.message}`);
+		}
+		return stopped;
+	}
+
+	/** Writes the chat the workspace shows next; a failure is logged because the tab still opens. */
+	async #rememberActiveChat(workspaceId: WorkspaceId, sessionId: SessionId): Promise<void> {
+		const remembered = await this.#deps.setActiveSession?.(workspaceId, sessionId);
+		if (remembered !== undefined && !remembered.ok) {
+			this.#deps.log?.("warn", `Couldn't remember the next chat: ${remembered.error.message}`);
+		}
 	}
 
 	async reopen(id: SessionId): Promise<Result<void>> {
@@ -1138,6 +1240,14 @@ export class SessionsService implements AgentMessenger {
 	 * sends, and puts those messages back in the composer draft with their attachments.
 	 */
 	async cancel(id: SessionId): Promise<Result<void>> {
+		return this.#cancelTurn(id, true);
+	}
+
+	/**
+	 * The one cancel path. A visible chat pauses its follow-up queue and returns dropped messages
+	 * to the draft; a chat being closed does neither, because nobody will see them.
+	 */
+	async #cancelTurn(id: SessionId, restoreDraft: boolean): Promise<Result<void>> {
 		const found = await this.#session(id);
 		if (!found.ok) return found;
 
@@ -1159,6 +1269,10 @@ export class SessionsService implements AgentMessenger {
 		// Take the dropped messages off the pending list before any await, so a send that finishes
 		// meanwhile sees that the cancel owns them.
 		for (const messageId of dropped) this.#removeSending(id, messageId);
+		if (!restoreDraft) {
+			this.#setCancelling(id, false);
+			return ok(undefined);
+		}
 		const paused = await this.#deps.queue.pauseOnCancel(id);
 		const restored = await this.#restoreDroppedToDraft(id, toRestore);
 		this.#setCancelling(id, false);
@@ -1708,10 +1822,7 @@ export class SessionsService implements AgentMessenger {
 
 	/** A chat counts as working until its cancel has been answered and the chat is idle again. */
 	#chatIsWorking(sessionId: SessionId): boolean {
-		const state = this.store.getState();
-		return (
-			state.cancelling[sessionId] === true || state.liveStates[sessionId]?.status === "working"
-		);
+		return chatIsWorking(this.store.getState(), sessionId);
 	}
 
 	/**

@@ -502,7 +502,13 @@ export interface Actions {
 	};
 	sessions: {
 		create: Act<[workspaceId: WorkspaceId, config: SessionConfig], Session>;
-		close: Act<[id: SessionId]>;
+		/**
+		 * Hides a chat, stops its agent and makes the next chat active. Closing the last chat starts
+		 * a new one. Returns the chat that becomes active, so the caller opens its tab.
+		 */
+		close: Act<[id: SessionId], Session>;
+		/** `/clear`: starts a replacement chat, makes it active and hides the old one. */
+		clear: Act<[id: SessionId], Session>;
 		reopen: Act<[id: SessionId]>;
 		rename: Act<[id: SessionId, title: string]>;
 		/** Sends now, queues, or steers, depending on state and the follow-up setting. */

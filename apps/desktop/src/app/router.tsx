@@ -219,16 +219,38 @@ function SessionRouteRepair({
 	sessionId: string;
 }) {
 	const { services } = useServices();
-	const navigate = useNavigate();
+	const navigate = workspaceRoute.useNavigate();
 	const state = useStore(services.sessions.store, (value) => value);
+	const workspaceState = useStore(services.workspace.store, (value) => value);
 
 	useEffect(() => {
 		if (!state.loaded) return;
 		const session = state.sessions[sessionId];
 		if (session === undefined || session.workspaceId !== workspaceId) {
 			void navigate({ to: "/all-workspaces", replace: true });
+			return;
 		}
-	}, [navigate, sessionId, state, workspaceId]);
+		// A chat that was closed must not stay on screen. Conductor opens the chat that became
+		// active; with none, the empty tab group shows.
+		if (session.closedAt === null) return;
+		const active = workspaceState.workspacesById[workspaceId]?.activeSessionId ?? null;
+		const activeOpen = active === null ? undefined : state.sessions[active];
+		if (active !== null && active !== sessionId && activeOpen?.closedAt === null) {
+			void navigate({
+				search: (previous) => ({ ...previous, tab: "session", sessionId: active }),
+				replace: true,
+			});
+			return;
+		}
+		void navigate({
+			search: (previous) => ({
+				...previous,
+				tab: undefined,
+				sessionId: undefined,
+			}),
+			replace: true,
+		});
+	}, [navigate, sessionId, state, workspaceId, workspaceState]);
 
 	return null;
 }
@@ -292,12 +314,18 @@ const workspaceRoute = createRoute({
 			if (!workspaceState.loaded || workspace === undefined) return;
 			if (!canShowWorkspaceRoute(workspace)) return;
 			if (search.tab !== undefined || workspace.activeSessionId === null) return;
+			// A chat that is closed is not reopened: the close path has already chosen its replacement.
+			const sessionsState = services.sessions.store.getState();
+			if (sessionsState.loaded) {
+				const stored = sessionsState.sessions[workspace.activeSessionId];
+				if (stored !== undefined && stored.closedAt !== null) return;
+			}
 			const sessionId = workspace.activeSessionId;
 			void navigate({
 				search: (previous) => ({ ...previous, tab: "session", sessionId }),
 				replace: true,
 			});
-		}, [navigate, search.tab, workspace, workspaceState.loaded]);
+		}, [navigate, search.tab, services, workspace, workspaceState.loaded]);
 
 		// Keep the stored chat tab current as the user moves between tabs.
 		useEffect(() => {
@@ -307,6 +335,9 @@ const workspaceRoute = createRoute({
 			if (state.loaded) {
 				const session = state.sessions[search.sessionId];
 				if (session === undefined || session.workspaceId !== workspaceId) return;
+				// A closed chat never becomes the remembered tab: the close path already chose the
+				// next one, and this effect would put the closed chat back while the URL still names it.
+				if (session.closedAt !== null) return;
 			}
 			void actions.workspaces.setActiveSession(
 				workspaceId as WorkspaceId,
