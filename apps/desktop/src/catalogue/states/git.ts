@@ -34,6 +34,8 @@ export interface GitScene {
 	ready?: Scene["ready"];
 	/** Leave the pull request unpolled, so the header still loads. */
 	skipPullRequest?: boolean;
+	/** Extra files to plant in arbor, by path, so a state can show several file kinds. */
+	files?: Readonly<Record<string, string>>;
 }
 
 /** The cast with arbor open, its git described by `scene.git`. */
@@ -42,6 +44,9 @@ export const arborScene =
 	async (world: World): Promise<Scene> => {
 		const cast = await seedCast(world, scene.git);
 		const workspace: Workspace = cast.arbor;
+		for (const [path, text] of Object.entries(scene.files ?? {})) {
+			world.memory.controls.files.set(`${workspace.path}/${path}`, text);
+		}
 		const route =
 			scene.search === undefined
 				? chatRoute(workspace, cast.chats.arbor)
@@ -136,6 +141,27 @@ export const GIT_STATES: CatalogueState[] = [
 		seed: arborScene({
 			after: ({ document }) => click(document, "button,[role=tab]", "All files"),
 			ready: (document) => shows(document, "package.json"),
+		}),
+	},
+	{
+		id: "git-files-icons",
+		group: "Git panel",
+		title: "All files tab with several file kinds and their Material icons",
+		seed: arborScene({
+			files: {
+				"main.rs": 'fn main() {\n\tprintln!("hello");\n}\n',
+				"theme.ts": "export const theme = 'light';\n",
+				"settings.json": '{\n  "theme": "light"\n}\n',
+				"guide.md": "# Guide\n\nHow the atlas project fits together.\n",
+				"app.css": ".app {\n\tcolor: black;\n}\n",
+				"deploy.sh": "#!/bin/sh\nset -e\necho deploy\n",
+				"logo.svg": '<svg xmlns="http://www.w3.org/2000/svg" />\n',
+			},
+			after: async ({ document }) => {
+				await click(document, "button,[role=tab]", "All files");
+				await click(document, "[role=treeitem]", "main.rs");
+			},
+			ready: (document) => has(document, "[role=tab]", "main.rs"),
 		}),
 	},
 	{
