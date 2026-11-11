@@ -1,7 +1,8 @@
 /**
  * @feature catalogue States of the sidebar's sections and view options
  * Owns: the sidebar with a pinned workspace and two of the user's sections (one collapsed, with its
- * count), a section's actions menu, the section dialog opened by Rename and by New section, a
+ * count), a section's actions menu, the section dialog opened by Rename, by New section, and after
+ * its section was removed ("Section not found"), a
  * pinned workspace's actions menu ('Unpin'), the list's View options menu (group, filter by project,
  * sort), the new-workspace dialog's "Create in section" menu, and the organisation switcher open
  * with this Mac and the paired Worker (CLOUD-19).
@@ -78,6 +79,20 @@ export const SIDEBAR_STATES: CatalogueState[] = [
 		},
 	),
 	sectionsState(
+		"sidebar-section-missing",
+		"Sidebar: the edit dialog after its section was removed",
+		"Section not found",
+		async ({ app, document }) => {
+			await click(document, "button", "Actions for In review");
+			await click(document, "[role=menuitem]", "Rename");
+			const store = app.container.services.sections.store;
+			const target = store.getState().sections.find((entry) => entry.name === "In review");
+			if (target === undefined) throw new Error("The In review section is missing.");
+			const removed = await app.container.actions.sections.remove(target.id);
+			if (!removed.ok) throw new Error(`Removing the section failed: ${removed.error.message}`);
+		},
+	),
+	sectionsState(
 		"sidebar-new-section",
 		"Sidebar: the New section dialog",
 		"Emoji (optional)",
@@ -90,7 +105,7 @@ export const SIDEBAR_STATES: CatalogueState[] = [
 		"sidebar-workspace-actions",
 		"Sidebar: a pinned workspace's actions menu",
 		"Unpin",
-		({ document }) => {
+		async ({ document }) => {
 			const row = document.querySelector<HTMLElement>("[data-workspace-id]");
 			if (row === null) throw new Error("No sidebar workspace row to open.");
 			const box = row.getBoundingClientRect();

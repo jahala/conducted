@@ -4,7 +4,7 @@
  * Test first: Submitting 'Review' with no emoji calls sections.create('Review', null).
  */
 import { appError, err, ok, type SectionId } from "@conducted/shared";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
@@ -130,6 +130,20 @@ describe("NAV-04 SectionDialog", () => {
 			fireEvent.click(screen.getByRole("button", { name: "Save" }));
 			await waitFor(() => expect(reported).toHaveBeenCalledWith("Section no longer exists"));
 			reported.mockRestore();
+		} finally {
+			test.close();
+		}
+	});
+
+	it("says 'Section not found' when the section goes while the dialog is open", () => {
+		const test = createTestContainer();
+		try {
+			const store = test.container.services.sections.store;
+			store.setState({ loaded: true, sections: [section] });
+			renderWith(test.container, <SectionDialog open onOpenChange={vi.fn()} section={section} />);
+			expect(screen.queryByText("Section not found")).toBeNull();
+			act(() => store.setState({ loaded: true, sections: [] }));
+			expect(screen.getByText("Section not found")).toBeTruthy();
 		} finally {
 			test.close();
 		}
