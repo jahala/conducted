@@ -1,23 +1,29 @@
 /**
  * @feature APP-05 Popover
  * Owns: floating panels anchored to a button (model picker, context hover card, forward ports), built on
- * the radix Popover. `hover` switches to the radix HoverCard for the context usage card.
+ * the radix Popover. `hover` switches to the radix HoverCard for the context usage card. `anchor` places the
+ * panel against an element that is not its trigger (the settings search field).
  * Behaviour: ui-map.md 5.2 (popovers: model picker, forward ports, context usage hover card), 8 (Popover and
  * HoverCard parts). ui-dimensions.md 6.2 gives the popover look; popovers and tooltips fade in 100ms.
  * Must handle: focus moves in on open and back on close, Escape closes, flips at window edges, a hover variant
- * that opens on pointer hover and on keyboard focus (context card), a caller-set width.
+ * that opens on pointer hover and on keyboard focus (context card), a caller-set width, a panel that stays open
+ * while the pointer presses inside the element it is anchored to, and a caller that lays out its own rows.
+ * Our design choice: an anchored panel is controlled by `open`, because the element that shows it (a search
+ * field) is not a button that toggles it.
  * Test first: clicking the trigger shows the content; Escape hides it and returns focus to the trigger.
  */
 import { HoverCard, Popover as Radix } from "radix-ui";
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement, ReactNode, RefObject } from "react";
 import { cn } from "./cn.ts";
 
 export type PopoverSide = "top" | "right" | "bottom" | "left";
 export type PopoverAlign = "start" | "center" | "end";
 
 export interface PopoverProps {
-	/** One element that can take a ref and focus. */
-	trigger: ReactElement;
+	/** One element that can take a ref and focus. Required unless `anchor` is given. */
+	trigger?: ReactElement;
+	/** Places the panel against this element instead of a trigger button. Controlled by `open`. */
+	anchor?: ReactElement;
 	children: ReactNode;
 	side?: PopoverSide;
 	align?: PopoverAlign;
@@ -28,12 +34,17 @@ export interface PopoverProps {
 	onOpenChange?: (open: boolean) => void;
 	/** Set to control the open state from the caller (a flyout that closes after a choice). */
 	open?: boolean;
+	/** Keep the default 12px padding. Set false when the caller lays out its own rows. */
+	padded?: boolean;
+	/** A press inside this element keeps an anchored panel open (the field it belongs to). */
+	keepOpenWithin?: RefObject<HTMLElement | null>;
 }
 
-const contentClass = "z-50 rounded-lg bg-raised p-3 text-sm text-fg shadow-popover outline-none";
+const contentBase = "z-50 rounded-lg bg-raised text-sm text-fg shadow-popover outline-none";
 
 export function Popover({
 	trigger,
+	anchor,
 	children,
 	side = "bottom",
 	align = "center",
@@ -41,18 +52,45 @@ export function Popover({
 	className,
 	onOpenChange,
 	open,
+	padded = true,
+	keepOpenWithin,
 }: PopoverProps) {
+	const contentClassName = cn(contentBase, padded && "p-3", className);
+	const keepOutside = (event: Event): void => {
+		const inside = keepOpenWithin?.current;
+		if (inside !== undefined && inside !== null && event.target instanceof Node) {
+			if (inside.contains(event.target)) event.preventDefault();
+		}
+	};
+
+	if (anchor !== undefined) {
+		return (
+			<Radix.Root open={open} onOpenChange={onOpenChange}>
+				<Radix.Anchor asChild>{anchor}</Radix.Anchor>
+				<Radix.Portal>
+					<Radix.Content
+						side={side}
+						align={align}
+						sideOffset={6}
+						className={contentClassName}
+						// The field that anchors the panel keeps the keyboard; the panel never takes it.
+						onOpenAutoFocus={(event) => event.preventDefault()}
+						onCloseAutoFocus={(event) => event.preventDefault()}
+						onPointerDownOutside={keepOutside}
+						onFocusOutside={keepOutside}
+					>
+						{children}
+					</Radix.Content>
+				</Radix.Portal>
+			</Radix.Root>
+		);
+	}
 	if (hover) {
 		return (
 			<HoverCard.Root openDelay={200} closeDelay={150} onOpenChange={onOpenChange}>
 				<HoverCard.Trigger asChild>{trigger}</HoverCard.Trigger>
 				<HoverCard.Portal>
-					<HoverCard.Content
-						side={side}
-						align={align}
-						sideOffset={6}
-						className={cn(contentClass, className)}
-					>
+					<HoverCard.Content side={side} align={align} sideOffset={6} className={contentClassName}>
 						{children}
 					</HoverCard.Content>
 				</HoverCard.Portal>
@@ -63,12 +101,7 @@ export function Popover({
 		<Radix.Root open={open} onOpenChange={onOpenChange}>
 			<Radix.Trigger asChild>{trigger}</Radix.Trigger>
 			<Radix.Portal>
-				<Radix.Content
-					side={side}
-					align={align}
-					sideOffset={6}
-					className={cn(contentClass, className)}
-				>
+				<Radix.Content side={side} align={align} sideOffset={6} className={contentClassName}>
 					{children}
 				</Radix.Content>
 			</Radix.Portal>

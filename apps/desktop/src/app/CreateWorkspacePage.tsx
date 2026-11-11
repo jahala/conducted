@@ -52,7 +52,7 @@
  * Our design choice: Conductor's "Connect GitHub" and "Set up an agent" actions open its own
  * GitHub and providers flows, which set its service's credentials; a Worker's GitHub token and
  * model key are Worker secrets the app cannot set, so those two lines carry no action. "View
- * computer" opens the Connections page, where the Worker is paired, and "Add one" and "Add
+ * computer" opens the Cloud page, where the Worker is paired (#489), and "Add one" and "Add
  * repository" open Open GitHub project. Conductor's restricted-access toggle and its cloud backlog
  * are team and service features, so in cloud mode the page has neither (D127).
  * Test first: submitting with a repository and a prompt calls workspaces.create with that input and navigates to
@@ -718,7 +718,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 								onViewComputer={() =>
 									void navigate({
 										to: "/settings/user/$page",
-										params: { page: "connections" },
+										params: { page: "cloud" },
 									})
 								}
 								onAddRepository={addRepository.openClone}

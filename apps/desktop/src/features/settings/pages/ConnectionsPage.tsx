@@ -1,29 +1,21 @@
 /**
  * @feature SET-02 Connections settings page
- * @feature CLOUD-07 Pair the desktop app with the user's Worker
- * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
- * Owns: the Connections page of Settings: the port-forwarding controls, the deploy of the Worker
- * to the user's own Cloudflare account, and the pairing with that Worker.
+ * Owns: the Connections page of Settings: exactly Conductor's four port-forwarding controls.
  * Behaviour: ui-map.md 3.7 and 6 ("Connections": Exclusive port forwarding, Forwarding strategies,
  * Local port range, Manual overrides). services-map.md 5A.3.3 gives the two strategies, the range
- * defaults (20000 to 29999) and the override shape (remote to local, port 22 refused). CLOUD-07:
- * the Worker URL and token are checked with the Worker and then kept in the Keychain; the page
- * shows which Worker this Mac is paired with and can remove the pairing. CLOUD-08: the deploy runs
- * `wrangler` with the user's own login from the Worker and image inputs the app carries, pairs this
- * Mac, and can delete the Worker, its container application and its bucket with Remove deployment.
+ * defaults (20000 to 29999) and the override shape (remote to local, port 22 refused). Conductor
+ * has no Worker to deploy or pair, so those controls live on the Cloud page instead (D106, D109,
+ * issue #489).
  * Our design choice: Conductor keeps the forwarding keys as org-personal server settings; this app
- * has no server, so they are ordinary local settings (D110). Port 22 is always refused. The deploy
- * and pairing forms are ours, since Conductor has no self-hosted Worker (D098, D106, D109).
+ * has no server, so they are ordinary local settings (D110). Port 22 is always refused.
  * Must handle: a range whose first port is above its last, ports below 1024 or above 65535, and
  * port 22 inside the range (rejected); an override line that is not remote:local or uses port 22
- * (rejected before saving); a Worker URL or token the Worker refused (its message, earlier pairing
- * left alone); an unpaired Mac shows the form and a paired one shows the Worker and Unpair; a
- * deploy or uninstall that fails shows the shell's own message and changes no pairing.
+ * (rejected before saving).
  * Test first: a range of 3000 to 2000 shows an error and does not call settings.set.
  */
 import { useState } from "react";
-import { useActions, useCloudPairing, useSetting } from "../../../core/hooks.ts";
+import { useActions, useSetting } from "../../../core/hooks.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Input, Label, Textarea } from "../../../ui/Input.tsx";
 import { Select } from "../../../ui/Select.tsx";
@@ -82,7 +74,6 @@ function validateMappings(text: string): string | null {
 export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
 	const load = useSettingsLoad();
 	const actions = useActions();
-	const pairing = useCloudPairing();
 	const strategy = useSetting<string>("port_forwarding_strategy");
 	const exclusive = useSetting<boolean>("exclusive_port_forwarding_enabled");
 	const savedFirst = useSetting<number>("local_port_range_start");
@@ -93,67 +84,6 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 	const [mappings, setMappings] = useState((savedMappings ?? []).join("\n"));
 	const [error, setError] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
-	const [workerUrl, setWorkerUrl] = useState("");
-	const [pairingToken, setPairingToken] = useState("");
-	const [pairingError, setPairingError] = useState<string | null>(null);
-	const [pairingBusy, setPairingBusy] = useState(false);
-	const [deployBusy, setDeployBusy] = useState(false);
-	const [deployError, setDeployError] = useState<string | null>(null);
-	const [deployNote, setDeployNote] = useState<string | null>(null);
-
-	const pairWorker = async () => {
-		setPairingError(null);
-		setPairingBusy(true);
-		const result = await actions.cloud.pair({ url: workerUrl, token: pairingToken });
-		setPairingBusy(false);
-		if (!result.ok) {
-			setPairingError(result.error.message);
-			return;
-		}
-		setWorkerUrl("");
-		setPairingToken("");
-		toast("Paired with the Worker");
-	};
-
-	const unpairWorker = async () => {
-		setPairingError(null);
-		setPairingBusy(true);
-		const result = await actions.cloud.unpair();
-		setPairingBusy(false);
-		if (!result.ok) {
-			setPairingError(result.error.message);
-			return;
-		}
-		toast("Unpaired from the Worker");
-	};
-
-	const deployWorker = async () => {
-		setDeployError(null);
-		setDeployNote(null);
-		setDeployBusy(true);
-		const result = await actions.cloud.deploy();
-		setDeployBusy(false);
-		if (!result.ok) {
-			setDeployError(result.error.message);
-			return;
-		}
-		setDeployNote(`Deployed and paired with ${result.value.url}.`);
-		toast("Deployed the Worker and paired this Mac");
-	};
-
-	const removeDeployment = async () => {
-		setDeployError(null);
-		setDeployNote(null);
-		setDeployBusy(true);
-		const result = await actions.cloud.uninstall();
-		setDeployBusy(false);
-		if (!result.ok) {
-			setDeployError(result.error.message);
-			return;
-		}
-		setDeployNote("Removed the Worker, its container application and its bucket.");
-		toast("Removed the deployment from your Cloudflare account");
-	};
 
 	const save = async () => {
 		const problem = validateRange(Number(first), Number(last));
@@ -307,136 +237,6 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 				{error ? (
 					<p role="alert" className="text-xs text-danger">
 						{error}
-					</p>
-				) : null}
-			</div>
-
-			<div className="flex flex-col gap-3 border-t border-border py-4">
-				<div className="flex flex-col gap-1">
-					<p className="text-sm font-medium text-fg">Cloud Workspaces</p>
-					<p className="max-w-prose text-sm text-fg-muted">
-						Deploy the Worker to your Cloudflare account, or pair this Mac with one you deployed
-						already. The token is kept in the Keychain and is never shown again.
-					</p>
-				</div>
-				{pairing.state === "loading" ? (
-					<p role="status" className="text-xs text-fg-muted">
-						Checking the saved pairing…
-					</p>
-				) : null}
-				{pairing.state === "error" ? (
-					<p role="alert" className="text-xs text-danger">
-						{pairing.error.message}
-					</p>
-				) : null}
-				{pairing.state === "ready" && pairing.data.paired ? (
-					<div className="flex flex-col gap-2">
-						<div className="flex items-end gap-3">
-							<p className="text-sm text-fg">Paired with {pairing.data.url ?? "a Worker"}.</p>
-							<Button
-								variant="outlineDestructive"
-								loading={pairingBusy}
-								onClick={() => void unpairWorker()}
-							>
-								Unpair
-							</Button>
-						</div>
-						<p className="max-w-prose text-sm text-fg-muted">
-							Remove deployment deletes the Worker, its container application and its R2 bucket from
-							your Cloudflare account. It also unpairs this Mac.
-						</p>
-						<div className="flex items-end gap-3">
-							<Button variant="secondary" loading={deployBusy} onClick={() => void deployWorker()}>
-								Deploy to Cloudflare
-							</Button>
-							<Button
-								variant="outlineDestructive"
-								loading={deployBusy}
-								onClick={() => void removeDeployment()}
-							>
-								Remove deployment
-							</Button>
-						</div>
-						{deployNote ? (
-							<p role="status" className="text-xs text-fg-muted">
-								{deployNote}
-							</p>
-						) : null}
-						{deployError ? (
-							<p role="alert" className="text-xs text-danger">
-								{deployError}
-							</p>
-						) : null}
-					</div>
-				) : null}
-				{pairing.state === "ready" && !pairing.data.paired ? (
-					<div className="flex flex-col gap-2">
-						<p className="text-sm text-fg-muted">Not paired</p>
-						<p className="max-w-prose text-sm text-fg-muted">
-							Deploy the Worker yourself with your own Cloudflare login. Install{" "}
-							<code>wrangler</code> and run <code>wrangler login</code> once, then choose this
-							project's <code>apps/cloud</code> folder, prepared once with{" "}
-							<code>bun apps/cloud/sandbox/build.ts</code>. The deploy makes the Worker, its
-							container application and its R2 bucket in your account, sets the pairing token as a
-							Worker secret, and pairs this Mac.
-						</p>
-						<div className="flex items-end gap-3">
-							<Button loading={deployBusy} onClick={() => void deployWorker()}>
-								Deploy to Cloudflare
-							</Button>
-						</div>
-						{deployNote ? (
-							<p role="status" className="text-xs text-fg-muted">
-								{deployNote}
-							</p>
-						) : null}
-						{deployError ? (
-							<p role="alert" className="text-xs text-danger">
-								{deployError}
-							</p>
-						) : null}
-						<p className="text-xs text-fg-subtle">
-							Already deployed? Deploying again updates it, and Remove deployment deletes it.
-						</p>
-						<p className="text-sm font-medium text-fg">Pair a Worker you deployed already</p>
-						<div className="flex flex-col gap-1">
-							<Label htmlFor="cloud-worker-url">Worker URL</Label>
-							<Input
-								id="cloud-worker-url"
-								value={workerUrl}
-								placeholder="https://conducted.example.workers.dev"
-								autoComplete="off"
-								className="w-96"
-								onChange={(event) => {
-									setWorkerUrl(event.target.value);
-									setPairingError(null);
-								}}
-							/>
-						</div>
-						<div className="flex items-end gap-3">
-							<div className="flex flex-col gap-1">
-								<Label htmlFor="cloud-pairing-token">Pairing token</Label>
-								<Input
-									id="cloud-pairing-token"
-									type="password"
-									value={pairingToken}
-									autoComplete="off"
-									className="w-96"
-									onChange={(event) => {
-										setPairingToken(event.target.value);
-										setPairingError(null);
-									}}
-								/>
-							</div>
-							<Button loading={pairingBusy} onClick={() => void pairWorker()}>
-								Pair
-							</Button>
-						</div>
-					</div>
-				) : null}
-				{pairingError ? (
-					<p role="alert" className="text-xs text-danger">
-						{pairingError}
 					</p>
 				) : null}
 			</div>
