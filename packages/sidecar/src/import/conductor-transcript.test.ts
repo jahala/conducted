@@ -94,6 +94,20 @@ describe("APP-18 what Conductor's chat shows of a chat", () => {
 		]);
 	});
 
+	test("a turn that holds only a typed /compact shows nothing, so it is not a turn a reader sees (Zft, AW)", () => {
+		expect(
+			conductorTranscript([
+				message("user", "Fix it", "t-1", "2026-01-02 03:00:00"),
+				message("assistant", say("Fixed."), "t-1", "2026-01-02 03:00:01"),
+				message("user", "/compact", "t-2", "2026-01-02 04:00:00"),
+				message("user", "Thanks", "t-3", "2026-01-02 05:00:00"),
+			]),
+		).toEqual([
+			{ user: ["Fix it"], agent: [{ kind: "text", text: "Fixed." }] },
+			{ user: ["Thanks"], agent: [] },
+		]);
+	});
+
 	test("compares transcripts by content and names the first difference", () => {
 		const rows = [
 			message("user", "Go", "t-1", "2026-01-02 03:00:00"),
