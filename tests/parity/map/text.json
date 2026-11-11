@@ -991,20 +991,20 @@
 		"by": "hand"
 	},
 	"text:R4420842": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-09",
-		"item": "'Start forwarding' (Cmd+Y) and 'Waiting for ports'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-sync-unavailable",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(2) > span > span",
+		"by": "seed"
 	},
 	"text:R4421898": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-09",
-		"item": "'Start forwarding' (Cmd+Y) and 'Waiting for ports'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports-waiting",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div:nth-of-type(3) > section > h2",
+		"by": "seed"
 	},
 	"text:R4633180": {
 		"status": "matched",
@@ -1169,69 +1169,68 @@
 		"by": "seed"
 	},
 	"text:R5433730": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Shared preview URL: 'Select a port to share via a URL...', 'Preview URL', 'Copy preview URL', move up and down",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"text:R5434210": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Shared preview URL: 'Select a port to share via a URL...', 'Preview URL', 'Copy preview URL', move up and down",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > section > div > div:nth-of-type(2) > button:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"text:R5435078": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Conductor shows \"Off\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "cloud-ports",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div:nth-of-type(2) > div > button > span",
+		"by": "seed"
 	},
 	"text:R5436101": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Conductor shows \"Select a port to share via a URL. Workspace read permissions required.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "cloud-preview-picker",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(2) > div > div > p",
+		"by": "seed"
 	},
 	"text:R5444654": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports-popover",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > section:nth-of-type(1) > div > button > span",
+		"by": "seed"
 	},
 	"text:R5446468": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports-popover",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > section:nth-of-type(3) > button > span",
+		"by": "seed"
 	},
 	"text:R5447177": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Port forwarding popover: 'Forward ports', 'Ports detected', 'Ports unavailable'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports-popover",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(2) > div > div > section:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"text:R5457681": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Port forwarding popover: 'Forward ports', 'Ports detected', 'Ports unavailable'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports-popover",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(2) > div > div > section:nth-of-type(2) > p",
+		"by": "seed"
 	},
 	"text:R5497424": {
 		"status": "decided",
@@ -1396,76 +1395,68 @@
 		"by": "seed"
 	},
 	"text:R5584687": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "Conductor shows \"Sync files\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "cloud-actions-pause",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > div:nth-of-type(2) > span > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R5584915": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "Conductor shows \"Keeps this cloud workspace's files mirrored to a local folder so local tools can inspect and edit them.\" (region, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "cloud-actions-pause",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > p:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R5585079": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "Conductor shows \"Changes continue syncing in the background while the switch is on.\" (region, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "cloud-actions-pause",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"text:R5587920": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "Conductor shows \"Mirrors this cloud workspace to a local folder for local tools.\" (region, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "cloud-actions-pause",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > p:nth-of-type(3)",
+		"by": "seed"
 	},
 	"text:R5588145": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "Conductor shows \"Local folder\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "cloud-actions-pause",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > div:nth-of-type(3) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R5589114": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "Conductor shows \"Sync to a local directory\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "cloud-actions-pause",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R5591397": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "Conductor shows \"Sync failed\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "cloud-sync-error",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > div:nth-of-type(4) > div:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"text:R5592461": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "Conductor shows \"Internal sync error\" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "cloud-sync-error",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > div:nth-of-type(4) > div:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"text:R5607740": {
 		"status": "decided",
@@ -3029,12 +3020,9 @@
 		"by": "seed"
 	},
 	"text:R10060117": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Conductor shows \"Cloud terminal unavailable in read-only workspaces.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D114",
+		"note": "A read-only workspace is another member's permission in Conductor's organisation; D004 and D018 keep organisations and permission levels out, so no Conducted cloud workspace has a read-only state to refuse.",
 		"by": "hand"
 	},
 	"text:R10069947": {
@@ -3559,12 +3547,12 @@
 		"by": "hand"
 	},
 	"text:R10435354": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Sidebar",
-		"backlog": "CLOUD-09",
-		"item": "Row badge 'Forwarding ports'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"text:R10462484": {
 		"status": "matched",
@@ -5039,12 +5027,12 @@
 		"owner": "rule:cite"
 	},
 	"text:R11143929": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: General",
-		"backlog": "CLOUD-09",
-		"item": "'Pause port forwarding?' dialog",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-actions-pause",
+		"via": "text",
+		"role": "heading",
+		"selector": "div:nth-of-type(4) > div:nth-of-type(1) > h2",
+		"by": "seed"
 	},
 	"text:R11143975": {
 		"status": "decided",
@@ -5053,28 +5041,22 @@
 		"by": "rule:team-wording"
 	},
 	"text:R11144267": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Conductor shows \"Pause and save\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Pause and save is the confirm of Conductor's organisation-wide \"Pause port forwarding?\" dialog; organisations are kept out by D004 and D018. Our own dialog pauses one workspace and confirms with Pause.",
+		"by": "hand"
 	},
 	"text:R11154299": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Conductor shows \"Manual overrides are ignored while Exclusive port forwarding is off.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D110",
+		"note": "These belong to Conductor's manual-override pair editor and the auto-forwarding note on Connections. D110 builds manual overrides as remote:local text lines and records the simplification, so the pair editor's Remote and Local labels, Add override button, failure toast and port-range note are not built.",
 		"by": "hand"
 	},
 	"text:R11155309": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"owner": "rule:neighbour"
+		"status": "decided",
+		"decision": "D110",
+		"note": "These belong to Conductor's manual-override pair editor and the auto-forwarding note on Connections. D110 builds manual overrides as remote:local text lines and records the simplification, so the pair editor's Remote and Local labels, Add override button, failure toast and port-range note are not built.",
+		"by": "hand"
 	},
 	"text:R11155409": {
 		"status": "gap",
@@ -5085,20 +5067,16 @@
 		"owner": "rule:cite"
 	},
 	"text:R11160803": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Conductor shows \"32768–60999\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D110",
+		"note": "These belong to Conductor's manual-override pair editor and the auto-forwarding note on Connections. D110 builds manual overrides as remote:local text lines and records the simplification, so the pair editor's Remote and Local labels, Add override button, failure toast and port-range note are not built.",
+		"by": "hand"
 	},
 	"text:R11160879": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Conductor shows \"Forward those ports manually.\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D110",
+		"note": "These belong to Conductor's manual-override pair editor and the auto-forwarding note on Connections. D110 builds manual overrides as remote:local text lines and records the simplification, so the pair editor's Remote and Local labels, Add override button, failure toast and port-range note are not built.",
+		"by": "hand"
 	},
 	"text:R11164868": {
 		"status": "matched",

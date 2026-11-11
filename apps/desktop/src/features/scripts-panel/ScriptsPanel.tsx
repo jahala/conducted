@@ -21,6 +21,11 @@ import { useState } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../core/context.tsx";
 import {
+	LOCAL_TERMINAL_UNAVAILABLE_LABEL,
+	localTerminalDescription,
+	WORKSPACE_NOT_READY_DESCRIPTION,
+} from "../../core/file-sync-view.ts";
+import {
 	useActions,
 	useFileSyncStatus,
 	useRunState,
@@ -75,8 +80,11 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 	const runActions =
 		run.state === "ready" ? run.data.actions.filter((action) => !action.hidden) : [];
 	const runActive = run.state === "ready" && run.data.running.length > 0;
+	// A cloud workspace always offers Ports: Start forwarding and the shared preview URL live there,
+	// before the sandbox has reported a listening port (CLOUD-09, CLOUD-10).
 	const showPorts =
-		run.state === "ready" && (run.data.detectedPorts.length > 0 || portError !== undefined);
+		cloudWorkspace ||
+		(run.state === "ready" && (run.data.detectedPorts.length > 0 || portError !== undefined));
 	const starting =
 		workspace.state === "ready" && workspace.data.state === "initializing"
 			? true
@@ -111,11 +119,23 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 				else toast.error(TERMINAL_SETTINGS_MESSAGES.failed);
 				return;
 			}
+			if (hostKind === "local" && workspace.state === "ready" && workspace.data.state !== "ready") {
+				toastError(LOCAL_TERMINAL_UNAVAILABLE_LABEL, {
+					message: WORKSPACE_NOT_READY_DESCRIPTION,
+				});
+				return;
+			}
 			const created = await actions.terminals.create(workspaceId, {
 				placement: "panel",
 				...(hostKind === undefined ? {} : { hostKind }),
 			});
 			if (!created.ok) {
+				if (created.error.code === "run_local_mirror_unavailable") {
+					toastError(LOCAL_TERMINAL_UNAVAILABLE_LABEL, {
+						message: localTerminalDescription(fileSync),
+					});
+					return;
+				}
 				toastError("Couldn't open a terminal", created.error);
 				return;
 			}

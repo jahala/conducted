@@ -1613,12 +1613,12 @@
 		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"title:R3989871": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files",
-		"backlog": "CLOUD-09",
-		"item": "Shared preview URL: 'Select a port to share via a URL...', 'Preview URL', 'Copy preview URL', move up and down",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"title:R3990668": {
 		"status": "gap",
@@ -1647,36 +1647,36 @@
 		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
 	},
 	"title:R4405982": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "File-sync states 'Sync files is off', 'Sync folder unavailable', 'Sync files failed', 'Local terminal unavailable'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-sync-unavailable",
+		"via": "aria-label",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"title:R4407471": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "File-sync states 'Sync files is off', 'Sync folder unavailable', 'Sync files failed', 'Local terminal unavailable'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-sync-row",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > div:nth-of-type(2) > span > span:nth-of-type(3)",
+		"by": "seed"
 	},
 	"title:R4407601": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "File-sync states 'Sync files is off', 'Sync folder unavailable', 'Sync files failed', 'Local terminal unavailable'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-sync-unavailable",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"title:R4409943": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "File-sync states 'Sync files is off', 'Sync folder unavailable', 'Sync files failed', 'Local terminal unavailable'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-local-terminal-failed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"title:R5529409": {
 		"status": "decided",

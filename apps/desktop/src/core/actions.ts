@@ -199,6 +199,8 @@ export function createActions(
 		files: {
 			write: (workspaceId, path, text, expectedModifiedAt) =>
 				services.workspaceFiles.saveFile(workspaceId, path, text, expectedModifiedAt),
+			setSyncEnabled: (workspaceId, enabled) =>
+				services.cloudFileSync.setEnabled(workspaceId, enabled),
 			attachToChat: (workspaceId, paths) =>
 				services.composer.attachFilesToActiveChat(workspaceId, paths),
 			open: (workspaceId, path, mode, scope) =>

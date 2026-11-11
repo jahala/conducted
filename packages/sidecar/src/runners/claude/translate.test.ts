@@ -199,21 +199,45 @@ describe("AGENT-03 Claude translation", () => {
 		expect(item.output).toContain("characters cut");
 	});
 
-	test("an authentication failure becomes a sign-in error", () => {
+	// kpa @9558460 renders an assistant payload's blocks whether or not it carries `error`.
+	test("an assistant message with an error keeps its text as text (kpa)", () => {
+		const t = translator();
+		const text = "API Error: 529 Overloaded";
+		const messages = t.translate(
+			assistant([{ type: "text", text }], { error: "overloaded", uuid: "a1" }),
+		);
+		expect(messages).toHaveLength(1);
+		expect(messages[0]).toMatchObject({ nativeId: "a1", items: [{ kind: "text", text }] });
+	});
+
+	test("an assistant message with an error keeps its tool calls and thinking too (kpa)", () => {
 		const t = translator();
 		const messages = t.translate(
-			assistant([{ type: "text", text: "Please sign in to Claude." }], {
-				error: "authentication_failed",
-			}),
+			assistant(
+				[
+					{ type: "thinking", thinking: "Plan" },
+					{ type: "tool_use", id: "toolu_1", name: "Bash", input: { command: "ls" } },
+				],
+				{ error: "max_output_tokens" },
+			),
 		);
-		expect(messages[0]?.items).toEqual([
-			{
-				kind: "error",
-				code: "agent_auth_required",
-				message: "Please sign in to Claude.",
-				retryable: false,
-			},
-		]);
+		expect(messages[0]?.items.map((item) => item.kind)).toEqual(["thinking", "tool_call"]);
+	});
+
+	test("a sign-in failure keeps its text, and its result becomes the sign-in error (SQi, Rpa)", () => {
+		const t = translator();
+		const text = "Invalid API key · Please run /login";
+		const said = t.translate(
+			assistant([{ type: "text", text }], { error: "authentication_failed" }),
+		);
+		expect(said[0]?.items).toEqual([{ kind: "text", text }]);
+		const ended = t.translate(result({ is_error: true, result: text }));
+		expect(ended[0]?.items).toContainEqual({
+			kind: "error",
+			code: "agent_auth_required",
+			message: text,
+			retryable: false,
+		});
 	});
 
 	test("a result gives a cost delta, the main model, the tier and the fast flag", () => {
@@ -259,85 +283,131 @@ describe("AGENT-03 Claude translation", () => {
 		});
 	});
 
-	test("a result error is forwarded with a retryable rate-limit flag", () => {
-		const t = translator();
-		const messages = t.translate(
-			result({
-				subtype: "error_during_execution",
-				is_error: true,
-				total_cost_usd: 0.2,
-				errors: ["Rate limit reached"],
-				api_error_status: 429,
-			}),
-		);
-		expect(messages[0]?.items).toContainEqual({
-			kind: "error",
-			code: "agent_rate_limit",
-			message: "Rate limit reached",
-			retryable: true,
-		});
-		expect(messages[0]?.items[0]).toMatchObject({ kind: "usage", costUsd: 0.2 });
-	});
-
-	test("an API error turn shows one error item, from the assistant message, not the result too", () => {
+	test("an API error turn shows its text as text and one error, from the result (kpa, Rpa)", () => {
 		const t = translator();
 		const text = "API Error: 500 Internal server error";
 		const messages = [
 			...t.translate(assistant([{ type: "text", text }], { error: "server_error" })),
 			...t.translate(result({ is_error: true, result: text, api_error_status: 500 })),
 		];
-		const errors = messages.flatMap((message) => message.items).filter((i) => i.kind === "error");
-		expect(errors).toEqual([
-			{ kind: "error", code: "agent_server_error", message: text, retryable: true },
+		const items = messages.flatMap((message) => message.items);
+		expect(items.filter((i) => i.kind === "text")).toEqual([{ kind: "text", text }]);
+		expect(items.filter((i) => i.kind === "error")).toEqual([
+			{
+				kind: "error",
+				code: "agent_error",
+				message: `Claude Code error: ${text}`,
+				retryable: true,
+			},
 		]);
-		expect(messages.at(-1)?.items).toEqual([expect.objectContaining({ kind: "usage" })]);
 	});
 
-	test("after an API error turn, the next turn's result error is shown again", () => {
+	// Rpa @9564247: the text is the first error line, else the result; every failed result offers
+	// Retry (GFe @9534766 shows it unless told not to).
+	test("a result error shows its first error line before the result text, with Retry", () => {
 		const t = translator();
-		const text = "API Error: 500 Internal server error";
-		t.translate(assistant([{ type: "text", text }], { error: "server_error" }));
-		t.translate(result({ is_error: true, result: text }));
+		const messages = t.translate(
+			result({
+				subtype: "error_during_execution",
+				is_error: true,
+				total_cost_usd: 0.2,
+				errors: ["Rate limit reached", "Second line"],
+				result: "ignored",
+				api_error_status: 429,
+			}),
+		);
+		expect(messages[0]?.items).toContainEqual({
+			kind: "error",
+			code: "agent_error",
+			message: "Claude Code error: Rate limit reached",
+			retryable: true,
+		});
+		expect(messages[0]?.items[0]).toMatchObject({ kind: "usage", costUsd: 0.2 });
+	});
 
+	test("a result error with no words reads 'Claude Code error' (Rpa)", () => {
+		const t = translator();
 		const next = t.translate(
 			result({ subtype: "error_max_turns", is_error: true, result: "", errors: [] }),
 		);
 		expect(next[0]?.items).toContainEqual({
 			kind: "error",
 			code: "agent_error",
-			message: "The agent reached its maximum number of turns.",
-			retryable: false,
+			message: "Claude Code error",
+			retryable: true,
 		});
 	});
 
-	test("a sub-agent's API error does not hide the main turn's result error", () => {
-		const t = translator();
-		t.translate(
-			assistant([{ type: "text", text: "API Error: 529 Overloaded" }], {
-				error: "overloaded",
-				parent: "toolu_task",
-			}),
-		);
-		const messages = t.translate(result({ is_error: true, result: "API Error: 500 boom" }));
-		expect(messages[0]?.items).toContainEqual(
-			expect.objectContaining({ kind: "error", message: "API Error: 500 boom" }),
-		);
-	});
-
-	test("a Claude Code session limit error is not retryable", () => {
+	test("a result whose only error lines are diagnostics shows no error (Rpa, Npa)", () => {
 		const t = translator();
 		const messages = t.translate(
 			result({
 				subtype: "error_during_execution",
 				is_error: true,
-				errors: ["Claude Code session limit reached"],
+				errors: ["[ede_diagnostic] stream closed"],
 			}),
+		);
+		expect(messages[0]?.items).toEqual([expect.objectContaining({ kind: "usage" })]);
+	});
+
+	test("a cancelled session reads as interrupted (TQi)", () => {
+		const t = translator();
+		const messages = t.translate(
+			result({ is_error: true, result: "Session cancelled: the user stopped it" }),
+		);
+		expect(messages[0]?.items).toContainEqual(
+			expect.objectContaining({
+				message: "Claude Code error: Session interrupted: the user stopped it",
+			}),
+		);
+	});
+
+	test("a sign-in text on an error subtype is a plain error, as SQi only reads success results", () => {
+		const t = translator();
+		const messages = t.translate(
+			result({
+				subtype: "error_during_execution",
+				is_error: true,
+				errors: ["Please run /login"],
+			}),
+		);
+		expect(messages[0]?.items).toContainEqual(
+			expect.objectContaining({
+				code: "agent_error",
+				message: "Claude Code error: Please run /login",
+			}),
+		);
+	});
+
+	test("a sub-agent's API error stays text inside its card, and the result error still shows", () => {
+		const t = translator();
+		const said = t.translate(
+			assistant([{ type: "text", text: "API Error: 529 Overloaded" }], {
+				error: "overloaded",
+				parent: "toolu_task",
+			}),
+		);
+		expect(said[0]).toMatchObject({
+			parentToolUseId: "toolu_task",
+			items: [{ kind: "text", text: "API Error: 529 Overloaded" }],
+		});
+		const messages = t.translate(result({ is_error: true, result: "API Error: 500 boom" }));
+		expect(messages[0]?.items).toContainEqual(
+			expect.objectContaining({ kind: "error", message: "Claude Code error: API Error: 500 boom" }),
+		);
+	});
+
+	test("a session limit result shows Conductor's generic result error, with Retry", () => {
+		const t = translator();
+		const text = "Claude Code session limit reached";
+		const messages = t.translate(
+			result({ subtype: "error_during_execution", is_error: true, errors: [text] }),
 		);
 		expect(messages[0]?.items).toContainEqual({
 			kind: "error",
-			code: "agent_session_limit",
-			message: "Claude Code session limit reached",
-			retryable: false,
+			code: "agent_error",
+			message: `Claude Code error: ${text}`,
+			retryable: true,
 		});
 	});
 

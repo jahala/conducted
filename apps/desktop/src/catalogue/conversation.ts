@@ -46,8 +46,8 @@ export interface Conversation {
 	/** A tool call and, unless `output` is null, its result in a second message. Returns its id. */
 	tool(turn: TurnId, step: ToolStep): ToolUseId;
 	usage(turn: TurnId, contextUsedTokens: number): void;
-	/** The end checkpoint with the files the turn changed, then the turn's end. */
-	end(turn: TurnId, changes?: FileChange[], outcome?: TurnOutcome): void;
+	/** The end checkpoint with the files the turn changed, then the turn's end and its error. */
+	end(turn: TurnId, changes?: FileChange[], outcome?: TurnOutcome, error?: string): void;
 }
 
 export type TurnOutcome = Extract<SessionEvent, { type: "turn_ended" }>["outcome"];
@@ -134,7 +134,7 @@ export function conversation(prefix: string, startAt: number, stepMs = 4_000): C
 					model: "claude-opus-4-7",
 				},
 			]),
-		end(turn, changes, outcome = "success") {
+		end(turn, changes, outcome = "success", error) {
 			events.push({
 				...next(),
 				type: "checkpoint",
@@ -143,7 +143,13 @@ export function conversation(prefix: string, startAt: number, stepMs = 4_000): C
 				checkpointId: `${turn}-end` as CheckpointId,
 				...(changes === undefined ? {} : { changes }),
 			});
-			events.push({ ...next(), type: "turn_ended", turnId: turn, outcome });
+			events.push({
+				...next(),
+				type: "turn_ended",
+				turnId: turn,
+				outcome,
+				...(error === undefined ? {} : { error }),
+			});
 		},
 	};
 }

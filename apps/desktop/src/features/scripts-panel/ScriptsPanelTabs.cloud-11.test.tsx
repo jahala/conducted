@@ -29,8 +29,19 @@ afterEach(() => {
 
 describe("CLOUD-11 the scripts panel file-sync state", () => {
 	it("shows Sync files is off", () => {
-		render(<ScriptsPanelTabs {...base} fileSync={{ state: "off", label: "Sync files is off" }} />);
-		expect(screen.getByText("Sync files is off")).toBeTruthy();
+		render(
+			<ScriptsPanelTabs
+				{...base}
+				fileSync={{
+					state: "off",
+					label: "Sync files is off",
+					description: "Runs against a synced copy on your Mac.",
+					mirrorPath: "/m",
+					enabled: false,
+				}}
+			/>,
+		);
+		expect(screen.getByText("Sync files is off. Local files may be outdated.")).toBeTruthy();
 	});
 
 	it("shows Sync folder unavailable and names the local terminal on hover", () => {
@@ -40,21 +51,43 @@ describe("CLOUD-11 the scripts panel file-sync state", () => {
 				fileSync={{
 					state: "unavailable",
 					label: "Sync folder unavailable",
+					description:
+						"The local sync folder was removed. Sync files will recreate it when it resumes.",
+					mirrorPath: "/m",
 					localTerminalLabel: "Local terminal unavailable",
+					localTerminalDescription: "Restart sync to recreate the local folder.",
+					enabled: true,
 				}}
 			/>,
 		);
-		expect(screen.getByText("Sync folder unavailable").title).toBe("Local terminal unavailable");
+		const pill = screen.getByText("Sync folder unavailable").closest("[data-file-sync-state]");
+		expect(pill?.getAttribute("aria-label")).toBe("Local terminal unavailable");
+		expect((pill as HTMLElement).title).toBe("Restart sync to recreate the local folder.");
+		expect(screen.getByText("Sync folder unavailable").title).toBe(
+			"The local sync folder was removed. Sync files will recreate it when it resumes.",
+		);
 	});
 
 	it("shows Sync files failed with its message", () => {
 		render(
 			<ScriptsPanelTabs
 				{...base}
-				fileSync={{ state: "failed", label: "Sync files failed", message: "sandbox asleep" }}
+				fileSync={{
+					state: "failed",
+					label: "Sync files failed",
+					message: "sandbox asleep",
+					description: "The local terminal cannot start until Sync files recovers.",
+					mirrorPath: "/m",
+					enabled: true,
+				}}
 			/>,
 		);
-		expect(screen.getByText("Sync files failed").title).toBe("sandbox asleep");
+		expect(
+			screen
+				.getByText("Sync files failed")
+				.closest("[data-file-sync-state]")
+				?.getAttribute("title"),
+		).toBe("sandbox asleep");
 	});
 
 	it("shows no sync state on a Mac workspace", () => {
@@ -71,11 +104,12 @@ describe("CLOUD-11 the scripts panel file-sync state", () => {
 				onNewTerminal={onNewTerminal}
 				fileSync={{
 					state: "synced",
-					label: "Files in sync",
+					label: "In sync",
 					mirrorPath: "/m",
 					lastSyncedAt: 1,
 					files: 1,
 					truncated: false,
+					enabled: true,
 				}}
 			/>,
 		);

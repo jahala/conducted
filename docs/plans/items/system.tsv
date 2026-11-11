@@ -355,7 +355,7 @@ AGENT-03	rule	The session state changed message drives the in-progress state and
 AGENT-02	rule	Task started, notification and updated messages feed the background tasks list (sub-agent, shell, other)	claude-runner 2.3	partly
 SIDE-05	rule	Running tool ids and blocking TaskOutput waits are tracked and set waitingSince	claude-runner 2.4	missing
 AGENT-03	rule	Task messages of a sub-agent carry the parent tool use id	claude-runner 2.4	covered
-AGENT-03	message	An authentication-failed assistant message becomes an error item with code agent_auth_required so the UI can offer sign-in	claude-runner 2.5	missing
+AGENT-03	message	An assistant message with an error keeps its blocks as text, thinking and tool calls; the failed result is the error view, with code agent_auth_required when its text is a sign-in error so the UI can offer sign-in (renderApp kpa @9558460, Rpa @9564247)	claude-runner 2.5	missing
 AGENT-03	rule	A result message gives cost delta, model, tier, speed and a foreign flag	claude-runner 2.6	partly
 AGENT-03	rule	A result is matched by the user message uuid and a foreign result does not end the turn	claude-runner 2.6	covered
 AGENT-05	rule	A result is held back while steers are still unread	claude-runner 2.6	covered
@@ -2667,7 +2667,7 @@ SIDE-12	rule	The header says when SetTargetBranch is offered, and the appTools s
 SIDE-13	rule	A leftover-folder check covers the bridge folders.	claude-runner 4.3	missing
 SIDE-15	rule	Cursor's sign-in result carries the API key back to the app; only one Cursor sign-in is pending at a time.	other-runners 5	missing
 SIDE-15	startup	A startup step that cannot fail the app refreshes the agent versions.	other-runners 5	missing
-AGENT-03	rule	authentication_failed is mapped to a sign-in error; raw is kept for post_turn_summary and active_goal; the usage item carries model, tier and fast flag.	claude-runner 2	missing
+AGENT-03	rule	A failed success result whose text is a sign-in error is mapped to a sign-in error; raw is kept for post_turn_summary and active_goal; the usage item carries model, tier and fast flag.	claude-runner 2	missing
 AGENT-04	rpc	tool_approval carries subAgentId so the card can show which sub-agent asks.	claude-runner 3	missing
 AGENT-04	setting	experimental_auto_permission_mode switches on the auto permission mode, and leaving plan mode in default mode needs no click.	claude-runner 3	missing
 AGENT-06	rule	A pre-tool gate takes the start checkpoint; the runner warns about the code-mode helper, shows the usage-limit text and adjusts for managed requirements.	other-runners 2.1	missing

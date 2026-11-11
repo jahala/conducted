@@ -1719,44 +1719,40 @@
 		"owner": "rule:quote"
 	},
 	"label:R4400634": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "File sync shows states Sync files is off, Sync folder unavailable, Sync files failed and Local terminal unavailable.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D111",
+		"note": "Conductor materialises a snapshot for a stopped sandbox; D111 and D120 record that the Worker's file routes need a running sandbox, so the saved-snapshot state is not built.",
+		"by": "hand"
 	},
 	"label:R4400746": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "File sync shows states Sync files is off, Sync folder unavailable, Sync files failed and Local terminal unavailable.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "cloud-sync-error",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > div:nth-of-type(4) > div:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"label:R4400952": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "File sync shows states Sync files is off, Sync folder unavailable, Sync files failed and Local terminal unavailable.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "cloud-sync-syncing",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"label:R4401198": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "File sync shows states Sync files is off, Sync folder unavailable, Sync files failed and Local terminal unavailable.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D111",
+		"note": "Conductor's popover notes that only git-tracked files are copied; our mirror lists and mirrors every file the Worker returns, the behaviour D111 records.",
+		"by": "hand"
 	},
 	"label:R4401280": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "File sync shows states Sync files is off, Sync folder unavailable, Sync files failed and Local terminal unavailable.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "cloud-local-terminal-not-ready",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"label:R4993174": {
 		"status": "matched",
@@ -1791,20 +1787,20 @@
 		"owner": "hand"
 	},
 	"label:R5438208": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "'Forward to localhost' and 'Auto-forwarding'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > section > div > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"label:R5438774": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "'Forward to localhost' and 'Auto-forwarding'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports-popover",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div > span",
+		"by": "seed"
 	},
 	"label:R5599685": {
 		"status": "matched",
