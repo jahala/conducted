@@ -94,6 +94,7 @@ describe("COMP-07 attachments in the composer", () => {
 				/>,
 			);
 			expect(screen.getByRole("status").textContent).toContain("Copying attachment");
+			expect(screen.getByRole("status", { name: "Loading attachment" })).toBeTruthy();
 		} finally {
 			close();
 		}
