@@ -17,8 +17,9 @@
  *  5. When code changed and no test reaches it, the selection cannot be trusted: every test runs.
  *  6. The ALWAYS tests are added.
  *
- * Runners run one after another, each through its package's own `test` script, and scripts/ runs
- * last because its boundaries test writes probe files into the packages' folders. When
+ * Every test runs the packages side by side through `pnpm -r`; a selection runs its runners one
+ * after another, each through its package's own `test` script. scripts/ always runs last, because
+ * its boundaries test writes probe files into the packages' folders. When
  * CONDUCTED_TEST_REPORTS names a folder, the runners that will run are listed in its runners.txt
  * before any starts, so scripts/test-report.ts can tell a runner that crashed from one never asked.
  *
