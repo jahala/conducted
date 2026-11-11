@@ -67,6 +67,8 @@ jobs:
             sed -n '1,/^## Gaps by screen/p' "$RUNNER_TEMP/parity/report.md" >> "$GITHUB_STEP_SUMMARY"
           fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
+        # GitHub's artifact store once hung an upload for 9 minutes (#555); a hang fails here, not at the job's limit.
+        timeout-minutes: 5
         if: ${{ !cancelled() }}
         with:
           name: parity-report
@@ -112,6 +114,8 @@ jobs:
       - name: The three known misses are found
         run: bun scripts/parity/instrument.ts "$RUNNER_TEMP/instrument/report.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
+        # GitHub's artifact store once hung an upload for 9 minutes (#555); a hang fails here, not at the job's limit.
+        timeout-minutes: 5
         if: ${{ !cancelled() }}
         with:
           name: parity-instrument
