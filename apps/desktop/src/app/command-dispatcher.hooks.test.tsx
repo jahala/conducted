@@ -83,6 +83,7 @@ function buildHarness(options: { rejectFixed?: boolean } = {}) {
 		windowFocused: () => true,
 		// This test starts no background work, so nothing is reported.
 		reportFailure: () => undefined,
+		showToast: () => undefined,
 	});
 
 	const wrapper = ({ children }: { children: ReactNode }) => (

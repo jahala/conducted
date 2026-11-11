@@ -1,7 +1,7 @@
 /**
  * @feature REV-02 Diff toolbar
  * Owns: the controls for how a diff is drawn: the Unified and Split layout toggles, and the "View
- * options" menu with Entire file, Hide whitespace changes and Wrap lines.
+ * options" menu with Hide whitespace changes and Wrap lines.
  * Behaviour: ui-map.md 3.2 (File tab: "Unified view", "Split view", "Entire file", "View options"
  * with "Hide whitespace changes" and "Wrap lines"). Preferences are user settings (keys
  * using_split_view, hide_whitespace_changes, wrap_lines in services-map.md 4.2.3). Measured from
@@ -12,8 +12,8 @@
  * binary file (controls disabled), and changing a preference while a diff is loading.
  * Our design choice: the parent measures the tab or pane and passes its width in. The toolbar is
  * only as wide as its buttons, so measuring it would think every tab is narrow. Conductor's "Entire
- * file" is a third view beside the layouts; ours widens the diff to the whole file, so it is a
- * checkbox under View options, and the file header's own toggle opens the whole file for editing.
+ * file" is its own read-only view beside the layouts (FileTabHeader renders that toggle); the menu
+ * holds only what changes the diff itself.
  * Test first: toggling "Wrap lines" calls onChange with wrapLines flipped and nothing else changed.
  */
 import { useId } from "react";
@@ -97,12 +97,6 @@ export function DiffViewOptions({
 	const idPrefix = useId();
 	const update = (patch: Partial<DiffPreferences>) => onChange({ ...preferences, ...patch });
 	const options = [
-		{
-			key: "entire-file",
-			label: "Entire file",
-			checked: preferences.entireFile,
-			field: "entireFile",
-		},
 		{
 			key: "hide-whitespace",
 			label: "Hide whitespace changes",

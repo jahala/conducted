@@ -163,6 +163,28 @@ describe("SET-03 AgentsPage", () => {
 		expect(spies.cancelLogin).not.toHaveBeenCalled();
 	});
 
+	it("says a Claude sign-in succeeded, as Conductor's banner does", async () => {
+		const { page, spies } = harness([install({ agent: "claude", authenticated: false })]);
+		spies.login.mockResolvedValue(
+			ok({
+				loginId: "login-1",
+				instructions: "Run claude setup-token, then paste the code.",
+				command: "claude setup-token",
+			}),
+		);
+		spies.finishLogin.mockResolvedValue(ok({ outcome: "signed_in", message: null }));
+
+		render(page());
+		fireEvent.click(screen.getByRole("button", { name: "Run claude /login" }));
+		expect(await screen.findByText("claude setup-token")).toBeTruthy();
+		fireEvent.change(screen.getByLabelText("Paste code from Claude"), {
+			target: { value: "code-123" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Finish sign-in" }));
+
+		expect(await screen.findByText("Claude login successful.")).toBeTruthy();
+	});
+
 	it("shows the Codex device code, its copy message and the ChatGPT toast", async () => {
 		const { page, spies, catalog } = harness([install({ agent: "codex", authenticated: false })]);
 		spies.login.mockResolvedValue(

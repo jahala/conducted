@@ -1,6 +1,7 @@
 /**
  * @feature COMP-01 Composer
- * Owns: The layout methods TipTap and ProseMirror read when the editor scrolls the caret into view.
+ * Owns: The layout methods TipTap and ProseMirror read when the editor scrolls the caret into view,
+ * and the contenteditable model jsdom leaves out.
  * Behaviour: test support only.
  * Must handle: importing this file twice is harmless; it never replaces a method jsdom has; a
  * file that runs without a DOM (node environment) has no Range or Text, so nothing here throws.
@@ -37,6 +38,21 @@ if (typeof Range !== "undefined") {
 	if (typeof range.getBoundingClientRect !== "function") {
 		range.getBoundingClientRect = zeroRect;
 	}
+}
+
+// jsdom has no contenteditable model: it never defines `isContentEditable`, which the browser menu
+// guard reads (APP-01) and any editor test may. Read it from the nearest element that sets the
+// attribute, as the DOM does: "true", "" and "plaintext-only" are editable, "false" is not.
+if (typeof HTMLElement !== "undefined" && !("isContentEditable" in HTMLElement.prototype)) {
+	const editable = new Set(["", "true", "plaintext-only"]);
+	Object.defineProperty(HTMLElement.prototype, "isContentEditable", {
+		configurable: true,
+		get(this: HTMLElement): boolean {
+			const host = this.closest("[contenteditable]");
+			if (!(host instanceof HTMLElement)) return false;
+			return editable.has((host.getAttribute("contenteditable") ?? "").toLowerCase());
+		},
+	});
 }
 
 if (typeof Text !== "undefined") {

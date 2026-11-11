@@ -199,8 +199,9 @@ describe("s1-ui-2 join", () => {
 				).toBe("true"),
 			);
 
+			// Esc returns to the previous screen, as Conductor's settings.close does.
 			fireEvent.keyDown(screen.getByTestId("settings-screen"), { key: "Escape" });
-			await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+			await waitFor(() => expect(router.state.location.pathname).toBe("/settings/user/general"));
 
 			await router.navigate({
 				to: "/settings/repos/$repoId/$page",

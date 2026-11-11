@@ -55,6 +55,7 @@ export function FileEditorPane({ workspaceId, path, onDirtyChange }: FileEditorP
 	const wrapLines = useSetting<boolean>("wrap_lines");
 	const ligatures = useSetting<boolean>("file_ligatures_enabled");
 	const monoFont = useSetting<string>("mono_font");
+	const codeTheme = useSetting<string>("code_theme");
 	const themeType = useThemeType();
 	const elsewhere = useOpenElsewhere(workspaceId, path);
 
@@ -155,8 +156,8 @@ export function FileEditorPane({ workspaceId, path, onDirtyChange }: FileEditorP
 		content.data.sizeBytes > MAX_EDIT_BYTES;
 	// A stable object, so typing does not reconfigure the editor on every keystroke.
 	const options = useMemo(
-		() => ({ wrapLines, ligatures, readOnly, fontFamily: monoFont, themeType }),
-		[wrapLines, ligatures, readOnly, monoFont, themeType],
+		() => ({ wrapLines, ligatures, readOnly, fontFamily: monoFont, themeType, codeTheme }),
+		[wrapLines, ligatures, readOnly, monoFont, themeType, codeTheme],
 	);
 
 	const retry = (): void => {

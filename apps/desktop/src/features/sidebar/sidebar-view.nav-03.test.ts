@@ -132,6 +132,22 @@ describe("NAV-03 buildSidebarGroups", () => {
 		expect(groups.flatMap((group) => group.workspaceIds)).toEqual(["visible"]);
 	});
 
+	it("keeps a project's group after its only workspace is archived, and still leaves out a hidden project", () => {
+		const groups = buildSidebarGroups(
+			input({
+				repos: [
+					repo("app", { displayOrder: 0 }),
+					repo("api", { displayOrder: 1 }),
+					repo("hidden", { displayOrder: 2, hidden: true }),
+				],
+				workspaces: [workspace("archived", { state: "archived", archivedAt: 1 })],
+				view: { groupBy: "project" },
+			}),
+		);
+		expect(groups.map((group) => group.label)).toEqual(["app", "api"]);
+		expect(groups.map((group) => group.workspaceIds)).toEqual([[], []]);
+	});
+
 	it("shows only the filtered projects", () => {
 		const groups = buildSidebarGroups(
 			input({

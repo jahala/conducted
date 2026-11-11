@@ -43,13 +43,17 @@ export function HeaderCount({
 /**
  * "section": at the right end, right while collapsed; down, and only on hover, while open.
  * "group": right after the count, only on hover, right or down.
+ * `focusWithin` shows an open section's chevron when anything in the header has focus, as
+ * Conductor's "My workspaces" header does (`Rtr`, renderApp @10493990).
  */
 export function HeaderChevron({
 	open,
 	variant = "section",
+	focusWithin = false,
 }: {
 	open: boolean;
 	variant?: "section" | "group";
+	focusWithin?: boolean;
 }) {
 	const hoverOnly = variant === "group" || open;
 	return (
@@ -60,6 +64,7 @@ export function HeaderChevron({
 				"flex shrink-0 text-sidebar-fg-muted",
 				variant === "section" && "ml-auto",
 				hoverOnly && "opacity-0 group-hover/header:opacity-100",
+				focusWithin && "group-focus-within/header:opacity-100",
 			)}
 		>
 			{open ? <ChevronDownIcon className="size-3" /> : <ChevronRightIcon className="size-3" />}

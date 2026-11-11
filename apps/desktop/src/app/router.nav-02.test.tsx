@@ -7,7 +7,7 @@
  */
 import { ok, type RepoId, type SessionId, type WorkspaceId } from "@conducted/shared";
 import { createMemoryHistory, type RouterHistory, RouterProvider } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
 import type { Repo, Workspace } from "../core/model.ts";
@@ -287,6 +287,66 @@ describe("PLAT-15 Quit from the window", () => {
 
 		fireEvent.keyDown(document.body, { key: "q", metaKey: true });
 		await waitFor(() => expect(quit).toHaveBeenCalledTimes(2));
+	});
+});
+
+describe("Navigation and workspace commands reach their screens", () => {
+	it("Go to Home opens Home from another route", async () => {
+		const { router, registry } = await openApp("/create");
+
+		act(() => expect(registry.run("nav.home")).toBe(true));
+
+		await waitFor(() => expect(router.state.location.pathname).toBe("/all-workspaces"));
+	});
+
+	it("Create new workspace opens the create page", async () => {
+		const { router, registry } = await openApp("/all-workspaces");
+
+		act(() => expect(registry.run("workspace.create")).toBe(true));
+
+		await waitFor(() => expect(router.state.location.pathname).toBe("/create"));
+	});
+
+	it("View archived workspaces opens Home with Only archived, and clears its search", async () => {
+		const live = workspace({ id: "w-live", displayName: "Live work" });
+		const old = workspace({
+			id: "w-old",
+			displayName: "Old work",
+			state: "archived",
+			archivedAt: 10,
+		});
+		const { router, registry } = await openApp("/", {
+			repos: [repo("r1")],
+			workspaces: [live, old],
+		});
+		await screen.findByText("Run agents side by side");
+
+		act(() => expect(registry.run("nav.viewArchived")).toBe(true));
+
+		expect(await screen.findByText("Old work")).toBeTruthy();
+		expect(screen.queryByText("Live work")).toBeNull();
+		expect(router.state.location.pathname).toBe("/all-workspaces");
+	});
+
+	it("the sidebar's row commands act on the open workspace", async () => {
+		const live = workspace({ id: "w-live", displayName: "Live work" });
+		const { registry, container } = await openApp("/repository/r1/workspace/w-live", {
+			repos: [repo("r1")],
+			workspaces: [live],
+		});
+		const copy = vi.spyOn(container.actions.app, "copyText").mockResolvedValue(ok(undefined));
+
+		act(() => expect(registry.run("workspace.copyLink")).toBe(true));
+		await waitFor(() => expect(copy).toHaveBeenCalledWith("conducted://workspace?id=w-live"));
+
+		act(() => expect(registry.run("workspace.createSection")).toBe(true));
+		expect(await screen.findByRole("dialog", { name: "New section" })).toBeTruthy();
+
+		const archive = vi
+			.spyOn(container.actions.workspaces, "archive")
+			.mockResolvedValue(ok(undefined));
+		act(() => expect(registry.run("workspace.archive")).toBe(true));
+		await waitFor(() => expect(archive).toHaveBeenCalledWith("w-live", { deleteBranch: false }));
 	});
 });
 

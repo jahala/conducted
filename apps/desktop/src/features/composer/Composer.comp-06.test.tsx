@@ -48,6 +48,7 @@ const must = <T,>(
 async function setup() {
 	const test = createTestContainer();
 	active = test;
+	await test.container.services.settings.start();
 	const workspace = await seedWorkspace(test.container);
 	const session = must(await test.container.services.sessions.create(workspace.id, CONFIG));
 	const wrapper = ({ children }: { children: ReactNode }) => (
@@ -71,7 +72,7 @@ async function setup() {
 	);
 	await waitFor(() => expect(editor).not.toBeNull());
 	const send = vi.spyOn(test.container.actions.sessions, "send");
-	return { send, editor: () => editor as unknown as Editor };
+	return { send, editor: () => editor as unknown as Editor, test, workspace, session };
 }
 
 describe("COMP-06 Enter on the open '/' menu", () => {
@@ -100,6 +101,24 @@ describe("COMP-06 Enter on the open '/' menu", () => {
 
 		expect(await screen.findByText("This command isn't available in this workspace.")).toBeTruthy();
 		expect(editor().getText()).toBe("/zzzzqq");
+		expect(send).not.toHaveBeenCalled();
+	});
+
+	it("runs /clear as the real clear action, closing the old chat", async () => {
+		const { send, editor, test, workspace, session } = await setup();
+		const textbox = screen.getByRole("textbox", { name: "composer" });
+
+		act(() => editor().commands.insertContent("/clear"));
+		await screen.findByRole("option", { name: /\/clear/ });
+		fireEvent.keyDown(textbox, { key: "Enter" });
+
+		await waitFor(() => {
+			const state = test.container.services.sessions.store.getState();
+			expect(state.sessions[session.id]?.closedAt).not.toBeNull();
+			const open = state.byWorkspace[workspace.id] ?? [];
+			expect(open).toHaveLength(1);
+			expect(open[0]).not.toBe(session.id);
+		});
 		expect(send).not.toHaveBeenCalled();
 	});
 });

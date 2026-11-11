@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
 	send: vi.fn(),
 	cancelSetup: vi.fn(),
 	retrySetup: vi.fn(),
+	remove: vi.fn(),
 	navigate: vi.fn(),
 	readSetupLog: vi.fn(),
 	toastError: vi.fn(),
@@ -29,7 +30,7 @@ vi.mock("../../../core/hooks.ts", () => ({
 	useSessions: () => state.sessions,
 	useActions: () => ({
 		sessions: { send: state.send },
-		workspaces: { retrySetup: state.retrySetup },
+		workspaces: { retrySetup: state.retrySetup, remove: state.remove },
 	}),
 }));
 
@@ -91,6 +92,8 @@ beforeEach(() => {
 	state.cancelSetup.mockResolvedValue(ok(undefined));
 	state.retrySetup.mockReset();
 	state.retrySetup.mockResolvedValue(ok(undefined));
+	state.remove.mockReset();
+	state.remove.mockResolvedValue(ok(undefined));
 	state.readSetupLog.mockReset();
 	state.readSetupLog.mockResolvedValue(ok("setup output"));
 	state.toastError.mockReset();
@@ -120,6 +123,22 @@ describe("WS-03 Setup tab", () => {
 
 		fireEvent.click(screen.getByRole("button", { name: "Run again" }));
 
+		await waitFor(() => expect(state.retrySetup).toHaveBeenCalledWith(workspaceId));
+	});
+
+	it("offers Retry and Delete when the workspace's initialization failed", async () => {
+		state.workspace = { state: "ready", data: workspace({ state: "failed" }) };
+		state.setup = {
+			state: "ready",
+			data: failed({ state: "idle", hasScript: false, terminalId: null, log: "missing" }),
+		};
+		render(<SetupTab workspaceId={workspaceId} />);
+
+		expect(screen.getByText("Workspace initialization failed")).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+		await waitFor(() => expect(state.remove).toHaveBeenCalledWith(workspaceId));
+
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 		await waitFor(() => expect(state.retrySetup).toHaveBeenCalledWith(workspaceId));
 	});
 

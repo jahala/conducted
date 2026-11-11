@@ -1,19 +1,22 @@
 /**
  * @feature REV-08 File tab header
- * Owns: the strip at the top of a file tab: the path chip, the unsaved mark, Save, Copy file
- * contents, the view toggles (Unified, Split, Edit, Preview) and the diff's View options.
+ * Owns: the strip at the top of a file tab: the path chip with the file's language icon, the
+ * unsaved mark, Save, Copy file contents, the view toggles (Unified, Split, Entire file, Edit,
+ * Preview) and the diff's View options.
  * Behaviour: ui-map.md 3.2, File tab ("Toggle file edit mode" is Cmd+E; "View options": "Hide
  * whitespace changes", "Wrap lines"; "Unified view", "Split view", "Entire file"). Measured from
  * Conductor 0.92.1 (renderApp @9633986, @9642796): the header is 8px top and bottom, 12px left and
  * 4px right on the canvas; the file chip at the left; at the right, 8px apart, "Copy file contents to clipboard"
  * as a 28px icon button, then one segmented group (32px tall, the muted fill, 2px inside) of 28px
- * icon toggles with 12px icons: the diff layouts when the file has changes, the whole file and the
- * preview; then the vertical-dots "View options" menu.
+ * icon toggles with 12px icons: the diff layouts when the file has changes, the whole file as
+ * Entire file (raw), the editor, and the preview; then the vertical-dots "View options" menu.
+ * Preview is offered only for a file with a rendered preview (Markdown, SVG, image, PDF, CSV,
+ * video), as Conductor does (renderApp @9628678); a code file gets Entire file instead.
  * Children: DiffLayoutToggles and DiffViewOptions (diff/DiffToolbar.tsx).
- * Our design choice: the whole-file toggle opens our editor, so it is named "Edit" (Cmd+E still
- * toggles it); Conductor names its read-only whole-file view "Entire file". The diff toggles show for
- * a file with changes, or while the diff is on show; View options shows with the diff, since its
- * choices only change the diff.
+ * Our design choice: the read-only whole-file view is the same "Entire file" Conductor offers, and
+ * Edit is the separate editing mode (Cmd+E toggles it). The diff toggles show for a file with
+ * changes, or while the diff is on show; View options shows with the diff, since its choices only
+ * change the diff.
  * Must handle: long paths (middle truncation, full path in a tooltip), a renamed file (old path
  * shown), edit mode disabled for deleted, binary and too-large files, an unsaved dot, a save in
  * flight, a save error shown inline, and a file whose text is not loaded or is binary (copy disabled).
@@ -22,13 +25,13 @@
 
 import { Button } from "../../ui/Button.tsx";
 import { CopyButton } from "../../ui/CopyButton.tsx";
-import { EyeIcon, FileTextIcon } from "../../ui/icons.tsx";
+import { EyeIcon, FileIcon, FileTextIcon } from "../../ui/icons.tsx";
 import { Spinner } from "../../ui/Spinner.tsx";
 import { TruncatedText } from "../../ui/TruncatedText.tsx";
 import { DiffLayoutToggles, DiffViewOptions, headerIconButtonClass } from "../diff/DiffToolbar.tsx";
 import type { DiffPreferences } from "../diff/diff-types.ts";
 
-export type FileTabMode = "diff" | "edit" | "preview";
+export type FileTabMode = "diff" | "edit" | "preview" | "raw";
 
 export interface FileTabHeaderProps {
 	path: string;
@@ -37,6 +40,8 @@ export interface FileTabHeaderProps {
 	onModeChange: (mode: FileTabMode) => void;
 	editDisabledReason: string | null;
 	previewAvailable: boolean;
+	/** True for a text file, so Conductor's read-only "Entire file" view is offered. */
+	rawAvailable: boolean;
 	/** True when the file has changes, so the diff layouts are offered. */
 	diffAvailable: boolean;
 	preferences: DiffPreferences;
@@ -59,6 +64,7 @@ export function FileTabHeader({
 	onModeChange,
 	editDisabledReason,
 	previewAvailable,
+	rawAvailable,
 	diffAvailable,
 	preferences,
 	onPreferencesChange,
@@ -118,6 +124,18 @@ export function FileTabHeader({
 								active={mode === "diff"}
 								onShowDiff={() => onModeChange("diff")}
 							/>
+						) : null}
+						{rawAvailable ? (
+							<button
+								type="button"
+								aria-label="Entire file"
+								title="Entire file"
+								aria-pressed={mode === "raw"}
+								className={headerIconButtonClass}
+								onClick={() => onModeChange("raw")}
+							>
+								<FileIcon className="size-3" />
+							</button>
 						) : null}
 						<button
 							type="button"
