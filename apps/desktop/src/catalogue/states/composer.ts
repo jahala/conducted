@@ -1,9 +1,10 @@
 /**
  * @feature catalogue States of the composer
  * Owns: a new chat with an empty composer (the empty chat), the composer with a draft and two attached
- * files, the composer with the model picker open, the slash command menu after typing "/", the "+"
- * menu, the Create snippet dialog, the snippet picker with no snippets yet, the Link issue dialog
- * with atlas's GitHub issues and Linear not connected.
+ * files, the composer with the model picker open, the slash command menu after typing "/" (Claude,
+ * Codex, and with a Skills group), a typed command that cannot run here, the "+" menu, the Create
+ * snippet dialog, the snippet picker with no snippets yet, the Link issue dialog with atlas's
+ * GitHub issues and Linear not connected.
  * Behaviour: ui-map.md 3.5 (composer and its "+" menu), 3.10 (Link issue), 5.1 and 5.2 (snippets),
  * COMP-01 (drafts and attachments).
  * Test first: not applicable; the screenshot run opens every state.
@@ -56,6 +57,17 @@ async function typeInComposer(document: Document, text: string): Promise<void> {
 	const editor = await find(document, '[contenteditable="true"]', "composer");
 	editor.focus();
 	document.execCommand("insertText", false, text);
+}
+
+/** Types a slash command and presses Enter, so the composer says why it cannot run. */
+async function submitSlash(document: Document, text: string): Promise<void> {
+	await typeInComposer(document, text);
+	// A frame lets the suggestion menu open, as a keyboard's Enter would find it.
+	await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+	const editor = await find(document, '[contenteditable="true"]', "composer");
+	editor.dispatchEvent(
+		new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+	);
 }
 
 /** arbor's chat with a finished turn whose usage the context wheel can show. */
@@ -267,5 +279,153 @@ export const COMPOSER_STATES: CatalogueState[] = [
 					],
 				},
 			),
+	},
+	{
+		id: "composer-model-effort-menu",
+		group: "Composer",
+		title: "The model picker's Effort submenu, with Ultracode",
+		seed: (world) =>
+			newChat(
+				world,
+				async ({ document }) => {
+					await click(document, "button", "Model picker");
+					await click(document, "button", "Effort");
+				},
+				(document) => shows(document, "Ultracode"),
+			),
+	},
+	{
+		id: "composer-model-effort-unsupported",
+		group: "Composer",
+		title: "The Effort submenu for a level the model does not support",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			const chat = await addChat(world, cast.arbor, {
+				title: null,
+				config: { ...CLAUDE_CONFIG, effort: "max" },
+			});
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await click(document, "button", "Model picker");
+					await click(document, "button", "Effort");
+				},
+				ready: (document) => shows(document, "Not supported for this model"),
+			};
+		},
+	},
+	{
+		id: "composer-fast-mode",
+		group: "Composer",
+		title: "A chat with fast mode on",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			const chat = await addChat(world, cast.arbor, {
+				title: null,
+				config: { ...CLAUDE_CONFIG, fastMode: true },
+			});
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: async ({ app }) => refreshGit(app, cast.arbor),
+				ready: (document) => shows(document, "Fast mode on"),
+			};
+		},
+	},
+	{
+		id: "composer-slash-menu-codex",
+		group: "Composer",
+		title: "A Codex chat with the slash command menu open",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			const config = { ...CLAUDE_CONFIG, agent: "codex" as const, model: "gpt-5.5" };
+			const chat = await addChat(world, cast.arbor, { title: null, config });
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await typeInComposer(document, "/");
+				},
+				ready: (document) => shows(document, "Choose Codex's personality for this session and future ones"),
+			};
+		},
+	},
+	{
+		id: "composer-slash-skills",
+		group: "Composer",
+		title: "The slash command menu with a Skills group",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			world.answerSidecar({
+				listSlashCommands: () => ({
+					commands: [
+						{ name: "skill-creator", description: "Create a skill", source: "user", kind: "skill" },
+						{ name: "deploy", description: "Deploy the app", source: "project", kind: "command" },
+					],
+					fromCache: false,
+				}),
+			});
+			const chat = await addChat(world, cast.arbor, { title: null });
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await typeInComposer(document, "/");
+				},
+				ready: (document) => shows(document, "Skills"),
+			};
+		},
+	},
+	{
+		id: "composer-slash-goal-unavailable",
+		group: "Composer",
+		title: "Typing /goal in a Claude chat says Codex goals are not available",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			const chat = await addChat(world, cast.arbor, { title: null });
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await submitSlash(document, "/goal");
+				},
+				ready: (document) => shows(document, "Codex goals are not available in this chat."),
+			};
+		},
+	},
+	{
+		id: "composer-slash-plan-unavailable",
+		group: "Composer",
+		title: "Typing /plan for an agent without plan mode says so",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			const config = { ...CLAUDE_CONFIG, agent: "cursor" as const };
+			const chat = await addChat(world, cast.arbor, { title: null, config });
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await submitSlash(document, "/plan");
+				},
+				ready: (document) => shows(document, "Plan mode is not available in this chat."),
+			};
+		},
+	},
+	{
+		id: "composer-slash-command-unavailable",
+		group: "Composer",
+		title: "A typed slash command this workspace does not offer says so",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			const chat = await addChat(world, cast.arbor, { title: null });
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await submitSlash(document, "/deploy");
+				},
+				ready: (document) => shows(document, "This command isn't available in this workspace."),
+			};
+		},
 	},
 ];
