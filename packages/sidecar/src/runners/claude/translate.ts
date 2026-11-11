@@ -22,7 +22,10 @@
  *  - autocompact_state, post_turn_summary, session_metadata and active_goal are passed on as a
  *    message whose raw payload carries them, with no items of their own
  *  - dropped: stream deltas, thinking_tokens, task progress and task bookkeeping, keep_alive,
- *    control messages, and transcript mirror frames (consumed by the SDK before they reach us)
+ *    control messages, and transcript mirror frames (consumed by the SDK before they reach us).
+ *    A task_notification (a background task finished) draws nothing in Conductor either: its
+ *    system view shows a system row only with a `content` field (renderApp Ipa @9596117), and the
+ *    SDK's notification has none (`SDKTaskNotificationMessage`; its `summary` is not drawn)
  *  - `raw` keeps the original message so a later translator version can re-read old events
  * Must handle:
  *  - a tool_result for a dropped TodoWrite call (state in the translator, not a global)

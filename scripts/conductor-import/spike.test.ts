@@ -212,6 +212,54 @@ const TURNS: { turnId: string; rows: Row[] }[] = [
 ];
 
 /**
+ * A chat whose first turn starts a background helper (a Task call that returns at once). The
+ * helper's text, call and result, and the SDK's finish notice for it, are stored under the next
+ * turn, as Conductor's writer stores a row under the turn running when it arrives (main `Mmt`
+ * @1440847). Conductor builds each turn from its own rows, so that late work shows in neither
+ * turn's main transcript (`wp` @1423850, `_mt` @1427823). Ours shows it inside turn one's card
+ * (D129), also outside the main transcript.
+ */
+const BACKGROUND_TURNS: { turnId: string; rows: Row[] }[] = [
+	{
+		turnId: "t-1",
+		rows: [
+			said("Start a helper on the other test."),
+			wrote(
+				toolUse("tu-bg", "Task", {
+					description: "Check b",
+					prompt: "Check b.test.ts",
+					run_in_background: true,
+				}),
+			),
+			wrote(toolResult("tu-bg", "Async agent launched successfully.")),
+			wrote(text("u-bg-1", "The helper is running.")),
+			wrote(done("The helper is running.")),
+		],
+	},
+	{
+		turnId: "t-2",
+		rows: [
+			said("Anything new?"),
+			wrote(text("u-late-1", "Looking at the other test.", "tu-bg")),
+			wrote(toolUse("tu-late", "Grep", { pattern: "sum" }, "tu-bg")),
+			wrote(toolResult("tu-late", "b.test.ts:3", "tu-bg")),
+			wrote({
+				type: "system",
+				subtype: "task_notification",
+				task_id: "task-bg",
+				tool_use_id: "tu-bg",
+				status: "completed",
+				output_file: "",
+				summary: "The other test passes.",
+				session_id: "claude-1",
+			}),
+			wrote(text("u-bg-2", "Nothing new yet.")),
+			wrote(done("Nothing new yet.")),
+		],
+	},
+];
+
+/**
  * A database of made-up chats whose transcript is known by hand. Every Claude chat holds the rows
  * above in `session_messages`. Conductor began writing `session_events` partway through real
  * chats, so a chat with `events: "partial"` has events for its last turn only, and they include
@@ -220,7 +268,13 @@ const TURNS: { turnId: string; rows: Row[] }[] = [
  * and the mapping cannot map.
  */
 function knownCase(
-	chats: { id: string; agent: string; events: "partial" | "none"; gap?: true }[],
+	chats: {
+		id: string;
+		agent: string;
+		events: "partial" | "none";
+		gap?: true;
+		turns?: typeof TURNS;
+	}[],
 ): {
 	dir: string;
 	path: string;
@@ -241,8 +295,9 @@ function knownCase(
 		let index = 0;
 		const at = () =>
 			`2026-01-02T03:${String(Math.floor(second / 60)).padStart(2, "0")}:${String(second++ % 60).padStart(2, "0")}.000Z`;
-		for (const turn of TURNS) {
-			const logged = chat.events === "partial" && turn === TURNS.at(-1);
+		const turns = chat.turns ?? TURNS;
+		for (const turn of turns) {
+			const logged = chat.events === "partial" && turn === turns.at(-1);
 			for (const row of turn.rows) {
 				const sent = at();
 				const id = `${chat.id}-m-${index++}`;
@@ -395,6 +450,18 @@ describe("APP-18 the chat history spike", () => {
 		expect(out).toContain(
 			"pass mark (at least 99% of rows mapped and every mapped chat matching): met",
 		);
+	});
+
+	test("reads a background helper whose late rows sit in a later turn as the same as Conductor (D129)", () => {
+		const { path } = knownCase([
+			{ id: "k-bg", agent: "claude", events: "none", turns: BACKGROUND_TURNS },
+		]);
+		const { code, out } = runSpike([path]);
+
+		expect(code).toBe(0);
+		// Conductor's main transcript: turn one's message, Task card and text; turn two's message and text.
+		expect(out).toContain("  chat 1: claude 2 5 2 5 match");
+		expect(out).toContain("mapped chats whose transcript matches: 1 of 1");
 	});
 
 	test("leaves the copy's folder as it was", () => {

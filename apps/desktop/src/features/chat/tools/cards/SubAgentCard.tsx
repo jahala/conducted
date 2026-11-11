@@ -5,8 +5,10 @@
  * final answer.
  * Behaviour: frontend.md 5 (a sub-agent's messages are bucketed under the parent Task call),
  * ui-map.md 3.3 ('Subagent'; its prompt under a 'Prompt' label, renderApp @9502437).
- * Must handle: a prompt the agent handed over ('Prompt' opens it); many nested blocks (a count above the list; the card itself collapses); a running
- * sub-agent (the count grows); a sub-agent that failed; a nested sub-agent; the blocks render
+ * Must handle: a prompt the agent handed over ('Prompt' opens it); many nested blocks (a count
+ * above the list; the card itself collapses); a running sub-agent (the count grows); a background
+ * sub-agent whose work arrives in later turns (the turn builder puts it in this card, D129); a
+ * sub-agent that failed; a nested sub-agent; the blocks render
  * through the same views as a turn, each in its own error boundary, so every kind works inside
  * and one broken card does not hide its siblings.
  * Test first: A call with two child tool calls shows 'Subagent', the description, and two nested cards.

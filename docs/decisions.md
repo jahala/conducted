@@ -917,3 +917,19 @@ Chosen:
 - Not done: a fixture cache, because Vitest puts the desktop's time in jsdom per file (environment 41 to 43%) and module loading (24%), with setup at 1%; and shared workers, because they first need proof that the 830 desktop files leave no global state behind. A desktop change still selects about half of the desktop files, since most tests reach the real container, so shared workers are where the next gain is.
 
 Why: run only what a change can break, and keep one net that catches what that misses (the owner's test-setup method).
+
+## D129. A background helper's late work shows inside the card that started it (2026-11-11)
+
+Ruled by the owner. The lead proposed: "keep all the data, and show a helper's late work inside the card that started it. Conductor shows that finish notice where it arrives, and we'd keep it there, so you can see the helper is done and find its card." The owner answered "go".
+
+Context: a Task or Agent call can start a helper that keeps working after its turn ends. Its later messages name the call in `parent_tool_use_id`, but each row is saved under the turn running when it arrives (main-BE1h_1MP.js `Mmt` @1440920). Conductor builds each turn from its own rows only (`wp` @1423850). It takes every message that names a parent out of the main transcript (`vmt`), and makes a card only for a call of the same turn (`_mt` @1427823). So it shows a helper's late work nowhere. Ours showed it at the top level of the later turn.
+
+Chosen:
+
+- **Keep every row, and put late work in its card.** A sub-agent's text, thinking, todo list or call whose parent call is in an earlier turn goes inside that call's card, after what the card already holds, in arrival order. A late result goes to its call. The later turn shows only its own work. The turn builder finishes turns in order and keeps one index of their calls, so the build stays linear in the events.
+- **Unknown parents stay where they are.** A sub-agent message whose parent call never arrived stays at the top level of the turn it arrives in. The ruling moves late work; it hides nothing.
+- **The finish notice: neither app draws one.** Conductor keeps the `task_notification` row in the later turn's main transcript, but its system view draws nothing for it: renderApp `Ipa` @9596117 draws a system row only when it has `content`, and the SDK's notification has none (checked in SDK 0.3.321's type and in the CLI that emits it). Our Claude translator drops the row. The proposal's premise that Conductor shows it was wrong, and Conductor has no wording to copy, so no notice is added. Showing one would be a further departure, and that is the owner's call.
+- **Only changed turns redraw.** `reuseUnchangedTurns` keeps every turn whose content did not change the same object, matched by id, so a past turn that gains late work redraws and the turns after it do not. It replaces the differ that reused only the turns before the first change.
+- **The history check needs no change.** The spike compares each turn's main transcript. Conductor leaves late work out of it, and now so do we; a known-case test reads `match`.
+
+Why: the owner's ruling. Late work stays visible, in the card it belongs to, where Conductor loses it.

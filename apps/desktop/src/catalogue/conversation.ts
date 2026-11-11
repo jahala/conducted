@@ -1,9 +1,9 @@
 /**
  * @feature catalogue Chat events for catalogue seeds
  * Owns: a small builder that writes a chat's events in order, each a few seconds after the last, with
- * ids that never repeat: user messages, agent text and thinking, tool calls with their results, todo
- * lists, usage, notices and errors, checkpoints with the files a turn changed, and the turn's end
- * with its outcome.
+ * ids that never repeat: user messages, agent text and thinking (a sub-agent's too), tool calls with
+ * their results, todo lists, usage, notices and errors, checkpoints with the files a turn changed,
+ * and the turn's end with its outcome.
  * Behaviour: packages/protocol/src/events.ts and agent-message.ts are the shapes; the sidecar's runners
  * send Claude's tools with Claude's input names (file_path, old_string, command), which the tool cards
  * read.
@@ -39,8 +39,8 @@ export interface Conversation {
 		text: string,
 		options?: { attachmentPaths?: string[]; config?: SessionConfig; sender?: UserMessageSender },
 	): TurnId;
-	/** One agent message with these items. */
-	agent(turn: TurnId, items: AgentItem[]): void;
+	/** One agent message with these items; with `parent`, written by the sub-agent of that call. */
+	agent(turn: TurnId, items: AgentItem[], parent?: ToolUseId): void;
 	text(turn: TurnId, text: string): void;
 	thinking(turn: TurnId, text: string): void;
 	/** A tool call and, unless `output` is null, its result in a second message. Returns its id. */
@@ -66,8 +66,17 @@ export function conversation(prefix: string, startAt: number, stepMs = 4_000): C
 		at += stepMs;
 		return { eventId: `${prefix}-e${count}` as EventId, at };
 	};
-	const agent = (turn: TurnId, items: AgentItem[]): void => {
-		events.push({ ...next(), type: "agent", turnId: turn, message: { agent: "claude", items } });
+	const agent = (turn: TurnId, items: AgentItem[], parent?: ToolUseId): void => {
+		events.push({
+			...next(),
+			type: "agent",
+			turnId: turn,
+			message: {
+				agent: "claude",
+				...(parent === undefined ? {} : { parentToolUseId: parent }),
+				items,
+			},
+		});
 	};
 	let turns = 0;
 	return {

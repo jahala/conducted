@@ -6,7 +6,8 @@
  * Behaviour: ui-map.md 3.2 and 5.1 (copy concise transcript, chat history search), services-map.md
  * 2.3.3 (search is a LIKE over stored message text), inventory label #340-341 (plan shelf).
  * Must handle: "concise" keeps the user messages and the agent's text, and one line per tool
- * call; a sub-agent's blocks are written under the call that holds them; "full" adds thinking,
+ * call; a sub-agent's blocks are written under the call that holds them, including a background
+ * helper's work from a later turn (D129); "full" adds thinking,
  * tool inputs and outputs; reverted turns are left out; very large
  * tool outputs are cut at 2000 characters with a note; a search query under two characters
  * returns nothing; `%` and `_` in the query are matched literally; results carry the chat id and
