@@ -19,7 +19,7 @@ const tool = (name: CanonicalTool, id: string): ChatBlock => ({
 		toolUseId: id as never,
 		item: { kind: "tool_call", toolUseId: id as never, tool: name, rawName: name, input: {} },
 		result: null,
-		children: [],
+		blocks: [],
 	},
 });
 const keyed = (blocks: ChatBlock[]): KeyedBlock[] =>

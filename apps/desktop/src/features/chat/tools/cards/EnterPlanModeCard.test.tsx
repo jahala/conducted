@@ -27,7 +27,7 @@ const view = (isError: boolean | null): ToolCallView => {
 			isError === null
 				? null
 				: { kind: "tool_result", toolUseId, output: "refused", isError, truncated: false },
-		children: [],
+		blocks: [],
 	};
 };
 
