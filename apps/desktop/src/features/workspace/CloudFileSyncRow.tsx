@@ -7,9 +7,12 @@
  * direction and triggers), and Conductor's sync row (`ygo`, `K7t` in renderApp) for the words.
  * Our design choice: the row is where Conductor puts it, in the workspace header's popover. The
  * switch turns this workspace's mirror on or off through the file-sync service; the Advanced
- * setting gives it its first value (D111).
+ * setting gives a new cloud workspace its first value (D111), and the workspace row keeps it
+ * across restarts (migration 0019).
  * Must handle: a local workspace (nothing); a workspace that is not ready (the switch waits); a
- * failed sync (the message and its copy actions); a long mirror path (it truncates).
+ * failed sync (the message and its copy actions); a long mirror path (it truncates); a switch that
+ * fails (Conductor's "Failed to update sync preference" or "Failed to start file sync" toast, and
+ * the switch keeps its saved value).
  * Test first: shows Conductor's words and turns the workspace's mirror on and off.
  */
 import type { WorkspaceId } from "@conducted/shared";
@@ -25,13 +28,14 @@ import {
 	SYNC_FILES_LABEL,
 	SYNC_MIRROR_DESCRIPTION,
 	SYNC_TO_DIRECTORY_LABEL,
+	syncSwitchFailedMessage,
 } from "../../core/file-sync-view.ts";
 import { useActions, useFileSyncStatus, useWorkspace } from "../../core/hooks.ts";
 import { IconButton } from "../../ui/IconButton.tsx";
 import { CopyIcon } from "../../ui/icons.tsx";
 import { Spinner } from "../../ui/Spinner.tsx";
 import { Switch } from "../../ui/Switch.tsx";
-import { toastError } from "../../ui/Toast.tsx";
+import { toast, toastError } from "../../ui/Toast.tsx";
 
 export interface CloudFileSyncRowProps {
 	workspaceId: WorkspaceId;
@@ -49,6 +53,12 @@ export function CloudFileSyncRow({ workspaceId }: CloudFileSyncRowProps) {
 	const enabled = view.enabled;
 	const syncing = view.state === "syncing";
 	const failed = view.state === "failed";
+
+	const setEnabled = (checked: boolean) => {
+		void actions.files.setSyncEnabled(workspaceId, checked).then((result) => {
+			if (!result.ok) toast.error(syncSwitchFailedMessage(checked, result.error.message));
+		});
+	};
 
 	const copy = (text: string) => {
 		void actions.app.copyText(text).then((result) => {
@@ -87,7 +97,7 @@ export function CloudFileSyncRow({ workspaceId }: CloudFileSyncRowProps) {
 					checked={enabled}
 					disabled={!ready}
 					aria-label={enabled ? "Turn off remote file sync" : "Turn on remote file sync"}
-					onCheckedChange={(checked) => void actions.files.setSyncEnabled(workspaceId, checked)}
+					onCheckedChange={setEnabled}
 				/>
 			</div>
 			<p className="text-fg-muted">{SYNC_FILES_DESCRIPTION}</p>

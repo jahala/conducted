@@ -80,6 +80,7 @@ async function seed(host: Host, name: string, port: number): Promise<WorkspaceId
 			port,
 			linkedPaths: [],
 			setupLogPath: null,
+			remoteFileSyncEnabled: false,
 			host,
 		}),
 	);

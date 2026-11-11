@@ -7,7 +7,9 @@
  */
 import type { Host } from "@conducted/protocol";
 import {
+	appError,
 	CLOUD_MIRROR_FILE_LIMIT_BYTES,
+	err,
 	ok,
 	type Result,
 	type WorkspaceId,
@@ -17,13 +19,18 @@ import { createMemoryPlatform } from "../../platform/memory.ts";
 import { unusedDatabase } from "../../test/memory-platform.ts";
 import { SYNC_FAILED_LABEL, SYNC_OFF_LABEL } from "../file-sync-view.ts";
 import type { Workspace } from "../model.ts";
-import { FileSyncService, guardedRelativePath, OUTSIDE_MIRROR_MESSAGE } from "./file-sync.ts";
+import {
+	FileSyncService,
+	guardedRelativePath,
+	initialSyncEnabled,
+	OUTSIDE_MIRROR_MESSAGE,
+} from "./file-sync.ts";
 
 const CLOUD: Host = { kind: "cloud", url: "https://w.example.dev", vmId: "vm-1" };
 const WORKSPACE_ID = "ws-1" as WorkspaceId;
 const ROOT = "/Users/conducted";
 
-function workspace(host: Host = CLOUD): Workspace {
+function workspace(remoteFileSyncEnabled: boolean, host: Host = CLOUD): Workspace {
 	return {
 		id: WORKSPACE_ID,
 		repoId: "repo-1",
@@ -37,6 +44,7 @@ function workspace(host: Host = CLOUD): Workspace {
 		port: 55_000,
 		linkedPaths: [],
 		host,
+		remoteFileSyncEnabled,
 		createdAt: 0,
 		updatedAt: 0,
 		lastActivityAt: 0,
@@ -46,7 +54,10 @@ function workspace(host: Host = CLOUD): Workspace {
 	} as unknown as Workspace;
 }
 
-function harness(options: { autoSync?: boolean } = {}) {
+/** The service over the memory Platform, for a cloud workspace whose saved switch is `syncOn`. */
+function harness(options: { syncOn?: boolean; failSave?: boolean } = {}) {
+	let saved = options.syncOn ?? true;
+	const saves: boolean[] = [];
 	const memory = createMemoryPlatform({
 		clock: { now: () => 1_700_000_000_000 },
 		ids: { uuid: () => crypto.randomUUID() },
@@ -112,11 +123,17 @@ function harness(options: { autoSync?: boolean } = {}) {
 		cloud: memory.platform.cloud,
 		fs: memory.platform.fs,
 		opener: memory.platform.opener,
-		workspaceOf: () => ok(workspace()),
+		workspaceOf: () => ok(workspace(saved)),
 		repoNameOf: () => ok("project"),
 		rootPath: () => ROOT,
-		setting: <T>(key: string): T =>
-			(key === "auto_sync_files_in_new_cloud_workspaces" ? (options.autoSync ?? true) : "") as T,
+		saveEnabled: async (_id, enabled) => {
+			if (options.failSave === true) {
+				return err(appError("db.failed", "Saving the Sync files switch failed"));
+			}
+			saves.push(enabled);
+			saved = enabled;
+			return ok(undefined);
+		},
 		now: () => 1_700_000_000_000,
 	});
 	const mirror = `${ROOT}/remote-workspace-sync/project/${WORKSPACE_ID}`;
@@ -124,6 +141,7 @@ function harness(options: { autoSync?: boolean } = {}) {
 		service,
 		memory,
 		mirror,
+		saves,
 		remote,
 		remoteBytes,
 		setDirectories: (paths: string[]) => {
@@ -161,6 +179,12 @@ describe("CLOUD-11 the local mirror", () => {
 		expect(h.memory.controls.files.has(`${h.mirror}/b.txt`)).toBe(false);
 	});
 
+	it("starts a new cloud workspace's switch at the Advanced setting and a Mac one off", () => {
+		expect(initialSyncEnabled(CLOUD, true)).toBe(true);
+		expect(initialSyncEnabled(CLOUD, false)).toBe(false);
+		expect(initialSyncEnabled({ kind: "local" }, true)).toBe(false);
+	});
+
 	it("refuses a path that leaves the mirror", () => {
 		expect(guardedRelativePath("../outside").ok).toBe(false);
 		expect(guardedRelativePath("/etc/passwd").ok).toBe(false);
@@ -168,8 +192,8 @@ describe("CLOUD-11 the local mirror", () => {
 		expect(guardedRelativePath("src/a.ts")).toEqual(ok("src/a.ts"));
 	});
 
-	it("reports Sync files is off when the setting is off and there is no mirror", async () => {
-		const h = harness({ autoSync: false });
+	it("reports Sync files is off when the workspace's switch is off and there is no mirror", async () => {
+		const h = harness({ syncOn: false });
 		const ensured = await h.service.ensureMirror(WORKSPACE_ID);
 		expect(ensured.ok).toBe(false);
 		expect(h.service.viewOf(WORKSPACE_ID, CLOUD)).toEqual({
@@ -201,6 +225,20 @@ describe("CLOUD-11 the local mirror", () => {
 			state: "synced",
 			enabled: true,
 		});
+		expect(h.saves).toEqual([true, false, true]);
+	});
+
+	it("starts nothing and keeps the saved switch when saving it fails", async () => {
+		const h = harness({ syncOn: false, failSave: true });
+		h.remote["/workspace/oslo/a.txt"] = "a";
+
+		const turned = await h.service.setEnabled(WORKSPACE_ID, true);
+
+		expect(turned.ok).toBe(false);
+		expect(!turned.ok && turned.error.message).toBe("Saving the Sync files switch failed");
+		expect(h.service.isEnabled(WORKSPACE_ID)).toBe(false);
+		expect(h.memory.controls.cloudRequests).toEqual([]);
+		expect(h.service.viewOf(WORKSPACE_ID, CLOUD)).toMatchObject({ state: "off", enabled: false });
 	});
 
 	it("downloads a file the mirror does not hold into Downloads", async () => {

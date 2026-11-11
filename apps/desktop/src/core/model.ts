@@ -147,6 +147,11 @@ export interface Workspace {
 	 * Every call checks it first (core/host.ts).
 	 */
 	host: Host;
+	/**
+	 * A cloud workspace's Sync files switch, saved so a restart keeps it (CLOUD-11). A new cloud
+	 * workspace takes the Advanced setting's value; a local workspace has no mirror and is false.
+	 */
+	remoteFileSyncEnabled: boolean;
 	lastActivityAt: number;
 	createdAt: number;
 	updatedAt: number;

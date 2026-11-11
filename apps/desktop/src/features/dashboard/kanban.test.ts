@@ -20,6 +20,7 @@ function workspace(
 		path: `/code/workspaces/${id}`,
 		branch: `jahala/${id}`,
 		branchIsPlaceholder: false,
+		remoteFileSyncEnabled: false,
 		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "origin/main",

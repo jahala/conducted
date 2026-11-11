@@ -110,6 +110,7 @@ const seedSession = async (repositories: Repositories, suffix: string) => {
 			path: `/code/workspaces/${suffix}`,
 			branch: `jahala/workspace-${suffix}`,
 			branchIsPlaceholder: true,
+			remoteFileSyncEnabled: false,
 			host: { kind: "local" },
 			targetBranch: "origin/main",
 			port: 55_000,

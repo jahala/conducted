@@ -87,6 +87,7 @@ async function harness(
 				path: spec.path,
 				branch: spec.branch,
 				branchIsPlaceholder: spec.branchIsPlaceholder,
+				remoteFileSyncEnabled: false,
 				host: { kind: "local" },
 				targetBranch: spec.targetBranch,
 				port: spec.port,

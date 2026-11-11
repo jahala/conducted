@@ -45,6 +45,7 @@ async function workspace(id: string) {
 		port: 55_000,
 		linkedPaths: [],
 		setupLogPath: null,
+		remoteFileSyncEnabled: false,
 		host: { kind: "cloud", url: "https://worker.example.dev", vmId: id },
 	});
 	if (!created.ok) throw new Error(created.error.message);
