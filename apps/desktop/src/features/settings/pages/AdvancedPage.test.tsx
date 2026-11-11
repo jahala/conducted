@@ -1,4 +1,4 @@
-import { ok } from "@conducted/shared";
+import { appError, err, ok } from "@conducted/shared";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
@@ -252,6 +252,35 @@ describe("SET-02 AdvancedPage", () => {
 		fireEvent.click(await screen.findByRole("button", { name: "Install" }));
 
 		await waitFor(() => expect(success).toHaveBeenCalledWith("Installed Claude Code."));
+	});
+
+	it("says Failed to install <name>: <reason> when an install fails, as Conductor does", async () => {
+		const mounted = await mountPage();
+		const failure = vi.spyOn(toast, "error");
+		vi.spyOn(mounted.container.platform.programs, "install").mockResolvedValue(
+			err(appError("program_install_failed", "The download was interrupted.")),
+		);
+		act(() => {
+			mounted.container.services.system.store.setState({
+				programs: {
+					state: "ready",
+					data: [
+						{
+							...claude,
+							status: { ...claude.status, state: "missing", version: null, path: null },
+						},
+					],
+				},
+			});
+		});
+
+		fireEvent.click(await screen.findByRole("button", { name: "Install" }));
+
+		await waitFor(() =>
+			expect(failure).toHaveBeenCalledWith(
+				"Failed to install Claude Code: The download was interrupted.",
+			),
+		);
 	});
 
 	it("toasts Installed <name>. when a helper program installs, as Conductor does", async () => {

@@ -171,19 +171,28 @@ function AgentBinaries() {
 	const actions = useActions();
 	const [busy, setBusy] = useState<ManagedProgram | null>(null);
 
+	/**
+	 * Runs one program action. An install or re-download that fails says so in Conductor's words
+	 * ("Failed to install <name>: <message>"); Conductor has no remove, so a failed remove shows the
+	 * error's own message.
+	 */
 	const run = async (
 		program: ManagedProgram,
 		action: () => Promise<Result<void>>,
-		successMessage?: string,
+		messages: { success?: string; installing?: boolean } = {},
 	) => {
 		setBusy(program);
 		const result = await action();
 		setBusy(null);
 		if (!result.ok) {
-			toastError("Couldn't update the agent program", result.error);
+			toast.error(
+				messages.installing === true
+					? `Failed to install ${PROGRAM_DISPLAY_NAMES[program]}: ${result.error.message}`
+					: result.error.message,
+			);
 			return;
 		}
-		if (successMessage !== undefined) toast.success(successMessage);
+		if (messages.success !== undefined) toast.success(messages.success);
 	};
 
 	return (
@@ -211,15 +220,16 @@ function AgentBinaries() {
 							view={view}
 							busy={busy === view.status.program}
 							onInstall={() =>
-								void run(
-									view.status.program,
-									() => actions.programs.install(view.status.program),
-									`Installed ${PROGRAM_DISPLAY_NAMES[view.status.program]}.`,
-								)
+								void run(view.status.program, () => actions.programs.install(view.status.program), {
+									success: `Installed ${PROGRAM_DISPLAY_NAMES[view.status.program]}.`,
+									installing: true,
+								})
 							}
 							onRedownload={() =>
-								void run(view.status.program, () =>
-									actions.programs.redownload(view.status.program),
+								void run(
+									view.status.program,
+									() => actions.programs.redownload(view.status.program),
+									{ installing: true },
 								)
 							}
 							onRemove={() =>
@@ -243,19 +253,28 @@ function HelperPrograms() {
 	const actions = useActions();
 	const [busy, setBusy] = useState<ManagedProgram | null>(null);
 
+	/**
+	 * Runs one program action. An install or re-download that fails says so in Conductor's words
+	 * ("Failed to install <name>: <message>"); Conductor has no remove, so a failed remove shows the
+	 * error's own message.
+	 */
 	const run = async (
 		program: ManagedProgram,
 		action: () => Promise<Result<void>>,
-		successMessage?: string,
+		messages: { success?: string; installing?: boolean } = {},
 	) => {
 		setBusy(program);
 		const result = await action();
 		setBusy(null);
 		if (!result.ok) {
-			toastError("Couldn't update the helper program", result.error);
+			toast.error(
+				messages.installing === true
+					? `Failed to install ${PROGRAM_DISPLAY_NAMES[program]}: ${result.error.message}`
+					: result.error.message,
+			);
 			return;
 		}
-		if (successMessage !== undefined) toast.success(successMessage);
+		if (messages.success !== undefined) toast.success(messages.success);
 	};
 
 	return (
@@ -282,15 +301,16 @@ function HelperPrograms() {
 							view={view}
 							busy={busy === view.status.program}
 							onInstall={() =>
-								void run(
-									view.status.program,
-									() => actions.programs.install(view.status.program),
-									`Installed ${PROGRAM_DISPLAY_NAMES[view.status.program]}.`,
-								)
+								void run(view.status.program, () => actions.programs.install(view.status.program), {
+									success: `Installed ${PROGRAM_DISPLAY_NAMES[view.status.program]}.`,
+									installing: true,
+								})
 							}
 							onRedownload={() =>
-								void run(view.status.program, () =>
-									actions.programs.redownload(view.status.program),
+								void run(
+									view.status.program,
+									() => actions.programs.redownload(view.status.program),
+									{ installing: true },
 								)
 							}
 							onRemove={() =>
