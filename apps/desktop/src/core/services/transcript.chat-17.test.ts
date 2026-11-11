@@ -291,4 +291,45 @@ describe("CHAT-17 searchHistory", () => {
 		expect(copied).toContain("Fix the login bug");
 		expect(copied).toContain("The login bug is fixed.");
 	});
+
+	it("writes a background helper's late work under the call of the earlier turn that started it (D129)", async () => {
+		test = createTestContainer();
+		const workspace = await seedWorkspace(test.container);
+		const sessions = test.container.services.sessions;
+		const chat = must(await sessions.create(workspace.id, sampleSession.config));
+		must(await sessions.start());
+
+		const late = agentEvent("e5", "turn-2", 210, [{ kind: "text", text: "Late helper note" }]);
+		if (late.type !== "agent") throw new Error("the fixture is an agent event");
+		const events: SessionEvent[] = [
+			userMessageEvent("e1", "turn-1", 100),
+			agentEvent("e2", "turn-1", 110, [
+				{
+					kind: "tool_call",
+					toolUseId: "task-1" as ToolUseId,
+					tool: "sub_agent",
+					rawName: "Task",
+					input: { description: "Check the other tests" },
+				},
+			]),
+			userMessageEvent("e3", "turn-2", 200),
+			agentEvent("e4", "turn-2", 205, [{ kind: "text", text: "Own reply in turn two." }]),
+			{ ...late, message: { ...late.message, parentToolUseId: "task-1" as ToolUseId } },
+		];
+		for (const [idx, event] of events.entries()) {
+			sessions.applyStoredEvent(chat.id, idx, event, event.at);
+		}
+
+		must(await sessions.copyTranscript(chat.id, "concise"));
+		const copied = test.memory.controls.clipboardText ?? "";
+		expect(copied).toBe(
+			[
+				"User: Fix the login bug",
+				"[tool] Task",
+				"  Late helper note",
+				"User: Fix the login bug",
+				"Own reply in turn two.",
+			].join("\n\n"),
+		);
+	});
 });

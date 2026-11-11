@@ -9,7 +9,7 @@ import { idleLiveState } from "@conducted/protocol";
 import type { CheckpointId, EventId, MessageId, ToolUseId, TurnId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { ChatBlock, ChatTurn, ToolCallView } from "../model.ts";
-import { buildTurns, classifyTurnsChange, type StoredEvent } from "./turn-builder.ts";
+import { buildTurns, reuseUnchangedTurns, type StoredEvent } from "./turn-builder.ts";
 
 const config: SessionConfig = {
 	agent: "claude",
@@ -571,7 +571,9 @@ describe("CHAT-07 turn builder", () => {
 		expect(turns[4999]?.turnId).toBe("turn-4999");
 
 		const rebuilt = buildTurns(stored(events), live());
-		expect(classifyTurnsChange(turns, rebuilt)).toEqual({ kind: "same" });
+		expect(reuseUnchangedTurns(turns, rebuilt).every((turn, index) => turn === turns[index])).toBe(
+			true,
+		);
 	});
 
 	it("keeps the error from a failed turn", () => {
@@ -589,64 +591,314 @@ describe("CHAT-07 turn builder", () => {
 	});
 });
 
-describe("CHAT-07 turn differ", () => {
+/** A background Task whose call and launch result sit in turn A. */
+const backgroundTask = (turn: string, at: number): SessionEvent[] => [
+	user(turn, `message-${turn}`, "start a helper", at),
+	agent(turn, at + 1, [call("task")]),
+	agent(turn, at + 2, [toolResult("task", "Async agent launched")]),
+	agent(turn, at + 3, [text("The helper is running.")]),
+	ended(turn, at + 4),
+];
+
+describe("CHAT-07 a background helper's late work (D129)", () => {
+	it("shows a helper's late text and calls inside the card that started it, and the later turn shows its own work only", () => {
+		const events = [
+			...backgroundTask("turn-a", 100),
+			user("turn-b", "message-b", "anything else?", 200),
+			subAgent("turn-b", 201, [text("late helper text")], "task"),
+			agent("turn-b", 202, [call("child", "task")]),
+			agent("turn-b", 203, [toolResult("child", "child done", "task")]),
+			agent("turn-b", 204, [text("own work in turn B")]),
+			ended("turn-b", 205),
+		];
+
+		const [turnA, turnB] = buildTurns(stored(events), live());
+
+		const card = asToolBlock(must(turnA, "turn A").blocks[0]);
+		expect(card.toolUseId).toBe("task");
+		expect(card.result?.output).toBe("Async agent launched");
+		expect(card.blocks.map((block) => block.kind)).toEqual(["text", "tool"]);
+		expect(card.blocks[0]).toEqual({ kind: "text", text: "late helper text" });
+		const child = must(childCalls(card)[0], "the late child call");
+		expect(child.toolUseId).toBe("child");
+		expect(child.result?.output).toBe("child done");
+		expect(must(turnB, "turn B").blocks).toEqual([{ kind: "text", text: "own work in turn B" }]);
+	});
+
+	it("puts late work after what the card already holds, in arrival order, across several turns", () => {
+		const events = [
+			user("turn-a", "message-a", "start a helper", 100),
+			agent("turn-a", 101, [call("task")]),
+			subAgent("turn-a", 102, [text("first, in turn A")], "task"),
+			ended("turn-a", 103),
+			user("turn-b", "message-b", "next", 200),
+			subAgent("turn-b", 201, [thinking("second, in turn B")], "task"),
+			ended("turn-b", 202),
+			user("turn-c", "message-c", "and next", 300),
+			subAgent("turn-c", 301, [todo("third, in turn C")], "task"),
+			ended("turn-c", 302),
+		];
+
+		const turns = buildTurns(stored(events), live());
+
+		const card = asToolBlock(must(turns[0], "turn A").blocks[0]);
+		expect(card.blocks.map((block) => block.kind)).toEqual(["text", "thinking", "todo"]);
+		expect(turns[1]?.blocks).toEqual([]);
+		expect(turns[2]?.blocks).toEqual([]);
+	});
+
+	it("nests a late call's own children under it, inside the earlier card", () => {
+		const events = [
+			...backgroundTask("turn-a", 100),
+			user("turn-b", "message-b", "next", 200),
+			agent("turn-b", 201, [call("child", "task")]),
+			agent("turn-b", 202, [call("grandchild", "child")]),
+			ended("turn-b", 203),
+		];
+
+		const [turnA, turnB] = buildTurns(stored(events), live());
+
+		const child = must(childCalls(asToolBlock(must(turnA, "turn A").blocks[0]))[0], "a child");
+		expect(childCalls(child).map((call) => call.toolUseId)).toEqual(["grandchild"]);
+		expect(turnB?.blocks).toEqual([]);
+	});
+
+	it("gives a call of an earlier turn the result that arrives in a later turn", () => {
+		const events = [
+			user("turn-a", "message-a", "start a helper", 100),
+			agent("turn-a", 101, [call("task")]),
+			agent("turn-a", 102, [call("child", "task")]),
+			ended("turn-a", 103),
+			user("turn-b", "message-b", "next", 200),
+			agent("turn-b", 201, [toolResult("child", "finished later", "task")]),
+			ended("turn-b", 202),
+		];
+
+		const [turnA, turnB] = buildTurns(stored(events), live());
+
+		const child = must(childCalls(asToolBlock(must(turnA, "turn A").blocks[0]))[0], "a child");
+		expect(child.result?.output).toBe("finished later");
+		expect(turnB?.blocks).toEqual([]);
+	});
+
+	it("keeps work whose parent call never arrived at the top level of the turn it arrives in", () => {
+		const events = [
+			...backgroundTask("turn-a", 100),
+			user("turn-b", "message-b", "next", 200),
+			subAgent("turn-b", 201, [text("ghost parent text")], "ghost"),
+			agent("turn-b", 202, [call("orphan", "ghost")]),
+			ended("turn-b", 203),
+		];
+
+		const [turnA, turnB] = buildTurns(stored(events), live());
+
+		expect(asToolBlock(must(turnA, "turn A").blocks[0]).blocks).toEqual([]);
+		const blocks = must(turnB, "turn B").blocks;
+		expect(blocks.map((block) => block.kind)).toEqual(["text", "tool"]);
+		expect(blocks[0]).toEqual({ kind: "text", text: "ghost parent text" });
+		expect(asToolBlock(blocks[1]).toolUseId).toBe("orphan");
+	});
+
+	it("keeps both calls at the top level when their parent links loop across turns", () => {
+		const events = [
+			user("turn-a", "message-a", "loop", 100),
+			agent("turn-a", 101, [call("a", "b")]),
+			ended("turn-a", 102),
+			user("turn-b", "message-b", "loop back", 200),
+			agent("turn-b", 201, [call("b", "a")]),
+			ended("turn-b", 202),
+		];
+
+		const [turnA, turnB] = buildTurns(stored(events), live());
+
+		expect(asToolBlock(must(turnA, "turn A").blocks[0]).blocks).toEqual([]);
+		expect(asToolBlock(must(turnB, "turn B").blocks[0]).toolUseId).toBe("b");
+	});
+
+	it("prefers a parent call in the same turn over one with the same id in an earlier turn", () => {
+		const events = [
+			user("turn-a", "message-a", "first", 100),
+			agent("turn-a", 101, [call("task")]),
+			ended("turn-a", 102),
+			user("turn-b", "message-b", "second", 200),
+			agent("turn-b", 201, [call("task")]),
+			subAgent("turn-b", 202, [text("belongs to turn B's call")], "task"),
+			ended("turn-b", 203),
+		];
+
+		const [turnA, turnB] = buildTurns(stored(events), live());
+
+		expect(asToolBlock(must(turnA, "turn A").blocks[0]).blocks).toEqual([]);
+		expect(asToolBlock(must(turnB, "turn B").blocks[0]).blocks).toEqual([
+			{ kind: "text", text: "belongs to turn B's call" },
+		]);
+	});
+});
+
+describe("CHAT-07 a long chat with background helpers (D129)", () => {
+	const TURNS = 1400;
+	const CALLS_PER_TURN = 20;
+	/** Every seventh turn starts a helper; it writes into each of the next six turns. */
+	const HELPER_EVERY = 7;
+	const HELPER_SPAN = 6;
+
+	/** A helper's late text, call and result, written in `turn` under the helper started in `owner`. */
+	const lateWork = (turn: number, owner: number, at: number): SessionEvent[] => [
+		subAgent(`turn-${turn}`, at, [text(`late from ${owner} in ${turn}`)], `bg-${owner}`),
+		agent(`turn-${turn}`, at + 1, [call(`late-${owner}-${turn}`, `bg-${owner}`)]),
+		agent(`turn-${turn}`, at + 2, [toolResult(`late-${owner}-${turn}`, "ok", `bg-${owner}`)]),
+	];
+
+	function longChat(turns = TURNS): SessionEvent[] {
+		const events: SessionEvent[] = [];
+		for (let index = 0; index < turns; index += 1) {
+			const turn = `turn-${index}`;
+			const at = 1_000 + index * 1_000;
+			events.push(user(turn, `message-${index}`, `message ${index}`, at));
+			if (index % HELPER_EVERY === 0) {
+				events.push(agent(turn, at + 1, [call(`bg-${index}`)]));
+				events.push(agent(turn, at + 2, [toolResult(`bg-${index}`, "Async agent launched")]));
+			}
+			const owner = index - (index % HELPER_EVERY);
+			if (owner !== index) events.push(...lateWork(index, owner, at + 3));
+			for (let step = 0; step < CALLS_PER_TURN; step += 1) {
+				const id = `call-${index}-${step}`;
+				events.push(agent(turn, at + 10 + step * 2, [call(id)]));
+				events.push(agent(turn, at + 11 + step * 2, [toolResult(id, "done")]));
+			}
+			events.push(ended(turn, at + 900));
+		}
+		return events;
+	}
+
+	/** Milliseconds to build the chat `times` times over. */
+	const msToBuild = (events: readonly StoredEvent[], times = 1): number => {
+		const start = performance.now();
+		for (let run = 0; run < times; run += 1) buildTurns(events, live({ status: "working" }));
+		return performance.now() - start;
+	};
+	const median = (values: number[]): number =>
+		[...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
+
+	it("builds 1,400 turns from about 60,000 events in time that grows linearly with the events", () => {
+		const quarter = stored(longChat(TURNS / 4));
+		const whole = stored(longChat());
+		expect(whole.length).toBeGreaterThan(60_000);
+
+		// Four builds of a quarter of the chat against one build of all of it: the same work when the
+		// build is linear, a quarter of it when the build grows with the square of the size (a per-turn
+		// rescan of earlier turns read 6 times the linear ratio here). Interleaved runs, so a busy
+		// moment on the machine slows both sides alike.
+		const quarters: number[] = [];
+		const wholes: number[] = [];
+		for (let run = 0; run < 7; run += 1) {
+			quarters.push(msToBuild(quarter, 4));
+			wholes.push(msToBuild(whole));
+		}
+		expect(median(wholes) / median(quarters)).toBeLessThan(2);
+	}, 60_000);
+
+	it("in a 1,400-turn chat, an appended event replaces only the turn whose view it changes", () => {
+		const events = longChat();
+		const turns = buildTurns(stored(events), live({ status: "working" }));
+		expect(turns).toHaveLength(TURNS);
+		const firstCard = asToolBlock(must(turns[0], "the first turn").blocks[0]);
+		expect(firstCard.blocks).toHaveLength(HELPER_SPAN * 2);
+		expect(childCalls(firstCard).every((child) => child.result?.output === "ok")).toBe(true);
+		// A later turn shows only its own calls.
+		expect(turns[1]?.blocks).toHaveLength(CALLS_PER_TURN);
+
+		// One event appended to the last turn: every earlier turn keeps its object.
+		const lastIndex = TURNS - 1;
+		const streamed = [...events, agent(`turn-${lastIndex}`, 10_000_000, [text("streaming")])];
+		const rebuilt = reuseUnchangedTurns(
+			turns,
+			buildTurns(stored(streamed), live({ status: "working" })),
+		);
+		const changed = rebuilt.flatMap((turn, index) => (turn === turns[index] ? [] : [index]));
+		expect(changed).toEqual([lastIndex]);
+
+		// A helper's late event in the last turn: only the turn that started it gets a new object.
+		const owner = lastIndex - (lastIndex % HELPER_EVERY);
+		const late = [
+			...events,
+			subAgent(`turn-${lastIndex}`, 10_000_000, [text("one more")], `bg-${owner}`),
+		];
+		const replaced = reuseUnchangedTurns(
+			turns,
+			buildTurns(stored(late), live({ status: "working" })),
+		).flatMap((turn, index) => (turn === turns[index] ? [] : [index]));
+		expect(replaced).toEqual([owner]);
+	});
+});
+
+describe("CHAT-07 reusing unchanged turns", () => {
 	const turnsFor = (ids: readonly string[], value = "same"): ReturnType<typeof buildTurns> =>
 		buildTurns(stored(ids.flatMap((id, index) => simpleTurn(id, value, 100 + index * 10))), live());
 
-	it("reports an initial build when there were no turns before", () => {
-		expect(classifyTurnsChange([], turnsFor(["turn-1"]))).toEqual({ kind: "initial" });
+	/** For each turn of `next`, whether it is the object from `previous`. */
+	const kept = (previous: readonly ChatTurn[], next: readonly ChatTurn[]): boolean[] => {
+		const reused = reuseUnchangedTurns(previous, next);
+		return reused.map((turn) => previous.includes(turn));
+	};
+
+	it("takes the new turns on the first build", () => {
+		const next = turnsFor(["turn-1"]);
+		expect(reuseUnchangedTurns([], next)).toEqual(next);
 	});
 
-	it("reports no change for two equal builds", () => {
-		expect(classifyTurnsChange(turnsFor(["turn-1"]), turnsFor(["turn-1"]))).toEqual({
-			kind: "same",
-		});
+	it("keeps every turn of an equal build", () => {
+		expect(kept(turnsFor(["turn-1", "turn-2"]), turnsFor(["turn-1", "turn-2"]))).toEqual([
+			true,
+			true,
+		]);
 	});
 
-	it("reports a turn appended at the end", () => {
-		expect(classifyTurnsChange(turnsFor(["turn-1"]), turnsFor(["turn-1", "turn-2"]))).toEqual({
-			kind: "appended",
-			fromIndex: 1,
-		});
+	it("keeps the earlier turns and takes a turn appended at the end", () => {
+		expect(kept(turnsFor(["turn-1"]), turnsFor(["turn-1", "turn-2"]))).toEqual([true, false]);
 	});
 
-	it("reports a changed tail while a reply streams", () => {
-		expect(
-			classifyTurnsChange(turnsFor(["turn-1"], "before"), turnsFor(["turn-1"], "after")),
-		).toEqual({
-			kind: "tail_changed",
-			fromIndex: 0,
-		});
-	});
-
-	it("reports truncated turns lost from the end", () => {
-		expect(classifyTurnsChange(turnsFor(["turn-1", "turn-2"]), turnsFor(["turn-1"]))).toEqual({
-			kind: "truncated",
-			toLength: 1,
-		});
-	});
-
-	it("reports a changed last turn with a new turn after it as an insert", () => {
-		const before = buildTurns(stored(simpleTurn("turn-1", "before", 100)), live());
-		const after = buildTurns(
-			stored([...simpleTurn("turn-1", "after", 100), ...simpleTurn("turn-2", "next", 200)]),
+	it("takes the last turn while a reply streams into it", () => {
+		const before = buildTurns(
+			stored([...simpleTurn("turn-1", "a", 100), ...simpleTurn("turn-2", "before", 200)]),
 			live(),
 		);
-
-		expect(classifyTurnsChange(before, after)).toEqual({ kind: "inserted", atIndex: 0 });
+		const after = buildTurns(
+			stored([...simpleTurn("turn-1", "a", 100), ...simpleTurn("turn-2", "after", 200)]),
+			live(),
+		);
+		expect(kept(before, after)).toEqual([true, false]);
 	});
 
-	it("reports a turn inserted in the middle", () => {
-		expect(
-			classifyTurnsChange(turnsFor(["turn-1", "turn-3"]), turnsFor(["turn-1", "turn-2", "turn-3"])),
-		).toEqual({ kind: "inserted", atIndex: 1 });
+	it("takes only the past turn whose card gained a helper's late work, and keeps the turns after it", () => {
+		const head = [
+			...backgroundTask("turn-a", 100),
+			...simpleTurn("turn-b", "b", 200),
+			user("turn-c", "message-c", "c", 300),
+		];
+		const before = buildTurns(stored(head), live({ status: "working" }));
+		const after = buildTurns(
+			stored([...head, subAgent("turn-c", 301, [text("late")], "task")]),
+			live({ status: "working" }),
+		);
+		expect(kept(before, after)).toEqual([false, true, true]);
 	});
 
-	it("reports a cleared list", () => {
-		expect(classifyTurnsChange(turnsFor(["turn-1"]), [])).toEqual({ kind: "cleared" });
+	it("drops turns lost from the end", () => {
+		const previous = turnsFor(["turn-1", "turn-2"]);
+		const reused = reuseUnchangedTurns(previous, turnsFor(["turn-1"]));
+		expect(reused).toEqual([previous[0]]);
 	});
 
-	it("treats two empty builds as no change", () => {
-		expect(classifyTurnsChange([], [])).toEqual({ kind: "same" });
+	it("keeps the turns around one inserted in the middle", () => {
+		expect(kept(turnsFor(["turn-1", "turn-3"]), turnsFor(["turn-1", "turn-2", "turn-3"]))).toEqual([
+			true,
+			false,
+			false,
+		]);
+	});
+
+	it("gives an empty list when every turn is gone", () => {
+		expect(reuseUnchangedTurns(turnsFor(["turn-1"]), [])).toEqual([]);
 	});
 });

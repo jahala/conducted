@@ -10,9 +10,10 @@
  * VirtuosoMessageList. Use data + computeItemKey (turn id), increaseViewportBy, followOutput
  * (follow only while the user is at the bottom, via atBottomStateChange), components.Header and
  * components.Footer, and a ref to scrollToIndex, which the chat pane may own so its find bar can
- * scroll to a turn the list has not mounted. Only the newest turn changes while streaming:
- * TurnItem is memoised on the turn object, and the service (CHAT-07) keeps unchanged turns
- * referentially equal.
+ * scroll to a turn the list has not mounted. Only a turn that changed redraws: TurnItem is
+ * memoised on the turn object, and the service (CHAT-07) keeps every unchanged turn the same
+ * object. While a reply streams that is the newest turn; when a background helper's late work
+ * reaches the card of an earlier turn, it is that turn too (D129).
  * The list opens at its end (the last turn's footer in view, as Conductor does), and its footer holds the
  * working line while the agent works.
  * Must handle: Loading (skeleton turns); an error card and the running turn's retry line (their
