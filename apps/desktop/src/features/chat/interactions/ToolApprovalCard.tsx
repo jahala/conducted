@@ -93,7 +93,7 @@ export function ToolApprovalCard({ sessionId, interactionId, request }: ToolAppr
 			input: request.input,
 		},
 		result: null,
-		children: [],
+		blocks: [],
 	};
 
 	function send(decision: Decision): void {
