@@ -120,7 +120,7 @@ export function OrganizationSwitcher() {
 	};
 
 	return (
-		<Menu modal={false}>
+		<Menu>
 			<MenuTrigger aria-label="Account menu" className={triggerClass}>
 				<span className="flex size-4 shrink-0 items-center justify-center">
 					<OrganizationIcon organization={active} />
