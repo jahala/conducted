@@ -926,6 +926,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 			}
 		},
 		touchWorkspaceActivity: (workspaceId, at) => workspace.touchActivity(workspaceId, at),
+		setActiveSession: (workspaceId, sessionId) =>
+			workspace.setActiveSession(workspaceId, sessionId),
+		activeSessionOf: (workspaceId) =>
+			workspace.store.getState().workspacesById[workspaceId]?.activeSessionId ?? null,
 		log,
 		setting,
 		copyText: (text) => system.copyText(text),
