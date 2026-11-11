@@ -8,8 +8,8 @@
  * Behaviour: ui-map.md 3.2 (edit uses CodeMirror, find and replace bar, "File changed on disk":
  * "Discard my edits" or "Keep mine"); inventory-messages-sidecar.md "Merge conflicts in the editor".
  * Data: useFileContent (its modified time is polled every 5 seconds, services-map.md 2.5.2, so an
- * agent's write is noticed early) and useFileDraft. The tab header shows the save state and a save
- * error; this pane toasts the error.
+ * agent's write is noticed early) and useFileDraft. The tab header shows the save state, Conductor's
+ * "Retry update" control after a failed save, and the error as a toast from this pane.
  * Children: editor/EditorSurface, editor/FindReplaceBar, ExternalChangeBanner, ConflictResolver,
  * FileTabState.
  * Must handle: save failing (draft kept, error shown), disk change while clean (the new text
@@ -28,7 +28,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { fileQueryKey, useFileContent, useFileDraft, useSetting } from "../../core/hooks.ts";
-import { toastError } from "../../ui/Toast.tsx";
+import { Button } from "../../ui/Button.tsx";
+import { EmptyState } from "../../ui/EmptyState.tsx";
+import { toast, toastError } from "../../ui/Toast.tsx";
 import { useThemeType } from "../../ui/use-theme-type.ts";
 import { ConflictResolver } from "./ConflictResolver.tsx";
 import { ExternalChangeBanner } from "./ExternalChangeBanner.tsx";
@@ -94,7 +96,12 @@ export function FileEditorPane({ workspaceId, path, onDirtyChange }: FileEditorP
 
 	const save = async (): Promise<void> => {
 		const result = await saveDraft();
-		if (!result.ok && result.error.code !== "changed_on_disk") {
+		if (!result.ok) {
+			// Conductor's words for a save refused because the file changed on disk.
+			if (result.error.code === "changed_on_disk") {
+				toast.error("File changed on disk. Keep or discard your edits to save.");
+				return;
+			}
 			toastError("Couldn't save the file", result.error);
 		}
 	};
@@ -167,7 +174,19 @@ export function FileEditorPane({ workspaceId, path, onDirtyChange }: FileEditorP
 	if (content.state === "loading")
 		return <FileTabState kind="loading" detail={null} onAction={retry} />;
 	if (content.state === "error") {
-		return <FileTabState kind="error" detail={content.error.message} onAction={retry} />;
+		// Conductor's editor error card (renderApp @9949310).
+		return (
+			<EmptyState
+				tone="failed"
+				title="Failed to open editor"
+				body="An error occurred while opening the editor."
+				action={
+					<Button variant="secondary" onClick={retry}>
+						Try again
+					</Button>
+				}
+			/>
+		);
 	}
 	if (content.data.kind === "too_large") {
 		return (

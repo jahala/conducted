@@ -124,7 +124,7 @@ export function FindReplaceBar({
 			<div className="flex items-center gap-1">
 				<Input
 					aria-label="Replace with"
-					placeholder="Replace with"
+					placeholder="Replace"
 					value={replacement}
 					onChange={(event) => onReplacementChange(event.target.value)}
 					className="h-7 min-w-0 flex-1"
