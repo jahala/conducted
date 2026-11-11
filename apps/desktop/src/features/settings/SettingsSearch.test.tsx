@@ -35,7 +35,7 @@ describe("SET-02 SettingsSearch", () => {
 		expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ key: "zoom" }));
 	});
 
-	it("wraps the arrow-key selection and opens the highlighted result", () => {
+	it("clamps the arrow-key selection at both ends and opens the highlighted result", () => {
 		const onOpen = vi.fn();
 		render(
 			<SettingsSearch
@@ -46,18 +46,18 @@ describe("SET-02 SettingsSearch", () => {
 		const input = screen.getByRole("searchbox", { name: "Search settings" });
 		fireEvent.change(input, { target: { value: "setting" } });
 
-		// Conductor empties the query after a pick, so each wrap is its own search.
+		// Conductor clamps at both ends (renderApp: Math.min(Math.max(i + d, 0), n - 1)), and empties
+		// the query after a pick, so each case is its own search.
 		fireEvent.keyDown(input, { key: "ArrowUp" });
 		fireEvent.keyDown(input, { key: "Enter" });
-		expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ key: "two" }));
+		expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ key: "one" }));
 
-		// The pick emptied the query, so the second wrap starts from its own search.
 		expect((input as HTMLInputElement).value).toBe("");
 		fireEvent.change(input, { target: { value: "setting" } });
 		fireEvent.keyDown(input, { key: "ArrowDown" });
 		fireEvent.keyDown(input, { key: "ArrowDown" });
 		fireEvent.keyDown(input, { key: "Enter" });
-		expect(onOpen).toHaveBeenLastCalledWith(expect.objectContaining({ key: "one" }));
+		expect(onOpen).toHaveBeenLastCalledWith(expect.objectContaining({ key: "two" }));
 	});
 
 	it("clears the query on Escape without leaving", () => {
@@ -75,7 +75,8 @@ describe("SET-02 SettingsSearch", () => {
 		fireEvent.change(screen.getByRole("searchbox", { name: "Search settings" }), {
 			target: { value: "nothing" },
 		});
-		expect(screen.getByText("No settings match your search.")).toBeTruthy();
+		// Conductor's words: No settings match "<query>".
+		expect(screen.getByText('No settings match "nothing"')).toBeTruthy();
 	});
 });
 

@@ -102,13 +102,15 @@ export function SettingsSearch({
 						onKeyDown={(event) => {
 							if (event.key === "ArrowDown") {
 								event.preventDefault();
-								setActive((current) => (results.length === 0 ? 0 : (current + 1) % results.length));
+								setActive((current) =>
+									Math.min(Math.max(current + 1, 0), Math.max(results.length - 1, 0)),
+								);
 								return;
 							}
 							if (event.key === "ArrowUp") {
 								event.preventDefault();
 								setActive((current) =>
-									results.length === 0 ? 0 : (current - 1 + results.length) % results.length,
+									Math.min(Math.max(current - 1, 0), Math.max(results.length - 1, 0)),
 								);
 								return;
 							}
@@ -144,7 +146,7 @@ export function SettingsSearch({
 		>
 			{results.length === 0 ? (
 				<p role="status" className="px-1 py-1.5 text-xs text-fg-muted">
-					No settings match your search.
+					No settings match "{query}"
 				</p>
 			) : (
 				<ul ref={resultsRef} aria-label="Settings search results" className="flex flex-col gap-0.5">
