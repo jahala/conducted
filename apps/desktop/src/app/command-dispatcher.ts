@@ -10,8 +10,11 @@
  * priority; a hint component reads the live binding so tooltips follow rebinds), 1.1 (root listeners for
  * menu events and deep links); structure-map.md 3.2 (one registry feeds menus, palette and shortcuts).
  * Data: the command table and scopes are in core/registries/commands.ts. The menu event is
- * Platform.menu.onCommand. Commands without a screen handler fall back to `Actions.app.runCommand`
- * (core/services/command-runner.ts), so core keeps one table of service-level handlers.
+ * Platform.menu.onCommand. A command with no screen handler at all falls back to
+ * `Actions.app.runCommand` (core/services/command-runner.ts), so core keeps one table of
+ * service-level handlers. A screen handler that returns false means the command has nothing to do
+ * here (Cmd+2 with one workspace), so it does not reach the fallback and the user sees no error; the
+ * "not available yet" result is only for a command with no handler anywhere.
  * Must handle: the same keys meaning different things in different scopes (chat input, terminal, diff,
  * dialog, palette, menu, chat cards); a key press during IME composition or key repeat (ignored); the
  * send-key swap (Enter versus Cmd+Enter), which follows COMP-01's one rule in send-key.ts; the user's
@@ -532,6 +535,8 @@ export interface CommandRegistry {
 	register(commandId: string, priority: HandlerPriority, handler: CommandHandlerFn): () => void;
 	/** Runs the registered handlers, highest priority first. True means one took the command. */
 	run(commandId: string): boolean;
+	/** True while a screen has any handler registered for the command, whether or not it takes it. */
+	has(commandId: string): boolean;
 	/** Removes every registered handler. Test support, so one test cannot leak into the next. */
 	clear(): void;
 }
@@ -556,6 +561,9 @@ export function createCommandRegistry(): CommandRegistry {
 				if (index >= 0) list.splice(index, 1);
 				if (list.length === 0) registrations.delete(commandId);
 			};
+		},
+		has(commandId) {
+			return (registrations.get(commandId)?.length ?? 0) > 0;
 		},
 		run(commandId) {
 			const list = registrations.get(commandId);
@@ -662,9 +670,11 @@ export interface CommandDispatchDeps {
 }
 
 /**
- * Runs a command by id: a focused screen handler first, then the service-level runner. An unknown
- * id is reported to the log, a failed run is shown to the user, and neither is thrown. A disabled command runs neither path, so a menu pick
- * cannot do what the same key press refuses to do.
+ * Runs a command by id: a focused screen handler first, then the service-level runner. A screen
+ * handler that exists but declines means the command has nothing to do here, so the runner is not
+ * asked and the user sees no error. An unknown id is reported to the log, a failed run is shown to
+ * the user, and neither is thrown. A disabled command runs neither path, so a menu pick cannot do
+ * what the same key press refuses to do.
  */
 export function dispatchCommand(commandId: string, deps: CommandDispatchDeps): void {
 	if (getCommand(commandId) === undefined) {
@@ -673,6 +683,9 @@ export function dispatchCommand(commandId: string, deps: CommandDispatchDeps): v
 	}
 	if (!deps.isEnabled(commandId)) return;
 	if (deps.registry.run(commandId)) return;
+	// A handler that declines passes the command no further: the runner's "not available yet" is
+	// for a command with no handler anywhere, not for one this screen cannot act on right now.
+	if (deps.registry.has(commandId)) return;
 	void deps.run(commandId).then((result) => {
 		if (!result.ok) deps.failed(commandId, result.error);
 	});
