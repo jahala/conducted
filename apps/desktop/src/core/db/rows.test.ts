@@ -385,6 +385,7 @@ describe("terminals", () => {
 				"kind",
 				"title",
 				"cwd",
+				"placement",
 				"host_kind",
 				"start_command",
 				"screen_state",

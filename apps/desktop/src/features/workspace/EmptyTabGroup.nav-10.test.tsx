@@ -56,7 +56,9 @@ describe("NAV-10 EmptyTabGroup", () => {
 		const onSearchChange = vi.fn();
 		render(<EmptyTabGroup workspaceId={workspaceId} onSearchChange={onSearchChange} />);
 		fireEvent.click(screen.getByRole("button", { name: "Local terminal" }));
-		await waitFor(() => expect(state.createTerminal).toHaveBeenCalledWith(workspaceId, undefined));
+		await waitFor(() =>
+			expect(state.createTerminal).toHaveBeenCalledWith(workspaceId, { placement: "centre" }),
+		);
 		expect(onSearchChange).toHaveBeenCalledWith({ tab: "terminal", terminalId: "t1" });
 	});
 
@@ -69,7 +71,10 @@ describe("NAV-10 EmptyTabGroup", () => {
 		render(<EmptyTabGroup workspaceId={workspaceId} onSearchChange={vi.fn()} />);
 		fireEvent.click(screen.getByRole("button", { name: "Local terminal" }));
 		await waitFor(() =>
-			expect(state.createTerminal).toHaveBeenCalledWith(workspaceId, { command: "npm run dev" }),
+			expect(state.createTerminal).toHaveBeenCalledWith(workspaceId, {
+				placement: "centre",
+				command: "npm run dev",
+			}),
 		);
 	});
 

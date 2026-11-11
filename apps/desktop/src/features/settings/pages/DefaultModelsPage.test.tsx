@@ -94,6 +94,44 @@ async function renderPage() {
 
 const slot = (number: number) => screen.getByRole("listitem", { name: `Slot ${number}` });
 
+/** A slot's rectangle in the test's layout: five 140px slots in one row. */
+const slotBox = (number: number): DOMRect => {
+	const left = (number - 1) * 140;
+	return {
+		x: left,
+		y: 0,
+		width: 140,
+		height: 140,
+		top: 0,
+		left,
+		right: left + 140,
+		bottom: 140,
+		toJSON: () => ({}),
+	};
+};
+
+/** Gives every slot a rectangle, since jsdom has no layout. */
+const layOutSlots = () => {
+	for (let number = 1; number <= 5; number += 1) {
+		vi.spyOn(slot(number), "getBoundingClientRect").mockReturnValue(slotBox(number));
+	}
+};
+
+const slotCentre = (number: number) => ({ x: (number - 1) * 140 + 70, y: 70 });
+
+/** A pointer drag: press, move past the drag threshold, release at the point. */
+const dragPointer = (from: HTMLElement, to: { x: number; y: number }) => {
+	fireEvent.pointerDown(from, {
+		button: 0,
+		ctrlKey: false,
+		pointerId: 1,
+		clientX: 5,
+		clientY: 5,
+	});
+	fireEvent.pointerMove(document, { pointerId: 1, clientX: to.x, clientY: to.y });
+	fireEvent.pointerUp(document, { pointerId: 1, clientX: to.x, clientY: to.y });
+};
+
 describe("SET-02 DefaultModelsPage", () => {
 	it("draws Conductor's Loadout: five slots, the first the DEFAULT model, then the next and empty ones", async () => {
 		await renderPage();
@@ -117,7 +155,7 @@ describe("SET-02 DefaultModelsPage", () => {
 		await waitFor(() => expect(router.state.location.pathname).toBe("/settings/user/agents"));
 	});
 
-	it("puts a model into the next empty slot with Enter, and replaces it by a drop", async () => {
+	it("puts a model into the next empty slot with Enter, then replaces it by a drag", async () => {
 		const { container } = await renderPage();
 		const codex = screen.getByRole("region", { name: "Codex" });
 		fireEvent.click(within(codex).getByRole("button", { name: "Add GPT to loadout" }));
@@ -130,15 +168,12 @@ describe("SET-02 DefaultModelsPage", () => {
 		);
 		expect(await within(slot(2)).findByText("GPT")).toBeTruthy();
 
-		const dropped = JSON.stringify({
-			agent: "claude",
-			model: "slow-model",
-			effort: "low",
-			fastMode: false,
-		});
-		fireEvent.drop(slot(2), {
-			dataTransfer: { getData: (type: string) => (type.endsWith("model") ? dropped : "") },
-		});
+		layOutSlots();
+		const claude = screen.getByRole("region", { name: "Claude Code" });
+		dragPointer(
+			within(claude).getByRole("button", { name: "Add Slow model to loadout" }),
+			slotCentre(2),
+		);
 		await waitFor(() =>
 			expect(
 				container.services.favoriteModels.store
@@ -148,21 +183,22 @@ describe("SET-02 DefaultModelsPage", () => {
 		);
 	});
 
-	/** A drag's data, as a browser keeps it between dragstart and drop. */
-	const dragData = (dropEffect: string) => {
-		const data = new Map<string, string>();
-		return {
-			setData: (type: string, value: string) => data.set(type, value),
-			getData: (type: string) => data.get(type) ?? "",
-			get types() {
-				return [...data.keys()];
-			},
-			effectAllowed: "move",
-			dropEffect,
-		};
-	};
+	it("drags a model into an empty slot with pointer events", async () => {
+		const { container } = await renderPage();
+		layOutSlots();
+		const codex = screen.getByRole("region", { name: "Codex" });
+		dragPointer(within(codex).getByRole("button", { name: "Add GPT to loadout" }), slotCentre(2));
+		await waitFor(() =>
+			expect(
+				container.services.favoriteModels.store
+					.getState()
+					.favorites.map((entry) => entry.config.model),
+			).toEqual(["gpt"]),
+		);
+		expect(await within(slot(2)).findByText("GPT")).toBeTruthy();
+	});
 
-	it("takes a model out of the loadout when its slot is dropped outside the slots", async () => {
+	it("takes a model out of the loadout when its slot is dragged outside the slots", async () => {
 		const { container } = await renderPage();
 		fireEvent.click(
 			within(screen.getByRole("region", { name: "Codex" })).getByRole("button", {
@@ -171,14 +207,8 @@ describe("SET-02 DefaultModelsPage", () => {
 		);
 		expect(await within(slot(2)).findByText("GPT")).toBeTruthy();
 
-		// WebKit, the engine of the app's window, reports a drop's effect unlike Chromium, so the
-		// drop on the page is what takes the model out, not the effect dragend reports.
-		const transfer = dragData("move");
-		fireEvent.dragStart(within(slot(2)).getByRole("button"), { dataTransfer: transfer });
-		const heading = screen.getByRole("heading", { name: "Default models" });
-		fireEvent.dragOver(heading, { dataTransfer: transfer });
-		fireEvent.drop(heading, { dataTransfer: transfer });
-		fireEvent.dragEnd(within(slot(2)).getByRole("button"), { dataTransfer: transfer });
+		layOutSlots();
+		dragPointer(within(slot(2)).getByRole("button"), { x: 2000, y: 2000 });
 
 		await waitFor(() =>
 			expect(container.services.favoriteModels.store.getState().favorites).toEqual([]),
@@ -194,9 +224,15 @@ describe("SET-02 DefaultModelsPage", () => {
 		);
 		expect(await within(slot(2)).findByText("GPT")).toBeTruthy();
 
-		const transfer = dragData("none");
-		fireEvent.dragStart(within(slot(2)).getByRole("button"), { dataTransfer: transfer });
-		fireEvent.dragEnd(within(slot(2)).getByRole("button"), { dataTransfer: transfer });
+		layOutSlots();
+		fireEvent.pointerDown(within(slot(2)).getByRole("button"), {
+			button: 0,
+			pointerId: 1,
+			clientX: 5,
+			clientY: 5,
+		});
+		fireEvent.pointerMove(document, { pointerId: 1, ...slotCentre(2) });
+		fireEvent.pointerCancel(document, { pointerId: 1 });
 		await act(async () => {
 			await Promise.resolve();
 		});

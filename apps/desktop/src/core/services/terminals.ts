@@ -957,18 +957,26 @@ export class TerminalsService {
 	/**
 	 * Backs `Actions.terminals.create`: an interactive login shell in the workspace folder. In a
 	 * cloud workspace `hostKind` picks the sandbox (the default) or the Mac in the local mirror
-	 * (CLOUD-11).
+	 * (CLOUD-11). `placement` says which strip its tab belongs to; the centre is the default.
 	 */
 	create(
 		workspaceId: WorkspaceId,
-		options?: { command?: string; hostKind?: "local" | "cloud" },
+		options?: {
+			command?: string;
+			hostKind?: "local" | "cloud";
+			placement?: "centre" | "panel";
+		},
 	): Promise<Result<Terminal>> {
 		return this.#creates.run(workspaceId, () => this.#create(workspaceId, options));
 	}
 
 	async #create(
 		workspaceId: WorkspaceId,
-		options?: { command?: string; hostKind?: "local" | "cloud" },
+		options?: {
+			command?: string;
+			hostKind?: "local" | "cloud";
+			placement?: "centre" | "panel";
+		},
 	): Promise<Result<Terminal>> {
 		const workspace = await this.#deps.repos.workspaces.get(workspaceId);
 		if (!workspace.ok) return workspace;
@@ -1012,6 +1020,7 @@ export class TerminalsService {
 			kind: "terminal",
 			title: nextTerminalTitle(existing),
 			cwd,
+			placement: options?.placement ?? "centre",
 			hostKind,
 			startCommand: options?.command ?? null,
 		});
@@ -1117,6 +1126,8 @@ export class TerminalsService {
 			kind: input.kind,
 			title: input.title,
 			cwd: input.cwd,
+			// A script runs in the scripts panel: Setup has its own tab, a run shows in Run.
+			placement: "panel",
 			hostKind,
 			startCommand: null,
 		});
@@ -1364,6 +1375,7 @@ export class TerminalsService {
 			kind: "terminal",
 			title: nextTerminalTitle(existing),
 			cwd: repo.value.rootPath,
+			placement: "centre",
 			startCommand: null,
 		});
 		if (!started.ok) return started;
