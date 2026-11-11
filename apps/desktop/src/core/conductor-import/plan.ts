@@ -60,7 +60,7 @@ import {
 	type SettingsFileContents,
 	validateEnvVarName,
 } from "../services/settings.ts";
-import { worktreeFolderFor } from "../services/workspace.ts";
+import { worktreeFolderFor } from "../services/workspace-creation.ts";
 import { isReservedEnvVarName } from "../settings-helpers.ts";
 import { NEW_CHAT_EFFORT_FALLBACK, NEW_CHAT_MODEL_FALLBACK } from "../workspace-helpers.ts";
 import {

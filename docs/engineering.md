@@ -136,6 +136,26 @@ Anyone can check that a published file came from this repository's code:
 
     gh attestation verify <file> --repo jahala/conducted
 
+### The agent programs' versions
+
+The app ships its own copies of Claude Code and Codex, pinned by the release feed at
+`apps/desktop/src-tauri/programs/release-feed.json` (PLAT-28). The same versions appear in the
+Rust pins (`pinned_version` in `apps/desktop/src-tauri/src/binaries.rs`), in the cloud image's
+program table (`apps/cloud/sandbox/image.ts` and its Dockerfile), and in the SDK the sidecar pins
+(`@anthropic-ai/claude-agent-sdk` in `packages/sidecar/package.json`). They move together.
+
+`bun scripts/programs/update-feed.ts` reads the newest Claude Code release from
+`https://downloads.claude.ai/claude-code-releases/<version>/manifest.json` and the newest Codex
+release from GitHub, and writes every file above with the size and SHA-256 each publisher states.
+It never computes or guesses a checksum: a release without one is refused. It moves the SDK pin to
+the newest wrapper the Claude Code manifest's `sdkCompat` tested, and says so. When every pinned
+copy is current, it changes nothing.
+
+`.github/workflows/agent-programs.yml` runs the script daily and on manual dispatch. When a file
+changes, it updates the `chore/agent-program-versions` branch and opens or updates one pull
+request from it. The workflow needs no secret beyond its own token; the script reads GitHub with
+`GITHUB_TOKEN` when the workflow sets it.
+
 ## The product page
 
 The product page is served by GitHub Pages from a build, never from a folder in the repository. Its sources are in `docs/site/`: `index.html`, `changelog.html` (published as `changelog/index.html`), `style.css` and the screenshots in `docs/site/images/`. The fonts are the app's own, copied from `apps/desktop/src/assets/fonts/` with their licence.

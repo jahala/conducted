@@ -78,49 +78,17 @@ describe("SET-02 ConnectionsPage", () => {
 		expect(container.services.settings.get("local_port_range_start")).toBe(30000);
 	});
 
-	it("pairs with a Worker URL and a token, then unpairs", async () => {
-		const { container } = await mountPage();
-		fireEvent.change(screen.getByLabelText("Worker URL"), {
-			target: { value: "https://conducted.example.workers.dev/" },
-		});
-		fireEvent.change(screen.getByLabelText("Pairing token"), {
-			target: { value: "32-random-bytes" },
-		});
-		fireEvent.click(screen.getByRole("button", { name: "Pair" }));
-
-		expect(
-			await screen.findByText("Paired with https://conducted.example.workers.dev."),
-		).toBeTruthy();
-		expect((await container.platform.cloud.status()).ok).toBe(true);
-
-		fireEvent.click(screen.getByRole("button", { name: "Unpair" }));
-		expect(await screen.findByText("Not paired")).toBeTruthy();
-	});
-
-	it("shows why a Worker URL was refused and does not pair", async () => {
-		const { container } = await mountPage();
-		fireEvent.change(screen.getByLabelText("Worker URL"), {
-			target: { value: "http://conducted.example.workers.dev" },
-		});
-		fireEvent.change(screen.getByLabelText("Pairing token"), {
-			target: { value: "32-random-bytes" },
-		});
-		fireEvent.click(screen.getByRole("button", { name: "Pair" }));
-
-		expect(await screen.findByText("A Worker URL must be https and name a host.")).toBeTruthy();
-		const status = await container.platform.cloud.status();
-		expect(status.ok && status.value.paired).toBe(false);
-	});
-
-	it("deploys the app's Worker and pairs this Mac", async () => {
-		const { container } = await mountPage();
-		if (test === undefined) throw new Error("no test container");
-		fireEvent.click(screen.getByRole("button", { name: "Deploy to Cloudflare" }));
-
-		expect(
-			await screen.findByText("Paired with https://conducted-cloud.example.workers.dev."),
-		).toBeTruthy();
-		expect(test.memory.controls.cloudDeploys).toEqual([{}]);
-		expect((await container.platform.cloud.status()).ok).toBe(true);
+	// Issue #489: the deploy and pairing controls moved to the Cloud page, so Connections holds exactly
+	// Conductor's four port-forwarding controls and nothing of ours.
+	it("holds only Conductor's four port-forwarding controls", async () => {
+		await mountPage();
+		expect(screen.getByText("Exclusive port forwarding")).toBeTruthy();
+		expect(screen.getByText("Forwarding strategies")).toBeTruthy();
+		expect(screen.getByText("Local port range")).toBeTruthy();
+		expect(screen.getByText("Manual overrides")).toBeTruthy();
+		expect(screen.queryByText("Cloud Workspaces")).toBeNull();
+		expect(screen.queryByRole("button", { name: "Deploy to Cloudflare" })).toBeNull();
+		expect(screen.queryByLabelText("Worker URL")).toBeNull();
+		expect(screen.queryByRole("button", { name: "Pair" })).toBeNull();
 	});
 });

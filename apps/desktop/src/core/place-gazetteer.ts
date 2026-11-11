@@ -7,7 +7,7 @@
  * workspace's city on a world map).
  * Our design choice: Conductor ships its own city lists, which we must not copy (D002). This list
  * is ours: a small set of cities with public coordinates, and the tier of each is our choice. The
- * workspace namer (`createPlaceNames`, core/services/workspace.ts) and the Passport map
+ * workspace namer (`createPlaceNames`, core/services/workspace-creation.ts) and the Passport map
  * (features/passport/passport-places.ts) both read it, so every name the namer gives is a place on
  * the map.
  * Must handle: a name with spaces or accents ("São Paulo" is the folder "sao-paulo"); a folder

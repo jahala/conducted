@@ -2441,6 +2441,8 @@ export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
 	"http.download.cancel": "Cancels the Rust download task by id; the Rust download tests own it.",
 	"cloud.deploy":
 		"Runs wrangler against the user's own Cloudflare account; cloud.rs's tests drive the real command path with a stand-in program.",
+	"cloud.onDeployEvent":
+		"Only fires while cloud.deploy runs in the shell; cloud.rs's tests prove each step and the deploy service test proves the store.",
 	"cloud.uninstall":
 		"Runs wrangler against the user's own Cloudflare account; cloud.rs's tests drive the real command path with a stand-in program.",
 };

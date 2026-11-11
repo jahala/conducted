@@ -97,7 +97,7 @@ fn deploy_and_uninstall_through_the_flow() {
     let wrangler = live_wrangler();
 
     let deploy_began = Instant::now();
-    let deployed = deploy_worker(&wrangler, &resources, &name, &token);
+    let deployed = deploy_worker(&wrangler, &resources, &name, &token, &|_step| {});
     let deploy_ms = deploy_began.elapsed().as_millis();
     let url = match &deployed {
         Ok(url) => Some(url.clone()),
