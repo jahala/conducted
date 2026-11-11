@@ -175,6 +175,31 @@ describe("CLOUD-11 the local mirror", () => {
 		expect(h.service.viewOf(WORKSPACE_ID, CLOUD)).toEqual({
 			state: "off",
 			label: SYNC_OFF_LABEL,
+			description: "Runs against a synced copy on your Mac.",
+			mirrorPath: h.mirror,
+			enabled: false,
+		});
+	});
+
+	it("turns the mirror off and on again with the workspace switch", async () => {
+		const h = harness();
+		h.remote["/workspace/oslo/a.txt"] = "a";
+		expect(h.service.isEnabled(WORKSPACE_ID)).toBe(true);
+		expect((await h.service.setEnabled(WORKSPACE_ID, true)).ok).toBe(true);
+		expect(h.service.viewOf(WORKSPACE_ID, CLOUD)).toMatchObject({
+			state: "synced",
+			enabled: true,
+		});
+		expect((await h.service.setEnabled(WORKSPACE_ID, false)).ok).toBe(true);
+		expect(h.service.isEnabled(WORKSPACE_ID)).toBe(false);
+		expect(h.service.viewOf(WORKSPACE_ID, CLOUD)).toMatchObject({
+			state: "off",
+			enabled: false,
+		});
+		expect((await h.service.setEnabled(WORKSPACE_ID, true)).ok).toBe(true);
+		expect(h.service.viewOf(WORKSPACE_ID, CLOUD)).toMatchObject({
+			state: "synced",
+			enabled: true,
 		});
 	});
 

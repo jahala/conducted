@@ -24,12 +24,12 @@
 		"owner": "hand"
 	},
 	"test_id:R5587249": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "Remote file sync status for cloud workspaces.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "cloud-actions-pause",
+		"via": "testid",
+		"role": "switch",
+		"selector": "[data-testid=\"remote-file-sync-button\"]",
+		"by": "seed"
 	},
 	"test_id:R8915522": {
 		"status": "matched",

@@ -42,10 +42,16 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Cloud, FileSystem, Opener } from "../../platform/platform.ts";
 import {
 	type FileSyncView,
+	IN_SYNC_STATUS,
+	LOCAL_TERMINAL_SYNC_FAILED_DESCRIPTION,
 	LOCAL_TERMINAL_UNAVAILABLE_LABEL,
+	RESTART_SYNC_DESCRIPTION,
 	SYNC_FAILED_LABEL,
+	SYNC_FOLDER_REMOVED_DESCRIPTION,
 	SYNC_FOLDER_UNAVAILABLE_LABEL,
+	SYNC_OFF_DESCRIPTION,
 	SYNC_OFF_LABEL,
+	SYNCING_STATUS,
 } from "../file-sync-view.ts";
 import type { Workspace } from "../model.ts";
 import { cloudJson } from "./host-runtime.ts";
@@ -85,6 +91,8 @@ export interface FileSyncStatus {
 export interface FileSyncState {
 	byWorkspace: Readonly<Record<string, FileSyncStatus>>;
 	engaged: Readonly<Record<string, boolean>>;
+	/** The workspace's switch; absent means the Advanced setting decides (CLOUD-11). */
+	intent: Readonly<Record<string, boolean>>;
 }
 
 interface Baseline {
@@ -211,6 +219,7 @@ export class FileSyncService {
 	readonly store: StoreApi<FileSyncState> = createStore<FileSyncState>(() => ({
 		byWorkspace: {},
 		engaged: {},
+		intent: {},
 	}));
 	readonly #deps: FileSyncDeps;
 	readonly #flights = new Map<WorkspaceId, Promise<Result<void>>>();
@@ -222,6 +231,28 @@ export class FileSyncService {
 	/** True when the Advanced setting starts sync in a new cloud workspace. */
 	autoSyncEnabled(): boolean {
 		return this.#deps.setting<boolean>(AUTO_SYNC_SETTING) === true;
+	}
+
+	/** The workspace's own switch, falling back to the Advanced setting for its first value. */
+	isEnabled(workspaceId: WorkspaceId): boolean {
+		return this.store.getState().intent[workspaceId] ?? this.autoSyncEnabled();
+	}
+
+	/** Turns the workspace's sync on or off, as the "Sync files" switch does. */
+	async setEnabled(workspaceId: WorkspaceId, enabled: boolean): Promise<Result<void>> {
+		const workspace = this.#deps.workspaceOf(workspaceId);
+		if (!workspace.ok) return workspace;
+		if (workspace.value.host.kind !== "cloud") return ok(undefined);
+		this.store.setState((state) => ({
+			...state,
+			intent: { ...state.intent, [workspaceId]: enabled },
+		}));
+		if (!enabled) {
+			this.stop(workspaceId);
+			return ok(undefined);
+		}
+		this.#engage(workspaceId, true);
+		return this.syncNow(workspaceId);
 	}
 
 	/** True when the workspace's mirror folder is on disk, so a Mac preview can read it. */
@@ -248,8 +279,8 @@ export class FileSyncService {
 		const workspace = this.#deps.workspaceOf(workspaceId);
 		if (!workspace.ok) return workspace;
 		if (workspace.value.host.kind !== "cloud") return ok(undefined);
+		if (!this.isEnabled(workspaceId)) return ok(undefined);
 		this.#engage(workspaceId, true);
-		if (!this.autoSyncEnabled()) return ok(undefined);
 		return this.syncNow(workspaceId);
 	}
 
@@ -267,10 +298,10 @@ export class FileSyncService {
 		if (!mirror.ok) return mirror;
 		const status = this.store.getState().byWorkspace[workspaceId];
 		const exists = await this.#deps.fs.exists(mirror.value);
-		if (!exists && !this.autoSyncEnabled()) {
+		if (!exists && !this.isEnabled(workspaceId)) {
 			return err(appError("cloud_file_sync_off", SYNC_OFF_LABEL));
 		}
-		if (exists && !this.autoSyncEnabled()) return ok(undefined);
+		if (exists && !this.isEnabled(workspaceId)) return ok(undefined);
 		this.#engage(workspaceId, true);
 		const last = status?.lastSyncedAt ?? null;
 		if (last !== null && this.#deps.now() - last < SYNC_POLL_MS) return ok(undefined);
@@ -396,33 +427,52 @@ export class FileSyncService {
 	/** The view a screen shows for one workspace. */
 	viewOf(workspaceId: WorkspaceId, host: Host): FileSyncView {
 		if (host.kind === "local") return { state: "local" };
-		const status = this.store.getState().byWorkspace[workspaceId];
+		const enabled = this.isEnabled(workspaceId);
 		const mirror = this.mirrorPathOf(workspaceId);
 		const mirrorPath = mirror.ok ? mirror.value : "";
+		if (!enabled) {
+			return {
+				state: "off",
+				label: SYNC_OFF_LABEL,
+				description: SYNC_OFF_DESCRIPTION,
+				mirrorPath,
+				enabled: false,
+			};
+		}
+		const status = this.store.getState().byWorkspace[workspaceId];
 		if (status?.state === "failed") {
-			return { state: "failed", label: SYNC_FAILED_LABEL, message: status.error ?? "" };
+			return {
+				state: "failed",
+				label: SYNC_FAILED_LABEL,
+				message: status.error ?? "",
+				description: LOCAL_TERMINAL_SYNC_FAILED_DESCRIPTION,
+				mirrorPath,
+				enabled: true,
+			};
 		}
 		if (status?.state === "syncing") {
-			return { state: "syncing", label: "Syncing files", mirrorPath };
+			return { state: "syncing", label: SYNCING_STATUS, mirrorPath, enabled: true };
 		}
 		if (status?.state === "synced" && status.lastSyncedAt !== null) {
 			return {
 				state: "synced",
-				label: "Files in sync",
+				label: IN_SYNC_STATUS,
 				mirrorPath,
 				lastSyncedAt: status.lastSyncedAt,
 				files: status.files,
 				truncated: status.truncated,
+				enabled: true,
 			};
 		}
-		if (this.autoSyncEnabled()) {
-			return {
-				state: "unavailable",
-				label: SYNC_FOLDER_UNAVAILABLE_LABEL,
-				localTerminalLabel: LOCAL_TERMINAL_UNAVAILABLE_LABEL,
-			};
-		}
-		return { state: "off", label: SYNC_OFF_LABEL };
+		return {
+			state: "unavailable",
+			label: SYNC_FOLDER_UNAVAILABLE_LABEL,
+			description: SYNC_FOLDER_REMOVED_DESCRIPTION,
+			mirrorPath,
+			localTerminalLabel: LOCAL_TERMINAL_UNAVAILABLE_LABEL,
+			localTerminalDescription: RESTART_SYNC_DESCRIPTION,
+			enabled: true,
+		};
 	}
 
 	async #sync(workspaceId: WorkspaceId): Promise<Result<void>> {
@@ -619,6 +669,6 @@ export class FileSyncService {
 
 	/** Stops every in-flight sync's status; the sync itself is harmless when it finishes. */
 	dispose(): void {
-		this.store.setState({ byWorkspace: {}, engaged: {} });
+		this.store.setState({ byWorkspace: {}, engaged: {}, intent: {} });
 	}
 }

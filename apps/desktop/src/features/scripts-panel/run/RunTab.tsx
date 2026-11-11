@@ -35,8 +35,18 @@ import { useStore } from "zustand";
 import { useCommandHandler } from "../../../app/command-dispatcher.ts";
 import { RunTerminalSlot, useRunSurfaceTerminal } from "../../../app/surface-registry.tsx";
 import { useServices } from "../../../core/context.tsx";
-import { PREVIEW_MIRROR_UNAVAILABLE_MESSAGE } from "../../../core/file-sync-view.ts";
-import { useActions, useRepoConfig, useRunState, useWorkspace } from "../../../core/hooks.ts";
+import {
+	LOCAL_TERMINAL_UNAVAILABLE_LABEL,
+	localTerminalDescription,
+	PREVIEW_MIRROR_UNAVAILABLE_MESSAGE,
+} from "../../../core/file-sync-view.ts";
+import {
+	useActions,
+	useFileSyncStatus,
+	useRepoConfig,
+	useRunState,
+	useWorkspace,
+} from "../../../core/hooks.ts";
 import { defaultRunAction } from "../../../core/run-scripts.ts";
 import { SPOTLIGHT_ACTION_ID, SPOTLIGHT_BRANCH_NOTICE } from "../../../core/spotlight.ts";
 import { isArchivedWorkspace } from "../../../core/status/archived.ts";
@@ -139,6 +149,7 @@ function RunPreview({
 export function RunTab({ workspaceId }: RunTabProps) {
 	const run = useRunState(workspaceId);
 	const workspace = useWorkspace(workspaceId);
+	const fileSync = useFileSyncStatus(workspaceId);
 	const actions = useActions();
 	const navigate = useNavigate();
 	const services = useServices().services;
@@ -220,6 +231,12 @@ export function RunTab({ workspaceId }: RunTabProps) {
 							: await actions.run.stopSpotlight(workspaceId);
 			if (forSpotlight) setSpotlightBusy(false);
 			if (!result.ok) {
+				if (result.error.code === "run_local_mirror_unavailable") {
+					toastError(LOCAL_TERMINAL_UNAVAILABLE_LABEL, {
+						message: localTerminalDescription(fileSync),
+					});
+					return;
+				}
 				const title =
 					effect === "start_spotlight"
 						? "Couldn't start Spotlight"

@@ -31,8 +31,10 @@ export const useFileSyncStatus: Queries["useFileSyncStatus"] = (workspaceId) => 
 		container.services.workspace.store,
 		(state) => state.workspacesById[workspaceId]?.host,
 	);
-	// Subscribe to the status so a sync that finishes redraws the panel.
+	// Subscribe to the status and the workspace's switch, so a sync that finishes or the switch
+	// turning off redraws the panel.
 	useStore(service.store, (state) => state.byWorkspace[workspaceId]);
+	useStore(service.store, (state) => state.intent[workspaceId]);
 	useEffect(() => {
 		if (host?.kind !== "cloud") return;
 		void service.start(workspaceId);
