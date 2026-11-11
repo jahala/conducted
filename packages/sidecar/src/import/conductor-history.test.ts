@@ -105,7 +105,7 @@ describe("APP-18 Conductor's chat history as our session events", () => {
 			"t-1 ended: success",
 			"t-2 new_turn: Second",
 			"t-2 agent: text Reply two",
-			"t-2 ended: interrupted",
+			"t-2 ended: unrecorded",
 		]);
 		const opening = mapped.events[0];
 		expect(opening?.type === "user_message" && (opening.messageId as string)).toBe(first.id);
@@ -143,7 +143,7 @@ describe("APP-18 Conductor's chat history as our session events", () => {
 			"t-1 agent: thinking",
 			"t-1 agent: text Reading.",
 			"t-1 agent: call Read",
-			"t-1 ended: interrupted",
+			"t-1 ended: unrecorded",
 		]);
 	});
 
@@ -164,7 +164,7 @@ describe("APP-18 Conductor's chat history as our session events", () => {
 			"t-1 agent in tu-task: call Grep in tu-task",
 			"t-1 agent in tu-task: tool_result",
 			"t-1 agent: tool_result",
-			"t-1 ended: interrupted",
+			"t-1 ended: unrecorded",
 		]);
 		expect(mapped.counts.agent).toEqual({ rows: 6, mapped: 6, unmapped: 0 });
 	});
@@ -195,7 +195,7 @@ describe("APP-18 Conductor's chat history as our session events", () => {
 			"t-1 steer: And a note",
 			"t-1 agent: tool_result",
 			"t-1 agent: tool_result",
-			"t-1 ended: interrupted",
+			"t-1 ended: unrecorded",
 		]);
 		expect(new Set(mapped.events.map((event) => event.eventId)).size).toBe(7);
 	});
@@ -213,10 +213,10 @@ describe("APP-18 Conductor's chat history as our session events", () => {
 		]);
 		expect(lines(mapped.events)).toEqual([
 			"t-1 agent: notice",
-			"t-1 ended: interrupted",
+			"t-1 ended: unrecorded",
 			"t-2 new_turn: Next",
 			"t-2 agent: text Compacted",
-			"t-2 ended: interrupted",
+			"t-2 ended: unrecorded",
 		]);
 		expect(mapped.leftOut).toEqual({
 			"queued message": 1,
@@ -242,7 +242,7 @@ describe("APP-18 Conductor's chat history as our session events", () => {
 			// An assistant payload with no message: the translator fails on it.
 			row("assistant", { type: "assistant" }, "t-1", 10),
 		]);
-		expect(lines(mapped.events)).toEqual(["t-1 new_turn: Go", "t-1 ended: interrupted"]);
+		expect(lines(mapped.events)).toEqual(["t-1 new_turn: Go", "t-1 ended: unrecorded"]);
 		expect(mapped.unmapped).toEqual({
 			"no turn": 1,
 			unreadable: 4,
@@ -263,7 +263,7 @@ describe("APP-18 Conductor's chat history as our session events", () => {
 			[row("user", "Go", "t-1", 1), row("assistant", say("Hi"), "t-1", 2)],
 			"codex",
 		);
-		expect(lines(mapped.events)).toEqual(["t-1 new_turn: Go", "t-1 ended: interrupted"]);
+		expect(lines(mapped.events)).toEqual(["t-1 new_turn: Go", "t-1 ended: unrecorded"]);
 		expect(mapped.counts.agent).toEqual({ rows: 1, mapped: 0, unmapped: 1 });
 		expect(mapped.unmapped.untranslated).toBe(1);
 	});
@@ -295,7 +295,7 @@ describe("APP-18 Conductor's chat history as our session events", () => {
 		expect(ends.map((event) => [event.turnId, event.outcome, event.error, event.at])).toEqual([
 			["t-1", "error", "Claude Code error: Overloaded", Date.UTC(2026, 0, 2, 3, 0, 2)],
 			["t-2", "success", undefined, Date.UTC(2026, 0, 2, 3, 0, 5)],
-			["t-3", "interrupted", undefined, Date.UTC(2026, 0, 2, 3, 0, 7)],
+			["t-3", "unrecorded", undefined, Date.UTC(2026, 0, 2, 3, 0, 7)],
 		]);
 		expect(new Set(ends.map((event) => event.eventId)).size).toBe(3);
 	});
@@ -382,11 +382,11 @@ describe("APP-18 the mapping in reads of a budget", () => {
 			"t-1 ended: success",
 			"t-2 agent: text Still shown",
 			"t-2 agent: notice",
-			"t-2 ended: interrupted",
+			"t-2 ended: unrecorded",
 			"t-3 agent: text Early",
 			"t-3 new_turn: Later",
 			"t-3 agent: text Compacted",
-			"t-3 ended: interrupted",
+			"t-3 ended: unrecorded",
 		]);
 		for (const budget of [
 			{ rows: 1, chars: Number.POSITIVE_INFINITY },

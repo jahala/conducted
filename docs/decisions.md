@@ -937,7 +937,7 @@ Why: the owner's ruling. Late work stays visible, in the card it belongs to, whe
 
 ## D130. How APP-18 brings chat history from Conductor (2026-11-11)
 
-Proposed by the APP-18 PR; not yet ruled on by the owner. Replaces D124's two bullets on chat history.
+Decided by the lead under the owner's rule "Match Conductor. Nothing made up; gaps are reported." Replaces D124's two bullets on chat history.
 
 Context: the lead's spike run on a copy of the owner's database met D100's pass mark: all 288 Claude chats read the same as in Conductor, and 100% of 3,172,282 rows map (#555). One chat has about 400,000 rows, and the spike held a whole chat in memory at about 426 MB per 200,000 rows. The work used only Conductor's schema and made-up data.
 
@@ -946,7 +946,7 @@ Chosen:
 - **After the rows, one chat at a time.** History is written once the import's rows have committed, in one transaction per chat that counts the events and reads the first back. A chat whose history fails comes over without it and is named with the reason; the others go on.
 - **Which chats.** A chat brings its history when its agent has a mapping (`CONDUCTOR_MAPPED_AGENTS` in the protocol, Claude today) and it is in Conducted with no event of its own: one the import brings now, or one an earlier import brought without history. A chat with any event is never added to. A second import adds nothing, a failed chat gets its history on the next import, and a chat the user used since the dry run is left as it is.
 - **Two reads, memory bounded by one.** The Rust shell pages a chat's sent rows by rowid without their content, then fetches rows by rowid. Neither needs an index on Conductor's table, whose indexes are not known. The sidecar's mapper keeps a few numbers per row, sets the order Conductor shows, and maps the rows a read at a time. The desktop cannot import the sidecar, so it reaches the mapper over RPC. The spike runs the same mapper over rows in memory, so it measures what ships.
-- **Each turn ends.** The mapping adds a `turn_ended` event to each shown turn, decided by its last result as our runner decides it (`resultErrorItem`). A turn with no result ends interrupted and shows "This turn stopped before it finished.", where Conductor shows nothing; the rows do not say it finished. Without an end, every imported turn would show that, and startup repair would add an end to each.
+- **Each turn ends.** The mapping adds a `turn_ended` event to each shown turn, decided by its last result as our runner decides it (`resultErrorItem`). A turn with no result ends `unrecorded`: it has ended, and nothing records how. The chat shows nothing for it, as Conductor shows nothing, and claims neither success nor a crash. On the owner's copy that is 1,505 of 19,200 turns in 157 chats (17,249 end in success, 446 in an error). Without an end, every imported turn would show "This turn stopped before it finished.", and startup repair would add an end to each.
 - **Times.** An event's `at` is Conductor's time. It is received at the import's time, so the data lifetime job, which ages events by when they were received and scans from a watermark, treats imported events as events received at import.
 
-Why: the owner's rule "Match Conductor. Nothing made up; gaps are reported." The history matches Conductor's chat by the spike's measure; the one visible difference (an interrupted turn's notice) is reported here instead of hidden by inventing an outcome.
+Why: the owner's rule "Match Conductor. Nothing made up; gaps are reported." The history matches Conductor's chat by the spike's measure; a turn whose end the rows do not record shows nothing, as in Conductor, without inventing how it ended.

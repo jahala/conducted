@@ -539,7 +539,8 @@ export class ConductorHistoryMapper {
 				: null;
 		const outcome =
 			!this.#translates || open.lastResult === null
-				? "interrupted"
+				? // The rows do not say how the turn ended; Conductor shows nothing for it (D130).
+					"unrecorded"
 				: error === null
 					? "success"
 					: "error";
