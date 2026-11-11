@@ -10,9 +10,10 @@
  * the saved "section" value is kept apart and the caller shows an explicit note; it never quietly
  * shows projects instead.
  * Must handle: Pinned first; each workspace once; sections in their saved order; status groups in
- * the fixed status order; sort by last activity or creation time; manual order wins when on; ties
- * break by id so the order is stable; workspaces of hidden repos are left out; archived workspaces
- * are left out.
+ * the fixed status order; project groups for every project that is not hidden, in project order,
+ * with an empty one kept (Conductor's local organisation); sort by last activity or creation time;
+ * manual order wins when on; ties break by id so the order is stable; workspaces of hidden repos
+ * are left out; archived workspaces are left out.
  * Test first: Three workspaces with mixed statuses and one pinned give Pinned, then status groups
  * in the fixed order, each sorted by last activity.
  */
@@ -213,8 +214,10 @@ export function buildSidebarGroups(input: SidebarViewInput): SidebarGroup[] {
 	);
 	for (const repo of repoOrder) {
 		if (filter.size > 0 && !filter.has(repo.id)) continue;
+		// Conductor starts its project list from the repositories (Dtr, renderApp @10507500),
+		// keeping each local organisation's project even with no workspaces, so its "+" stays. A
+		// cloud organisation will drop the empty ones once #491 adds it.
 		const inside = main.filter((workspace) => workspace.repoId === repo.id);
-		if (inside.length === 0) continue;
 		const key: SidebarGroupKey = { kind: "project", repoId: repo.id };
 		groups.push({
 			key,
