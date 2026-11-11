@@ -32,28 +32,28 @@
 		"owner": "hand"
 	},
 	"tooltip:R5588285": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "Remote file sync status for cloud workspaces.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "cloud-actions-pause",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > div:nth-of-type(3) > button",
+		"by": "seed"
 	},
 	"tooltip:R5591578": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "Remote file sync status for cloud workspaces.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "cloud-sync-error",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > div:nth-of-type(4) > div:nth-of-type(1) > button",
+		"by": "seed"
 	},
 	"tooltip:R5592527": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "Remote file sync status for cloud workspaces.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "cloud-sync-error",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > div:nth-of-type(4) > div:nth-of-type(2) > button",
+		"by": "seed"
 	},
 	"tooltip:R5608488": {
 		"status": "decided",

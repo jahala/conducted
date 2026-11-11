@@ -94,6 +94,8 @@ function LoadedShell() {
 	const savedVisible = useSetting<boolean>("left_panel_visible");
 	const [sidebarOpen, setSidebarOpen] = useState(savedVisible);
 	const [initialSidebarWidth] = useState(() => shellSidebarWidth(settings));
+	/** The sidebar's live width, which sets the resource chip's form (APP-07). */
+	const [sidebarWidth, setSidebarWidth] = useState(initialSidebarWidth);
 	const [surfaces] = useState(createSurfaceRegistry);
 	const workspaceId = useRouterState({
 		select: (state) => {
@@ -206,7 +208,7 @@ function LoadedShell() {
 			<ShellControls
 				sidebarOpen={sidebarOpen}
 				onToggleSidebar={toggleSidebar}
-				resources={<ResourceUsageTable />}
+				resources={<ResourceUsageTable sidebarWidth={sidebarWidth} />}
 			/>
 			<SurfaceRegistryProvider registry={surfaces}>
 				<PanelLayoutProvider store={layoutStore}>
@@ -226,7 +228,10 @@ function LoadedShell() {
 							collapsible
 							collapsedSize={sidebarSize.collapsed}
 							groupResizeBehavior="preserve-pixel-size"
-							onResize={(size) => setSidebarOpen(size.inPixels > 0)}
+							onResize={(size) => {
+								setSidebarOpen(size.inPixels > 0);
+								setSidebarWidth(size.inPixels);
+							}}
 						>
 							<aside aria-label="Sidebar" className="flex h-full min-w-0 flex-col bg-surface">
 								<div data-tauri-drag-region className="h-(--titlebar-height) shrink-0" />

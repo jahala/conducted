@@ -123,13 +123,13 @@ describe("CHAT-06 chat turn", () => {
 	it("names a cancelled turn", () => {
 		const value = turn({ outcome: "cancelled", endedAt: 20 });
 		render(<TurnItem turn={value} sessionId={sessionId} />);
-		expect(screen.getByText("banner:Cancelled")).toBeTruthy();
+		expect(screen.getByText("banner:Interrupted by user")).toBeTruthy();
 	});
 
 	it("does not blame the user for a turn that a crash cut off", () => {
 		const value = turn({ outcome: "interrupted", endedAt: 20 });
 		render(<TurnItem turn={value} sessionId={sessionId} />);
-		expect(screen.queryByText("banner:Cancelled")).toBeNull();
+		expect(screen.queryByText("banner:Interrupted by user")).toBeNull();
 		expect(screen.getByText("banner:This turn stopped before it finished.")).toBeTruthy();
 	});
 
@@ -163,6 +163,39 @@ describe("CHAT-06 chat turn", () => {
 		});
 		render(<TurnItem turn={value} sessionId={sessionId} />);
 		expect(screen.getByText("banner:The Claude session ended unexpectedly.")).toBeTruthy();
+	});
+
+	// IQi @9538488 reads a user's abort as "Interrupted by user", and a Claude chat's sign-in error
+	// as the sign-in view, which shows nothing more when the turn's result already shows sign-in.
+	it("reads a turn error that says the user aborted as Interrupted by user", () => {
+		const value = turn({ outcome: "error", error: "Request was aborted by user" });
+		render(<TurnItem turn={value} sessionId={sessionId} agent="claude" />);
+		expect(screen.getByText("banner:Interrupted by user")).toBeTruthy();
+	});
+
+	it("offers sign-in for a Claude chat's sign-in turn error, once", () => {
+		const value = turn({ outcome: "error", error: "Please run /login" });
+		const view = render(<TurnItem turn={value} sessionId={sessionId} agent="claude" />);
+		expect(screen.getByText("banner:Please run /login")).toBeTruthy();
+		view.unmount();
+
+		const shown = turn({
+			outcome: "error",
+			error: "Please run /login",
+			blocks: [
+				{
+					kind: "error",
+					item: {
+						kind: "error",
+						code: "agent_auth_required",
+						message: "Sign in",
+						retryable: false,
+					},
+				},
+			],
+		});
+		render(<TurnItem turn={shown} sessionId={sessionId} agent="claude" />);
+		expect(screen.queryByText("banner:Please run /login")).toBeNull();
 	});
 
 	it("keeps a streaming text block mounted while its text grows", () => {

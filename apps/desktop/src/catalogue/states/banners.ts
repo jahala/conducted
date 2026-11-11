@@ -2,12 +2,13 @@
  * @feature catalogue States of the chat's notices, errors and turn actions
  * Owns: a chat whose history was compacted, whose turn the user stopped, and whose next turn came
  * from another chat and ran into the session limit, with a notice's copy menu open; a chat whose
- * agent needs signing in and whose error had no words, with an error's copy menu open; a working
+ * agent needs signing in and whose error had no words, with an error's copy menu open; a chat whose
+ * API error shows its text and then Claude Code's error, and whose last turn hit the session limit; a working
  * turn that is compacting, one that waits on a subagent and one that waits on a background task;
  * a finished turn's More actions menu and the Reset chat? dialog it opens; and a long chat read
  * from its top, with Scroll to bottom.
  * Behaviour: ui-map.md 3.3 (banners in the list: interrupted, compacted, compacting, session limit,
- * sign-in needed, "This content could not be displayed."; the working line; the turn footer's
+ * sign-in needed, "This message could not be displayed."; the working line; the turn footer's
  * menu; the Scroll to bottom button), sessions-and-chats.md (a message sent from another chat).
  * Test first: not applicable; the screenshot run opens every state.
  */
@@ -98,6 +99,25 @@ function errorsChat(): Conversation {
 	return chat;
 }
 
+/**
+ * An API error (its text, then the result's error, as the Claude translator gives them), and a
+ * turn that ended on the session limit (Conductor's IQi view).
+ */
+function errorViewsChat(): Conversation {
+	const chat = conversation("error-views", CATALOGUE_NOW - 30 * MINUTE);
+	const apiError = "API Error: 500 Internal server error";
+	const failed = chat.user("Run the callback tests once more.");
+	chat.text(failed, apiError);
+	const shown = `Claude Code error: ${apiError}`;
+	chat.agent(failed, [{ kind: "error", code: "agent_error", message: shown, retryable: true }]);
+	chat.end(failed, undefined, "error", shown);
+
+	const limited = chat.user("Then fix the failing one.");
+	const resetsAt = Math.floor((CATALOGUE_NOW + 3 * 60 * MINUTE) / 1000);
+	chat.end(limited, undefined, "error", `Claude AI usage limit reached|${resetsAt}`);
+	return chat;
+}
+
 /** A turn that is still running, delivered once the app is up. */
 function runningTurn(
 	prefix: string,
@@ -182,8 +202,18 @@ export const BANNER_STATES: CatalogueState[] = [
 			() => errorsChat(),
 			"Copy details",
 			async ({ document }) => {
-				await rightClick(document, "span", "This content could not be displayed.");
+				await rightClick(document, "span", "This message could not be displayed.");
 			},
+		),
+	},
+	{
+		id: "chat-error-views",
+		group: "Workspace chat",
+		title: "Errors: an API error's text and Claude Code's error with Retry, the session limit",
+		seed: arborChat(
+			"Callback tests",
+			() => errorViewsChat(),
+			"Learn more about Claude Code limits",
 		),
 	},
 	{

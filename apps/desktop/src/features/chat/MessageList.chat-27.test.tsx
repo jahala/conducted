@@ -47,7 +47,7 @@ const turn = (id: string) =>
 
 function view(): ChatView {
 	return {
-		session: { id: sessionId } as never,
+		session: { id: sessionId, config: { agent: "claude" } } as never,
 		turns: [turn("t1"), turn("t2")],
 		liveState: {
 			...idleLiveState,

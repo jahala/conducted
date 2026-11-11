@@ -3,13 +3,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatBlock } from "../../core/model.ts";
 import { renderWithRouter } from "../../test/render-with-router.tsx";
 
-const state = vi.hoisted(() => ({ copyText: vi.fn() }));
+const state = vi.hoisted(() => ({ copyText: vi.fn(), openUrl: vi.fn() }));
 
 vi.mock("../../core/hooks.ts", () => ({
-	useActions: () => ({ app: { copyText: state.copyText } }),
+	useActions: () => ({ app: { copyText: state.copyText, openUrl: state.openUrl } }),
 }));
 
 const { ChatBanner } = await import("./ChatBanner.tsx");
+const { turnErrorView } = await import("./turn-error-view.ts");
 
 afterEach(cleanup);
 
@@ -28,16 +29,16 @@ describe("CHAT-06 chat banners", () => {
 		expect(screen.getByText("Chat history compacted")).toBeTruthy();
 	});
 
-	it("offers Try again only for a retryable error", () => {
+	it("offers Retry only for a retryable error, in GFe's words", () => {
 		const onRetry = vi.fn();
 		render(<ChatBanner block={error(true)} onRetry={onRetry} />);
-		fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 		expect(onRetry).toHaveBeenCalledTimes(1);
 	});
 
 	it("hides the retry for an error that cannot be retried", () => {
 		render(<ChatBanner block={error(false)} onRetry={vi.fn()} />);
-		expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+		expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
 	});
 
 	it("falls back when an error carries no message", () => {
@@ -46,7 +47,7 @@ describe("CHAT-06 chat banners", () => {
 				block={{ kind: "error", item: { kind: "error", code: "x", message: "", retryable: false } }}
 			/>,
 		);
-		expect(screen.getByText("This content could not be displayed.")).toBeTruthy();
+		expect(screen.getByText("This message could not be displayed.")).toBeTruthy();
 	});
 
 	it("names a session limit in the banner", () => {
@@ -114,5 +115,81 @@ describe("CHAT-06 chat banners", () => {
 		expect(await screen.findByText("Authentication required")).toBeTruthy();
 		expect(screen.getByText("Codex authentication required")).toBeTruthy();
 		expect(await screen.findByRole("link", { name: "Open agent settings" })).toBeTruthy();
+	});
+});
+
+// The views of the error that ended a turn, with Conductor's words (IQi @9538488, GFe @9534766).
+describe("CHAT-06 a failed turn's error views", () => {
+	const turnError = (
+		message: string,
+		retryable: boolean,
+	): Extract<ChatBlock, { kind: "error" }> => ({
+		kind: "error",
+		item: { kind: "error", code: "turn_error", message, retryable },
+	});
+
+	it("offers Retry and Check Anthropic API status for an overloaded server", async () => {
+		state.openUrl.mockResolvedValue({ ok: true, value: undefined });
+		const message = "API Error: 529 Overloaded";
+		const onRetry = vi.fn();
+		render(
+			<ChatBanner
+				block={turnError(message, true)}
+				view={turnErrorView(message, "claude")}
+				onRetry={onRetry}
+			/>,
+		);
+		expect(
+			screen.getByText(
+				"Anthropic's API servers are temporarily overloaded. Please try again in a few minutes.",
+			),
+		).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+		expect(onRetry).toHaveBeenCalledTimes(1);
+		fireEvent.click(screen.getByRole("button", { name: "Check Anthropic API status" }));
+		expect(state.openUrl).toHaveBeenCalledWith("https://status.anthropic.com/");
+	});
+
+	it("names the context window and offers no Retry", () => {
+		const message = "Prompt is too long";
+		render(
+			<ChatBanner
+				block={turnError(message, false)}
+				view={turnErrorView(message, "claude")}
+				onRetry={vi.fn()}
+			/>,
+		);
+		expect(
+			screen.getByText(
+				"Exceeded Claude's context window. Please compact using /compact, or summarize into a new chat.",
+			),
+		).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+	});
+
+	it("titles an image over the size limit as Conductor does", () => {
+		const message = "image exceeds 5 MB maximum";
+		render(
+			<ChatBanner block={turnError(message, false)} view={turnErrorView(message, "claude")} />,
+		);
+		expect(screen.getByText("Image too large")).toBeTruthy();
+		expect(
+			screen.getByText(
+				"Exceeds Claude Code's size limit (5MB). Please revert to a previous user message by hovering over it, otherwise this chat will fail going forward.",
+			),
+		).toBeTruthy();
+	});
+
+	it("asks to try later when the session limit names no reset time", () => {
+		const message = "Claude AI usage limit reached|soon";
+		render(
+			<ChatBanner block={turnError(message, false)} view={turnErrorView(message, "claude")} />,
+		);
+		expect(screen.getByText("Claude Code session limit reached")).toBeTruthy();
+		expect(
+			screen.getByText(
+				/^Please try again later\. This limit is imposed by Anthropic and applies to all Claude Code usage\./,
+			),
+		).toBeTruthy();
 	});
 });

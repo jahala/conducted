@@ -952,17 +952,17 @@ describe("s1-ui-1 join batch features", () => {
 		expect(screen.getByText("LANG")).toBeTruthy();
 	});
 
-	it("APP-07 shows the resource table from the resource chip in the sidebar's top strip", async () => {
+	it("APP-07 shows the Resources popover from the resource chip in the sidebar's top strip", async () => {
 		const test = batchContainer();
 		const workspace = await seedWorkspace(test.container, {
 			branch: "alpha",
-			branchIsPlaceholder: false,
+			directoryName: "alpha",
 			path: "/code/workspaces/alpha",
 		});
 		test.memory.controls.setProcesses([
 			{
 				pid: 1,
-				name: "node",
+				label: "rg",
 				cpuPercent: 12.5,
 				memoryBytes: 50 * 1024 * 1024,
 				cwd: workspace.path,
@@ -978,15 +978,15 @@ describe("s1-ui-1 join batch features", () => {
 			createElement(ShellControls, {
 				sidebarOpen: true,
 				onToggleSidebar: () => undefined,
-				resources: createElement(ResourceUsageTable),
+				resources: createElement(ResourceUsageTable, { sidebarWidth: 320 }),
 			}),
 		);
 
 		fireEvent.click(await screen.findByRole("button", { name: /^Resource usage/ }));
 		const table = await screen.findByRole("table", { name: "Resources" });
-		expect(within(table).getByText("node")).toBeTruthy();
-		// A workspace is named in words, as Conductor names it.
-		expect(within(table).getByText("Alpha")).toBeTruthy();
+		expect(within(table).getByText("rg")).toBeTruthy();
+		// A workspace's group is named by its folder, as Conductor names it (renderApp @5568938).
+		expect(within(table).getByRole("button", { name: "alpha" })).toBeTruthy();
 	});
 
 	it("APP-10 dismisses a hint on the General page and brings it back with Reset callout dismissals", async () => {

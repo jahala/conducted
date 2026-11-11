@@ -1036,7 +1036,7 @@
 	},
 	"toast:R10105621": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-11",
 		"item": "A preview of a cloud workspace without its local mirror shows \"Couldn't open preview: local workspace mirror is unavailable.\"",
@@ -1376,12 +1376,9 @@
 		"owner": "rule:cite"
 	},
 	"toast:R11153716": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Conductor shows \"Couldn't update manual overrides\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D110",
+		"note": "These belong to Conductor's manual-override pair editor and the auto-forwarding note on Connections. D110 builds manual overrides as remote:local text lines and records the simplification, so the pair editor's Remote and Local labels, Add override button, failure toast and port-range note are not built.",
 		"by": "hand"
 	},
 	"toast:R11162731": {

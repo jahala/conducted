@@ -560,13 +560,22 @@ export interface Updater {
 	installedUpdate(): Promise<Result<{ version: string; notes: string } | null>>;
 }
 
+/** One of the app's processes. Mirrors `ProcessUsage` in resource_usage.rs. */
 export interface ProcessUsage {
 	pid: number;
-	name: string;
+	/** The parent's pid, or 0 when the process table names none. */
+	ppid: number;
+	/**
+	 * What the resources popover calls it: "Main" for the app, "Sidecar", "Renderer" and other
+	 * WebKit helpers by name, otherwise the program's base name. Never carries arguments.
+	 */
+	label: string;
 	cpuPercent: number;
 	memoryBytes: number;
 	/** The workspace the process belongs to, when known. */
 	workspacePath?: string;
+	/** The terminal it runs in: the terminal's shell or a program started from it. */
+	terminalId?: string;
 }
 
 export interface AppInfo {

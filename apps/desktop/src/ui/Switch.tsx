@@ -16,6 +16,7 @@ export interface SwitchProps {
 	id?: string;
 	disabled?: boolean;
 	"aria-label"?: string;
+	"data-testid"?: string;
 }
 
 export function Switch({
@@ -24,6 +25,7 @@ export function Switch({
 	id,
 	disabled = false,
 	"aria-label": ariaLabel,
+	"data-testid": testId,
 }: SwitchProps) {
 	return (
 		<Radix.Root
@@ -31,6 +33,7 @@ export function Switch({
 			checked={checked}
 			disabled={disabled}
 			aria-label={ariaLabel}
+			data-testid={testId}
 			onCheckedChange={onCheckedChange}
 			onKeyDown={(event) => {
 				if (event.key !== " " && event.key !== "Enter") return;

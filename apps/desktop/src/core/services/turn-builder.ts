@@ -12,14 +12,22 @@
  * a steer message belongs to the turn it steered and shows `consumed` once the live state no
  * longer lists it as pending; a turn without a `turn_ended` event while the chat is idle is shown
  * as interrupted; usage items add up per turn; text and thinking items of one message stay in
- * order; unknown item kinds are skipped with a notice block, never a crash. Only tool calls carry
+ * order; unknown item kinds are skipped with a notice block, never a crash; a Claude message of
+ * text only that repeats a sign-in error is hidden when the turn's result shows the sign-in view
+ * (renderApp kpa @9558460). Only tool calls carry
  * `parentToolUseId` in the protocol, so a sub-agent's text and thinking stay at the top level.
  * Our design choice: the builder is a pure function of events and live state. Every call walks the
  * stored events and rebuilds the turns; the differ fingerprints the turns so the list reuses the
  * unchanged ones and only the changed tail re-renders.
  * Test first: a tool_call event followed later by its tool_result yields one tool block with both.
  */
-import type { AgentItem, LiveState, SessionEvent } from "@conducted/protocol";
+import {
+	AGENT_ERROR_CODES,
+	type AgentItem,
+	isClaudeSignInErrorText,
+	type LiveState,
+	type SessionEvent,
+} from "@conducted/protocol";
 import type { MessageId } from "@conducted/shared";
 import type { ChatBlock, ChatTurn, ToolCallView } from "../model.ts";
 
@@ -49,7 +57,13 @@ export interface PendingSend {
 }
 
 type Entry =
-	| { kind: "block"; block: ChatBlock; parent: string | undefined }
+	| {
+			kind: "block";
+			block: ChatBlock;
+			parent: string | undefined;
+			/** Text of a Claude message that only repeats a sign-in error (see `isSignInEcho`). */
+			signInEcho?: true;
+	  }
 	| { kind: "tool"; call: ToolCallView; parent: string | undefined };
 
 interface TurnDraft {
@@ -72,6 +86,8 @@ interface TurnDraft {
 	/** Events that still count, after the reverted ones were skipped. */
 	liveEvents: number;
 	reverted: boolean;
+	/** A Claude result in this turn shows the sign-in view. */
+	claudeSignInResult: boolean;
 }
 
 function emptyDraft(turnId: ChatTurn["turnId"], at: number): TurnDraft {
@@ -91,6 +107,7 @@ function emptyDraft(turnId: ChatTurn["turnId"], at: number): TurnDraft {
 		startedAt: at,
 		liveEvents: 0,
 		reverted: false,
+		claudeSignInResult: false,
 	};
 }
 
@@ -168,6 +185,21 @@ function applyItem(draft: TurnDraft, item: AgentItem, parent: string | undefined
 	}
 }
 
+/**
+ * True for a Claude message of text only whose text is a sign-in error. Conductor hides such a
+ * message when the turn's result shows the sign-in view (renderApp kpa @9558460, CQi @9517683),
+ * so the error is not said twice. The Claude translator gives the sign-in code only to a result.
+ */
+function isSignInEcho(message: Extract<SessionEvent, { type: "agent" }>["message"]): boolean {
+	if (message.agent !== "claude" || message.items.length === 0) return false;
+	const texts: string[] = [];
+	for (const item of message.items) {
+		if (item.kind !== "text") return false;
+		texts.push(item.text);
+	}
+	return isClaudeSignInErrorText(texts.join("\n"));
+}
+
 function applyEvent(draft: TurnDraft, event: SessionEvent, liveState: LiveState): void {
 	switch (event.type) {
 		case "user_message":
@@ -190,11 +222,28 @@ function applyEvent(draft: TurnDraft, event: SessionEvent, liveState: LiveState)
 				consumed: !liveState.pendingSteerIds.includes(event.messageId),
 			});
 			return;
-		case "agent":
-			for (const item of event.message.items) {
-				applyItem(draft, item, event.message.parentToolUseId);
+		case "agent": {
+			const message = event.message;
+			const echo = isSignInEcho(message);
+			const first = draft.entries.length;
+			for (const item of message.items) {
+				applyItem(draft, item, message.parentToolUseId);
+			}
+			if (echo) {
+				for (const entry of draft.entries.slice(first)) {
+					if (entry.kind === "block") entry.signInEcho = true;
+				}
+			}
+			if (
+				message.agent === "claude" &&
+				message.items.some(
+					(item) => item.kind === "error" && item.code === AGENT_ERROR_CODES.authRequired,
+				)
+			) {
+				draft.claudeSignInResult = true;
 			}
 			return;
+		}
 		case "checkpoint":
 			if (event.phase === "start") {
 				draft.startCheckpointId = event.checkpointId ?? null;
@@ -243,6 +292,7 @@ function finalize(draft: TurnDraft, liveState: LiveState, isLast: boolean): Chat
 	// is missing or whose parent chain loops stays at the top level, so every call still renders.
 	const blocks: ChatBlock[] = [];
 	for (const entry of draft.entries) {
+		if (entry.kind === "block" && entry.signInEcho === true && draft.claudeSignInResult) continue;
 		const selfId = entry.kind === "tool" ? entry.call.toolUseId : undefined;
 		const parent = entry.parent === undefined ? undefined : holderCall(draft, entry.parent, selfId);
 		if (parent === undefined) {
