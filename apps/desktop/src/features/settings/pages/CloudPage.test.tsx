@@ -241,7 +241,7 @@ describe("CLOUD-17 CloudPage", () => {
 
 		fireEvent.click(await screen.findByRole("button", { name: "Import from local" }));
 		fireEvent.click(await screen.findByRole("checkbox", { name: "localServer" }));
-		fireEvent.click(screen.getByRole("button", { name: "Import" }));
+		fireEvent.click(screen.getByRole("button", { name: "Add 1 MCP server" }));
 
 		await waitFor(() =>
 			expect(settings.current.mcpServers).toEqual({
@@ -307,7 +307,7 @@ describe("CLOUD-17 CloudPage", () => {
 			target: { value: "alp" },
 		});
 		fireEvent.click(screen.getByRole("button", { name: "Select all" }));
-		fireEvent.click(screen.getByRole("button", { name: "Import" }));
+		fireEvent.click(screen.getByRole("button", { name: "Add 1 MCP server" }));
 		await waitFor(() => expect(Object.keys(settings.current.mcpServers)).toEqual(["alpha"]));
 	});
 

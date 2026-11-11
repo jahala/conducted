@@ -553,14 +553,18 @@ function ImportLocalSheet({
 				loading={saving}
 				onClick={() => void runImport()}
 			>
-				Import
+				{chosen.size === 0
+					? "Add MCP servers"
+					: chosen.size === 1
+						? "Add 1 MCP server"
+						: `Add ${chosen.size} MCP servers`}
 			</Button>
 		</>
 	);
 
 	return (
 		<Sheet open onOpenChange={(open) => (open ? undefined : onClose())}>
-			<SheetContent title="Import from local" footer={footer}>
+			<SheetContent title="Select MCP servers" footer={footer}>
 				<div className="mt-6 flex flex-col gap-3">
 					{error === null ? null : <p className="text-sm text-danger">{error}</p>}
 					{scan === null ? (
