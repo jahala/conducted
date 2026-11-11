@@ -76,6 +76,24 @@ describe("APP-18 what Conductor's chat shows of a chat", () => {
 		]);
 	});
 
+	test("hides a text-only sign-in message when the turn's result is a sign-in error (kpa, CQi, JVt)", () => {
+		const signIn = "Invalid API key · Please run /login";
+		const failedSignIn = { type: "result", subtype: "success", is_error: true, result: signIn };
+		expect(
+			conductorTranscript([
+				message("user", "Go", "t-1", "2026-01-02 03:00:00"),
+				message("assistant", say(signIn), "t-1", "2026-01-02 03:00:01"),
+				message("assistant", failedSignIn, "t-1", "2026-01-02 03:00:02"),
+				message("user", "Again", "t-2", "2026-01-02 04:00:00"),
+				message("assistant", say(signIn), "t-2", "2026-01-02 04:00:01"),
+			]),
+		).toEqual([
+			{ user: ["Go"], agent: [] },
+			// No sign-in result in this turn, so Conductor shows the text.
+			{ user: ["Again"], agent: [{ kind: "text", text: signIn }] },
+		]);
+	});
+
 	test("compares transcripts by content and names the first difference", () => {
 		const rows = [
 			message("user", "Go", "t-1", "2026-01-02 03:00:00"),

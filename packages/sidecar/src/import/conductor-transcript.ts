@@ -154,9 +154,43 @@ export function conductorTranscript(
 	return started.map((turn) => shownTurn(turn.rows, options.subAgentText === "inline"));
 }
 
+/** Conductor's test for a Claude sign-in error's text (renderApp `JVt` @9517358). */
+function readsAsSignInError(text: unknown): boolean {
+	if (typeof text !== "string" || text === "") return false;
+	const lower = text.toLowerCase();
+	return (
+		lower.includes("please run /login") ||
+		lower.includes("authentication_error") ||
+		(text.includes("401") && lower.includes("invalid authentication credentials"))
+	);
+}
+
+/** A turn's result that shows the sign-in view (renderApp `SQi` @9517557, `CQi` @9517683). */
+const isSignInResult = (payload: Record<string, unknown>): boolean =>
+	payload.type === "result" &&
+	payload.is_error === true &&
+	payload.subtype === "success" &&
+	readsAsSignInError(payload.result);
+
+/**
+ * An assistant message of text only that repeats a sign-in error. Conductor shows none of it when
+ * the turn's result already shows the sign-in view (renderApp `kpa` @9558460).
+ */
+function isSignInEcho(payload: Record<string, unknown>): boolean {
+	const content = blocks(payload);
+	return (
+		content.length > 0 &&
+		content.every((block) => block.type === "text") &&
+		readsAsSignInError(
+			content.map((block) => (typeof block.text === "string" ? block.text : "")).join("\n"),
+		)
+	);
+}
+
 function shownTurn(rows: readonly ShownRow[], inlineSubAgentText: boolean): TranscriptTurn {
 	const payloads = rows.flatMap((row) => (row.payload === null ? [] : [row.payload]));
 	const compacted = payloads.some(isCompaction);
+	const signInShown = payloads.some(isSignInResult);
 	const failedCalls = new Set(
 		payloads.flatMap((payload) =>
 			blocks(payload)
@@ -189,6 +223,7 @@ function shownTurn(rows: readonly ShownRow[], inlineSubAgentText: boolean): Tran
 			continue;
 		}
 		if (payload.type !== "assistant" || (subAgent && !inlineSubAgentText)) continue;
+		if (signInShown && isSignInEcho(payload)) continue;
 		for (const block of blocks(payload)) {
 			if (block.type === "text" && typeof block.text === "string") say(block.text);
 			else if (block.type === "tool_use" && typeof block.name === "string" && !subAgent) {
