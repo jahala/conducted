@@ -8,7 +8,8 @@
  * Must handle: memory stays bounded by one read, never a chat: the first read pages the chat's
  * rows without their content and the sidecar keeps only their places; the second fetches the rows
  * the sidecar names, at most `rowsPerRead` holding at most `charsPerRead` characters, and the
- * events of each read are written before the next; each chat's events are written in one
+ * events of each read are written before the next; a message too large for the sidecar's line
+ * fails its chat with that reason, before it is sent; each chat's events are written in one
  * transaction, which also counts them and reads the first back, so a failure leaves the chat
  * without history and never half of it; a failed chat is named with its reason and the next
  * chat goes on; a chat that gained an event since the dry run (the user sent a message) is left
@@ -29,17 +30,23 @@ import type { SidecarClient } from "../sidecar/tunnel.ts";
 import { stable } from "./apply.ts";
 import type { HistoryChat } from "./plan.ts";
 
-/** How much one read takes. The sidecar's line limit (16 MiB) holds a read's events with room. */
+/**
+ * How much one read takes. The sidecar reads lines of at most 16 MiB characters, so a read's rows
+ * and their events fit with room. A read holds at least one row, so one row larger than
+ * `charsPerRead` is read alone; past `maxReadChars` it cannot cross the line, even escaped.
+ */
 export interface HistoryLimits {
 	keysPerPage: number;
 	rowsPerRead: number;
 	charsPerRead: number;
+	maxReadChars: number;
 }
 
 export const HISTORY_LIMITS: HistoryLimits = {
 	keysPerPage: 5000,
 	rowsPerRead: 1000,
 	charsPerRead: 2_000_000,
+	maxReadChars: 6_000_000,
 };
 
 export interface HistoryDeps {
@@ -112,14 +119,13 @@ async function indexChat(
 	historyId: string,
 	deps: HistoryDeps,
 ): Promise<Result<void>> {
-	const limits = HISTORY_LIMITS;
 	let after = 0;
 	for (;;) {
 		const page = await deps.conductorImport.readMessageKeys(
 			deps.copyPath,
 			chat.sessionId,
 			after,
-			limits.keysPerPage,
+			HISTORY_LIMITS.keysPerPage,
 		);
 		if (!page.ok) return page;
 		const last = page.value.at(-1);
@@ -152,6 +158,15 @@ async function writeChat(
 	let first: SessionEvent | undefined;
 	for (;;) {
 		if (!rows.ok) return rows;
+		const chars = rows.value.reduce((sum, row) => sum + (row.content?.length ?? 0), 0);
+		if (chars > limits.maxReadChars) {
+			return err(
+				appError(
+					"import_history_too_large",
+					`A message in it holds ${chars.toLocaleString("en-US")} characters, more than the import can carry.`,
+				),
+			);
+		}
 		const mapped = await deps.sidecar.request("mapConductorHistory", {
 			historyId,
 			rows: rows.value,

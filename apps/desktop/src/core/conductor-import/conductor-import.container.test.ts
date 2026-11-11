@@ -817,4 +817,27 @@ describe("APP-18 chat history from Conductor, through the container", () => {
 		expect(outcome.history).toEqual({ chats: 0, changed: 1, failed: [] });
 		expect(await eventCount(test, "s-3")).toBe(1);
 	});
+
+	it("a chat with a message too large to carry comes without history, and says why", async () => {
+		const test = await setUp();
+		const database = fixture();
+		const rows = [...(database.session_messages ?? [])];
+		const huge = rows.findIndex((row) => row.session_id === "s-3" && row.role === "assistant");
+		rows[huge] = { ...rows[huge], content: JSON.stringify(text("u-huge", "y".repeat(6_000_001))) };
+		test.memory.controls.seedConductorDatabase(conductorDatabasePath(HOME), {
+			...database,
+			session_messages: rows,
+		});
+		must(await test.container.services.conductorImport.preview());
+		const outcome = must(await test.container.services.conductorImport.run());
+
+		expect(outcome.history.failed).toEqual([
+			expect.objectContaining({
+				sessionId: "s-3",
+				reason: expect.stringContaining("more than the import can carry"),
+			}),
+		]);
+		expect(await eventCount(test, "s-3")).toBe(0);
+		expect(await eventCount(test, "s-1")).toBeGreaterThan(0);
+	});
 });

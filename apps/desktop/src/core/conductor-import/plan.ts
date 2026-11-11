@@ -179,7 +179,6 @@ export interface HistoryChat {
 	label: string;
 	agent: AgentKind;
 	config: SessionConfig;
-	rows: number;
 }
 
 /** What the dry run shows. It holds names, counts and reasons, never a secret value. */
@@ -757,7 +756,6 @@ export function planConductorImport(input: PlanInput): ImportPlan {
 			label: labelOf(session),
 			agent: agent as AgentKind,
 			config: configOf(session, agent as AgentKind),
-			rows: messageRows,
 		});
 	}
 	// A workspace Conductor marks unread shows unread here through its newest chat, as
