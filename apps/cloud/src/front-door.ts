@@ -7,10 +7,11 @@
  * @feature CLOUD-12 SSH into a cloud workspace and open it in a local editor
  * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
  * @feature CLOUD-17 Cloud settings page
+ * @feature CLOUD-19 Create cloud workspaces: the organisation switcher and the new-workspace page in cloud mode
  * Owns: the checks every request passes after the unauthenticated preview path and before a
- * Durable Object is touched: the pairing token, the pairing check, the cloud settings read and
- * write, the route, the workspace name, the method, and the WebSocket upgrade for the relay and
- * terminal streams.
+ * Durable Object is touched: the pairing token, the pairing check, the readiness check (CLOUD-19),
+ * the cloud settings read and write, the route, the workspace name, the method, and the WebSocket
+ * upgrade for the relay and terminal streams.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the Worker authenticates and routes) and
  * docs/research/cloud-spike-2026-11-06.md, question 4 (the token is checked on every route in
  * constant time before any Durable Object starts). CLOUD-07: `/pair` answers with the Worker's own
@@ -24,6 +25,7 @@
  */
 import { WORKSPACE_NAME } from "./args.ts";
 import { isAuthorized, PAIR_PATH } from "./auth.ts";
+import { READINESS_PATH } from "./readiness.ts";
 
 /** A workspace route: one workspace name and one action. */
 export type CloudAction =
@@ -48,10 +50,14 @@ export interface CloudRoute {
 	action: CloudAction;
 }
 
-/** What an authenticated request is: a route, the pairing check, cloud settings, or a refusal. */
+/**
+ * What an authenticated request is: a route, the pairing check, the readiness check, cloud
+ * settings, or a refusal.
+ */
 export type FrontDoor =
 	| { route: CloudRoute }
 	| { pair: true }
+	| { readiness: true }
 	| { settings: "read" | "write" }
 	| { refusal: Response };
 
@@ -101,6 +107,17 @@ export function routeRequest(request: Request, pairingToken: string | undefined)
 			};
 		}
 		return { pair: true };
+	}
+	if (url.pathname === READINESS_PATH) {
+		if (request.method !== "GET") {
+			return {
+				refusal: new Response("Method not allowed", {
+					status: 405,
+					headers: { allow: "GET" },
+				}),
+			};
+		}
+		return { readiness: true };
 	}
 	if (url.pathname === SETTINGS_PATH) {
 		if (request.method !== "GET" && request.method !== "POST") {
