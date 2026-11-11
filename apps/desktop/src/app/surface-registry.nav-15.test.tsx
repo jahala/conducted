@@ -204,7 +204,7 @@ describe("NAV-15 terminal tabs draw through the shell's surface layer", () => {
 		);
 		expect(terminalElement(terminalId)).toBeNull();
 		expect(document.querySelector("[data-surface-id]")).toBeNull();
-		// The Scripts panel lists the same terminals; the closed one is gone there too.
+		// The closed terminal has no panel tab either: the panel lists only its own terminals (#482).
 		expect(document.querySelector(`[data-terminal-tab="${terminalId}"]`)).toBeNull();
 		const rows = await test.database.select<{ id: string }>(
 			"SELECT id FROM terminals WHERE id = $1",

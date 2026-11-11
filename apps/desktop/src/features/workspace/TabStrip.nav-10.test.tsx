@@ -199,7 +199,7 @@ describe("NAV-10 TabStrip", () => {
 	it("closes a terminal from its close button", async () => {
 		state.terminals = {
 			state: "ready",
-			data: [{ id: "t1", kind: "terminal", title: "Terminal 1" }],
+			data: [{ id: "t1", kind: "terminal", title: "Terminal 1", placement: "centre" }],
 		};
 		renderStrip({ search: { tab: "terminal", terminalId: "t1" } });
 		fireEvent.click(screen.getByRole("button", { name: "Close Terminal 1" }));
@@ -353,8 +353,8 @@ describe("NAV-10 TabStrip", () => {
 		state.terminals = {
 			state: "ready",
 			data: [
-				{ id: "t1", kind: "terminal", title: "Terminal 1" },
-				{ id: "t2", kind: "terminal", title: "Terminal 2" },
+				{ id: "t1", kind: "terminal", title: "Terminal 1", placement: "centre" },
+				{ id: "t2", kind: "terminal", title: "Terminal 2", placement: "centre" },
 			],
 		};
 		renderStrip({ search: { tab: "file", path: "a.ts" } });
