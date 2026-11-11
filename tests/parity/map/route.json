@@ -261,12 +261,9 @@
 		"by": "rule:team-route"
 	},
 	"route:R9542870": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-06",
-		"item": "Conductor shows \"/settings/user/general\" (route, inventory-controls Chat view); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "/settings/user/general",
+		"by": "seed"
 	},
 	"route:R10181173": {
 		"status": "matched",

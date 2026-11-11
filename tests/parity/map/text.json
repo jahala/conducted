@@ -1852,12 +1852,12 @@
 		"owner": "rule:quote"
 	},
 	"text:R8784090": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-20",
-		"item": "Task cards: 'Task created', 'Task details' with Status, Subject, Blocked by, Blocks, 'No tasks'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-tool-cards-tasks",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(4) > div > span:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"text:R8786178": {
 		"status": "matched",
@@ -1876,48 +1876,44 @@
 		"by": "seed"
 	},
 	"text:R8789608": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-20",
-		"item": "Conductor shows \"Loading task...\" (text, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-tools-loading",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div > p",
+		"by": "seed"
 	},
 	"text:R8791800": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-20",
-		"item": "Conductor shows \"Status:\" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "chat-tool-cards-tasks",
+		"via": "text",
+		"role": "dt",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div > dl > dt:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R8792002": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-20",
-		"item": "Conductor shows \"Subject:\" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "chat-tool-cards-tasks",
+		"via": "text",
+		"role": "dt",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div > dl > dt:nth-of-type(2)",
+		"by": "seed"
 	},
 	"text:R8792236": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-20",
-		"item": "Conductor shows \"Blocked by:\" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "chat-tool-cards-tasks",
+		"via": "text",
+		"role": "dt",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div > dl > dt:nth-of-type(3)",
+		"by": "seed"
 	},
 	"text:R8792501": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-20",
-		"item": "Conductor shows \"Blocks:\" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "chat-tool-cards-tasks",
+		"via": "text",
+		"role": "dt",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div > dl > dt:nth-of-type(4)",
+		"by": "seed"
 	},
 	"text:R8795249": {
 		"status": "matched",
@@ -2040,20 +2036,20 @@
 		"by": "seed"
 	},
 	"text:R8822048": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-20",
-		"item": "Conductor shows \"Failed to load image\" (text, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-tool-cards-tasks",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(6) > div > div > p",
+		"by": "seed"
 	},
 	"text:R8822365": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-20",
-		"item": "Image cards 'Preview image' and 'Loading image' (image view, image generation)",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-tools-loading",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(3) > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R8823423": {
 		"status": "gap",
@@ -2061,16 +2057,15 @@
 		"screen": "inventory-ui-text Chat and tool cards",
 		"backlog": "CHAT-20",
 		"item": "Conductor shows \"Purpose: \" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"text:R8824972": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-20",
-		"item": "Conductor shows \"To:\" (text, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-tool-cards-tasks",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(7) > div > div > p > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R8825965": {
 		"status": "matched",
@@ -2119,8 +2114,7 @@
 		"screen": "inventory-controls Composer",
 		"backlog": "CHAT-29",
 		"item": "Conductor shows \"Preview unavailable\" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"text:R8840488": {
 		"status": "gap",
@@ -2128,8 +2122,7 @@
 		"screen": "inventory-controls Composer",
 		"backlog": "CHAT-29",
 		"item": "Conductor shows \"Open the file to inspect this attachment.\" (region, inventory-controls Composer); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"text:R8843206": {
 		"status": "gap",
@@ -2150,30 +2143,28 @@
 		"by": "hand"
 	},
 	"text:R8859618": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-14",
-		"item": "Conductor shows \"Context\" (control, inventory-controls Composer); ours holds it but no catalogue state draws it (parity gap, unshown).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "chat-context-unknown",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"text:R8860458": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-14",
-		"item": "Conductor shows \"Window used\" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "chat-context-usage",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R8868546": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-14",
-		"item": "Context notes 'Context window size not yet available.' and 'Context usage is unavailable for Cursor.'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-context-unknown",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(2) > div > div > p",
+		"by": "seed"
 	},
 	"text:R8868777": {
 		"status": "gap",
@@ -2192,28 +2183,28 @@
 		"owner": "rule:cite"
 	},
 	"text:R8869549": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-14",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "chat-context-loading",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(2) > div > div > p",
+		"by": "seed"
 	},
 	"text:R8875135": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-14",
-		"item": "Conductor shows \"Context usage\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "chat-context-unknown",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > div > div:nth-of-type(3) > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"text:R8876144": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-14",
-		"item": "Context notes 'Context window size not yet available.' and 'Context usage is unavailable for Cursor.'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-context-cursor",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(2) > div > div > p",
+		"by": "seed"
 	},
 	"text:R8881063": {
 		"status": "matched",
@@ -2304,13 +2295,12 @@
 		"owner": "rule:quote"
 	},
 	"text:R9037926": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-29",
-		"item": "Conductor shows \"Couldn’t load image\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "chat-tool-cards-tasks",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(10) > div > div > p",
+		"by": "seed"
 	},
 	"text:R9083099": {
 		"status": "gap",
@@ -2475,13 +2465,12 @@
 		"by": "seed"
 	},
 	"text:R9502437": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-20",
-		"item": "Conductor shows \"Prompt\" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "chat-tool-cards-tasks",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(8) > div > div > div > button",
+		"by": "seed"
 	},
 	"text:R9511048": {
 		"status": "gap",
@@ -2532,12 +2521,12 @@
 		"owner": "rule:cite"
 	},
 	"text:R9521544": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-06",
-		"item": "'Sent via' or 'Sent from another session' label on a user message",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-notices",
+		"via": "title",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div:nth-of-type(4) > div > div:nth-of-type(1) > div > span",
+		"by": "seed"
 	},
 	"text:R9525735": {
 		"status": "matched",
@@ -2548,13 +2537,12 @@
 		"by": "seed"
 	},
 	"text:R9534245": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-06",
-		"item": "Conductor shows \"This content could not be displayed.\" (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "chat-errors",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div:nth-of-type(2) > div > div:nth-of-type(2) > div > div > div > div > span",
+		"by": "seed"
 	},
 	"text:R9539350": {
 		"status": "matched",
@@ -2602,8 +2590,7 @@
 		"screen": "inventory-controls Chat view",
 		"backlog": "CHAT-06",
 		"item": "Conductor shows \"Add a Cursor API key in provider settings to use Cursor.\" (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"text:R9544396": {
 		"status": "gap",
@@ -2619,8 +2606,7 @@
 		"screen": "inventory-controls Chat view",
 		"backlog": "CHAT-06",
 		"item": "Conductor shows \"Exceeds Claude Code's size limit (5MB). Please revert to a previous user message by hovering over it, otherwise this chat will fail going forward.\" (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"text:R9544970": {
 		"status": "matched",
@@ -2631,12 +2617,12 @@
 		"by": "seed"
 	},
 	"text:R9546417": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-06",
-		"item": "Conductor shows \"Sent from\" (text, inventory-controls Chat view); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-notices",
+		"via": "title",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div:nth-of-type(3) > div > div:nth-of-type(1) > div > span",
+		"by": "seed"
 	},
 	"text:R9547376": {
 		"status": "matched",
@@ -2647,13 +2633,12 @@
 		"by": "seed"
 	},
 	"text:R9557324": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-06",
-		"item": "Conductor shows \"Cancelled\" (control, inventory-controls Chat view); ours holds it but no catalogue state draws it (parity gap, unshown).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "chat-notices",
+		"via": "text",
+		"role": "note",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div:nth-of-type(2) > div > p",
+		"by": "seed"
 	},
 	"text:R9562178": {
 		"status": "matched",
@@ -2945,13 +2930,12 @@
 		"owner": "rule:cite"
 	},
 	"text:R9988523": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-29",
-		"item": "Conductor shows \"Video attachment\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "chat-attachment-viewer",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"attachment\"] > button > span",
+		"by": "seed"
 	},
 	"text:R9992592": {
 		"status": "matched",
