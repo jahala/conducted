@@ -24,8 +24,8 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
 use conducted_lib::cloud::{
-    WRANGLER_TIMEOUT, Wrangler, bucket_names, container_id, deploy_worker, image_refs,
-    make_pairing_token, uninstall_worker,
+    CloudflareApi, WRANGLER_TIMEOUT, Wrangler, bucket_names, container_id, deploy_worker,
+    image_refs, make_pairing_token, uninstall_worker,
 };
 
 fn live_name() -> String {
@@ -360,7 +360,7 @@ fn files_and_terminal_on_a_real_sandbox() {
     }
 
     let uninstall_began = Instant::now();
-    let removed = uninstall_worker(&wrangler, &resources, &name);
+    let removed = uninstall_worker(&wrangler, &CloudflareApi::from_env(), &resources, &name);
     let uninstall_ms = uninstall_began.elapsed().as_millis();
 
     let containers = listed(&wrangler, &resources, &["containers", "list", "--json"]);
@@ -481,7 +481,7 @@ fn measure_the_read_bytes_limit() {
         eprintln!("measurement run: {result:?}");
     }
 
-    let removed = uninstall_worker(&wrangler, &resources, &name);
+    let removed = uninstall_worker(&wrangler, &CloudflareApi::from_env(), &resources, &name);
     let containers = listed(&wrangler, &resources, &["containers", "list", "--json"]);
     let images = listed(
         &wrangler,

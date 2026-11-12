@@ -9,8 +9,8 @@
 //! sandbox carries only the placeholder, so the server's answer proves the Worker's swap. The run
 //! then searches the sandbox (every process's environment and command line, the files written
 //! since it started, and the runtime folders) and every relayed line for the token, by its
-//! SHA-256, and checks the search on a planted decoy. Then it empties the bucket (the workspace's
-//! remove route and the settings object) and deletes everything it made.
+//! SHA-256, and checks the search on a planted decoy. Then it deletes everything it made with the
+//! app's own uninstall, which empties the bucket of the settings object and the backups first.
 //!
 //! Behaviour: D121 and docs/research/cloud-spike-2026-11-06.md. It uses the app's bundled deploy
 //! inputs (`resources/cloud`, made by `pnpm cloud:prepare`), the real `wrangler` login, Docker and
@@ -41,8 +41,8 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
 use conducted_lib::cloud::{
-    WRANGLER_TIMEOUT, Wrangler, bucket_names, container_id, deploy_worker, image_refs,
-    make_pairing_token, uninstall_worker,
+    CloudflareApi, WRANGLER_TIMEOUT, Wrangler, bucket_names, container_id, deploy_worker,
+    image_refs, make_pairing_token, uninstall_worker,
 };
 
 const PREFIX: &str = "conducted-dev-c17l-";
@@ -984,51 +984,12 @@ async fn live_steps(
     Ok(())
 }
 
-/// Deletes the Worker, its container application, its images and bucket, then the local Docker
-/// images wrangler built for it, and says what is left. The bucket must be empty first: the
-/// workspace's own remove route deletes its backups, and the settings object is deleted by key.
-fn teardown(
-    wrangler: &Wrangler,
-    resources: &Path,
-    name: &str,
-    workspace: Option<(&str, &str, &str)>,
-) -> (Result<(), String>, String) {
-    let mut emptied = Vec::new();
-    if let Some((url, pairing, workspace)) = workspace {
-        let answer = tauri::async_runtime::block_on(async {
-            let client = reqwest::Client::builder()
-                .timeout(Duration::from_secs(120))
-                .build()
-                .map_err(|error| error.to_string())?;
-            Ok::<_, String>(
-                post(
-                    &client,
-                    url,
-                    pairing,
-                    &format!("/w/{workspace}/remove"),
-                    None,
-                )
-                .await,
-            )
-        });
-        emptied.push(format!("remove={answer:?}"));
-    }
-    let settings = wrangler
-        .run(
-            &[
-                String::from("r2"),
-                String::from("object"),
-                String::from("delete"),
-                format!("{name}/settings/user.json"),
-                String::from("--remote"),
-            ],
-            resources,
-            None,
-            WRANGLER_TIMEOUT,
-        )
-        .map(|output| output.success);
-    emptied.push(format!("settings_object_deleted={settings:?}"));
-    let removed = uninstall_worker(wrangler, resources, name).map_err(|error| format!("{error:?}"));
+/// Deletes the Worker, its container application, its images and its bucket with everything in it
+/// through the app's own uninstall, then the local Docker images wrangler built for it, and says
+/// what is left.
+fn teardown(wrangler: &Wrangler, resources: &Path, name: &str) -> (Result<(), String>, String) {
+    let removed = uninstall_worker(wrangler, &CloudflareApi::from_env(), resources, name)
+        .map_err(|error| format!("{error:?}"));
     let containers = listed(wrangler, resources, &["containers", "list", "--json"]);
     let images = listed(
         wrangler,
@@ -1069,13 +1030,13 @@ fn teardown(
         })
         .unwrap_or(usize::MAX);
     let report = format!(
-        "emptied={emptied:?} container_left={container_left} images_left={images_left:?} bucket_left={bucket_left} \
+        "removed={removed:?} container_left={container_left} images_left={images_left:?} bucket_left={bucket_left} \
          docker_removed={docker_removed:?} docker_left={docker_left}"
     );
     let clean = !container_left && images_left.is_empty() && !bucket_left && docker_left == 0;
     let result = match (removed, clean) {
-        (Ok(()), true) => Ok(()),
-        (Ok(()), false) => Err(format!("left behind: {report}")),
+        (Ok(_), true) => Ok(()),
+        (Ok(_), false) => Err(format!("left behind: {report}")),
         (Err(error), _) => Err(error),
     };
     (result, report)
@@ -1105,7 +1066,6 @@ fn an_agent_in_the_sandbox_reaches_a_bearer_token_mcp_server() {
     let mut deploy_ms = 0u128;
     let mut deployed = false;
     let mut tunnel_child: Option<Child> = None;
-    let mut worker_url: Option<String> = None;
 
     let run = std::panic::catch_unwind(AssertUnwindSafe(|| -> Result<(), String> {
         let (child, public) = tunnel.map_err(|error| error.to_string())?;
@@ -1136,7 +1096,6 @@ fn an_agent_in_the_sandbox_reaches_a_bearer_token_mcp_server() {
         deploy_ms = began.elapsed().as_millis();
         deployed = true;
         let url = deploy.map_err(|error| format!("deploy failed: {error:?}"))?;
-        worker_url = Some(url.clone());
         tauri::async_runtime::block_on(live_steps(
             &url,
             &pairing,
@@ -1155,10 +1114,7 @@ fn an_agent_in_the_sandbox_reaches_a_bearer_token_mcp_server() {
 
     let began = Instant::now();
     let (removed, left) = if deployed {
-        let target = worker_url
-            .as_deref()
-            .map(|url| (url, pairing.as_str(), workspace.as_str()));
-        teardown(&wrangler, &resources, &name, target)
+        teardown(&wrangler, &resources, &name)
     } else {
         (Ok(()), String::from("nothing deployed"))
     };
@@ -1262,7 +1218,7 @@ fn remove_leftover_c17_deployments() {
         .unwrap_or_default();
     let mut failed = Vec::new();
     for name in &names {
-        let (removed, left) = teardown(&wrangler, &resources, name, None);
+        let (removed, left) = teardown(&wrangler, &resources, name);
         println!("removed {name}: {removed:?} {left}");
         if removed.is_err() {
             failed.push(name.clone());
