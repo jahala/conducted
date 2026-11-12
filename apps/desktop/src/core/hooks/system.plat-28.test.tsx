@@ -24,6 +24,7 @@ const claude: AgentProgramView = {
 		nextAttemptAt: null,
 		error: null,
 		path: "/app/agent-binaries/claude/2.1.308/claude",
+		follow: null,
 	},
 	userPath: null,
 };

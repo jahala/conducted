@@ -211,6 +211,7 @@ export function createWorld(database: Database): World {
 			nextAttemptAt: null,
 			error: null,
 			path,
+			follow: null,
 		});
 	}
 

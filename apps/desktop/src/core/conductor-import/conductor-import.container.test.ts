@@ -331,6 +331,7 @@ async function setUp(
 			nextAttemptAt: null,
 			error: null,
 			path: `${test.memory.platform.fs.paths.appData}/bin/${program}`,
+			follow: null,
 		});
 	}
 	controls.seedConductorDatabase(conductorDatabasePath(HOME), fixture(setup.longChat));
