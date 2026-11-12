@@ -1,7 +1,7 @@
 /**
  * Tests the harness's own name lists, read from the code that defines them.
  * Behaviour: docs/plans/parity-harness.md section 3, check e; the table list must include the
- * applied-migration ledger the SQL plugin creates, which no migration file writes.
+ * applied-migration ledger sqlx's migrator creates, which no migration file writes.
  */
 import { describe, expect, test } from "bun:test";
 import { ROOT } from "./lib.ts";

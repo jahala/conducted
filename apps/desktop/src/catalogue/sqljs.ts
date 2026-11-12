@@ -22,7 +22,7 @@ import {
 const bind = (params: readonly unknown[]): Record<string, SqlValue> =>
 	Object.fromEntries(params.map((value, index) => [`$${index + 1}`, value as SqlValue]));
 
-/** The raw handle the plugin gives the app, over sql.js. */
+/** The raw handle `db_execute` and `db_select` give the app, over sql.js. */
 function sqlJsHandle(db: SqlJsDatabase): SqlDatabase {
 	return {
 		execute: async (sql, params = []) => {
