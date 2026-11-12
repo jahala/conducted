@@ -242,6 +242,30 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		"Rendering style for markdown files.",
 	),
 	searchState(
+		"settings-search-theme",
+		"Settings search: the theme",
+		"color scheme",
+		"Switch between light, dark, and system appearance.",
+	),
+	searchState(
+		"settings-search-low-contrast",
+		"Settings search: low-contrast dark mode",
+		"contrast",
+		"Soften the app's colors when using the dark theme.",
+	),
+	searchState(
+		"settings-search-zoom",
+		"Settings search: the app zoom",
+		"zoom",
+		"Adjust the size of the Conducted interface.",
+	),
+	searchState(
+		"settings-search-default-model",
+		"Settings search: the default model",
+		"default model",
+		"Model for new chats",
+	),
+	searchState(
 		"settings-search-appearance",
 		"Settings search: Appearance settings",
 		"appearance typography",
@@ -829,6 +853,12 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		"General, the completion sound menu open",
 		"general",
 		"Completion sound",
+	),
+	selectOpen(
+		"settings-appearance-theme-menu",
+		"Appearance, the theme menu open",
+		"appearance",
+		"Theme",
 	),
 	selectOpen(
 		"settings-appearance-code-theme-menu",
