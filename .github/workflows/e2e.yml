@@ -54,5 +54,5 @@ jobs:
         with:
           bun-version-file: .bun-version
       - run: pnpm install --frozen-lockfile
-      - name: Launch loop for #632 (temporary)
-        run: bun scripts/with-run-dir.ts bun scripts/e2e/launch-loop.ts 30
+      - name: End-to-end checks in the real app
+        run: pnpm test:e2e
