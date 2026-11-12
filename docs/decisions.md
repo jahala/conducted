@@ -1001,3 +1001,13 @@ Chosen:
 - **Limits.** Only `latest` is read: the host publishes no list of versions (`/claude-code-releases/` answers 404), so a compatible release between the one that runs and an incompatible `latest` is never seen. The manifest is trusted over HTTPS from the vendor's host, as the installer trusts it. The host also publishes `<version>/manifest.json.sig`, but no public key for it is documented, so it is not checked. The floor's checksum is still reviewed in a pull request; a followed version's comes from the host at run time.
 
 Why: the owner's request. New models reach the user without an app release, and the SDK gate keeps the app on releases Claude Code's own tests cover for the SDK the sidecar runs.
+
+## D134. A system dialog's title is checked by a test, not a catalogue state (2026-11-12)
+
+Decided in the parity work under the owner's rule "Match Conductor. Nothing made up; gaps are reported."
+
+Context: Conductor titles its system folder pickers "Select project directory", "Select directory to link" and "Select Conductor root directory" (renderApp @1717947, @5685048, @10967435). macOS draws those windows outside the page, so no catalogue state can show them, and the parity harness's check b never sees them. Ours passes the same titles to `Platform.dialogs.pickFolder`, with our product name in the third (D012).
+
+Chosen: a parity entry that is the title of a system dialog is mapped to D134. Its note names the screen that opens the dialog and the test that asserts the title the Platform receives. The test drives the real screen, so changing the title fails it. A dialog the app draws itself stays a catalogue match.
+
+Why: the words are on screen and must match Conductor's. Only a test can see them, so the decision names the test that holds them.

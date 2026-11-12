@@ -1,6 +1,6 @@
 /**
  * @feature catalogue States of the command palette, the file viewer and the scripts panel
- * Owns: the command palette open over a workspace, on its Workspaces, Projects and Actions tabs, and
+ * Owns: the command palette open over a workspace, on its Workspaces, Projects, Actions and Settings tabs, and
  * the pickers its actions open (Move to section, File picker, Search in files, Link pull request,
  * Show keyboard shortcuts, the snippets manager
  * listing and editing a snippet), the Passport opened from it, the Feedback dialog (opened as Send feedback opens it), the Clone GitHub repo dialog with its repository lists, a code file open in the file viewer, the file viewer
@@ -119,6 +119,7 @@ export const OVERLAY_STATES: CatalogueState[] = [
 	paletteTab("Workspaces", "Search workspaces..."),
 	paletteTab("Projects", "Search projects..."),
 	paletteTab("Actions", "Search actions..."),
+	paletteTab("Settings", "Search settings..."),
 	paletteAction("command-palette-move-to-section", "Move to section", {
 		placeholder: "Search sections...",
 	}),

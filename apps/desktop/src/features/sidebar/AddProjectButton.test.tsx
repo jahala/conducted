@@ -77,6 +77,8 @@ describe("PRJ-01 AddProjectButton", () => {
 			}),
 		);
 		expect(state.createFirst).toHaveBeenCalledWith("r1");
+		// The system folder picker's title, as Conductor's (renderApp @1717947, D134).
+		expect(state.pick).toHaveBeenCalledWith("Select project directory");
 		expect(state.toastError).not.toHaveBeenCalled();
 	});
 
