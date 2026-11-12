@@ -48,7 +48,7 @@ describe("APP-02 onboarding project step", () => {
 			fireEvent.click(screen.getByRole("button", { name: "Add a project" }));
 			await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
 			expect(addLocal).toHaveBeenCalledWith("/code/my-app");
-			// The system folder picker's title, as Conductor's (renderApp @1717947, D132).
+			// The system folder picker's title, as Conductor's (renderApp @1717947, D133).
 			expect(pickFolder).toHaveBeenCalledWith(
 				expect.objectContaining({ title: "Select project directory" }),
 			);

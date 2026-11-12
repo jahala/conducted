@@ -49,6 +49,10 @@
  * error reads as the result's error item already shows it. A turn with no such result ends
  * `interrupted`: nothing in Conductor's rows says it finished. Without an end, our chat would show
  * every imported turn as stopped and startup repair would add an end to each.
+ * Our design choice (D132): an agent message keeps no `raw`. The original payload is Conductor's
+ * row, which stays in Conductor's database, and the import can be run again from it; kept, it
+ * would triple what the import writes (12.1 GB against 3.8 GB on the owner's chats). Events our
+ * own runner writes keep `raw`.
  * Our design choice: the mapping lives in the sidecar beside the runners' translators, and the
  * import drives it over RPC (history-imports.ts). The spike's Conductor side (conductor-
  * transcript.ts) reads the same rows by its own code, so the comparison tests this mapping
@@ -234,6 +238,9 @@ function bubbleText(payload: Payload): string | null {
 		.map((block) => block.text as string)
 		.join("\n");
 }
+
+/** The message without its original payload, which stays in Conductor's row (D132). */
+const unraw = ({ raw: _raw, ...message }: AgentMessage): AgentMessage => message;
 
 const isCompactCommand = (text: string): boolean => text.trim() === "/compact";
 
@@ -612,7 +619,7 @@ export class ConductorHistoryMapper {
 		const made: SessionEvent[] = [];
 		if (typed !== null && typed.trim() !== "") made.push(userMessage(typed, "steer"));
 		for (const message of messages) {
-			made.push({ eventId: row.id as EventId, at, type: "agent", turnId, message });
+			made.push({ eventId: row.id as EventId, at, type: "agent", turnId, message: unraw(message) });
 		}
 		push(made);
 	}

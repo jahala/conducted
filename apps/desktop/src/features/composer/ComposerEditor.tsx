@@ -11,7 +11,8 @@
  * Focus: the editor takes the keyboard focus with the caret at the end when it opens, unless it is
  * disabled, as Conductor's composer does (renderApp's composer, autoFocus on by default).
  * Must handle: IME composition (Enter must not send); an open '@', '/', '#' or '§' menu (Enter goes
- * to the menu, mentions/trigger-menu.ts); Shift+Enter line break; undo and redo
+ * to the menu, mentions/trigger-menu.ts); Shift+Enter line break; an app shortcut on a modified
+ * Enter (Cmd+Shift+Enter, Cmd+Alt+Enter), which runs before ProseMirror takes the key; undo and redo
  * (StarterKit's UndoRedo); the draft text is saved on a short pause (use-draft-sync.ts); screen
  * reader name 'composer'.
  * The composer passes the trigger extensions here: `@` file mentions (COMP-04), `#` PR and issue
@@ -33,6 +34,7 @@ import {
 import StarterKit from "@tiptap/starter-kit";
 import type { KeyboardEvent } from "react";
 import { useEffect } from "react";
+import { useScopeKeyDown } from "../../app/command-dispatcher.ts";
 import { triggerMenuOpen } from "./mentions/trigger-menu.ts";
 import { resolveSendKey, type SendIntent, type SendWith } from "./send-key.ts";
 
@@ -107,6 +109,8 @@ export function ComposerEditor({
 		[sessionId, extensions],
 	);
 
+	const runAppKey = useScopeKeyDown(null);
+
 	const empty = useEditorState({
 		editor,
 		selector: ({ editor: current }) => current?.isEmpty ?? true,
@@ -138,6 +142,7 @@ export function ComposerEditor({
 		// An open trigger menu takes Enter itself (it chooses a row); the message is not sent.
 		if (editor !== null && triggerMenuOpen(editor.state)) return;
 		const native = event.nativeEvent;
+		const composing = native.isComposing || native.keyCode === 229;
 		const intent = resolveSendKey(
 			{
 				key: event.key,
@@ -145,10 +150,18 @@ export function ComposerEditor({
 				metaKey: event.metaKey,
 				altKey: event.altKey,
 				ctrlKey: event.ctrlKey,
-				isComposing: native.isComposing || native.keyCode === 229,
+				isComposing: composing,
 			},
 			sendWith,
 		);
+		// ProseMirror prevents the default of every Enter it does not handle, and the root listener
+		// skips a prevented key. So a modified Enter the send keys give no meaning to (Cmd+Shift+Enter
+		// approves a waiting plan) runs as an app shortcut here, before the editor sees it, as
+		// Conductor's root listener does from the window's capture phase (renderApp @682452).
+		if (intent === null && event.key === "Enter" && !composing) {
+			if (runAppKey(native)) event.stopPropagation();
+			return;
+		}
 		if (intent !== "submit" && intent !== "submit_opposite") return;
 		event.preventDefault();
 		event.stopPropagation();

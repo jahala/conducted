@@ -13,13 +13,15 @@
  * list loading, empty, filtered and failed; a subscription token saved and an Anthropic key taken
  * from this Mac; a shortcut being recorded; Appearance with a custom code font; and a project's
  * Actions page with no actions, and with
- * a hidden shared action, a personal action and a shared one changed on this Mac; and atlas's Misc
- * page when its settings file cannot be read.
+ * a hidden shared action, a personal action and a shared one changed on this Mac; the import
+ * from Conductor's dry run, its end, and a disk without the space chat history takes (D132); and
+ * atlas's Misc page when its settings file cannot be read.
  * Behaviour: ui-map.md 6 (settings pages).
  * Test first: not applicable; the screenshot run opens every state.
  */
+import type { EventId, TurnId } from "@conducted/shared";
 import { chatRoute, seedCast } from "../cast.ts";
-import { seedConductorDatabase } from "../conductor-database.ts";
+import { type ConductorRows, seedConductorDatabase } from "../conductor-database.ts";
 import { click, fillIn, find, findFirst, has, shows, typeInto } from "../dom.ts";
 import { scriptGitHub } from "../github.ts";
 import { setSetting } from "../seeds.ts";
@@ -139,13 +141,14 @@ const selectOpen = (id: string, title: string, page: string, control: string): C
 /**
  * A Conductor database with one project this Mac already has (atlas), one it does not (tern), their
  * workspaces and chats, a section, a favourite model and two settings, for the import's dialog.
+ * `more` adds rows to its tables.
  */
-async function seedConductorImport(world: World): Promise<void> {
+async function seedConductorImport(world: World, more: ConductorRows = {}): Promise<void> {
 	const cast = await seedCast(world);
 	const tern = "/Users/sam/conductor/repos/tern";
 	world.memory.controls.addFolder(tern);
 	world.memory.controls.addFolder("/Users/sam/conductor/workspaces/tern/lisbon");
-	await seedConductorDatabase(world, {
+	const rows: ConductorRows = {
 		repos: [
 			{ id: "c-atlas", name: "atlas", root_path: cast.atlas.rootPath, default_branch: "main" },
 			{ id: "c-tern", name: "tern", root_path: tern, default_branch: "main", display_order: 1 },
@@ -188,7 +191,11 @@ async function seedConductorImport(world: World): Promise<void> {
 			{ key: "default_model", value: "opus" },
 			{ key: "onboarding_step", value: "done" },
 		],
-	});
+	};
+	for (const [table, extra] of Object.entries(more)) {
+		rows[table] = [...(rows[table] ?? []), ...(extra ?? [])];
+	}
+	await seedConductorDatabase(world, rows);
 }
 
 /** Opens an agent's API-key provider form on the Agents page, optionally on another tab. */
@@ -1321,6 +1328,57 @@ export const SETTINGS_STATES: CatalogueState[] = [
 					await click(document, "button", "Import");
 				},
 				ready: (document) => shows(document, "Done"),
+			};
+		},
+	},
+	{
+		id: "settings-conductor-import-no-space",
+		group: "Settings",
+		title: "General: Import from Conductor, not enough disk space",
+		seed: async (world) => {
+			// A Claude chat in the archived workspace, which comes over, brings one turn of history,
+			// and the disk has 1 GB free (D132).
+			await seedConductorImport(world, {
+				sessions: [
+					{
+						id: "c-s3",
+						workspace_id: "c-porto",
+						agent_type: "claude",
+						model: "opus",
+						title: "Parse flags",
+					},
+				],
+				session_messages: ["Add a --dry-run flag.", "Done."].map((content, index) => ({
+					id: `c-m${index}`,
+					session_id: "c-s3",
+					role: index === 0 ? "user" : "assistant",
+					content,
+					sent_at: `2026-11-10 09:00:0${index}`,
+					created_at: `2026-11-10 09:00:0${index}`,
+					turn_id: "c-t1",
+				})),
+			});
+			world.memory.controls.setDatabaseFreeBytes(1e9);
+			world.answerSidecar({
+				indexConductorHistory: () => ({}),
+				mapConductorHistory: () => ({
+					events: [
+						{
+							eventId: "c-t1:end" as EventId,
+							at: 0,
+							type: "turn_ended",
+							turnId: "c-t1" as TurnId,
+							outcome: "success",
+						},
+					],
+					next: null,
+				}),
+				closeConductorHistory: () => ({}),
+			});
+			return {
+				route: "/settings/user/general",
+				after: ({ document }) => click(document, "button", "Review import"),
+				ready: (document) => shows(document, "There is not enough free disk space"),
 			};
 		},
 	},

@@ -1,7 +1,9 @@
 //! @feature PLAT-17 Block startup when the database is newer than the app
+//! @feature APP-18 Chat history from Conductor: the free space it needs
 //!
-//! Owns: the migration list for `conducted.db`, and the check that stops the app when the
-//! database was migrated by a newer version. The UI reads and writes through tauri-plugin-sql; this
+//! Owns: the migration list for `conducted.db`, the check that stops the app when the
+//! database was migrated by a newer version, and `db_free_bytes`, the free space on the
+//! database's disk, which the Conductor import checks before it writes (D132). The UI reads and writes through tauri-plugin-sql; this
 //! module only defines the schema and guards it.
 //!
 //! Behaviour: docs/research/conductor/native-and-sidecar-map.md A11 (Conductor's migrations and
@@ -36,6 +38,9 @@
 //! Test first: a temp database whose `_sqlx_migrations` holds a version one higher than
 //! `app_schema_version()` yields `database_newer`; one at the same version yields `ok`.
 
+use std::ffi::CString;
+use std::mem::MaybeUninit;
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
 use rusqlite::{Connection, OpenFlags};
@@ -333,6 +338,38 @@ pub fn classify(app_version: i64, facts: DatabaseFacts, database: &Path) -> DbVe
     }
 }
 
+/// The bytes free to this user on the disk that holds `path`: `statfs`'s available blocks times
+/// its block size, as `df` shows them. Space macOS keeps for itself is left out (D132).
+pub fn free_bytes(path: &Path) -> CommandResult<u64> {
+    let failed = |reason: String| CommandError::Failed {
+        code: "db_free_space_failed",
+        message: format!(
+            "The free space on the disk of {} could not be read: {reason}.",
+            path.display()
+        ),
+    };
+    let c_path = CString::new(path.as_os_str().as_bytes())
+        .map_err(|_| failed("the path holds a NUL byte".to_owned()))?;
+    let mut stat = MaybeUninit::<libc::statfs>::uninit();
+    // SAFETY: statfs reads the NUL-terminated path and fills one `struct statfs`.
+    if unsafe { libc::statfs(c_path.as_ptr(), stat.as_mut_ptr()) } != 0 {
+        return Err(failed(std::io::Error::last_os_error().to_string()));
+    }
+    // SAFETY: statfs answered 0, so it filled the struct.
+    let stat = unsafe { stat.assume_init() };
+    Ok(stat.f_bavail.saturating_mul(u64::from(stat.f_bsize)))
+}
+
+/// The bytes free on the disk that holds the database, for the Conductor import's check (APP-18).
+#[tauri::command]
+pub async fn db_free_bytes(app: AppHandle) -> CommandResult<u64> {
+    let path = database_path(&app)?;
+    let folder = path
+        .parent()
+        .map_or_else(|| path.clone(), Path::to_path_buf);
+    blocking("db_free_space_failed", move || free_bytes(&folder)).await
+}
+
 /// Compares the database file with this build. The UI calls it at startup and shows a blocking
 /// screen unless the state is `ok` or `fresh`.
 #[tauri::command]
@@ -551,5 +588,49 @@ mod tests {
 
         assert_eq!(facts.db_version, Some(4));
         assert!(facts.failed_migration);
+    }
+
+    /// `df -k`'s available kilobytes for `path`: the same figure, read by another program.
+    fn df_available_bytes(path: &Path) -> u64 {
+        let output = std::process::Command::new("/bin/df")
+            .arg("-k")
+            .arg(path)
+            .output()
+            .expect("df runs");
+        let text = String::from_utf8(output.stdout).expect("df prints text");
+        let line = text.lines().nth(1).expect("df prints the disk's line");
+        let available: u64 = line
+            .split_whitespace()
+            .nth(3)
+            .expect("df prints an available column")
+            .parse()
+            .expect("the available column is a number");
+        available * 1024
+    }
+
+    #[test]
+    fn free_bytes_agrees_with_df() {
+        let folder = std::env::temp_dir();
+        let ours = free_bytes(&folder).expect("free bytes of the temp folder");
+        let theirs = df_available_bytes(&folder);
+        // Other programs write to the same disk between the two reads.
+        let slack = 256 * 1024 * 1024;
+        assert!(ours > 0, "the temp folder's disk reports no free space");
+        assert!(
+            ours.abs_diff(theirs) < slack,
+            "free_bytes said {ours} and df said {theirs}"
+        );
+    }
+
+    #[test]
+    fn free_bytes_of_a_missing_folder_is_its_own_error() {
+        let missing = std::env::temp_dir().join(format!(
+            "conducted-free-bytes-missing-{}",
+            std::process::id()
+        ));
+        match free_bytes(&missing) {
+            Err(CommandError::Failed { code, .. }) => assert_eq!(code, "db_free_space_failed"),
+            other => panic!("expected db_free_space_failed, got {other:?}"),
+        }
     }
 }
