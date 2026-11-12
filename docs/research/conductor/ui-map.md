@@ -450,6 +450,8 @@ Which dialogs hold app shortcuts (VERIFIED, issue #610). Only a dialog opened th
 
 A handler registered inside a dialog is that dialog's own; ours register theirs at the `modal` priority, and under a dialog that holds app shortcuts only those run for a command not marked global. Settings' "Search settings" (`Cmd+F`) and "Close settings" are plain handlers on the Settings layout (VERIFIED @11760561, @11780161), so they wait while a store dialog is open over Settings and still run under the dialogs kept off the store.
 
+The native menu (VERIFIED, native-and-sidecar-map.md A5 and renderApp @11395986 to @11396604): only Settings, Quit, Send Feedback, Debug and the system's Close Window carry a key. The sidebar toggles carry none; the page binds `Cmd+B` itself, so under a store dialog the key waits like any other. The page acts on every menu event it hears whatever dialog is open (Settings closes the dialog first), and it hears none for Close Window, so a menu pick never closes a tab in Conductor. Ours sends Close Window to the tab close, so that pick follows the key's rule.
+
 Our dialogs with no Conductor dialog keep holding app shortcuts: the review prompt editor (Conductor's "Edit before sending" puts the prompt in a new chat's composer, @2553500), the Claude and Codex config editors (Conductor shows them on the page, @10993932), Delete section? (Conductor deletes at once, @10477336), Remove variable?, Disconnect Linear?, the Conductor import and the wrong-CPU build (a full screen in Conductor, @12041474).
 
 **General**

@@ -19,6 +19,7 @@ import {
 	type KeyBinding,
 	type KeyPress,
 	keyBindings,
+	liveBinding,
 	menuShortcuts,
 	scopesForTarget,
 } from "./command-dispatcher.ts";
@@ -290,14 +291,19 @@ describe("NAV-14 which dialogs hold app shortcuts", () => {
 });
 
 describe("NAV-14 menuShortcuts", () => {
-	it("writes the live first binding in Tauri's syntax", () => {
+	// Conductor's menu carries keys only on Settings, Quit, Send Feedback, Debug and the system's
+	// Close Window; its sidebar toggles have none, and its UI binds Cmd+B itself
+	// (native-and-sidecar-map.md A5), so the key follows the dialog rule. Issue #610.
+	it("gives the menu only the keys Conductor's menu carries, in Tauri's syntax", () => {
 		const shortcuts = menuShortcuts();
-		expect(
-			shortcuts.find((shortcut) => shortcut.commandId === "view.toggleLeftSidebar")?.accelerator,
-		).toBe("CmdOrCtrl+B");
-		expect(
-			shortcuts.find((shortcut) => shortcut.commandId === "view.toggleRightSidebar")?.accelerator,
-		).toBe("CmdOrCtrl+Alt+B");
+		const accelerator = (commandId: string) =>
+			shortcuts.find((shortcut) => shortcut.commandId === commandId)?.accelerator;
+		expect(accelerator("tab.close")).toBe("CmdOrCtrl+W");
+		expect(accelerator("app.sendFeedback")).toBe("CmdOrCtrl+Alt+F");
+		expect(accelerator("app.openDebugTools")).toBe("CmdOrCtrl+Alt+I");
+		expect(accelerator("view.toggleLeftSidebar")).toBeUndefined();
+		expect(accelerator("view.toggleRightSidebar")).toBeUndefined();
+		expect(accelerator("app.showShortcuts")).toBeUndefined();
 	});
 
 	it("leaves the fixed menu items to the Rust shell", () => {
@@ -322,30 +328,25 @@ describe("NAV-14 menuShortcuts", () => {
 	});
 
 	it("follows a rebind", () => {
-		const shortcuts = menuShortcuts({ "view.toggleLeftSidebar": ["Cmd+Shift+B"] });
-		expect(
-			shortcuts.find((shortcut) => shortcut.commandId === "view.toggleLeftSidebar")?.accelerator,
-		).toBe("CmdOrCtrl+Shift+B");
+		const shortcuts = menuShortcuts({ "tab.close": ["Cmd+Shift+W"] });
+		expect(shortcuts.find((shortcut) => shortcut.commandId === "tab.close")?.accelerator).toBe(
+			"CmdOrCtrl+Shift+W",
+		);
 	});
 
 	it("clears the accelerator of an unbound command", () => {
-		const shortcuts = menuShortcuts({ "view.toggleLeftSidebar": [] });
+		const shortcuts = menuShortcuts({ "tab.close": [] });
 		expect(
-			shortcuts.find((shortcut) => shortcut.commandId === "view.toggleLeftSidebar")?.accelerator,
+			shortcuts.find((shortcut) => shortcut.commandId === "tab.close")?.accelerator,
 		).toBeNull();
 	});
 
+	// The live binding is what the menus and the shortcuts dialog show. No chat command is a menu
+	// item, so the swap is read where they read it.
 	it("uses the send-key swap for a chat command", () => {
-		const shortcuts = menuShortcuts({}, "mod_enter");
-		expect(shortcuts.find((shortcut) => shortcut.commandId === "chat.submit")?.accelerator).toBe(
-			"CmdOrCtrl+Enter",
-		);
-		expect(
-			shortcuts.find((shortcut) => shortcut.commandId === "chat.submitOpposite")?.accelerator,
-		).toBe("Alt+Enter");
-		expect(shortcuts.find((shortcut) => shortcut.commandId === "chat.newLine")?.accelerator).toBe(
-			"Enter",
-		);
+		expect(liveBinding("chat.submit", {}, "mod_enter")).toBe("Cmd+Enter");
+		expect(liveBinding("chat.submitOpposite", {}, "mod_enter")).toBe("Alt+Enter");
+		expect(liveBinding("chat.newLine", {}, "mod_enter")).toBe("Enter");
 	});
 });
 

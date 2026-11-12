@@ -47,7 +47,10 @@
  * helpers keep a registry of their own so screens that have not moved to the provider still work; the
  * container owning that registry is APP-01's change.
  * Our design choice: menu accelerators are the live first binding in Tauri's syntax, so a rebind changes
- * the menu bar without a second table. The Rust shell keeps Cmd+Q and Cmd+, fixed (menu.rs's
+ * the menu bar without a second table. Only the menu items Conductor gives a key carry one (A5): the
+ * sidebar toggles do not, so Cmd+B reaches the page and waits under a dialog that holds app
+ * shortcuts. A menu pick runs under a dialog, as Conductor's menu listeners do, except Close Window,
+ * which Conductor's page never hears; it follows the key's rule. The Rust shell keeps Cmd+Q and Cmd+, fixed (menu.rs's
  * FIXED_MENU_IDS); the dispatcher leaves those commands out, so Rust keeps their accelerators and never
  * reports them as rejected. Every deep link goes to the caller's `onDeepLink` opener, which
  * NAV-17 owns; without one the link is reported to the log rather than parsed in a second place. A link the
@@ -449,20 +452,46 @@ export function liveBinding(
  */
 export const FIXED_MENU_COMMAND_IDS: readonly string[] = ["app.quit", "app.openSettings"];
 
-/** The menu accelerators in Tauri's syntax. Unbound commands send null, which clears the item. */
+/**
+ * The menu items that carry a key, as Conductor's do (native-and-sidecar-map.md A5): Settings,
+ * Quit, Send Feedback, Debug, and the system's Close Window. Its sidebar toggles, Keyboard
+ * Shortcuts, Documentation and Changelog items have none: its page binds those keys itself, so
+ * they reach the page and wait under a dialog that holds app shortcuts.
+ */
+const MENU_ITEMS_WITH_KEYS: readonly string[] = [
+	"app.openSettings",
+	"app.quit",
+	"app.sendFeedback",
+	"app.openDebugTools",
+	"tab.close",
+];
+
+/**
+ * Menu picks that follow the key's rule under a dialog. Conductor's page acts on every menu event
+ * it hears, dialog or not (renderApp @11395986 to @11396604), but hears none for Close Window; its
+ * tab close is the page's Cmd+W, which waits under a store dialog. Ours sends Close Window to the
+ * tab close, so that pick waits too.
+ */
+const MENU_PICKS_UNDER_KEY_RULE: readonly string[] = ["tab.close"];
+
+/**
+ * The menu accelerators in Tauri's syntax, for the menu items that carry a key and whose key the
+ * user may change. Unbound commands send null, which clears the item.
+ */
 export function menuShortcuts(
 	overrides: ShortcutOverrides = {},
 	sendKeyMode: SendKeyMode = "enter",
 ): MenuShortcut[] {
-	return COMMANDS.filter((command) => !FIXED_MENU_COMMAND_IDS.includes(command.id)).map(
-		(command) => {
-			const live = liveBinding(command.id, overrides, sendKeyMode);
-			return {
-				commandId: command.id,
-				accelerator: live === null ? null : toAccelerator(live),
-			};
-		},
-	);
+	return COMMANDS.filter(
+		(command) =>
+			MENU_ITEMS_WITH_KEYS.includes(command.id) && !FIXED_MENU_COMMAND_IDS.includes(command.id),
+	).map((command) => {
+		const live = liveBinding(command.id, overrides, sendKeyMode);
+		return {
+			commandId: command.id,
+			accelerator: live === null ? null : toAccelerator(live),
+		};
+	});
 }
 
 function toAccelerator(spec: string): string | null {
@@ -866,7 +895,16 @@ export function useCommandDispatcher(
 	}, [accelerators, platform]);
 
 	useEffect(
-		() => platform.menu.onCommand((commandId) => dispatchCommand(commandId, deps)),
+		() =>
+			platform.menu.onCommand((commandId) => {
+				const underDialog = dialogOpen(document, useOverlayStore.getState().open);
+				if (underDialog && MENU_PICKS_UNDER_KEY_RULE.includes(commandId)) {
+					// As its key would: only the open dialog's own handler, and none has one for this.
+					deps.registry.run(commandId, "modal");
+					return;
+				}
+				dispatchCommand(commandId, deps);
+			}),
 		[deps, platform],
 	);
 

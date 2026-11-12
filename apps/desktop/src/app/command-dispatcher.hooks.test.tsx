@@ -166,8 +166,8 @@ describe("NAV-14 useCommandDispatcher", () => {
 
 		await waitFor(() => expect(shortcutCalls.length).toBeGreaterThan(0));
 		expect(shortcutCalls[0]).toContainEqual({
-			commandId: "view.toggleLeftSidebar",
-			accelerator: "CmdOrCtrl+B",
+			commandId: "tab.close",
+			accelerator: "CmdOrCtrl+W",
 		});
 	});
 
@@ -206,13 +206,13 @@ describe("NAV-14 useCommandDispatcher", () => {
 			container.services.settings.store.setState({
 				values: {
 					...state.values,
-					keybinding_overrides_v1: JSON.stringify({ "view.toggleLeftSidebar": ["Cmd+Shift+B"] }),
+					keybinding_overrides_v1: JSON.stringify({ "tab.close": ["Cmd+Shift+W"] }),
 				},
 			});
 		});
 
 		await waitFor(() =>
-			expect(lastShortcutFor(shortcutCalls, "view.toggleLeftSidebar")).toBe("CmdOrCtrl+Shift+B"),
+			expect(lastShortcutFor(shortcutCalls, "tab.close")).toBe("CmdOrCtrl+Shift+W"),
 		);
 	});
 
@@ -799,6 +799,61 @@ describe("NAV-14 keys while a dialog is open", () => {
 
 		// Cmd+B: the dialog's own Cmd+Enter confirm would take a fork key here.
 		press({ key: "b", metaKey: true });
+
+		expect(toggle).toHaveBeenCalledTimes(1);
+	});
+
+	// Conductor's UI acts on every menu event it hears, dialog or not (renderApp @11395986 to
+	// @11396604: settings, shortcuts, feedback, the docs and the sidebar toggles). It hears none for
+	// Close Window: its tab close is the page's Cmd+W, which waits under a store dialog. Ours sends
+	// Close Window to the tab close, so that pick follows the key's rule. Issue #610.
+	it("does nothing for a Close Window pick while a dialog holds app shortcuts", () => {
+		const harness = buildHarness();
+		const { container, menuListeners, wrapper } = harness;
+		viewChat(harness);
+		const run = vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
+		const closeTab = vi.fn(() => true);
+		render(
+			<CommandDispatcher>
+				<Handles commandId="tab.close" handler={closeTab} />
+				<Dialog open>
+					<DialogContent title="Rename chat">
+						<input aria-label="Name" />
+					</DialogContent>
+				</Dialog>
+			</CommandDispatcher>,
+			{ wrapper },
+		);
+
+		act(() => {
+			for (const listener of menuListeners) listener("tab.close");
+		});
+
+		expect(closeTab).not.toHaveBeenCalled();
+		expect(run).not.toHaveBeenCalled();
+	});
+
+	it("still toggles the sidebar from the menu while a dialog is open, as Conductor's menu does", () => {
+		const harness = buildHarness();
+		const { container, menuListeners, wrapper } = harness;
+		viewChat(harness);
+		vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
+		const toggle = vi.fn(() => true);
+		render(
+			<CommandDispatcher>
+				<Handles commandId="view.toggleLeftSidebar" handler={toggle} />
+				<Dialog open>
+					<DialogContent title="Rename chat">
+						<input aria-label="Name" />
+					</DialogContent>
+				</Dialog>
+			</CommandDispatcher>,
+			{ wrapper },
+		);
+
+		act(() => {
+			for (const listener of menuListeners) listener("view.toggleLeftSidebar");
+		});
 
 		expect(toggle).toHaveBeenCalledTimes(1);
 	});
