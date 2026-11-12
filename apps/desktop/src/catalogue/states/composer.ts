@@ -1,6 +1,7 @@
 /**
  * @feature catalogue States of the composer
- * Owns: a new chat with an empty composer (the empty chat), the composer with a draft and two attached
+ * Owns: a new chat with an empty composer (the empty chat, and one offering an earlier chat as
+ * context), the composer with a draft and two attached
  * files, the composer with the model picker open (searched with no match, and switching the model of
  * a started chat), the slash command menu after typing "/" (Claude,
  * Codex, and with a Skills group), a typed command that cannot run here, the "+" menu, the Create
@@ -255,6 +256,27 @@ export const COMPOSER_STATES: CatalogueState[] = [
 						document,
 						"FYI: When you switch models mid-chat, your next response will be slower",
 					),
+			};
+		},
+	},
+	{
+		id: "composer-empty-shelves",
+		group: "Composer",
+		title: "A new chat offering the workspace's earlier chat as context",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			// arbor's first chat has the user's message, so the new chat can offer its transcript.
+			must(
+				await world.repositories.sessions.recordUserMessage(
+					cast.chats.arbor.id,
+					CATALOGUE_NOW - HOUR,
+				),
+			);
+			const chat = await addChat(world, cast.arbor, { title: null });
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: ({ app }) => refreshGit(app, cast.arbor),
+				ready: (document) => shows(document, "Add chat transcripts:"),
 			};
 		},
 	},
