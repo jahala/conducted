@@ -222,6 +222,10 @@ function makeService(options: Parameters<typeof makePlatform>[0] = {}) {
 		} as unknown as RepoServiceDeps["settings"],
 		removal: { removeWorkspacesOf, releaseBacklogOf: () => {} },
 		ids: createTestIds(),
+		// No setting save fails in these tests, so a report would be a defect.
+		reportSettingSaveFailed: (error) => {
+			throw new Error(`Unexpected failed setting save: ${error.message}`);
+		},
 	});
 	return { service, repos, git, platform, removeWorkspacesOf };
 }

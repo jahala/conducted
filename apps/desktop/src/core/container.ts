@@ -37,6 +37,7 @@ import { type AgentLaunch, type Host, idleLiveState, LOCAL_HOST } from "@conduct
 import {
 	type AcpAgent,
 	type AgentKind,
+	type AppError,
 	appError,
 	type Clock,
 	err,
@@ -126,6 +127,7 @@ import { UPDATE_CHECK_INTERVAL_MS, UpdatesService } from "./services/updates.ts"
 import { expandHome, WorkspaceService } from "./services/workspace.ts";
 import type { PlaceNames } from "./services/workspace-creation.ts";
 import { WorkspaceFilesService } from "./services/workspace-files.ts";
+import { settingSaveFailedNotice } from "./setting-save-notice.ts";
 import { chosenAgentPrograms, followAgentPrograms } from "./sidecar/agent-programs.ts";
 import {
 	createSidecarNotificationHandlers,
@@ -707,6 +709,21 @@ export function createContainer(inputs: ContainerInputs): Container {
 		toml: inputs.toml,
 		git: gitRunner,
 	});
+	// A setting a service saves on the user's behalf is told as a settings row's save is: a toast
+	// with Conductor's words, and the parse error under them for a file that does not parse.
+	const reportSettingSaveFailed = (error: AppError): void => {
+		const notice = settingSaveFailedNotice(error);
+		if (notice.description === null) {
+			inputs.showToast({
+				message: notice.title,
+				tone: "error",
+				action: null,
+				secondaryAction: null,
+			});
+		} else {
+			inputs.reportFailure(notice.title, { message: notice.description });
+		}
+	};
 	const system = new SystemService({
 		platform,
 		setting,
@@ -1024,6 +1041,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		notify: (input) => notifications.notify(input),
 		setting,
 		setSetting: (key, value) => settings.set(key, value),
+		reportSettingSaveFailed,
 		newId: () => ids.uuid(),
 		log,
 	});
@@ -1070,6 +1088,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			releaseBacklogOf: (repoId) => workspace.releaseBacklogOf(repoId),
 		},
 		ids,
+		reportSettingSaveFailed,
 	});
 	const gitCache = createGitCache({ fs: platform.fs });
 	// Built before the workspace service so archive and delete can pause its forwards (CLOUD-10).

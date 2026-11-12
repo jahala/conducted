@@ -79,6 +79,10 @@ function harness(options: { workspace?: Workspace; home?: string } = {}): Harnes
 			state.settings.set(key, value);
 			return ok(undefined);
 		},
+		// No setting save fails in these tests, so a report would be a defect.
+		reportSettingSaveFailed: (error) => {
+			throw new Error(`Unexpected failed setting save: ${error.message}`);
+		},
 		newId: () => `id-${++next}`,
 		log: () => {},
 	});
