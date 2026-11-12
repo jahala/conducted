@@ -50,9 +50,9 @@
  * the menu bar without a second table. Only the menu items Conductor gives a key carry one (A5): the
  * sidebar toggles do not, so Cmd+B reaches the page and waits under a dialog that holds app
  * shortcuts. A menu pick runs under a dialog, as Conductor's menu listeners do, except Close Window,
- * which Conductor's page never hears; it follows the key's rule. The Rust shell keeps Cmd+Q and Cmd+, fixed (menu.rs's
- * FIXED_MENU_IDS); the dispatcher leaves those commands out, so Rust keeps their accelerators and never
- * reports them as rejected. Every deep link goes to the caller's `onDeepLink` opener, which
+ * which Conductor's page never hears; it follows the key's rule. The Rust shell keeps Cmd+Q and
+ * Cmd+, fixed (menu.rs's FIXED_MENU_IDS); the dispatcher leaves those commands out, so Rust keeps
+ * their accelerators and never reports them as rejected. Every deep link goes to the caller's `onDeepLink` opener, which
  * NAV-17 owns; without one the link is reported to the log rather than parsed in a second place. A link the
  * Rust shell refused before any parser saw it (over 64 KiB, PLAT-16) shows "Invalid deep link", the
  * toast Conductor shows for a link it cannot read, and the reason goes to the app log.
