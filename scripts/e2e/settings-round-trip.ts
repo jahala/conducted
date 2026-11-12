@@ -118,6 +118,7 @@ export const NOT_COVERED: Readonly<Record<string, string>> = {
 	bedrock_region: `set in the Claude Code provider dialog; ${NOT_DRIVEN_YET}`,
 	vertex_project_id: `set in the Claude Code provider dialog; ${NOT_DRIVEN_YET}`,
 	big_terminal_custom_commands: `added one command at a time; ${NOT_DRIVEN_YET}`,
+	mono_font: `its one other option, "Custom...", asks for a font name; ${NOT_DRIVEN_YET}`,
 	run_script: `a named action on the project's Actions page; ${NOT_DRIVEN_YET}`,
 	custom_prompt_general: NOT_DRIVEN_YET,
 	custom_prompt_code_review: NOT_DRIVEN_YET,
