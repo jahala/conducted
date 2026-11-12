@@ -386,7 +386,7 @@ describe("SET-02 DefaultModelsPage", () => {
 		expect(keys).not.toContain("default_claude_effort_level");
 	});
 
-	it("puts a switch back and says so when its setting cannot be saved (issue #600)", async () => {
+	it("puts a switch back when its setting cannot be saved, with no line under the row (issue #600)", async () => {
 		const { container } = await renderPage();
 		// The settings folder is a file now, so the save cannot make it.
 		const home = container.platform.fs.paths.home;
@@ -401,7 +401,9 @@ describe("SET-02 DefaultModelsPage", () => {
 
 		fireEvent.click(toggle);
 
-		expect((await within(row).findByRole("alert")).textContent).toBe("Failed to save setting");
+		// The toast says it (the next test); as in Conductor, the row has no line of its own.
+		await waitFor(() => expect(container.services.settings.get("default_plan_mode")).toBe(false));
+		expect(within(row).queryByRole("alert")).toBeNull();
 		expect(toggle.getAttribute("aria-checked")).toBe("false");
 		expect(container.services.settings.get("default_plan_mode")).toBe(false);
 	});

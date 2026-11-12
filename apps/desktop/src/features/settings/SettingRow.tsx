@@ -183,17 +183,18 @@ export function toastSettingSaveFailed(error: AppError): void {
 	toast.error(notice.title, notice.description === null ? {} : { description: notice.description });
 }
 
-/** Saves one setting through the action table and keeps the failure text for its row. */
+/**
+ * Saves one setting through the action table. A failed save is told in a toast only, as in
+ * Conductor, whose settings rows show no line of their own for it (the owner's ruling, 2026-11-12:
+ * "whatever conductor does").
+ */
 export function useSettingSaves() {
 	const actions = useActions();
-	const [errors, setErrors] = useState<Readonly<Record<string, string | null>>>({});
 
 	const save = useCallback(
 		async (key: string, value: unknown): Promise<boolean> => {
-			setErrors((current) => ({ ...current, [key]: null }));
 			const result = await actions.settings.set(key, value);
 			if (!result.ok) {
-				setErrors((current) => ({ ...current, [key]: result.error.message }));
 				toastSettingSaveFailed(result.error);
 				return false;
 			}
@@ -202,8 +203,7 @@ export function useSettingSaves() {
 		[actions],
 	);
 
-	const errorOf = useCallback((key: string) => errors[key] ?? null, [errors]);
-	return { save, errorOf };
+	return { save };
 }
 
 /** Saves a field's value; true when it was stored. A field puts its stored value back on false. */
@@ -468,7 +468,7 @@ function RegistrySettingRow({
 			{...(def.detailTone === undefined ? {} : { detailTone: def.detailTone })}
 			disabledReason={unavailable}
 			highlighted={focusSettingKey === def.key}
-			saveError={localError ?? saves.errorOf(def.key)}
+			saveError={localError}
 			{...(configured ? { onReset: () => void reset() } : {})}
 		>
 			<SettingControl

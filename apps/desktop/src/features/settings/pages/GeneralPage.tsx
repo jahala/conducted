@@ -152,7 +152,7 @@ function SendKeyRow({ focusSettingKey }: { focusSettingKey: string | null }) {
 			detail={def.detail ?? null}
 			disabledReason={null}
 			highlighted={focusSettingKey === def.key}
-			saveError={saves.errorOf(def.key)}
+			saveError={null}
 			{...(configured ? { onReset: () => void reset() } : {})}
 		>
 			<SettingControl def={def} value={value} onChange={save} />

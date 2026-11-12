@@ -250,11 +250,6 @@ function BranchPrefixRow({ focusSettingKey }: { focusSettingKey: string | null }
 				) : null}
 				{radio("none", "None")}
 			</fieldset>
-			{(saves.errorOf(key) ?? saves.errorOf("branch_prefix_custom")) ? (
-				<p role="alert" className="text-xs text-danger">
-					{saves.errorOf(key) ?? saves.errorOf("branch_prefix_custom")}
-				</p>
-			) : null}
 		</div>
 	);
 }
