@@ -30,5 +30,10 @@
 		"webdriverio": "10.2.0"
 	},
 	"license": "MIT",
-	"version": "0.3.3"
+	"version": "0.3.3",
+	"pnpm": {
+		"overrides": {
+			"readdir-glob>minimatch": "^11.0.1"
+		}
+	}
 }
