@@ -1141,14 +1141,14 @@ CHAT-15	dialog	A restore whose branch is taken asks 'Restore to new branch?'.	se
 WS-05	dialog	Archiving a workspace with running agents asks 'Archive workspace?' first.	ui-map 3.1; inventory title R@11399995	missing
 SET-02	setting	General: 'Follow-up behavior' (Queue or Steer).	ui-map 6; inventory label R@11118427	missing
 REV-08	setting	Experimental: use the legacy file preview and editor.	ui-map 6; inventory title R@11106695	missing
-NAV-13	control	Conductor shows "View workspace world map" (control, Unplaced); ours says "Open the place name map" on Passport command (parity gap, wording).	inventory text R@1853248	missing
+NAV-13	control	Conductor shows "View workspace world map" (control, Home) as the tooltip of Home's "N/100 cities visited" button, which opens the Passport; ours has no counterpart yet (parity gap).	inventory text R@1853248	missing
 PRJ-02	control	Conductor shows "Location" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@1894370	missing
 PRJ-02	region	Conductor shows "Cloning..." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@1895265	missing
 PRJ-03	region	Conductor shows "Create a local folder, private GitHub repo, and first workspace." (region, Unplaced); ours says "Create a local folder from a template and add it as a project." on Create project dialog (parity gap, wording).	inventory text R@2035684	missing
 PRJ-03	region	Conductor shows "Name must include letters or numbers." (region, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@2036417	missing
-GIT-04	control	Conductor shows "View PR status" (control, inventory-ui-text Git, review and files); ours says "PR status details" on git panel PR status chip (parity gap, wording).	inventory text R@2184278	missing
+GIT-04	control	Conductor shows "View PR status" (control, git panel) on the PR status button; ours names the same button so.	inventory text R@2184278	covered
 PR-08	region	Conductor shows "Couldn't load this stack. Open the PR on GitHub to see it." (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).	inventory text R@2202229	missing
-GIT-04	region	Conductor shows "Checks pending..." (region, inventory-ui-text Git, review and files); ours says "N checks pending..." on git panel header (parity gap, wording).	inventory text R@2224224	missing
+NAV-03	region	Conductor shows "Checks pending..." (region, sidebar) as the git action in a workspace row's hover card while checks run; ours has no counterpart yet, since the hover card is not built (parity gap).	inventory text R@2224224	missing
 PR-07	control	Conductor shows "Discard" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@2256696	missing
 PR-07	control	Conductor shows "Save" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@2256762	missing
 WS-08	control	Conductor shows "No apps available" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@2501184	missing
@@ -1220,14 +1220,15 @@ PR-04	control	Conductor shows "Failed to load logs" (control, Unplaced); ours ha
 CLOUD-09	region	Conductor shows "Cloud terminal unavailable in read-only workspaces." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@10060117	missing
 NAV-03	control	Conductor shows "Waiting for background tasks" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@10069947	missing
 NAV-03	control	Conductor shows "Cancelling" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@10070194	missing
+NAV-03	control	Conductor shows "Working" (control, sidebar) as a workspace row's status icon name: its raw status label, joined with the git label and "Unread" (renderApp @10245206); ours names the icon with the hover card's words, from one status (parity gap).	inventory literal R@10228149	missing
 APP-03	control	Conductor shows "Diagnostics" (control, inventory-ui-text Projects and workspaces); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@10181424	missing
-NAV-01	control	Conductor shows "Toggle sidebar" (control, Unplaced); ours says "Toggle left sidebar" on window controls row (parity gap, wording).	inventory text R@10289703	missing
+NAV-01	control	Conductor shows "Toggle sidebar" (control, window controls row) on the sidebar button; ours names the same button so.	inventory text R@10289703	covered
 APP-07	control	Conductor shows "Memory" (control, inventory-controls App shell); ours has no counterpart yet (parity gap).	inventory text R@10362249	missing
 NAV-03	control	Conductor shows "My workspaces" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@10493981	missing
-APP-03	region	Conductor shows "Capture information about your environment to help diagnose issues." (region, Unplaced); ours says "Gather details about Conducted, your Mac and its shell to help diagnose a problem." on Diagnostics screen (parity gap, wording).	inventory text R@10574584	missing
-APP-03	region	Conductor shows "Copy the full diagnostics report to your clipboard" (region, Unplaced); ours says "Copy full report" on Diagnostics actions (parity gap, wording).	inventory text R@10576215	missing
+APP-03	region	Conductor shows "Capture information about your environment to help diagnose issues." (region, Diagnostics) under the page title; ours shows the same there.	inventory text R@10574584	covered
+APP-03	region	Conductor shows "Copy the full diagnostics report to your clipboard" (region, Diagnostics) as the full report button's tooltip; ours shows the same there.	inventory text R@10576215	covered
 APP-03	region	Conductor shows "Redacted report hashes the values of all env variables, except a few non-sensitive ones like PATH" (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@10576554	missing
-APP-03	region	Conductor shows "Create a new session with the redacted report attached. Env values are hashed except non-sensitive ones like PATH." (region, Unplaced); ours says "Create a new session with the redacted report attached" on Diagnostics actions (parity gap, wording).	inventory text R@10576999	missing
+APP-03	region	Conductor shows "Create a new session with the redacted report attached. Env values are hashed except non-sensitive ones like PATH." (region, Diagnostics) as the redacted chat button's tooltip; ours shows the same there.	inventory text R@10576999	covered
 APP-03	region	Conductor shows "Create a new session with the full report attached. All env values are sent to your AI provider." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@10577409	missing
 SET-06	control	Conductor shows "Dark" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@10662685	missing
 SET-06	control	Conductor shows "System" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@10662728	missing

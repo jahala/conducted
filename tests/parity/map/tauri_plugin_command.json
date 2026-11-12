@@ -555,24 +555,28 @@
 		"by": "seed"
 	},
 	"tauri_plugin_command:sql|load": {
-		"status": "matched",
-		"ours": "sql|*",
-		"by": "seed"
+		"status": "decided",
+		"decision": "D137",
+		"note": "Conductor's SQL plugin; ours is db_open, db_execute and db_select on one connection (database.rs).",
+		"by": "hand"
 	},
 	"tauri_plugin_command:sql|execute": {
-		"status": "matched",
-		"ours": "sql|*",
-		"by": "seed"
+		"status": "decided",
+		"decision": "D137",
+		"note": "Conductor's SQL plugin; ours is db_open, db_execute and db_select on one connection (database.rs).",
+		"by": "hand"
 	},
 	"tauri_plugin_command:sql|select": {
-		"status": "matched",
-		"ours": "sql|*",
-		"by": "seed"
+		"status": "decided",
+		"decision": "D137",
+		"note": "Conductor's SQL plugin; ours is db_open, db_execute and db_select on one connection (database.rs).",
+		"by": "hand"
 	},
 	"tauri_plugin_command:sql|close": {
-		"status": "matched",
-		"ours": "sql|*",
-		"by": "seed"
+		"status": "decided",
+		"decision": "D137",
+		"note": "Conductor's SQL plugin; ours is db_open, db_execute and db_select on one connection (database.rs).",
+		"by": "hand"
 	},
 	"tauri_plugin_command:http|fetch": {
 		"status": "gap",

@@ -948,7 +948,9 @@ export class AgentCatalogService {
 		if (!deps.ok) return deps;
 		const { files, toml } = deps.value;
 		const path = mcpConfigPath(files.paths.home, agent);
-		if (!(await files.exists(path))) return ok({});
+		const found = await files.exists(path);
+		if (!found.ok) return err(found.error);
+		if (!found.value) return ok({});
 		const text = await files.readText(path);
 		if (!text.ok) return err(text.error);
 		if (text.value.trim() === "") return ok({});
@@ -990,7 +992,9 @@ export class AgentCatalogService {
 		const deps = this.#configDeps();
 		if (!deps.ok) return deps;
 		const files = deps.value.files;
-		if (!(await files.exists(folder))) return ok({});
+		const found = await files.exists(folder);
+		if (!found.ok) return err(found.error);
+		if (!found.value) return ok({});
 		const listed = await files.readDir(folder);
 		if (!listed.ok) return err(listed.error);
 		const entries: Record<string, string> = {};
@@ -1010,7 +1014,9 @@ export class AgentCatalogService {
 		const deps = this.#configDeps();
 		if (!deps.ok) return deps;
 		const files = deps.value.files;
-		if (!(await files.exists(folder))) return ok({});
+		const found = await files.exists(folder);
+		if (!found.ok) return err(found.error);
+		if (!found.value) return ok({});
 		const listed = await files.readDir(folder);
 		if (!listed.ok) return err(listed.error);
 		const entries: Record<string, SkillEntry> = {};
@@ -1018,7 +1024,10 @@ export class AgentCatalogService {
 			if (!entry.isDirectory) continue;
 			const name = baseName(entry.path);
 			const path = `${entry.path}/SKILL.md`;
-			if (name === "" || !(await files.exists(path))) continue;
+			if (name === "") continue;
+			const hasSkill = await files.exists(path);
+			if (!hasSkill.ok) return err(hasSkill.error);
+			if (!hasSkill.value) continue;
 			const text = await files.readText(path);
 			if (!text.ok) return err(text.error);
 			const inside = await files.readDir(entry.path);

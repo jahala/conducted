@@ -13,7 +13,8 @@
  * worktree exists (downgrade to a warning); a branch name already used locally or on the remote
  * (suffix -v1, -v2, up to 1000 tries; services-map 3.1 checks these two, not pull requests);
  * `core.worktree` or `core.bare` set (do not enable worktree config); `.context/` is excluded in
- * the shared `info/exclude`, not in `.gitignore`; removal falls back to trashing the folder and
+ * the shared `info/exclude`, not in `.gitignore`, and a repository with no `info` folder gets one
+ * (issue #600); removal falls back to trashing the folder and
  * `worktree prune`.
  * Our design choice: the base is always a commit id, never a ref name, so the worktree starts
  * from exactly what was fetched. Removal of the folder goes through the Trash (fs.trash).
@@ -363,6 +364,10 @@ export async function addContextFolder(
 	if (!text.split("\n").includes(".context/")) {
 		const next =
 			text.length === 0 || text.endsWith("\n") ? `${text}.context/\n` : `${text}\n.context/\n`;
+		// A repository made without git's templates has no `info` folder, and the write does not
+		// make one (issue #600).
+		const info = await input.fs.mkdirp(join(resolvedCommonDir, "info"));
+		if (!info.ok) return info;
 		const written = await input.fs.writeTextAtomic(excludePath, next);
 		if (!written.ok) return written;
 	}
@@ -417,7 +422,9 @@ export async function discardGitOperationState(
 		if (!gitPath.ok) return gitPath;
 		if (gitPath.value === "") continue;
 		const path = absoluteGitPath(worktreePath, gitPath.value);
-		if (!(await fs.exists(path))) continue;
+		const found = await fs.exists(path);
+		if (!found.ok) return found;
+		if (!found.value) continue;
 		const removed = await fs.trash(path);
 		if (!removed.ok) return removed;
 	}
@@ -595,7 +602,9 @@ export function removeWorktree(
 		// to the Trash and prune path below.
 		if (!removed.ok) return removed;
 		if (removed.value.exitCode === 0) return ok(undefined);
-		if (await fs.exists(input.worktreePath)) {
+		const folder = await fs.exists(input.worktreePath);
+		if (!folder.ok) return folder;
+		if (folder.value) {
 			const trashed = await fs.trash(input.worktreePath);
 			if (!trashed.ok) return trashed;
 		}

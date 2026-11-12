@@ -34,6 +34,7 @@ const downloading: ProgramStatus = {
 	nextAttemptAt: null,
 	error: null,
 	path: null,
+	follow: null,
 };
 
 const must = <T>(result: { ok: true; value: T } | { ok: false; error: unknown }): T => {

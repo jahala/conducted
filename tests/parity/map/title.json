@@ -1372,14 +1372,10 @@
 		"owner": "hand"
 	},
 	"title:R1717947": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "PRJ-01",
-		"item": "Sidebar footer 'Add project...' button and menu",
-		"owner": "hand",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
+		"status": "decided",
+		"decision": "D134",
+		"note": "The title of the system folder picker that adds a project. Ours passes the same title from the sidebar's Add project button and onboarding's project step; AddProjectButton.test.tsx, ProjectStep.test.tsx and command-runner.test.ts assert it.",
+		"by": "hand"
 	},
 	"title:R1892068": {
 		"status": "gap",
@@ -1638,7 +1634,8 @@
 		"backlog": "RUN-06",
 		"item": "Confirm 'Open this terminal link?' with Cancel and Open",
 		"owner": "hand",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
+		"note": "Conductor asks in a system dialog (the dialog plugin's confirm, kind warning, renderApp @4363426); ours asks in a dialog the app draws, with the same title, text and buttons. Matching means replacing our dialog with the system one, which waits for the owner's yes. Once it is a system dialog, D134 covers it.",
+		"by": "hand"
 	},
 	"title:R4405982": {
 		"status": "matched",
@@ -1679,14 +1676,10 @@
 		"by": "hand"
 	},
 	"title:R5685048": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "WS-07",
-		"item": "Link workspaces and directories: 'Select working directories', 'Link a directory or workspace'",
-		"owner": "hand",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
+		"status": "decided",
+		"decision": "D134",
+		"note": "The title of the system folder picker in Link workspaces and directories. Ours passes the same title; LinkDirectoriesDialog.ws-07.test.tsx asserts it.",
+		"by": "hand"
 	},
 	"title:R8048580": {
 		"status": "matched",
@@ -2085,14 +2078,10 @@
 		"by": "hand"
 	},
 	"title:R10967435": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"class": "wording",
-		"backlog": "SET-02",
-		"item": "The user can move the app's data folder; success shows \"Conductor root path changed successfully\".",
-		"owner": "hand",
-		"note": "Our title already reads 'Select Conducted root directory' (D012); a native folder dialog has no catalogue state to draw it."
+		"status": "decided",
+		"decision": "D134",
+		"note": "The title of the system folder picker that moves the app's data folder. Ours passes 'Select Conducted root directory' (D012) from the Advanced page; AdvancedPage.test.tsx asserts it.",
+		"by": "hand"
 	},
 	"title:R10970126": {
 		"status": "matched",

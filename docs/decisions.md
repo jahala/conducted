@@ -984,3 +984,50 @@ Chosen:
 - **The measure script checks the estimate on real data.** It prints the dry run's figures beside the scratch database's file and journal, before and after the import. The Node stand-in clones Conductor's database as Rust does, so on APFS neither copy takes space.
 
 Why: the owner's disk must not fill. `raw` was most of the weight, and the original stays in Conductor's database. The dry run already promises to say what the import will do before it does it, and the space it takes is part of that.
+
+## D133. Claude Code follows its newest compatible release between app updates (2026-11-12)
+
+Asked for by the owner in #541. Extends D021 and D088; D088's rule stays.
+Context: the app ran only the Claude Code its release feed pinned (D088), so a model that needs a newer Claude Code arrived only with an app release. Conductor pins its Claude Code the same way. Claude Code's release host publishes `https://downloads.claude.ai/claude-code-releases/latest`, the newest version as plain text, and `<version>/manifest.json` with each platform's SHA-256 and size and `sdkCompat.testedWrapperVersions`, the Claude Agent SDK versions that release was tested with. Claude Code's own installer (`https://claude.ai/install.sh`) reads the same two files.
+Chosen:
+
+- **When.** At launch, and whenever a day has passed on the wall clock, looked at once an hour (`apps/desktop/src-tauri/src/binaries/follow.rs`).
+- **Which release.** The `latest` version, when it is newer than the copy that runs and its manifest lists the SDK the sidecar pins. `build.rs` reads that pin from `packages/sidecar/package.json`, its one home. A release that does not list it is never installed, and the Advanced page names it.
+- **How it installs.** From `<version>/darwin-arm64/claude` or `<version>/darwin-x64/claude`, through a temporary file that replaces nothing until its size and SHA-256 match the manifest. A refused or cut-off download leaves the copy that runs, and no temporary file or empty version folder. Claude Code stays Ready meanwhile, so the send gate never holds a chat for it.
+- **The floor.** The release feed's version is the oldest the app runs and the answer when the host is out of reach. A first install and Re-download take the newest compatible release, or the floor. After a restart a followed copy runs only while it is newer than the floor and its install record lists the SDK, so an app update that moves either goes back to the floor until the next check.
+- **Chats.** A new chat resolves the bin link and gets the new copy. A running chat keeps the path it started with: every version that was ready during this app run stays on disk until the next launch, which moves the others to the Trash with their install records.
+- **What stays.** A program chosen in Settings still wins (SET-13). The app never runs a copy from PATH (D088); what changes is that its managed Claude Code is no longer fixed per app version. Codex, gh, watchexec and the cloud sandbox's programs keep their pins.
+- **Codex has no signal.** Its GitHub release gives each file a SHA-256 digest and ships a config schema and an SDK tarball at the same version, but nothing says which client or protocol version it works with. The sidecar speaks Codex's app-server protocol directly, so nothing can gate a move.
+- **Limits.** Only `latest` is read: the host publishes no list of versions (`/claude-code-releases/` answers 404), so a compatible release between the one that runs and an incompatible `latest` is never seen. The manifest is trusted over HTTPS from the vendor's host, as the installer trusts it. The host also publishes `<version>/manifest.json.sig`, but no public key for it is documented, so it is not checked. The floor's checksum is still reviewed in a pull request; a followed version's comes from the host at run time.
+
+Why: the owner's request. New models reach the user without an app release, and the SDK gate keeps the app on releases Claude Code's own tests cover for the SDK the sidecar runs.
+
+## D134. A system dialog's title is checked by a test, not a catalogue state (2026-11-12)
+
+Decided in the parity work under the owner's rule "Match Conductor. Nothing made up; gaps are reported."
+
+Context: Conductor titles its system folder pickers "Select project directory", "Select directory to link" and "Select Conductor root directory" (renderApp @1717947, @5685048, @10967435). macOS draws those windows outside the page, so no catalogue state can show them, and the parity harness's check b never sees them. Ours passes the same titles to `Platform.dialogs.pickFolder`, with our product name in the third (D012).
+
+Chosen: a parity entry that is the title of a system dialog is mapped to D134. Its note names the screen that opens the dialog and the test that asserts the title the Platform receives. The test drives the real screen, so changing the title fails it. A dialog the app draws itself stays a catalogue match.
+
+Why: the words are on screen and must match Conductor's. Only a test can see them, so the decision names the test that holds them.
+
+## D137. The app's database is one connection that nothing replaces while the app runs (2026-11-12)
+
+Decided by the agent fixing issue #616, which the owner filed. Replaces "An explicit pool pin is PLAT-27" in `platform/tauri.ts`.
+
+Context: a transaction is BEGIN IMMEDIATE, its statements and COMMIT, each sent to the Rust shell as its own call (`platform/queued-database.ts`). The app sent them through tauri-plugin-sql 2.6.0, which opens a sqlx pool with `Pool::connect(db_url)` (`wrapper.rs:102`) and so with sqlx 0.8's defaults: up to 10 connections, an idle one closed after 10 minutes, and any one closed when it is released after 30 minutes of life (`sqlx-core-0.8.6/src/pool/connection.rs`, `return_to_pool`). A connection closed inside a transaction rolls it back, and the transaction's later statements then save one by one on a new connection. A TEMP table or an ATTACH vanished with the connection too. A test through the real Rust side showed both on main: the second insert of a transaction saved on its own and COMMIT failed with "no transaction is active", and a TEMP table was gone after the UI's open ran a second time, because the plugin's `load` replaces the pool it holds.
+
+Chosen:
+
+- **Our own commands over one connection.** `database.rs` holds one sqlx `SqliteConnection` from the first `db_open` until the app exits. `db_execute` and `db_select` run on it. There is no pool, so nothing closes the connection while the app runs and nothing opens a second one. Once it is closed (at exit) every database command fails with `db_closed`, and a connection SQLite can no longer use fails each statement the same way. No later statement of a transaction can save on its own.
+- **What the UI sends stays the same.** Values bind as the plugin bound them (null, text, every number as a REAL, a boolean, array or object as its JSON text), and rows come back keyed by column name in column order. A test runs the same statements through the plugin on main and through our commands, with the same answers. The migrations run through sqlx's migrator with the same versions and checksums, so a database the plugin migrated opens unchanged; this was checked on a file the plugin migrated.
+- **The plugin is removed.** `tauri-plugin-sql`, `@tauri-apps/plugin-sql` and the `sql:` permissions are gone, so no web page can load or close a pool under the app. The live parity harness seeds through `db_open`, `db_select` and `db_execute`, and the parity map records Conductor's `sql|*` commands under this decision.
+- **The stand-ins are held to it.** The contract case `db.one-connection` loses the connection between BEGIN and COMMIT and requires the transaction's later statements, its commit and every statement after it to fail. The memory Platform and the Node stand-in both run it; a stand-in that opens a new connection fails it.
+
+Why the other ways were not enough:
+
+- **Pool options through the plugin.** It has none: `Pool::connect` takes only the URL, and SQLite's URL options do not reach the pool.
+- **A pool the app builds and puts in the plugin's `DbInstances`.** One connection with no lifetime and no idle timeout stops the 30-minute close, but sqlx still opens a new connection after one fails its ping. The only hook that can refuse it (`after_connect`) makes every later statement wait the 30-second acquire timeout. And any call to the plugin's `load` replaces the pool with a default one.
+
+The test: `apps/desktop/src-tauri/tests/plat_02_database.rs`.

@@ -722,7 +722,12 @@ export class WorkspaceFilesService {
 				continue;
 			}
 			const target = `${context}/${name}`;
-			if (await this.#deps.fs.exists(target)) {
+			const taken = await this.#deps.fs.exists(target);
+			if (!taken.ok) {
+				failure ??= taken.error;
+				continue;
+			}
+			if (taken.value) {
 				failure ??= appError(
 					"artifact_exists",
 					`"${name}" is already in the .context folder. Rename the file and upload it again.`,
@@ -880,7 +885,9 @@ export class WorkspaceFilesService {
 			absolute: `${trimRoot(root)}/${checked.value}`,
 		}));
 		for (const candidate of candidates) {
-			if (await this.#deps.fs.exists(candidate.absolute)) return ok(candidate);
+			const found = await this.#deps.fs.exists(candidate.absolute);
+			if (!found.ok) return found;
+			if (found.value) return ok(candidate);
 		}
 		const first = candidates[0];
 		if (first === undefined) {

@@ -1101,10 +1101,7 @@ describe("s1-ui-1 join batch features", () => {
 	it("CHAT-22 shows a Codex HTML write as a sandboxed visualization in the chat", async () => {
 		const test = batchContainer();
 		const workspace = await readyBatchWorkspace(test, "/code/workspaces/viz");
-		await test.container.platform.fs.writeTextAtomic(
-			`${workspace.path}/viz/chart.html`,
-			"<h1>Revenue chart</h1>",
-		);
+		test.memory.controls.addFile(`${workspace.path}/viz/chart.html`, "<h1>Revenue chart</h1>");
 		const session = await batchChat(
 			test,
 			workspace.id,

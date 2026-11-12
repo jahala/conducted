@@ -90,13 +90,10 @@
 		"by": "hand"
 	},
 	"description:M3799728": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Terminal, run and files",
-		"class": "wording",
-		"backlog": "NAV-14",
-		"owner": "hand",
-		"note": "Our command's title already reads 'Show uncommitted changes'; Conductor's description has no home because our command registry shows no descriptions."
+		"status": "decided",
+		"decision": "D086",
+		"note": "The description field of Conductor's key binding for Show uncommitted changes (main @3799728). Its frontend never draws a key binding's description: the key bindings page, the shortcuts dialog and the palette show titles only, and no code reads a binding's description.",
+		"by": "hand"
 	},
 	"description:M3847184": {
 		"status": "gap",
@@ -1990,13 +1987,12 @@
 		"by": "hand"
 	},
 	"description:R11737185": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-07",
-		"owner": "hand",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "settings-repo-config-failed",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > section > h2",
+		"by": "hand"
 	},
 	"description:R12095963": {
 		"status": "gap",

@@ -3,13 +3,15 @@
  * Owns: the list of dotenv files in the repository that hold more variables.
  * Behaviour: ui-map.md 6, "Environment page" (env files list, "Cancel adding env file");
  * services-map.md 4.2.3 (environment_variable_files).
- * Must handle: no files, a file that does not exist (marked), a path outside the repository
+ * Must handle: no files, a file that does not exist (marked), a file the app may not check (marked
+ * with the reason, never as not found, issue #601), a path outside the repository
  * (refused), adding by picking from a list of dotenv-style files found in the repository or with
  * the system file picker (its title is "Select env file" and the Browse button explains Cmd+Shift+.),
  * and removing an entry without touching the file. The dotenv reader itself is core/services/dotenv,
  * because the launch reads the same files (SET-04).
  * Test first: adding a path outside the repository root is refused.
  */
+import type { Result } from "@conducted/shared";
 import { useState } from "react";
 import { Button } from "../../../ui/Button.tsx";
 import { Input } from "../../../ui/Input.tsx";
@@ -41,7 +43,8 @@ export function pathInsideRepository(root: string, path: string): string | null 
 }
 
 export interface EnvFilesListProps {
-	files: { path: string; exists: boolean }[];
+	/** Each file with whether it is on disk; an Err is a check the app could not make. */
+	files: { path: string; exists: Result<boolean> }[];
 	candidates: string[];
 	/** Every path must stay inside this folder. Without it, only a candidate can be added. */
 	repositoryRoot?: string;
@@ -104,7 +107,13 @@ export function EnvFilesList({
 						>
 							<div className="flex min-w-0 items-center gap-2">
 								<span className="truncate font-mono text-code text-fg">{file.path}</span>
-								{file.exists ? null : <span className="text-xs text-danger">File not found</span>}
+								{file.exists.ok ? (
+									file.exists.value ? null : (
+										<span className="text-xs text-danger">File not found</span>
+									)
+								) : (
+									<span className="text-xs text-danger">{file.exists.error.message}</span>
+								)}
 							</div>
 							<Button
 								size="sm"

@@ -13,8 +13,9 @@
  * list loading, empty, filtered and failed; a subscription token saved and an Anthropic key taken
  * from this Mac; a shortcut being recorded; Appearance with a custom code font; and a project's
  * Actions page with no actions, and with
- * a hidden shared action, a personal action and a shared one changed on this Mac; and the import
- * from Conductor's dry run, its end, and a disk without the space chat history takes (D132).
+ * a hidden shared action, a personal action and a shared one changed on this Mac; the import
+ * from Conductor's dry run, its end, and a disk without the space chat history takes (D132); and
+ * atlas's Misc page when its settings file cannot be read.
  * Behaviour: ui-map.md 6 (settings pages).
  * Test first: not applicable; the screenshot run opens every state.
  */
@@ -1185,6 +1186,23 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				after: ({ document }) =>
 					click(document, "button", "Show documented variables", { prefix: true }),
 				ready: (document) => shows(document, "Routes HTTP requests through a proxy."),
+			};
+		},
+	},
+	{
+		id: "settings-repo-config-failed",
+		group: "Settings",
+		title: "atlas: Misc, when the repository's settings file cannot be read",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			// An unclosed table header: the TOML reader refuses the whole file.
+			world.memory.controls.files.set(
+				`${cast.atlas.rootPath}/.conducted/settings.toml`,
+				'[scripts\nsetup = "pnpm install"\n',
+			);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/misc`,
+				ready: (document) => shows(document, "Couldn't load repository settings. Try again."),
 			};
 		},
 	},

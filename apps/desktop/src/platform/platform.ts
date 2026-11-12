@@ -71,11 +71,15 @@ export const PLATFORM_ERROR_CODES = [
 	"cloud_url_not_allowed",
 	"cloud_vm_id_invalid",
 	"db_check_failed",
+	"db_close_failed",
+	"db_closed",
 	"db_free_space_failed",
 	"db_migration_failed",
+	"db_not_open",
 	"db_open_failed",
 	"db_path_unavailable",
 	"db_read_failed",
+	"db_statement_failed",
 	"db_version_unreadable",
 	"deep_link_too_long",
 	"deep_link_unavailable",
@@ -125,6 +129,7 @@ export const PLATFORM_ERROR_CODES = [
 	"http_invalid_url",
 	"http_progress_failed",
 	"http_response_too_large",
+	"http_size_mismatch",
 	"http_state_poisoned",
 	"http_status",
 	"http_unscripted",
@@ -174,6 +179,7 @@ export const PLATFORM_ERROR_CODES = [
 	"program_bin_shim_failed",
 	"program_checksum_mismatch",
 	"program_data_dir_failed",
+	"program_follow_invalid",
 	"program_install_failed",
 	"program_metadata_failed",
 	"program_prune_failed",
@@ -274,7 +280,7 @@ export interface SqlResult {
 	lastInsertId?: number;
 }
 
-/** conducted.db through tauri-plugin-sql. Parameters use `$1, $2, ...`. */
+/** conducted.db on the Rust shell's one connection (database.rs). Parameters use `$1, $2, ...`. */
 export interface Database {
 	execute(sql: string, params?: readonly unknown[]): Promise<SqlResult>;
 	select<Row>(sql: string, params?: readonly unknown[]): Promise<Row[]>;
@@ -344,11 +350,19 @@ export interface FileSystem {
 	 * limit as `readText` applies.
 	 */
 	readBytes(path: string): Promise<Result<Uint8Array>>;
-	/** Writes to a temp file and renames it into place, so readers never see half a file. */
+	/**
+	 * Writes to a temp file and renames it into place, so readers never see half a file. The
+	 * folder must exist: a missing one is an Err with `fs_not_found`, and `mkdirp` makes it.
+	 */
 	writeTextAtomic(path: string, text: string): Promise<Result<void>>;
-	/** Writes bytes atomically, for a binary file the mirror keeps (CLOUD-11). */
+	/** Writes bytes atomically, for a binary file the mirror keeps (CLOUD-11). Same folder rule. */
 	writeBytes(path: string, bytes: Uint8Array): Promise<Result<void>>;
-	exists(path: string): Promise<boolean>;
+	/**
+	 * Whether anything is at `path`: Ok(false) when nothing is there. A path the file commands may
+	 * not reach is an Err with `fs_out_of_scope`, never false, so a refusal never reads as a missing
+	 * file (issue #601).
+	 */
+	exists(path: string): Promise<Result<boolean>>;
 	stat(path: string): Promise<Result<FileStat>>;
 	mkdirp(path: string): Promise<Result<void>>;
 	readDir(path: string): Promise<Result<FileStat[]>>;
@@ -743,6 +757,33 @@ export interface ProgramStatus {
 	error: string | null;
 	/** Where the managed copy is. Null until one is installed. */
 	path: string | null;
+	/** Claude Code only: which copy runs and why (D133). Null for every other program. */
+	follow: ProgramFollow | null;
+}
+
+/**
+ * What the last look at Claude Code's release host found. Mirrors `FollowCheck` in
+ * binaries/follow.rs.
+ */
+export type ProgramFollowCheck =
+	| { kind: "checking" }
+	/** The copy that runs is the newest release; `latest` is the host's newest version. */
+	| { kind: "newest"; latest: string }
+	/** A newer release is out, but its manifest does not list the SDK, so it is skipped. */
+	| { kind: "untested"; latest: string }
+	/** A newer release is downloading for new chats. */
+	| { kind: "downloading"; latest: string }
+	/** The host could not be read, or the newer release was refused. */
+	| { kind: "failed"; error: string };
+
+/** Which Claude Code runs and why. Mirrors `FollowNote` in binaries/follow.rs. */
+export interface ProgramFollow {
+	/** The version the app ships with: the oldest it runs, and the answer when offline. */
+	shipped: string;
+	/** The Claude Agent SDK a release's manifest must list before the app moves to it. */
+	sdk: string;
+	/** What the last look at the release host found. Null before the first one. */
+	check: ProgramFollowCheck | null;
 }
 
 /** binaries.rs: downloads official releases, checks their checksums, keeps one version of each. */
@@ -750,7 +791,11 @@ export interface Programs {
 	statuses(): Promise<Result<ProgramStatus[]>>;
 	/** Fires on every change of one program's status, including download progress. */
 	onStatus(listener: (status: ProgramStatus) => void): Unsubscribe;
-	/** Downloads and installs the version this app pins. Also the Retry after a failure. */
+	/**
+	 * Downloads and installs the version this app pins; for Claude Code, its newest release that
+	 * lists the sidecar's SDK, or the pinned one when none does or the host is out of reach (D133).
+	 * Also the Retry after a failure.
+	 */
 	install(program: ManagedProgram): Promise<Result<void>>;
 	/** Downloads the current version again, replacing the installed copy. */
 	redownload(program: ManagedProgram): Promise<Result<void>>;

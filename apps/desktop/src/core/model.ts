@@ -811,7 +811,13 @@ export interface AgentProgramView {
 	/** The path the user chose in settings instead of the managed copy. Null: the managed copy. */
 	userPath: string | null;
 }
-export type { ProgramState, ProgramStatus, SystemInfo } from "../platform/platform.ts";
+export type {
+	ProgramFollow,
+	ProgramFollowCheck,
+	ProgramState,
+	ProgramStatus,
+	SystemInfo,
+} from "../platform/platform.ts";
 
 /** One provider key of an agent on the Agents page. The value itself stays in the Keychain. */
 export interface ProviderKeyView {

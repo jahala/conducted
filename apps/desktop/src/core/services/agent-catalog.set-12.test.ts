@@ -38,9 +38,7 @@ describe("SET-12 agent config files", () => {
 			data: { agent: "claude", path, text: "", exists: false, modifiedAt: null },
 		});
 
-		expect(await test.memory.platform.fs.writeTextAtomic(path, '{"model":"opus"}')).toEqual(
-			ok(undefined),
-		);
+		test.memory.controls.addFile(path, '{"model":"opus"}');
 		const loaded = await catalog.loadConfigFile("claude");
 		if (!loaded.ok) throw new Error(loaded.error.message);
 		expect(loaded.value.exists).toBe(true);
@@ -53,7 +51,12 @@ describe("SET-12 agent config files", () => {
 		const catalog = test.container.services.agentCatalog;
 		const path = codexFile(test);
 
-		expect(await test.memory.platform.fs.exists(path)).toBe(false);
+		// `~/.codex` is outside the default scope until the service registers it, so a check before
+		// the save is refused, not "missing" (issue #601).
+		expect(await test.memory.platform.fs.exists(path)).toMatchObject({
+			ok: false,
+			error: { code: "fs_out_of_scope" },
+		});
 		expect(await catalog.saveConfigFile("codex", 'model = "gpt-5"\n', null)).toEqual(ok(undefined));
 		expect(await test.memory.platform.fs.readText(path)).toEqual(ok('model = "gpt-5"\n'));
 
@@ -71,9 +74,7 @@ describe("SET-12 agent config files", () => {
 		test = createTestContainer();
 		const catalog = test.container.services.agentCatalog;
 		const path = claudeFile(test);
-		expect(await test.memory.platform.fs.writeTextAtomic(path, '{"model":"opus"}')).toEqual(
-			ok(undefined),
-		);
+		test.memory.controls.addFile(path, '{"model":"opus"}');
 		const loaded = await catalog.loadConfigFile("claude");
 		if (!loaded.ok || loaded.value.modifiedAt === null) throw new Error("no config file loaded");
 
@@ -91,9 +92,7 @@ describe("SET-12 agent config files", () => {
 		test = createTestContainer();
 		const catalog = test.container.services.agentCatalog;
 		const path = claudeFile(test);
-		expect(await test.memory.platform.fs.writeTextAtomic(path, '{"model":"opus"}')).toEqual(
-			ok(undefined),
-		);
+		test.memory.controls.addFile(path, '{"model":"opus"}');
 		const loaded = await catalog.loadConfigFile("claude");
 		if (!loaded.ok) throw new Error(loaded.error.message);
 
@@ -123,14 +122,14 @@ describe("SET-12 agent config files", () => {
 			expect(saved.error.code).toBe("agent_config_invalid");
 			expect(saved.error.message).toContain("is not valid TOML");
 		}
-		expect(await test.memory.platform.fs.exists(path)).toBe(false);
+		expect(await test.memory.platform.fs.exists(path)).toEqual(ok(false));
 	});
 
 	it("keeps the newer config read when two answer out of order", async () => {
 		test = createTestContainer();
 		const fs = test.memory.platform.fs;
 		const path = claudeFile(test);
-		expect(await fs.writeTextAtomic(path, "old")).toEqual(ok(undefined));
+		test.memory.controls.addFile(path, "old");
 
 		const reads: ((value: Result<string>) => void)[] = [];
 		vi.spyOn(fs, "readText").mockImplementation(

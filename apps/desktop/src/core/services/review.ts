@@ -684,7 +684,9 @@ export class ReviewService {
 		const workspacePath = await this.#deps.workspacePathOf(comment.workspaceId);
 		if (!workspacePath.ok) return workspacePath;
 		const path = `${workspacePath.value}/${COMMENT_FOLDER}/${commentFileName(comment.id)}`;
-		if (!(await this.#deps.fs.exists(path))) return ok(undefined);
+		const sent = await this.#deps.fs.exists(path);
+		if (!sent.ok) return sent;
+		if (!sent.value) return ok(undefined);
 		return this.#deps.fs.writeTextAtomic(path, commentFileText(comment));
 	}
 

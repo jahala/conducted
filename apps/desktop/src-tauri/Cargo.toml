@@ -18,6 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+serde_json = "1"
 
 [dependencies]
 tauri = { version = "2", features = ["devtools", "protocol-asset"] }
@@ -26,7 +27,9 @@ muda = { version = "0.20", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
-tauri-plugin-sql = { version = "2.6.0", features = ["sqlite"] }
+# The app's one connection to conducted.db and its migrations (PLAT-02, D137). tauri-plugin-sql
+# ran on the same sqlx, but its pool closes connections under an open transaction (#616).
+sqlx = { version = "0.8.6", default-features = false, features = ["sqlite", "runtime-tokio", "migrate"] }
 rusqlite = { version = "0.32", default-features = false }
 # `statfs` for the free space on the database's disk (D132): its struct differs by platform.
 libc = "0.2"

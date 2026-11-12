@@ -1,20 +1,22 @@
 /**
  * @feature test support Node-backed Tauri bindings for the Platform contract
  * Owns: `createNodeTauriBindings`, a `TauriBindings` whose commands run on Node instead of Rust:
- * files on node:fs, the database on node:sqlite, shell commands as real child processes in their
- * own process group, a loopback echo child as the sidecar, an in-process event emitter in
- * place of Tauri's event bus, and the import's copies of a Conductor database made from its bytes
- * and read back with node:sqlite (APP-17), and the visualization pages kept in a map with
- * visualization.rs's limits (CHAT-22). `createTauriPlatform` runs over it unchanged.
- * Behaviour: docs/plans/tauri-commands.md for the command names and payloads; files.rs and
- * shell.rs for what each command promises.
+ * files on node:fs, the database commands on one node:sqlite connection, shell commands as real
+ * child processes in their own process group, a loopback echo child as the sidecar, an in-process
+ * event emitter in place of Tauri's event bus, and the import's copies of a Conductor database made
+ * from its bytes and read back with node:sqlite (APP-17), and the visualization pages kept in a map
+ * with visualization.rs's limits (CHAT-22). `createTauriPlatform` runs over it unchanged.
+ * Behaviour: docs/plans/tauri-commands.md for the command names and payloads; files.rs and shell.rs
+ * for what each command promises.
  * Must handle: a command answers as Rust does where the contract looks (an absent path stats as
  * null, a timeout is `shell_timeout`, a cancel is `shell_cancelled`, a send before the sidecar
- * started is `sidecar_not_started`, a file path outside the default roots and the registered ones is
- * `fs_out_of_scope`); a command Rust owns and Node cannot do honestly (Trash,
- * pty, keychain, the ignore and regex crates, macOS facts) is not answered, and the contract run
- * skips those cases by name. `dispose` stops every process, closes every database and drops
- * every listener, even when a case failed.
+ * started is `sidecar_not_started`, a file path outside the default roots and the registered ones
+ * is `fs_out_of_scope`, a write into a missing folder is `fs_not_found`, the database has one
+ * connection from the first `db_open`, and once it is lost every database command is `db_closed`
+ * and nothing opens another, as database.rs does); a command Rust owns and Node cannot do honestly
+ * (Trash, pty, keychain, the ignore and regex crates, macOS facts) is not answered, and the
+ * contract run skips those cases by name. `dispose` stops every process, closes every database and
+ * drops every listener, even when a case failed.
  * Test first: a shell command that outlives its timeout ends with `shell_timeout`.
  */
 import { type ChildProcess, spawn } from "node:child_process";
@@ -48,6 +50,7 @@ import {
 	VISUALIZATION_MAX_PAGES,
 	VISUALIZATION_MAX_STORE_BYTES,
 } from "../platform/platform.ts";
+import type { SqlDatabase } from "../platform/queued-database.ts";
 import { COMMANDS, EVENTS, type TauriBindings } from "../platform/tauri.ts";
 import { createNodeSqlDatabase } from "./node-sql.ts";
 import type { ContractControls } from "./platform-contract.ts";
@@ -380,7 +383,28 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 		requireInScope(requirePath(args), [...defaultFileRoots(paths), ...registeredRoots]);
 	const events = createEmitter();
 	const windowEvents = createEmitter();
-	const databases: DatabaseSync[] = [];
+	/** database.rs: the one connection, from the first `db_open` until it closes for good. */
+	let connection: DatabaseSync | "unopened" | "closed" = "unopened";
+	const openConnection = (): DatabaseSync => {
+		if (connection === "unopened") return fail("db_not_open", "The database is not open yet.");
+		if (connection === "closed") {
+			return fail("db_closed", "The database connection has closed. Quit and reopen Conducted.");
+		}
+		return connection;
+	};
+	const closeConnection = (): void => {
+		if (connection instanceof DatabaseSync) connection.close();
+		connection = "closed";
+	};
+	/** Runs one statement on the connection; SQLite's refusal keeps its message, as in Rust. */
+	const onConnection = async <T>(statement: (sql: SqlDatabase) => Promise<T>): Promise<T> => {
+		const sql = createNodeSqlDatabase(openConnection());
+		try {
+			return await statement(sql);
+		} catch (error) {
+			throw new CommandFailure("db_statement_failed", (error as Error).message);
+		}
+	};
 	const running = new Map<string, RunningProcess>();
 	/** CHAT-22: the pages visualization.rs keeps, by id, oldest first, with their byte sizes. */
 	const visualizationPages = new Map<string, number>();
@@ -409,6 +433,7 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 			nextAttemptAt: null,
 			error: null,
 			path: null,
+			follow: null,
 		};
 
 	const setProgramStatus = (status: ProgramStatus): void => {
@@ -448,6 +473,10 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 			await rename(temp, path);
 		} catch (error) {
 			await rm(temp, { force: true });
+			// files.rs: a missing folder is fs_not_found, and the write never makes it (issue #600).
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+				throw new CommandFailure("fs_not_found", `${dirname(path)} does not exist.`);
+			}
 			throw new CommandFailure("fs_io", (error as Error).message);
 		}
 	};
@@ -466,6 +495,18 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				return undefined;
 			case COMMANDS.fsPaths:
 				return paths;
+			case COMMANDS.dbOpen:
+				if (connection === "unopened") connection = new DatabaseSync(":memory:");
+				openConnection();
+				return undefined;
+			case COMMANDS.dbExecute:
+				return onConnection((sql) =>
+					sql.execute(String(args.query), (args.values ?? []) as unknown[]),
+				);
+			case COMMANDS.dbSelect:
+				return onConnection((sql) =>
+					sql.select(String(args.query), (args.values ?? []) as unknown[]),
+				);
 			case COMMANDS.dbFreeBytes: {
 				// db.rs `free_bytes`: statfs's available blocks on the disk of the app's folder. The
 				// run's folder holds that folder, which a run may not have made yet.
@@ -531,6 +572,8 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 			case COMMANDS.attachmentWriteBytes: {
 				const destination = String(args.destinationPath);
 				const bytes = Buffer.from(String(args.data), "base64");
+				// attachments.rs makes the destination's folder, unlike the plain file write.
+				await mkdir(dirname(destination), { recursive: true });
 				await writeAtomic(destination, bytes.toString("utf8"));
 				return {
 					path: destination,
@@ -552,6 +595,7 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				const text = await readFile(source, "utf8").catch((error: Error) =>
 					fail("attachment_missing", error.message),
 				);
+				await mkdir(dirname(destination), { recursive: true });
 				await writeAtomic(destination, text);
 				return {
 					path: destination,
@@ -745,13 +789,6 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 		webview: {
 			setZoom: async (_factor) => {},
 		},
-		sql: {
-			load: async () => {
-				const db = new DatabaseSync(":memory:");
-				databases.push(db);
-				return createNodeSqlDatabase(db);
-			},
-		},
 		dialog: {
 			open: async (options) => {
 				if (options.directory === true) return folderAnswers.shift() ?? null;
@@ -800,6 +837,7 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 		emitDeepLinkRejected: (rejection) => {
 			events.emit(EVENTS.deepLinkRejected, rejection);
 		},
+		loseDatabaseConnection: closeConnection,
 		get dockBadge() {
 			return dockBadge;
 		},
@@ -869,7 +907,7 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				child.kill("SIGKILL");
 			}
 			await Promise.all(ending);
-			for (const db of databases) db.close();
+			closeConnection();
 			events.clear();
 			windowEvents.clear();
 		},

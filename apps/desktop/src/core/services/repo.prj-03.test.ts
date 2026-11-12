@@ -188,7 +188,7 @@ describe("PRJ-03 creating a project from a template", () => {
 		);
 
 		expect(result.ok).toBe(false);
-		expect(await test.container.platform.fs.exists("/code/broken")).toBe(false);
+		expect(await test.container.platform.fs.exists("/code/broken")).toEqual(ok(false));
 	});
 });
 

@@ -61,6 +61,7 @@ describe("AGENT-09 Cursor's SDK in the system service", () => {
 			nextAttemptAt: null,
 			error: null,
 			path: null,
+			follow: null,
 		});
 		for (const [state, held] of [
 			["downloading", true],

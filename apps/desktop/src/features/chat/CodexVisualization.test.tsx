@@ -60,7 +60,7 @@ async function mount(options: MountOptions = {}): Promise<Mounted> {
 	const test = createTestContainer({ clock: { now: () => now } });
 	const workspace = await seedWorkspace(test.container, { path: "/code/workspaces/viz" });
 	if (options.html !== undefined && options.html !== null) {
-		await test.container.platform.fs.writeTextAtomic(`${workspace.path}/${file}`, options.html);
+		test.memory.controls.addFile(`${workspace.path}/${file}`, options.html);
 	}
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false, networkMode: "always" } },
@@ -82,7 +82,7 @@ async function mount(options: MountOptions = {}): Promise<Mounted> {
 		onOpen,
 		write: async (text) => {
 			now += 1_000;
-			await test.container.platform.fs.writeTextAtomic(`${workspace.path}/${file}`, text);
+			test.memory.controls.addFile(`${workspace.path}/${file}`, text);
 		},
 		refresh: async () => {
 			await act(() =>
@@ -163,7 +163,7 @@ describe("CHAT-22 Codex visualization", () => {
 				</ServicesProvider>
 			</QueryClientProvider>,
 		);
-		await first.test.container.platform.fs.writeTextAtomic(
+		first.test.memory.controls.addFile(
 			"/code/workspaces/viz/viz/other.html",
 			"<p>Second chart</p>",
 		);
