@@ -2,7 +2,7 @@
  * @feature catalogue States of the composer
  * Owns: a new chat with an empty composer (the empty chat, and one offering an earlier chat as
  * context), the composer with a draft and two attached
- * files, the @ menu (and a search with no match), the chat's find bar, the composer with the model
+ * files, the @ menu (and a search with no match), the chat's find bar, the auto-accept chip, the composer with the model
  * picker open (searched with no match, and switching the model of
  * a started chat), the slash command menu after typing "/" (Claude,
  * Codex, and with a Skills group), a typed command that cannot run here, the "+" menu, the Create
@@ -214,6 +214,20 @@ export const COMPOSER_STATES: CatalogueState[] = [
 				world,
 				({ document }) => typeInComposer(document, "@quarterly-report"),
 				(document) => shows(document, "No files found"),
+			),
+	},
+	{
+		id: "composer-auto-accept",
+		group: "Composer",
+		title: "A chat accepting edits by itself: its chip, pointed at",
+		seed: (world) =>
+			newChat(
+				world,
+				async ({ app, document }, chat) => {
+					must(await app.container.actions.sessions.setAutoApproveEdits(chat.id, true));
+					await hover(document, "button", "Auto-accept edits");
+				},
+				(document) => shows(document, "Disable auto-accept edits"),
 			),
 	},
 	{
