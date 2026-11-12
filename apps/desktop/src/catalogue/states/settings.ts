@@ -1004,6 +1004,22 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		},
 	},
 	{
+		id: "settings-repo-general-prompt",
+		group: "Settings",
+		title: "atlas: Actions, the general instructions for every agent opened",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/actions`,
+				after: ({ document }) => click(document, "button", "General preferences", { prefix: true }),
+				ready: (document) =>
+					document.querySelector(
+						'[placeholder="Add custom instructions for all agents working in this repo."]',
+					) !== null,
+			};
+		},
+	},
+	{
 		id: "settings-repo-add-action",
 		group: "Settings",
 		title: "atlas: Actions, the Add action dialog",
