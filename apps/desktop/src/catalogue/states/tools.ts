@@ -402,7 +402,7 @@ async function todoToolsChat(world: World): Promise<Scene> {
 			await animateCast(world, cast, app);
 			await refreshGit(app, cast.grove);
 			// The turn's work is folded into one row; open it to show each todo card's title.
-			await openRow(document, "3 tool calls");
+			await click(document, "button", "Expand", { prefix: true });
 		},
 		ready: (document) =>
 			shows(document, "No todos") &&
@@ -440,7 +440,7 @@ async function planModeChat(world: World): Promise<Scene> {
 		after: async ({ app, document }) => {
 			await animateCast(world, cast, app);
 			await refreshGit(app, cast.grove);
-			await openRow(document, "2 tool calls");
+			await click(document, "button", "Expand", { prefix: true });
 			await rightClick(document, "button", "Propose plan", { prefix: true });
 		},
 		ready: (document) => shows(document, "Enter plan mode") && shows(document, "Copy plan"),

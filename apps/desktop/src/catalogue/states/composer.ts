@@ -287,6 +287,13 @@ export const COMPOSER_STATES: CatalogueState[] = [
 		title: "Switching the model in a chat that has started: the toast about the next reply",
 		seed: async (world): Promise<Scene> => {
 			const cast = await seedCast(world);
+			// The chat has started: the user sent its first message.
+			must(
+				await world.repositories.sessions.recordUserMessage(
+					cast.chats.arbor.id,
+					CATALOGUE_NOW - HOUR,
+				),
+			);
 			return {
 				route: chatRoute(cast.arbor, cast.chats.arbor),
 				after: async ({ app, document }) => {

@@ -51,8 +51,8 @@ const snippets = (
 	id: string,
 	title: string,
 	then: (document: Document) => Promise<void>,
-	/** The dialog's title once `then` is done. */
-	heading: string,
+	/** Text only the screen `then` ends on shows. */
+	text: string,
 ): CatalogueState => ({
 	id,
 	group: "Overlays and panels",
@@ -73,10 +73,7 @@ const snippets = (
 				await click(document, "[role=option]", "Edit snippets", { prefix: true });
 				await then(document);
 			},
-			ready: (document) =>
-				[...document.querySelectorAll("[role=dialog] h2")].some(
-					(title) => title.textContent === heading,
-				),
+			ready: (document) => shows(document, text),
 		};
 	},
 });
@@ -143,7 +140,7 @@ export const OVERLAY_STATES: CatalogueState[] = [
 		"snippets-manager-edit",
 		"The snippets manager editing a snippet",
 		(document) => click(document, "button", "Edit Review checklist"),
-		"Edit snippet",
+		"Prompt snippet",
 	),
 	{
 		id: "passport",
