@@ -416,27 +416,27 @@ function describeProgramStatus(
  * the reason a newer one is not in use.
  */
 function describeFollowedVersion(version: string, follow: ProgramFollow): string {
-	const shipped =
+	const opening =
 		version === follow.shipped
 			? `Version ${version}, the version this app ships with.`
 			: `Version ${version}.`;
 	const check = follow.check;
 	if (check === null) {
 		return version === follow.shipped
-			? shipped
+			? opening
 			: `Version ${version}, a newer release tested with this app.`;
 	}
 	switch (check.kind) {
 		case "checking":
-			return `${shipped} Checking for a newer version.`;
+			return `${opening} Checking for a newer version.`;
 		case "newest":
 			return `Version ${version}, the newest release.`;
 		case "untested":
-			return `${shipped} Version ${check.latest} is newer, but it is not tested with this app's Claude Agent SDK ${follow.sdk}, so it is skipped.`;
+			return `${opening} Version ${check.latest} is newer, but it is not tested with this app's Claude Agent SDK ${follow.sdk}, so it is skipped.`;
 		case "downloading":
-			return `${shipped} Downloading version ${check.latest} for new chats.`;
+			return `${opening} Downloading version ${check.latest} for new chats.`;
 		case "failed":
-			return `${shipped} The check for a newer version failed: ${check.error}`;
+			return `${opening} The check for a newer version failed: ${check.error}`;
 	}
 }
 
