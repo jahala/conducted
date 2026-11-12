@@ -242,11 +242,12 @@ export function createActions(
 			remove: (id) => services.composer.removeSnippet(id),
 		},
 		settings: {
-			set: (key, value, options) => services.settings.set(key, value, options),
+			// Arguments pass on as given, so a save without options reaches the service without them.
+			set: (...args) => services.settings.set(...args),
 			reset: (key) => services.settings.delete(key),
 			setEnvVar: (name, value, scope) => services.settings.setEnvVar(name, value, scope),
 			removeEnvVar: (name, scope) => services.settings.removeEnvVar(name, scope),
-			resetForRepo: (repoId, key, options) => services.settings.resetForRepo(repoId, key, options),
+			resetForRepo: (...args) => services.settings.resetForRepo(...args),
 			filePath: (file) => services.settings.filePath(file),
 			openFile: (file, appName) => services.settings.openFile(file, appName),
 		},
