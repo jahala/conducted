@@ -177,7 +177,8 @@ async function main(): Promise<number> {
 				if (!(list instanceof HTMLElement) || !(tab instanceof HTMLElement)) return null;
 				tab.focus();
 				const style = getComputedStyle(tab);
-				const reach = Number.parseFloat(style.outlineOffset) + Number.parseFloat(style.outlineWidth);
+				const reach =
+					Number.parseFloat(style.outlineOffset) + Number.parseFloat(style.outlineWidth);
 				const box = tab.getBoundingClientRect();
 				const edge = list.getBoundingClientRect();
 				const inside =
