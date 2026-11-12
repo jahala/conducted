@@ -917,6 +917,7 @@ export type {
 	HistoryPreview,
 	ImportKind,
 	ImportPreview,
+	ImportSpace,
 	KindCount,
 	LeftOut,
 	NotBrought,
