@@ -333,10 +333,11 @@ export class ConductorImportService {
 			now: this.#deps.now(),
 			cancelled: () => this.#cancelled,
 		});
+		if (!size.ok) return size;
 		const free = await platform.app.databaseFreeBytes();
 		if (!free.ok) return free;
-		const preview = { ...plan.preview, space: importSpace(size, free.value) };
-		return ok({ copyPath: copy.value.copyPath, plan, size, preview });
+		const preview = { ...plan.preview, space: importSpace(size.value, free.value) };
+		return ok({ copyPath: copy.value.copyPath, plan, size: size.value, preview });
 	}
 
 	/** What one repository folder holds, read only: the folder, its worktrees and settings files. */

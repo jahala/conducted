@@ -879,6 +879,26 @@ describe("D132 the disk space chat history takes, through the container", () => 
 		expect(preview.space.fits).toBe(false);
 	});
 
+	it("a dry run that cannot reach the sidecar fails with its reason, instead of measuring too little", async () => {
+		const test = await setUp(
+			{},
+			{
+				answer: (call) =>
+					call.method === "closeConductorHistory" || call.method === "indexConductorHistory"
+						? sidecarRefuses("The sidecar is not running.")
+						: undefined,
+			},
+		);
+
+		const preview = await test.container.services.conductorImport.preview();
+
+		expect(preview.ok).toBe(false);
+		if (preview.ok) return;
+		expect(preview.error.message).toContain("The sidecar is not running.");
+		// Its copy is gone, so the next try starts from a fresh dry run.
+		expect(test.memory.controls.conductorDatabases.size).toBe(1);
+	});
+
 	it("an import with too little free space refuses before writing anything, and leaves Conducted as it was", async () => {
 		const test = await setUp();
 		const before = await countRows(test);

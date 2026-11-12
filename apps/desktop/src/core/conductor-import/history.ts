@@ -237,14 +237,15 @@ export interface MeasureDeps extends ReadDeps {
 
 /**
  * The dry run's measure of the history it would bring (D132): each chat read and mapped as the
- * import does, every event sized as the writer stores it, nothing written. A chat whose mapping
- * fails counts what it mapped before the failure, as the import writes that much before it rolls
- * the chat back.
+ * import does, every event sized as the writer stores it, nothing written. A chat whose read or
+ * mapping fails counts what it mapped before the failure, as the import writes that much before it
+ * rolls the chat back. A sidecar that does not answer at all fails the measure: a figure built
+ * without it would be too small, and the space check would pass an import the disk cannot hold.
  */
 export async function measureChatHistories(
 	chats: readonly HistoryChat[],
 	deps: MeasureDeps,
-): Promise<HistorySize> {
+): Promise<Result<HistorySize>> {
 	const all = new TablePages();
 	let largestChatDiskBytes = 0;
 	for (const chat of chats) {
@@ -253,27 +254,26 @@ export async function measureChatHistories(
 		const historyId = `${deps.now}:${chat.sessionId}:size`;
 		const one = new TablePages();
 		const cleared = await deps.sidecar.request("closeConductorHistory", { historyId });
-		if (cleared.ok) {
-			try {
-				const indexed = await indexChat(chat, historyId, deps);
-				if (indexed.ok) {
-					await eachRead(chat, historyId, deps, async (mapped) => {
-						for (const event of mapped) {
-							const stored = storedEventBytes(chat.sessionId, event);
-							if (!stored.ok) return stored;
-							all.add(stored.value);
-							one.add(stored.value);
-						}
-						return ok(undefined);
-					});
-				}
-			} finally {
-				await deps.sidecar.request("closeConductorHistory", { historyId });
+		if (!cleared.ok) return cleared;
+		try {
+			const indexed = await indexChat(chat, historyId, deps);
+			if (indexed.ok) {
+				await eachRead(chat, historyId, deps, async (mapped) => {
+					for (const event of mapped) {
+						const stored = storedEventBytes(chat.sessionId, event);
+						if (!stored.ok) return stored;
+						all.add(stored.value);
+						one.add(stored.value);
+					}
+					return ok(undefined);
+				});
 			}
+		} finally {
+			await deps.sidecar.request("closeConductorHistory", { historyId });
 		}
 		largestChatDiskBytes = Math.max(largestChatDiskBytes, one.diskBytes);
 	}
-	return { diskBytes: all.diskBytes, largestChatDiskBytes };
+	return ok({ diskBytes: all.diskBytes, largestChatDiskBytes });
 }
 
 const mismatch = (detail: string) =>

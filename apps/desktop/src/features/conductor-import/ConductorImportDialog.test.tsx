@@ -6,7 +6,7 @@ import { ServicesProvider } from "../../core/context.tsx";
 import { conductorChatRows, done, said, text, wrote } from "../../test/conductor-chat.ts";
 import { buildConductorFixture } from "../../test/conductor-fixture.ts";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
-import { answerSidecar } from "../../test/sidecar-answers.ts";
+import { answerSidecar, type SidecarCall, sidecarRefuses } from "../../test/sidecar-answers.ts";
 import { answerHistory } from "../../test/sidecar-history.ts";
 import { ProjectStep } from "../onboarding/ProjectStep.tsx";
 import { GeneralPage } from "../settings/pages/GeneralPage.tsx";
@@ -77,17 +77,18 @@ async function mount(
 	view: "settings" | "onboarding",
 	onFinish = () => {},
 	withHistory = false,
-	/** Starts the container with a sidecar that maps history, and sets the disk's free space. */
-	mapped?: { freeBytes: number },
+	/**
+	 * Starts the container with a sidecar that maps history, and sets the disk's free space.
+	 * `answer` answers a request first when it returns a value.
+	 */
+	mapped?: { freeBytes: number; answer?: (call: SidecarCall) => unknown },
 ): Promise<TestContainer> {
 	const mounted = createTestContainer();
 	test = mounted;
 	seed(mounted, withHistory);
 	if (mapped !== undefined) {
-		answerSidecar(
-			mounted,
-			answerHistory(() => ({})),
-		);
+		const history = answerHistory(() => ({}));
+		answerSidecar(mounted, (call) => mapped.answer?.(call) ?? history(call));
 		mounted.memory.controls.setDatabaseFreeBytes(mapped.freeBytes);
 		const started = await mounted.container.start();
 		if (!started.ok) throw new Error(started.error.message);
@@ -169,9 +170,15 @@ describe("APP-17 the import from Conductor, on screen", () => {
 	});
 
 	it("the dry run says which chats bring their history, and the outcome names a chat whose history failed", async () => {
-		// The container is not started, so its sidecar cannot map: the Claude chat comes over
-		// without its history, as it would if the sidecar had stopped.
-		await mount("settings", () => {}, true);
+		// The import's mapping of the Claude chat fails (the dry run's own mapping, whose id ends
+		// in ":size", still works): the chat comes over without its history.
+		await mount("settings", () => {}, true, {
+			freeBytes: 50e9,
+			answer: (call) =>
+				call.method === "mapConductorHistory" && !String(call.params.historyId).endsWith(":size")
+					? sidecarRefuses("The mapping stopped.")
+					: undefined,
+		});
 
 		fireEvent.click(screen.getByRole("button", { name: "Review import" }));
 		const dialog = within(await screen.findByRole("dialog"));
@@ -184,7 +191,7 @@ describe("APP-17 the import from Conductor, on screen", () => {
 
 		expect(await dialog.findByText(/Imported 1 project, 1 workspace and 2 chats\./)).toBeTruthy();
 		expect(dialog.getByText(/History not brought for 1 chat\./)).toBeTruthy();
-		expect(dialog.getByText(/Fix login: The sidecar has not been started\./)).toBeTruthy();
+		expect(dialog.getByText(/Fix login: .*The mapping stopped\./)).toBeTruthy();
 	});
 
 	it("the dry run says the disk space chat history takes and the space free (D132)", async () => {
