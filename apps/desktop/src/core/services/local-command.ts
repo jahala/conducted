@@ -8,7 +8,9 @@
  * services-map.md 5B.2.2 (a notification when a command waits for the user), 5B.6.
  * Must handle: a local workspace (the tool is only for a cloud one), the setting turned off, a
  * denial, a withdrawn request, an approval that is not given in time, a command that times out or
- * cannot start, a cwd with a null byte or a relative cwd, and output too long for the result.
+ * cannot start, a cwd with a null byte or a relative cwd, output too long for the result, and a
+ * "Yes always" that cannot be saved (the command runs, and the user is told the setting was not
+ * saved).
  * Our design choice: the approval and the command run in the desktop app, because only the app has
  * the Mac's shell and the user; the sidecar inside the sandbox only forwards the request. The
  * interaction travels the app's existing interaction card and answer path, with a local marker so
@@ -25,7 +27,7 @@ import {
 	LOCAL_COMMAND_OUTPUT_FOLDER,
 	localCommandTimeoutMs,
 } from "@conducted/protocol";
-import type { InteractionId, Result, SessionId, ToolUseId } from "@conducted/shared";
+import type { AppError, InteractionId, Result, SessionId, ToolUseId } from "@conducted/shared";
 import { appError, err, ok } from "@conducted/shared";
 import type { FileSystem, Shell } from "../../platform/platform.ts";
 import type { Workspace } from "../model.ts";
@@ -103,6 +105,8 @@ export interface LocalCommandServiceDeps {
 	}) => Promise<Result<void>>;
 	setting: <T>(key: string) => T;
 	setSetting: (key: string, value: unknown) => Promise<Result<void>>;
+	/** Tells the user the "Always allow local commands" setting was not saved (issue #614). */
+	reportSettingSaveFailed: (error: AppError) => void;
 	newId: () => string;
 	log: (level: "warn" | "info", message: string) => void;
 }
@@ -281,13 +285,9 @@ export class LocalCommandService {
 			this.#sessionApprovals.add(`${workspace.id}\0${request.sessionId}`);
 		}
 		if (answered.decision === "always_allow") {
+			// The command still runs, as the user allowed it; only the "always" is not kept.
 			const written = await this.#deps.setSetting(ALWAYS_ALLOW_LOCAL_EXECUTION_SETTING, true);
-			if (!written.ok) {
-				this.#deps.log(
-					"warn",
-					`Could not turn on "Always allow local commands": ${written.error.message}`,
-				);
-			}
+			if (!written.ok) this.#deps.reportSettingSaveFailed(written.error);
 		}
 		return "allow";
 	}

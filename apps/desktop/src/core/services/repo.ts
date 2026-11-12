@@ -345,6 +345,8 @@ export interface RepoServiceDeps {
 	removal: RepoRemovalPort;
 	/** Names each uploaded icon file, so a new upload never reuses a cached address. */
 	ids: Pick<IdSource, "uuid">;
+	/** Tells the user a setting saved on their behalf was not kept (issue #614). */
+	reportSettingSaveFailed: (error: AppError) => void;
 }
 
 /**
@@ -1033,8 +1035,13 @@ export class RepoService {
 	 * The next clone or new project suggests this folder (Conductor's `last_clone_directory`, which
 	 * both dialogs share). A failed save loses only the suggestion, so the work still succeeds.
 	 */
+	/**
+	 * Keeps the folder for the next clone's suggestion. The project is already added, so a failed
+	 * save does not fail the clone; the user is told the setting was not saved.
+	 */
 	async #rememberParentFolder(parentDir: string): Promise<void> {
-		await this.#deps.settings.set(LAST_CLONE_DIRECTORY, parentDir);
+		const saved = await this.#deps.settings.set(LAST_CLONE_DIRECTORY, parentDir);
+		if (!saved.ok) this.#deps.reportSettingSaveFailed(saved.error);
 	}
 
 	/** Backs `Actions.projects.remove`. */

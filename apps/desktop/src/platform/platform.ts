@@ -517,7 +517,17 @@ export interface Dialogs {
 	pickFiles(options: { title: string; multiple: boolean }): Promise<string[]>;
 	/** The system save dialog. Null when the user cancels. */
 	pickSavePath(options: { title: string; defaultPath?: string }): Promise<string | null>;
-	confirm(options: { title: string; message: string; okLabel: string }): Promise<boolean>;
+	/**
+	 * The system question dialog; true when the user chooses the OK button. `cancelLabel` and `kind`
+	 * (the icon macOS shows) are the dialog plugin's own; left out, the plugin uses its defaults.
+	 */
+	confirm(options: {
+		title: string;
+		message: string;
+		okLabel: string;
+		cancelLabel?: string;
+		kind?: "info" | "warning" | "error";
+	}): Promise<boolean>;
 }
 
 export interface Opener {

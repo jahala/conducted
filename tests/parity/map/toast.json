@@ -16,12 +16,12 @@
 		"by": "seed"
 	},
 	"toast:M390047": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "DATA-05",
-		"item": "Saving a setting can fail with \"Failed to save setting\".",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-save-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "hand"
 	},
 	"toast:M394092": {
 		"status": "gap",

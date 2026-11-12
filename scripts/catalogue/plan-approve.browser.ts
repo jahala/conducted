@@ -1,7 +1,8 @@
 /**
- * @feature CHAT-12 Plan review shortcut (issue #586)
+ * @feature CHAT-12 Plan review shortcut and Approve (issues #586, #595)
  * Owns: the browser check that Cmd+Shift+Enter approves a waiting plan from where focus sits in
- * Chromium, the composer, and from the plan bar itself.
+ * Chromium, the composer, and from the plan bar itself; and that the bar's Approve button sends
+ * typed composer text as the plan's adjustments (issue #595, renderApp @9313268).
  * Behaviour: Conductor registers "Approve plan" with the chat pane's commands, beside the composer's
  * own (renderApp @9295505), so the key works while the user types; the key is Enter with Cmd and
  * Shift (main @3795279). In Chromium the composer holds focus, and its editor (ProseMirror) prevents
@@ -30,6 +31,9 @@ const APPROVE_KEYS = "Meta+Shift+Enter";
 /** The answer the state's sidecar logs on taking the plan's answer (states/chat.ts). */
 const ANSWER_LOG = "[catalogue] answered interaction: ";
 const APPROVED = JSON.stringify({ kind: "plan_approval", approved: true });
+/** Text typed in the composer before Approve, and the answer that carries it. */
+const ADJUSTMENTS = "Keep the old cache for reads.";
+const ADJUSTED = JSON.stringify({ kind: "plan_approval", approved: false, feedback: ADJUSTMENTS });
 
 /**
  * The first answer the sidecar takes from now on, as JSON, or null when none comes within the hang
@@ -125,6 +129,26 @@ async function main(): Promise<number> {
 			);
 		} finally {
 			await onBar.close();
+		}
+
+		// The bar's Approve button sends typed text as the plan's adjustments (issue #595).
+		const adjusting = await open(browser, url);
+		try {
+			await adjusting.getByRole("textbox", { name: "composer" }).click();
+			await adjusting.keyboard.type(ADJUSTMENTS);
+			const answer = answered(adjusting);
+			await adjusting
+				.getByRole("group", { name: "Plan review" })
+				.getByRole("button", { name: "Approve" })
+				.click();
+			const got = await answer;
+			check(
+				"sends the composer's text as the plan's adjustments from the bar's Approve button",
+				got === ADJUSTED,
+				`the sidecar got ${got ?? "no answer"}`,
+			);
+		} finally {
+			await adjusting.close();
 		}
 	} finally {
 		if (browser !== null) await browser.close();

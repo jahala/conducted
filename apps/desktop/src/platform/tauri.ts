@@ -131,7 +131,15 @@ export interface TauriDialogBindings {
 		multiple?: boolean;
 	}): Promise<string | string[] | null>;
 	save(options: { title?: string; defaultPath?: string }): Promise<string | null>;
-	ask(message: string, options?: { title?: string; okLabel?: string }): Promise<boolean>;
+	ask(
+		message: string,
+		options?: {
+			title?: string;
+			okLabel?: string;
+			cancelLabel?: string;
+			kind?: "info" | "warning" | "error";
+		},
+	): Promise<boolean>;
 }
 
 export interface TauriClipboardBindings {
@@ -1132,6 +1140,8 @@ export function createTauriDialogs(bindings: TauriBindings = realTauriBindings):
 			requireBinding(bindings.dialog, "dialog").ask(options.message, {
 				title: options.title,
 				okLabel: options.okLabel,
+				...(options.cancelLabel === undefined ? {} : { cancelLabel: options.cancelLabel }),
+				...(options.kind === undefined ? {} : { kind: options.kind }),
 			}),
 	};
 }

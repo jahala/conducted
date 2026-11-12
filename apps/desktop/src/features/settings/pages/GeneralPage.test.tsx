@@ -2,12 +2,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
+import { Toaster, toast } from "../../../ui/Toast.tsx";
 import { GeneralPage } from "./GeneralPage.tsx";
 
 let test: TestContainer | undefined;
 
 afterEach(() => {
 	cleanup();
+	toast.dismiss();
 	test?.close();
 	test = undefined;
 });
@@ -89,7 +91,7 @@ describe("SET-02 GeneralPage", () => {
 		expect(sound.textContent).not.toContain("Default chime");
 	});
 
-	it("shows the failure under the row when a save fails", async () => {
+	it("says a failed save in a toast, with no line under the row", async () => {
 		test = createTestContainer();
 		await test.container.services.settings.start();
 		vi.spyOn(test.container.actions.settings, "set").mockResolvedValue({
@@ -99,12 +101,19 @@ describe("SET-02 GeneralPage", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<GeneralPage />
+				<Toaster />
 			</ServicesProvider>,
 		);
 
 		fireEvent.click(screen.getByRole("switch", { name: "Agent notifications" }));
 
-		expect(await screen.findByText("The settings file is read-only.")).toBeTruthy();
+		await waitFor(() =>
+			expect(document.querySelector("[data-sonner-toast]")?.textContent).toContain(
+				"The settings file is read-only.",
+			),
+		);
+		// A failed save is told in the toast only, as in Conductor: no line under the row.
+		expect(screen.queryByRole("alert")).toBeNull();
 	});
 
 	it("shows a failed settings load with a Retry that reads the settings again", async () => {

@@ -1,6 +1,6 @@
 import { appError, err, type WorkspaceId } from "@conducted/shared";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppProviders, createQueryClient } from "../app/providers.tsx";
 import { Button } from "./Button.tsx";
 import {
@@ -53,6 +53,31 @@ describe("APP-05 toast variants", () => {
 	});
 });
 
+describe("APP-05 how long a toast shows", () => {
+	// Conductor's toaster closes a toast after 5 seconds unless the toast sets its own time
+	// (renderApp @614297, M4i = 5e3; its Toaster gets only a theme, @11706792).
+	it("keeps a toast for 5 seconds, as Conductor's toaster does", () => {
+		vi.useFakeTimers();
+		try {
+			render(<Toaster />);
+			act(() => {
+				toast.error("Failed to save setting");
+			});
+			act(() => {
+				vi.advanceTimersByTime(4_900);
+			});
+			expect(screen.getByText("Failed to save setting")).toBeTruthy();
+			// Past 5 seconds it closes, and sonner unmounts it after its exit animation.
+			act(() => {
+				vi.advanceTimersByTime(1_000);
+			});
+			expect(screen.queryByText("Failed to save setting")).toBeNull();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});
+
 describe("APP-05 toast errors", () => {
 	it("turns a failed Result into a toast with the failure's message", async () => {
 		render(<Toaster />);
@@ -62,6 +87,20 @@ describe("APP-05 toast errors", () => {
 		});
 		expect(await screen.findByText("Couldn't save the file")).toBeTruthy();
 		expect(screen.getByText("Disk is full")).toBeTruthy();
+	});
+});
+
+describe("APP-05 toast descriptions", () => {
+	// Conductor's toast keeps a description's line breaks (renderApp CSS, white-space: pre-line).
+	it("keeps the line breaks of a description, as Conductor's toast does", async () => {
+		render(<Toaster />);
+		act(() => {
+			toast.error("Can't save setting because your settings file is invalid", {
+				description: "line one\nline two",
+			});
+		});
+		const description = await screen.findByText(/line one/);
+		expect(description.className.split(" ")).toContain("whitespace-pre-line");
 	});
 });
 

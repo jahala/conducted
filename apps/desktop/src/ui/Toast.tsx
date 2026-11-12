@@ -7,7 +7,8 @@
  * 8px gap, 8px radius, 1px border, 13px text, title weight 500).
  * Our design choice: toasts report an outcome. Anything the user must act on gets a designed state or a card.
  * The workspace-scoped toast keeps its workspace id beside the toast, so switching workspace dismisses it.
- * Must handle: the host sits at the bottom right; `role="status"` for screen readers (sonner); a
+ * Must handle: the host sits at the bottom right and a toast closes after 5 seconds unless it sets
+ * its own time, as Conductor's toaster does; `role="status"` for screen readers (sonner); a
  * workspace-scoped toast is hidden while another workspace is open and removed when the user leaves or the
  * toast closes on its own.
  * Test first: toast.error("x") shows "x" in the host; a workspace-scoped toast for a closed workspace does not.
@@ -18,6 +19,9 @@ import { type ExternalToast, Toaster as Sonner, toast } from "sonner";
 import { create } from "zustand";
 
 export { toast };
+
+/** How long a toast shows when it does not set its own time, as in Conductor. */
+export const TOAST_DURATION_MS = 5_000;
 
 interface WorkspaceToastState {
 	open: WorkspaceId | null;
@@ -123,13 +127,18 @@ export function Toaster({ workspaceId }: ToasterProps = {}) {
 	return (
 		<Sonner
 			position="bottom-right"
+			// Conductor's toaster closes a toast after 5 seconds unless it sets its own time (renderApp
+			// @614297); sonner's own default is 4.
+			duration={TOAST_DURATION_MS}
 			toastOptions={{
 				unstyled: true,
 				classNames: {
 					toast:
 						"flex w-(--toast-width) items-start gap-2 rounded-lg border border-border bg-raised p-4 text-code text-fg shadow-toast",
 					title: "font-medium",
-					description: "text-fg-muted",
+					// Conductor keeps a description's line breaks (renderApp CSS @10462, `[data-description]`
+					// white-space: pre-line), so a quoted parse error reads line by line.
+					description: "whitespace-pre-line text-fg-muted",
 					error: "text-danger",
 					warning: "text-warning",
 					success: "text-success",

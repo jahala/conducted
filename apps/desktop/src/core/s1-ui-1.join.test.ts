@@ -62,6 +62,7 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../test/container.ts";
+import { answerSidecar, sidecarRefuses } from "../test/sidecar-answers.ts";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the toast host the app root mounts
 import { Toaster } from "../ui/Toast.tsx";
 import { ServicesProvider } from "./context.tsx";
@@ -178,6 +179,41 @@ async function mountChatPane(
 }
 
 /**
+ * A chat in plan mode whose agent waits on its plan. Conductor shows the plan bar only then
+ * (renderApp @9314918).
+ */
+async function seedWaitingPlan(
+	test: TestContainer,
+): Promise<{ workspaceId: WorkspaceId; sessionId: SessionId }> {
+	const workspace = await seedWorkspace(test.container);
+	const created = must(
+		await test.container.services.sessions.create(workspace.id, { ...CONFIG, planMode: true }),
+	);
+	must(await test.container.services.sessions.start());
+	// Approving turns plan mode off through the sidecar, which takes the change.
+	must(await test.container.sidecar.start());
+	answerSidecar(test, (call) =>
+		call.method === "updateConfig"
+			? { applied: "live" }
+			: sidecarRefuses(`Unexpected ${call.method}`),
+	);
+	must(
+		await test.container.services.sessions.applyLiveState(created.id, {
+			...idleLiveState,
+			openInteraction: {
+				interactionId: "join-plan" as InteractionId,
+				interaction: {
+					kind: "plan_approval",
+					plan: "First, change the parser.\nThen run the tests.",
+				},
+				since: 1,
+			},
+		}),
+	);
+	return { workspaceId: workspace.id, sessionId: created.id };
+}
+
+/**
  * Mounts the real composer and hands back its editor, beside the toast host the app root mounts
  * (AppProviders), so a message the composer toasts reaches the screen as it does in the app.
  */
@@ -278,27 +314,12 @@ describe("s1-ui-1 join", () => {
 	it("CHAT-12 approves a plan through the chat pane's interaction dock", async () => {
 		const test = createTestContainer();
 		try {
-			const workspace = await seedWorkspace(test.container);
-			const created = must(await test.container.services.sessions.create(workspace.id, CONFIG));
-			must(await test.container.services.sessions.start());
-			must(
-				await test.container.services.sessions.applyLiveState(created.id, {
-					...idleLiveState,
-					openInteraction: {
-						interactionId: "join-plan" as InteractionId,
-						interaction: {
-							kind: "plan_approval",
-							plan: "First, change the parser.\nThen run the tests.",
-						},
-						since: 1,
-					},
-				}),
-			);
+			const { workspaceId, sessionId } = await seedWaitingPlan(test);
 			const answer = vi
 				.spyOn(test.container.services.sessions, "answer")
 				.mockResolvedValue(ok(undefined));
 
-			await mountChatPane(test, workspace.id, created.id);
+			await mountChatPane(test, workspaceId, sessionId);
 
 			await screen.findByRole("group", { name: "Plan review" });
 			// Focus stays in the composer while the plan waits (Chromium on the catalogue state
@@ -313,12 +334,49 @@ describe("s1-ui-1 join", () => {
 			});
 
 			await waitFor(() =>
-				expect(answer).toHaveBeenCalledWith(created.id, "join-plan", {
+				expect(answer).toHaveBeenCalledWith(sessionId, "join-plan", {
 					kind: "plan_approval",
 					approved: true,
 				}),
 			);
 			expect(await screen.findByText("Approved")).toBeTruthy();
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	// Conductor's Approve button runs the same action as its shortcut: with text in the composer it
+	// sends the text as the plan's adjustments, and approves only an empty composer (renderApp
+	// @9313268; the bar's onApprovePlan at @9315041). Issue #595.
+	it("CHAT-12 the plan bar's Approve sends the composer's text as the plan's adjustments", async () => {
+		const test = createTestContainer();
+		try {
+			const { workspaceId, sessionId } = await seedWaitingPlan(test);
+			const answer = vi
+				.spyOn(test.container.services.sessions, "answer")
+				.mockResolvedValue(ok(undefined));
+			const updateConfig = vi.spyOn(test.container.services.sessions, "updateConfig");
+
+			await mountChatPane(test, workspaceId, sessionId);
+			const field = await screen.findByRole("textbox", { name: "composer" });
+			// TipTap hangs its editor on the element it draws into.
+			const editor = (field as unknown as { editor: Editor }).editor;
+			act(() => {
+				editor.commands.insertContent("Keep the old cache for reads.");
+			});
+			fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+			await waitFor(() =>
+				expect(answer).toHaveBeenCalledWith(sessionId, "join-plan", {
+					kind: "plan_approval",
+					approved: false,
+					feedback: "Keep the old cache for reads.",
+				}),
+			);
+			expect(answer).toHaveBeenCalledTimes(1);
+			expect(updateConfig).not.toHaveBeenCalled();
+			await waitFor(() => expect(editor.getText()).toBe(""));
 		} finally {
 			await test.container.stop();
 			test.close();
