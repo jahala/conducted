@@ -6,7 +6,8 @@
  * approval, a question and a plan review; a workspace with a closed chat, so the tab strip offers
  * "View chat history"; a workspace address no workspace answers ("Workspace not
  * found"); and a reply that uses every Markdown part (headings, lists, inline code, a code block, a
- * table, a quote, a callout, links and a rule); the plan review bar's three tooltips; and the toast
+ * table, a quote, a callout, links and a rule); a long user message shortened with Show more; the
+ * plan review bar's three tooltips; and the toast
  * after copying a chat image.
  * Behaviour: ui-map.md 3.3 (chat), sessions-and-chats.md "Questions, approvals and plans".
  * Test first: not applicable; the screenshot run opens every state.
@@ -145,7 +146,43 @@ const scriptImageRead = (world: World): void =>
 			: null,
 	);
 
+/** A long brief the user pasted: longer than the chat shows before "Show more". */
+const LONG_BRIEF = [
+	"Rework the billing export so finance can reconcile it with the bank statements.",
+	"Each row needs the invoice number, the customer's legal name, the net amount, the tax amount, the currency and the date the payment cleared, not the date the invoice was raised.",
+	"Refunds should appear as their own rows with a negative amount and a reference to the invoice they refund.",
+	"Keep the file as CSV with a header row, quote every text field, and use a full stop for decimals whatever the user's locale is.",
+	"The export must stream, because the largest account has more than two hundred thousand invoices and the current version runs out of memory.",
+	"Add tests for a refund, a partial payment, a currency other than the account's own, and an invoice that was cancelled after it was paid.",
+	"Finally, document the columns in docs/billing/export.md so finance can check them without asking us.",
+].join(" ");
+
+async function longMessageChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.arbor, { title: "Billing export for finance" });
+	const talk = conversation("arbor-long-brief", CATALOGUE_NOW - 25 * MINUTE);
+	const turn = talk.user(LONG_BRIEF);
+	talk.text(turn, "I will start with the streaming writer, then the refund rows.");
+	talk.usage(turn, 14_000);
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	return {
+		route: chatRoute(cast.arbor, chat),
+		after: async ({ app }) => {
+			await animateCast(world, cast, app);
+			await refreshGit(app, cast.arbor);
+		},
+		ready: (document) => shows(document, "Show more"),
+	};
+}
+
 export const CHAT_STATES: CatalogueState[] = [
+	{
+		id: "chat-long-message",
+		group: "Workspace chat",
+		title: "A long message from the user, shortened with Show more",
+		seed: longMessageChat,
+	},
 	{
 		id: "chat-turn-details",
 		group: "Workspace chat",
