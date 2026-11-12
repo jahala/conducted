@@ -109,17 +109,20 @@ export const LIFETIME_SQL = {
 	 * watermark `$4`, and not already cut (`compacted_at IS NULL`, the one home of that fact) are
 	 * cut, at most `$5` per call. The watermark is where the last run stopped looking, so history
 	 * before it is not scanned again. A cut result is exactly `$1` long, so repeated calls end with
-	 * zero rows changed, and a marker from an earlier run is never rewritten.
+	 * zero rows changed, and a marker from an earlier run is never rewritten. Each array built in a
+	 * subquery is wrapped in json(...): SQLite 3.54.1 (Node 26.13.1) drops the JSON subtype a value
+	 * carries out of a subquery, and json_set then stored the array as a string, which corrupted the
+	 * chat's events (#581). compactStripKeptEvent below does the same.
 	 */
 	cutToolOutputs: `UPDATE session_events
-		SET content = json_set(content, '$.message.items', (
+		SET content = json_set(content, '$.message.items', json((
 			SELECT json_group_array(json(CASE
 				WHEN json_extract(item.value, '$.kind') = 'tool_result'
 					AND length(json_extract(item.value, '$.output')) > $1
 				THEN json_set(item.value, '$.output',
 					substr(json_extract(item.value, '$.output'), 1, $1), '$.truncated', json('true'))
 				ELSE item.value END) ORDER BY item.key)
-			FROM json_each(session_events.content, '$.message.items') AS item)),
+			FROM json_each(session_events.content, '$.message.items') AS item))),
 			compacted_at = $2
 		WHERE rowid IN (
 			SELECT e.rowid FROM session_events e
@@ -147,10 +150,10 @@ export const LIFETIME_SQL = {
 	/** Compact step 1 (`$1` session, `$2` turn): the last event with text keeps only text and usage. */
 	compactStripKeptEvent: `UPDATE session_events
 		SET content = json_remove(
-			json_set(content, '$.message.items', (
+			json_set(content, '$.message.items', json((
 				SELECT json_group_array(json(item.value) ORDER BY item.key)
 				FROM json_each(session_events.content, '$.message.items') AS item
-				WHERE json_extract(item.value, '$.kind') IN ('text', 'usage'))),
+				WHERE json_extract(item.value, '$.kind') IN ('text', 'usage')))),
 			'$.message.raw')
 		WHERE session_id = $1 AND turn_id = $2 AND idx = ${KEEP_FINAL_TEXT_EVENT}`,
 	/** Compact step 2 (`$1` session, `$2` turn): every other agent event of the turn goes. */
