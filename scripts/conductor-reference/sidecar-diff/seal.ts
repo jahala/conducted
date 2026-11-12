@@ -49,7 +49,12 @@ export interface Seal {
 	env: Record<string, string>;
 }
 
-function profileText(ownerHome: string, execOutside: readonly string[]): string {
+/**
+ * The `sandbox-exec` profile: no IP traffic beyond this Mac's loopback, no writes under
+ * `ownerHome`, and the setuid programs in `execOutside` run outside the sandbox. The end-to-end
+ * tests (scripts/e2e) start the app under the same profile.
+ */
+export function sandboxProfile(ownerHome: string, execOutside: readonly string[]): string {
 	return [
 		"(version 1)",
 		"(allow default)",
@@ -140,7 +145,7 @@ export function makeSeal(label: string, options: SealOptions = {}): Seal {
 	writeFileSync(shell, LOGIN_SHELL);
 	chmodSync(shell, 0o755);
 	const profile = join(root, "deny-network.sb");
-	writeFileSync(profile, profileText(homedir(), options.execOutside ?? []));
+	writeFileSync(profile, sandboxProfile(homedir(), options.execOutside ?? []));
 	const env: Record<string, string> = {
 		HOME: home,
 		TMPDIR: `${tmp}/`,

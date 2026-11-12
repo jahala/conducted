@@ -43,6 +43,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Browser, chromium } from "playwright-core";
 import type { ScriptedRepo } from "../../apps/desktop/src/catalogue/git-repo.ts";
+import { stopApp } from "../app-process.ts";
 import { loadCatalogue, ROOT, type SeededState } from "./catalogue.ts";
 import { checkOverride, DEV_ORIGIN, referenceOverride } from "./live-config.ts";
 import { type CallTally, type Front, type LiveServer, startLiveServer } from "./live-server.ts";
@@ -130,47 +131,6 @@ function build(target: string, fronts: readonly Front[]): string {
 	});
 	// Tauri finds the resources beside a debug binary only by its real path (no symlink in it).
 	return realpathSync(join(target, "debug/conducted"));
-}
-
-/** Every process under `pid`, each before its own children, found by parent id (`pgrep -P` prints ids only). */
-function descendants(pid: number): number[] {
-	const found = spawnSync("pgrep", ["-P", String(pid)], { encoding: "utf8" });
-	const children = found.stdout
-		.split("\n")
-		.filter((line) => line.trim() !== "")
-		.map(Number);
-	return children.flatMap((child) => [child, ...descendants(child)]);
-}
-
-const alive = (pid: number): boolean => {
-	try {
-		process.kill(pid, 0);
-		return true;
-	} catch {
-		return false;
-	}
-};
-
-async function exited(child: ChildProcess): Promise<void> {
-	if (child.exitCode !== null || child.signalCode !== null) return;
-	await new Promise<void>((resolve) => child.once("exit", () => resolve()));
-}
-
-/** Stops the app and everything it started, by the pids recorded before the signal. */
-async function stopApp(child: ChildProcess): Promise<string[]> {
-	const pid = child.pid;
-	if (pid === undefined) return [];
-	const under = descendants(pid);
-	child.kill("SIGTERM");
-	const hang = setTimeout(() => child.kill("SIGKILL"), HANG_MS / 4);
-	await exited(child);
-	clearTimeout(hang);
-	const left = under.filter(alive);
-	for (const id of left) process.kill(id, "SIGTERM");
-	// Bounded: fifty checks a tenth of a second apart, then SIGKILL for any that ignored the signal.
-	for (let check = 0; check < 50 && left.some(alive); check++) await Bun.sleep(100);
-	for (const id of left.filter(alive)) process.kill(id, "SIGKILL");
-	return left.map(String);
 }
 
 function launch(exe: string, seal: Seal, log: string): ChildProcess {
