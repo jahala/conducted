@@ -10,7 +10,8 @@
  * subscription, Vertex, both Bedrock modes, ChatGPT, Cursor, custom), its card badges and both
  * sign-in dialogs; a changed setting's actions menu; the Connect GitHub and disconnect dialogs; the
  * environment file picker, variable editor, import banner and local-override table; the MCP
- * list loading, empty, filtered and failed; and a project's Actions page with no actions, and with
+ * list loading, empty, filtered and failed; Appearance with a custom code font; and a project's
+ * Actions page with no actions, and with
  * a hidden shared action, a personal action and a shared one changed on this Mac.
  * Behaviour: ui-map.md 6 (settings pages).
  * Test first: not applicable; the screenshot run opens every state.
@@ -745,6 +746,19 @@ export const SETTINGS_STATES: CatalogueState[] = [
 	},
 	page("settings-account", "Account", "account", "Account"),
 	page("settings-appearance", "Appearance", "appearance", "Appearance"),
+	{
+		id: "settings-appearance-custom-font",
+		group: "Settings",
+		title: "Appearance, with a custom code font",
+		seed: async (world) => {
+			await seedCast(world);
+			await setSetting(world, "mono_font", "Berkeley Mono");
+			return {
+				route: "/settings/user/appearance",
+				ready: (document) => shows(document, "Enter font name exactly as installed on your system"),
+			};
+		},
+	},
 	page("settings-key-bindings", "Keyboard shortcuts", "key-bindings", "Keyboard shortcuts"),
 	page("settings-default-models", "Default models", "models", "Default models"),
 	page("settings-git", "Git", "git", "Branch name prefix"),

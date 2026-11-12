@@ -4,7 +4,7 @@
  * files, the composer with the model picker open, the slash command menu after typing "/" (Claude,
  * Codex, and with a Skills group), a typed command that cannot run here, the "+" menu, the Create
  * snippet dialog, the snippet picker with no snippets yet, the Link issue dialog with atlas's
- * GitHub issues and Linear not connected.
+ * GitHub issues and Linear not connected, and the warning when fast mode cannot be paid for.
  * Behaviour: ui-map.md 3.5 (composer and its "+" menu), 3.10 (Link issue), 5.1 and 5.2 (snippets),
  * COMP-01 (drafts and attachments).
  * Test first: not applicable; the screenshot run opens every state.
@@ -13,6 +13,7 @@ import type { Session, Workspace } from "../../core/model.ts";
 import { chatRoute, type GitWorld, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
 import { click, find, has, hover, shows } from "../dom.ts";
+import { setLiveState } from "../live.ts";
 import { addChat, addEvents, CLAUDE_CONFIG, must, setSetting } from "../seeds.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, DAY, HOUR } from "../time.ts";
@@ -349,6 +350,28 @@ export const COMPOSER_STATES: CatalogueState[] = [
 				route: chatRoute(cast.arbor, chat),
 				after: async ({ app }) => refreshGit(app, cast.arbor),
 				ready: (document) => has(document, "[role=img]", "Fast mode on"),
+			};
+		},
+	},
+	{
+		id: "composer-fast-mode-unavailable",
+		group: "Composer",
+		title: "A chat with fast mode on that the account's credits cannot pay for",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			const chat = await addChat(world, cast.arbor, {
+				title: null,
+				config: { ...CLAUDE_CONFIG, fastMode: true },
+			});
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: async ({ app }) => {
+					await refreshGit(app, cast.arbor);
+					// The agent reported that fast mode needs extra usage the account has run out of.
+					setLiveState(world, chat.id, { status: "idle", fastModeAvailable: false });
+				},
+				ready: (document) =>
+					shows(document, "Fast mode is disabled because extra usage is out of credits."),
 			};
 		},
 	},

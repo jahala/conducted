@@ -1,6 +1,7 @@
 /**
  * @feature catalogue States of the command palette, the file viewer and the scripts panel
- * Owns: the command palette open over a workspace, the Passport opened from it, the Feedback dialog (opened as Send feedback opens it), the Clone GitHub repo dialog with its repository lists, a code file open in the file viewer, the file viewer
+ * Owns: the command palette open over a workspace, on its Workspaces, Projects and Actions tabs, and
+ * the pickers its actions open (Move to section, File picker, Search in files), the Passport opened from it, the Feedback dialog (opened as Send feedback opens it), the Clone GitHub repo dialog with its repository lists, a code file open in the file viewer, the file viewer
  * for a file that is gone (its error state), a browser tab waiting for its dev server, and the scripts panel's Run tab before and after its dev
  * script ran. The in-memory Platform ends a command's terminal at once (platform/memory.ts), so a script
  * that is still running cannot be shown.
@@ -11,6 +12,57 @@ import { useOverlayStore } from "../../app/overlay-store.ts";
 import { chatRoute, refreshGit, seedCast, workspaceRoute } from "../cast.ts";
 import { click, has, pressUntilTaken, shows } from "../dom.ts";
 import type { CatalogueState } from "../state.ts";
+
+/**
+ * The command palette over arbor's chat, then `step` inside it; ready once a field shows
+ * `placeholder` or a control is named `label`.
+ */
+const inPalette = (
+	id: string,
+	title: string,
+	step: (document: Document) => Promise<void>,
+	shown: { placeholder?: string; label?: string },
+): CatalogueState => ({
+	id,
+	group: "Overlays and panels",
+	title,
+	seed: async (world) => {
+		const cast = await seedCast(world);
+		return {
+			route: chatRoute(cast.arbor, cast.chats.arbor),
+			after: async ({ app, document }) => {
+				await refreshGit(app, cast.arbor);
+				await pressUntilTaken(document, "k", { meta: true });
+				await step(document);
+			},
+			ready: (document) =>
+				(shown.placeholder === undefined ||
+					document.querySelector(`[placeholder="${shown.placeholder}"]`) !== null) &&
+				(shown.label === undefined || has(document, "[aria-label]", shown.label)),
+		};
+	},
+});
+
+const paletteTab = (tab: string, placeholder: string): CatalogueState =>
+	inPalette(
+		`command-palette-${tab.toLowerCase()}`,
+		`Command palette, the ${tab} tab`,
+		(document) => click(document, "[role=tab]", tab),
+		{ placeholder },
+	);
+
+/** A palette action that opens its own picker. Its name may carry a shortcut after the words. */
+const paletteAction = (
+	id: string,
+	action: string,
+	shown: { placeholder?: string; label?: string },
+): CatalogueState =>
+	inPalette(
+		id,
+		`Command palette, ${action} chosen`,
+		(document) => click(document, "[role=option]", action, { prefix: true }),
+		shown,
+	);
 
 export const OVERLAY_STATES: CatalogueState[] = [
 	{
@@ -29,6 +81,14 @@ export const OVERLAY_STATES: CatalogueState[] = [
 			};
 		},
 	},
+	paletteTab("Workspaces", "Search workspaces..."),
+	paletteTab("Projects", "Search projects..."),
+	paletteTab("Actions", "Search actions..."),
+	paletteAction("command-palette-move-to-section", "Move to section", {
+		placeholder: "Search sections...",
+	}),
+	paletteAction("quick-open", "File picker", { placeholder: "Search files..." }),
+	paletteAction("search-in-files", "Search in files", { label: "Regular expression" }),
 	{
 		id: "passport",
 		group: "Overlays and panels",

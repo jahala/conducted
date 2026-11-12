@@ -5,8 +5,8 @@
  * All files tab, the Checks tab, the header with no pull request, an open one, a draft, one with a
  * failed check, one ready to merge and a merged one, the Changes tab when the tree is clean and when git fails,
  * the Changes tab as a folder tree with a filter that matches nothing, the tab strip's new tab menu,
- * a changed file's right-click menu and its discard confirm, the Rename workspace dialog, and the
- * Artifacts tab with one file.
+ * a changed file's right-click menu and its discard confirm, the Rename workspace dialog, the toast
+ * after Copy link, and the Artifacts tab with one file.
  * Behaviour: ui-map.md 3.6 (Git panel), 3.4 (diff view), 3.7.x (pull request header); core/status/
  * git-header.ts decides the header state and its main action.
  * Test first: not applicable; the screenshot run opens every state.
@@ -168,6 +168,19 @@ export const GIT_STATES: CatalogueState[] = [
 				await click(document, "[role=menuitem]", "Rename");
 			},
 			ready: (document) => shows(document, "Enter a new name for this workspace"),
+		}),
+	},
+	{
+		id: "workspace-copied-link",
+		group: "Workspace chat",
+		title: "The toast after Copy link, from the sidebar row's right click",
+		seed: arborScene({
+			after: async ({ document }) => {
+				await rightClick(document, "a[aria-current=page]", "Fix login redirect", { prefix: true });
+				// The item's name carries its shortcut after the words.
+				await click(document, "[role=menuitem]", "Copy link", { prefix: true });
+			},
+			ready: (document) => shows(document, "Copied link"),
 		}),
 	},
 	{

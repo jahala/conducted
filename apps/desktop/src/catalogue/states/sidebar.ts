@@ -5,16 +5,18 @@
  * its section was removed ("Section not found"), a
  * pinned workspace's actions menu ('Unpin'), the list's View options menu (group, filter by project,
  * sort), the new-workspace dialog's "Create in section" menu, and the organisation switcher open
- * with this Mac and the paired Worker (CLOUD-19).
+ * with this Mac and the paired Worker (CLOUD-19); and the footer's update notice for an update
+ * that is available, and for one downloaded with the auto-restart on and off (APP-06).
  * Behaviour: ui-map.md 4 items 4 to 7 (Pinned, sections with name, emoji, collapse and count,
  * "Create in section", rename and delete; View options: group by Status or Project, filter by
  * project, sort by Updated or Created).
  * Test first: not applicable; the screenshot run opens every state.
  */
 
+import { ok } from "@conducted/shared";
 import { type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { click, findFirst, rightClickOn, shows } from "../dom.ts";
-import { must } from "../seeds.ts";
+import { must, setSetting } from "../seeds.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import type { World } from "../world.ts";
 
@@ -57,7 +59,57 @@ const sectionsState = (
 	},
 });
 
+/**
+ * The footer's update notice. The in-memory updater finds no update, so the seed makes it offer one,
+ * then the app checks and, unless `stage` is "available", downloads it as the user's Download does.
+ */
+const updateNotice = (
+	id: string,
+	title: string,
+	stage: "available" | "ready",
+	autoRestart: boolean,
+	text: string,
+): CatalogueState => ({
+	id,
+	group: "Sidebar",
+	title,
+	seed: async (world) => {
+		const cast = await seedCast(world);
+		await setSetting(world, "auto_restart_on_update_when_idle", autoRestart);
+		world.memory.platform.updater.check = async () => ok({ version: "0.2.0", notes: "" });
+		return {
+			route: chatRoute(cast.arbor, cast.chats.arbor),
+			after: async ({ app }) => {
+				must(await app.container.actions.app.checkForUpdates());
+				if (stage === "ready") must(await app.container.actions.app.installUpdate());
+			},
+			ready: (document) => shows(document, text),
+		};
+	},
+});
+
 export const SIDEBAR_STATES: CatalogueState[] = [
+	updateNotice(
+		"update-available",
+		"Footer: an update is available",
+		"available",
+		false,
+		"Download",
+	),
+	updateNotice(
+		"update-ready",
+		"Footer: an update downloaded, to restart when idle",
+		"ready",
+		false,
+		"Restart when idle",
+	),
+	updateNotice(
+		"update-ready-auto",
+		"Footer: an update downloaded, restarting by itself when agents are idle",
+		"ready",
+		true,
+		"Will automatically restart when all agents are idle",
+	),
 	sectionsState(
 		"sidebar-sections",
 		"Sidebar: a pinned workspace and two sections, one collapsed with its count",

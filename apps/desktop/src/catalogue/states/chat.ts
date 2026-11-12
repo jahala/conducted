@@ -6,7 +6,8 @@
  * approval, a question and a plan review; a workspace with a closed chat, so the tab strip offers
  * "View chat history"; a workspace address no workspace answers ("Workspace not
  * found"); and a reply that uses every Markdown part (headings, lists, inline code, a code block, a
- * table, a quote, a callout, links and a rule); and the plan review bar's three tooltips.
+ * table, a quote, a callout, links and a rule); the plan review bar's three tooltips; and the toast
+ * after copying a chat image.
  * Behaviour: ui-map.md 3.3 (chat), sessions-and-chats.md "Questions, approvals and plans".
  * Test first: not applicable; the screenshot run opens every state.
  */
@@ -106,7 +107,10 @@ const markdownChat = async (world: World): Promise<Scene> => {
 };
 
 /** arbor's chat with a screenshot attached, and its attachment viewer open. */
-async function attachmentChat(world: World): Promise<Scene> {
+async function attachmentChat(
+	world: World,
+	then?: { step: (document: Document) => Promise<void>; text: string },
+): Promise<Scene> {
 	const cast = await seedCast(world);
 	const chat = await addChat(world, cast.arbor, { title: "Check the redirect screenshot" });
 	const path = "/Users/sam/Desktop/redirect.png";
@@ -125,10 +129,19 @@ async function attachmentChat(world: World): Promise<Scene> {
 			await animateCast(world, cast, app);
 			await refreshGit(app, cast.arbor);
 			await click(document, "button", "Open redirect.png");
+			await then?.step(document);
 		},
-		ready: (document) => shows(document, "Copy image"),
+		ready: (document) => shows(document, then?.text ?? "Copy image"),
 	};
 }
+
+/** The image's bytes, as the app's copy script prints them: a PNG signature, base64. */
+const scriptImageRead = (world: World): void =>
+	world.scriptShell((command) =>
+		command.program === "sh" && command.args.includes("conducted-copy-image")
+			? { ok: true, value: { stdout: "iVBORw0KGgo=", stderr: "", exitCode: 0 } }
+			: null,
+	);
 
 export const CHAT_STATES: CatalogueState[] = [
 	{
@@ -146,7 +159,19 @@ export const CHAT_STATES: CatalogueState[] = [
 		group: "Workspace chat",
 		title:
 			"A chat image open in the attachment viewer: Copy image, Download file, Open in default app",
-		seed: attachmentChat,
+		seed: (world) => attachmentChat(world),
+	},
+	{
+		id: "chat-attachment-copied",
+		group: "Workspace chat",
+		title: "A chat image copied from the attachment viewer",
+		seed: (world) => {
+			scriptImageRead(world);
+			return attachmentChat(world, {
+				step: (document) => click(document, "button", "Copy image"),
+				text: "Copied image to clipboard",
+			});
+		},
 	},
 	{
 		id: "chat-finished",
