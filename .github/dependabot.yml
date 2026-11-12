@@ -31,3 +31,7 @@ updates:
     groups:
       cargo-minor-and-patch:
         update-types: [minor, patch]
+    # muda parses menu accelerators exactly as Tauri's own menu does, so it moves only when Tauri
+    # moves to a new muda (src/menu.rs).
+    ignore:
+      - dependency-name: muda
