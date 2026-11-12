@@ -10,10 +10,13 @@
  *   every test of that runner.
  * - ALWAYS: the small set of tests on money, data loss and security paths that runs on every pull
  *   request, whatever changed (the owner's ruling).
+ * - MACOS_JOB: what CI's macOS job (`rust`) checks, read or installs. A pull request runs that job
+ *   only when it changes one of these (scripts/macos-job.ts); main always runs it.
  *
- * Nothing checks these lists against the code but the main line: it runs everything after every
- * merge. When it fails on something a pull request's run skipped, add the path that let it
- * through here.
+ * Nothing checks the first three lists against the code but the main line: it runs everything
+ * after every merge. When it fails on something a pull request's run skipped, add the path that
+ * let it through here. MACOS_JOB is also checked by scripts/macos-job.test.ts, against the paths
+ * the Rust crate names and the macOS tests import.
  */
 
 /** A path pattern (Bun.Glob, from the repository root) and why it is on the list. */
@@ -154,4 +157,33 @@ export const ALWAYS: readonly AlwaysTest[] = [
 	{ file: "apps/desktop/src/core/container.ws-10.test.ts", why: "deleting a workspace" },
 	{ file: "apps/desktop/src/core/db/lifetime.test.ts", why: "what the data lifetime job removes" },
 	{ file: "apps/cloud/src/backup.test.ts", why: "work kept across sandbox restarts" },
+];
+
+export const MACOS_JOB: readonly Rule[] = [
+	{
+		glob: "apps/desktop/src-tauri/**",
+		why: "the Rust crate: its code, tests, fixtures, Cargo.lock and rust-toolchain.toml",
+	},
+	{
+		glob: "apps/desktop/src/**",
+		why: "the Rust tests read the UI source, and the macOS tests import it",
+	},
+	{ glob: "apps/desktop/vite.config.ts", why: "the Vitest configuration of the macOS tests" },
+	{ glob: "apps/cloud/**", why: "the relay integration test starts the Worker from this folder" },
+	{ glob: "packages/sidecar/**", why: "the Rust tests and build.rs read the sidecar's files" },
+	{
+		glob: "packages/shared/**",
+		why: "the Rust tests read its fixtures; the macOS tests import it",
+	},
+	{ glob: "scripts/programs/**", why: "the Rust tests read the sample program manifests" },
+	{ glob: "bin/**", why: "the app bundles this folder, and a Rust test reads it" },
+	{ glob: "pnpm-lock.yaml", why: "the lockfile the job installs from" },
+	{ glob: "pnpm-workspace.yaml", why: "the workspace's package list" },
+	{ glob: "**/package.json", why: "a manifest: dependencies and test scripts" },
+	{ glob: "**/tsconfig*.json", why: "compiler settings the macOS tests' transform reads" },
+	{ glob: ".node-version", why: "the Node version the job sets up" },
+	{ glob: ".bun-version", why: "the Bun version the job sets up" },
+	{ glob: "scripts/check-runtime.ts", why: "the runtime check `pnpm test:macos` starts with" },
+	{ glob: "scripts/with-run-dir.ts", why: "the run-owned temp folder `pnpm test:macos` uses" },
+	{ glob: ".github/workflows/ci.yml", why: "the CI workflow that runs the job" },
 ];

@@ -88,8 +88,35 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm stubs
 
+  # Whether a pull request can reach the macOS job below (scripts/macos-job.ts, the rules are
+  # MACOS_JOB in scripts/test-rules.ts). GitHub's macOS runners are scarce: on 2026-11-12 the job
+  # waited 15 minutes for one and was cancelled on seven pull requests (#641). A push to main
+  # skips this and runs the macOS job.
+  macos-changes:
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      macos: ${{ steps.select.outputs.macos }}
+    steps:
+      # Two commits deep, as in the TypeScript job: the merge commit's first parent is main's tip.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # ratchet:oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - id: select
+        run: bun scripts/macos-job.ts --since HEAD^1 >> "$GITHUB_OUTPUT"
+
   rust:
-    if: github.event_name == 'push' || github.event.pull_request.draft == false
+    # Every push to main; a ready pull request unless macos-changes answered `false`. When that
+    # job failed it answered nothing, so this runs. A job skipped by its condition reports success,
+    # so the required check passes on a pull request that cannot reach it.
+    needs: macos-changes
+    if: >-
+      ${{ !cancelled() && (github.event_name == 'push' ||
+      (github.event.pull_request.draft == false && needs.macos-changes.outputs.macos != 'false')) }}
     # The app is macOS-only (WKWebView, Keychain, Apple speech), so the shell is checked on macOS,
     # and so are the desktop's tests that need macOS's own programs.
     runs-on: macos-latest
