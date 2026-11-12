@@ -383,8 +383,13 @@ async function main(): Promise<number> {
 		// --- Favourites: a grip dragged onto another row moves the favourite there.
 		const favourite = await open(browser, url, "composer-model-picker");
 		try {
-			await favourite.getByRole("button", { name: "Model picker" }).click();
-			await favourite.getByRole("button", { name: "Edit", exact: true }).click();
+			// The state opens the picker itself; open it here only when it is not already open, so
+			// this click never closes the menu the state left open.
+			const edit = favourite.getByRole("button", { name: "Edit", exact: true });
+			if (!(await edit.isVisible())) {
+				await favourite.getByRole("button", { name: "Model picker" }).click();
+			}
+			await edit.click();
 			const grip = favourite.getByRole("button", { name: "Reorder Claude Code · haiku" });
 			await press(favourite, grip);
 			// For the detail only: whether the press reached the grip and started a drag.
