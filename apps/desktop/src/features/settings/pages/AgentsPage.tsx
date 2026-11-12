@@ -23,7 +23,7 @@
  * Conductor's tab row is the tab list alone across the page (renderApp @11008592: `mb-6
  * justify-start gap-6 border-b`, in a `w-full` root @11009380), its tabs with no side padding. Its
  * "Search providers" is not on this row: it filters OpenCode's key providers in the Providers dialog
- * (@10944937, the dialog @10956427), which ours does not have yet.
+ * (@10944937, the dialog @10956427), as ours does (agents/AgentProvidersDialog).
  * Our design choice: the MCP servers region stays under the panel. Conductor's "Claude Code
  * executable path" is our Advanced page's program path (SET-02); the capture also shows it in the
  * agent's panel, which needs a way for this page to check a path (a new hook or action, listed in

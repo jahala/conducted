@@ -177,6 +177,36 @@ describe("SET-10 OpenCode providers", () => {
 		});
 	});
 
+	it("filters the providers by the typed name or variable and shows Conductor's empty result", async () => {
+		await mounted();
+		const search = screen.getByPlaceholderText("Search providers");
+		const listedOptions = async () => {
+			fireEvent.keyDown(screen.getByRole("combobox", { name: "Provider" }), { key: "Enter" });
+			const names = (await screen.findAllByRole("option")).map((option) => option.textContent);
+			fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
+			await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
+			return names;
+		};
+
+		// By name, ignoring case: "Zhipu AI" by its label, Z.AI by the variable the two share.
+		fireEvent.change(search, { target: { value: "ZHIPU" } });
+		expect(await listedOptions()).toEqual(["Z.AI", "Zhipu AI"]);
+
+		// By variable, with the spaces around the text ignored; the key form follows the match.
+		fireEvent.change(search, { target: { value: "  deepseek_api " } });
+		expect(await listedOptions()).toEqual(["DeepSeek"]);
+		expect(screen.getByLabelText("DeepSeek")).toBeTruthy();
+
+		fireEvent.change(search, { target: { value: "acme" } });
+		expect(screen.getByText("No providers match your search.")).toBeTruthy();
+		expect(screen.queryByRole("combobox", { name: "Provider" })).toBeNull();
+		expect(screen.queryByRole("button", { name: "Save DeepSeek key" })).toBeNull();
+
+		fireEvent.change(search, { target: { value: "" } });
+		expect(await listedOptions()).toEqual(["DeepSeek", "OpenRouter", "Z.AI", "Zhipu AI"]);
+		expect(screen.queryByText("No providers match your search.")).toBeNull();
+	});
+
 	it("saves the Filter models list the picker reads", async () => {
 		const current = await mounted();
 

@@ -4540,12 +4540,11 @@
 		"owner": "hand"
 	},
 	"text:R10945315": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents",
-		"backlog": "SET-10",
-		"item": "Providers dialog: 'No providers match your search.'",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-agents-opencode-providers-no-match",
+		"via": "text",
+		"role": "p",
+		"by": "hand"
 	},
 	"text:R10948699": {
 		"status": "matched",

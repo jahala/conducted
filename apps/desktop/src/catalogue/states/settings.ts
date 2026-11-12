@@ -8,7 +8,8 @@
  * saved and for a settings file that does not parse; the Advanced page asking before it changes the root
  * folder, and Home after it changed; the Agents page's MCP servers for the chat last open; the Environment page's documented
  * variables; atlas's Add action dialog and icon picker (an emoji search with no match, the Favicon source); the Agents page's provider forms (Anthropic,
- * subscription, Vertex, both Bedrock modes, ChatGPT, Cursor, custom), its card badges and both
+ * subscription, Vertex, both Bedrock modes, ChatGPT, Cursor, custom), OpenCode's Providers dialog
+ * searched (its matches in the open Provider select, and no match), its card badges and both
  * sign-in dialogs; a changed setting's actions menu; the Connect GitHub and disconnect dialogs; the
  * environment file picker, variable editor, import banner and local-override table; the MCP
  * list loading, empty, filtered and failed; a subscription token saved and an Anthropic key taken
@@ -20,6 +21,7 @@
  * Behaviour: ui-map.md 6 (settings pages).
  * Test first: not applicable; the screenshot run opens every state.
  */
+import { agentProviders } from "@conducted/protocol";
 import type { EventId, TurnId } from "@conducted/shared";
 import { chatRoute, seedCast } from "../cast.ts";
 import { type ConductorRows, seedConductorDatabase } from "../conductor-database.ts";
@@ -209,6 +211,51 @@ async function openProviders(
 	await click(document, "button", "API key");
 	if (choice !== undefined) await choose(document, "Provider", choice);
 }
+
+/**
+ * The Agents page with OpenCode installed, its Providers dialog open on the catalogue the sidecar
+ * sends (the protocol's own list) and `query` typed into "Search providers".
+ */
+const opencodeProvidersSearch = (
+	id: string,
+	title: string,
+	query: string,
+	ready: (document: Document) => boolean,
+	afterSearch?: (document: Document) => Promise<void>,
+): CatalogueState => ({
+	id,
+	group: "Settings",
+	title,
+	seed: async (world) => {
+		await seedCast(world);
+		world.answerSidecar({
+			getAgentInstalls: () => ({
+				agents: [
+					{
+						agent: "acp",
+						acpAgent: "opencode",
+						installed: true,
+						path: "/opt/homebrew/bin/opencode",
+						version: "1.0.0",
+						authenticated: false,
+					},
+				],
+			}),
+			listAgentProviders: ({ agent, acpAgent }) => ({
+				providers: agentProviders(agent, acpAgent),
+			}),
+		});
+		return {
+			route: "/settings/user/agents",
+			after: async ({ document }) => {
+				await openProviders(document, "OpenCode");
+				await typeInto(document, "input", "Search providers", query);
+				await afterSearch?.(document);
+			},
+			ready,
+		};
+	},
+});
 
 /** Stores one environment variable and its Keychain value, as the Environment page would. */
 async function seedEnvVar(world: World, name: string, value: string | null): Promise<void> {
@@ -656,6 +703,19 @@ export const SETTINGS_STATES: CatalogueState[] = [
 			};
 		},
 	},
+	opencodeProvidersSearch(
+		"settings-agents-opencode-providers-search",
+		"Agents: OpenCode's Providers dialog, searched for coding plan",
+		"coding plan",
+		(document) => has(document, "[role=option]", "KUAE Cloud Coding Plan"),
+		(document) => openSelect(document, "Provider"),
+	),
+	opencodeProvidersSearch(
+		"settings-agents-opencode-providers-no-match",
+		"Agents: OpenCode's Providers dialog, a provider search with no match",
+		"acme",
+		(document) => shows(document, "No providers match your search."),
+	),
 	{
 		id: "settings-setting-actions-menu",
 		group: "Settings",

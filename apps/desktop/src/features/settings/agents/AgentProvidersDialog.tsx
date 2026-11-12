@@ -3,9 +3,10 @@
  * Owns: the Providers dialog and its Custom provider form on the Agents page. It chooses an agent's
  * provider, collects its key (or the choice to use the key from this Mac), the Amazon Bedrock
  * credentials, the Vertex project, the Codex ChatGPT account and a custom provider's optional
- * workspace ID. For OpenCode and Pi it lists OpenCode's provider catalogue and a key for each, and
- * edits the filter that decides the models the picker shows; it saves or removes them through
- * Actions.agents.
+ * workspace ID. For OpenCode and Pi it lists OpenCode's provider catalogue and a key for each, with
+ * Conductor's "Search providers" field over the list (renderApp @10944937, in the Providers dialog
+ * @10956427), and edits the filter that decides the models the picker shows; it saves or removes
+ * them through Actions.agents.
  * Behaviour: ui-map.md 6, "Agents page" (Claude Code subscription token, Anthropic API key and "Use
  * the key from this Mac", Amazon Bedrock with a Bedrock API key or AWS access keys, Codex API key or
  * ChatGPT account, Cursor API key, Custom provider with an optional workspace ID); ui-map.md 5.2
@@ -25,17 +26,25 @@
  * credentials of the other mode left from an earlier save (removed), a saved test model the user
  * removes, a failed save or removal (shown and toasted, never shown as saved; a save of several parts
  * stops at the first failure), a provider with no key yet, a custom provider without a workspace
- * ID, an OpenCode provider list that is loading or failed, and a model filter that cannot be saved.
+ * ID, an OpenCode provider list that is loading or failed, a provider search with no match
+ * (Conductor's "No providers match your search."), and a model filter that cannot be saved.
  * The choices, their providers and the variables each key is saved as come from the agent-provider
  * table in packages/protocol (the subscription token under the Anthropic provider, the Bedrock test
  * model as `ANTHROPIC_MODEL`, a custom workspace ID as the variable its agent family uses).
  * Our design choice: the Custom provider form is a group named
  * "Custom provider" (ui-map.md 6, "Agents page"); under OpenCode's and Pi's provider list the name
  * shows as its heading. Each Save key button's accessible name says which key it saves, so two in
- * one dialog differ.
+ * one dialog differ. Conductor lists a row per key under its search; ours shows one provider's form,
+ * chosen in a Provider select, so the search narrows the select's options, and the form shown is
+ * the chosen provider's while it matches, else the first match's.
  * Test first: saving an Anthropic key stores it in the Keychain and removing it deletes the entry.
  */
-import { type AgentInstall, BEDROCK_ENV, type SignInId } from "@conducted/protocol";
+import {
+	type AgentInstall,
+	type AgentProvider,
+	BEDROCK_ENV,
+	type SignInId,
+} from "@conducted/protocol";
 import type { AcpAgent, AgentKind } from "@conducted/shared";
 import { useEffect, useState } from "react";
 import { useActions, useAgentProviders, useProviderKeys, useSetting } from "../../../core/hooks.ts";
@@ -45,6 +54,7 @@ import { Checkbox } from "../../../ui/Checkbox.tsx";
 import { cn } from "../../../ui/cn.ts";
 import { Dialog, DialogContent, DialogFooter } from "../../../ui/Dialog.tsx";
 import { Input, Label } from "../../../ui/Input.tsx";
+import { SearchIcon } from "../../../ui/icons.tsx";
 import { Select } from "../../../ui/Select.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
 import {
@@ -193,6 +203,21 @@ interface AcpProviderKeysProps {
 }
 
 /**
+ * The providers whose name or key variable holds the typed text, Conductor's rule for "Search
+ * providers" (renderApp @10944937): the text is trimmed and compared without case, as a plain
+ * substring. Empty text keeps every provider.
+ */
+function matchingProviders(providers: readonly AgentProvider[], query: string): AgentProvider[] {
+	const needle = query.trim().toLowerCase();
+	if (needle === "") return [...providers];
+	return providers.filter(
+		(provider) =>
+			provider.label.toLowerCase().includes(needle) ||
+			provider.keyEnvVars.some((envVar) => envVar.toLowerCase().includes(needle)),
+	);
+}
+
+/**
  * OpenCode and Pi: a key for each provider in OpenCode's catalogue, and the models the picker
  * shows. The catalogue comes from the sidecar (SET-10), so it stays the agent's own list.
  */
@@ -201,6 +226,7 @@ function AcpProviderKeys({ agent, acpAgent, keys, onSave, onRemove }: AcpProvide
 	const visible = useSetting<string>("visible_provider_models");
 	const actions = useActions();
 	const [selectedId, setSelectedId] = useState("");
+	const [query, setQuery] = useState("");
 	const [filter, setFilter] = useState(visible);
 	const [filterBusy, setFilterBusy] = useState(false);
 
@@ -218,7 +244,8 @@ function AcpProviderKeys({ agent, acpAgent, keys, onSave, onRemove }: AcpProvide
 	}
 
 	const listed = providers.data.filter((provider) => provider.id !== "custom");
-	const selected = listed.find((provider) => provider.id === selectedId) ?? listed[0];
+	const matches = matchingProviders(listed, query);
+	const selected = matches.find((provider) => provider.id === selectedId) ?? matches[0];
 
 	const saveFilter = async () => {
 		setFilterBusy(true);
@@ -236,15 +263,38 @@ function AcpProviderKeys({ agent, acpAgent, keys, onSave, onRemove }: AcpProvide
 			{listed.length === 0 ? (
 				<p className="text-sm text-fg-muted">No providers are available for this agent.</p>
 			) : (
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor={`${agent}-provider-key`}>Provider</Label>
-					<Select
-						id={`${agent}-provider-key`}
-						aria-label="Provider"
-						value={selected?.id ?? ""}
-						options={listed.map((provider) => ({ value: provider.id, label: provider.label }))}
-						onValueChange={(next) => setSelectedId(next)}
-					/>
+				<div className="flex flex-col gap-2">
+					<div className="relative">
+						<SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-fg-muted" />
+						<Input
+							type="text"
+							aria-label="Search providers"
+							placeholder="Search providers"
+							value={query}
+							autoComplete="off"
+							autoCorrect="off"
+							autoCapitalize="off"
+							spellCheck={false}
+							className="w-full pl-8"
+							onChange={(event) => setQuery(event.target.value)}
+						/>
+					</div>
+					{matches.length === 0 ? (
+						<p role="status" className="px-1 py-2 text-sm text-fg-muted">
+							No providers match your search.
+						</p>
+					) : (
+						<div className="flex flex-col gap-1.5">
+							<Label htmlFor={`${agent}-provider-key`}>Provider</Label>
+							<Select
+								id={`${agent}-provider-key`}
+								aria-label="Provider"
+								value={selected?.id ?? ""}
+								options={matches.map((provider) => ({ value: provider.id, label: provider.label }))}
+								onValueChange={(next) => setSelectedId(next)}
+							/>
+						</div>
+					)}
 				</div>
 			)}
 
