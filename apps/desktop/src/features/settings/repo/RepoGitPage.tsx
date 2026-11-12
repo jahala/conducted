@@ -14,8 +14,8 @@
  * Must handle: loading and a removed repository, a remote name saved to the personal settings file
  * with "origin" only as a placeholder, a branch list read only while the popover is open, a
  * repository value that differs from the user's (Reset to shared settings removes it, so the
- * shared settings.toml or the user's value applies again), a save that fails (the row says so, the
- * switch shows the stored value), and only the newest read changing a row.
+ * shared settings.toml or the user's value applies again), a save or reset that fails (a toast says
+ * so with Conductor's words, as does the row, and the switch shows the stored value), and only the newest read changing a row.
  * Test first: turning on Delete branch on archive writes this repository's value and leaves the
  * user's value alone.
  */
@@ -33,7 +33,7 @@ import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { Switch } from "../../../ui/Switch.tsx";
 import { toastError } from "../../../ui/Toast.tsx";
 import { TargetBranchPicker } from "../../git-panel/changes/TargetBranchPicker.tsx";
-import { SettingRow } from "../SettingRow.tsx";
+import { SettingRow, toastSettingSaveFailed } from "../SettingRow.tsx";
 
 /** Conductor's git rows a repository may set for itself, in its order. */
 const REPO_SWITCHES = [
@@ -104,14 +104,20 @@ function RepoSwitchRow({
 	const change = async (next: boolean) => {
 		setError(null);
 		const saved = await services.settings.setForRepo(rootPath, settingKey, next);
-		if (!saved.ok) setError(saved.error.message);
+		if (!saved.ok) {
+			setError(saved.error.message);
+			toastSettingSaveFailed(saved.error);
+		}
 		setVersion((value) => value + 1);
 	};
 
 	const reset = async () => {
 		setError(null);
 		const done = await actions.settings.resetForRepo(repoId, settingKey);
-		if (!done.ok) setError(done.error.message);
+		if (!done.ok) {
+			setError(done.error.message);
+			toastSettingSaveFailed(done.error);
+		}
 		setVersion((value) => value + 1);
 	};
 
