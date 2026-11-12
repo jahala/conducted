@@ -78,6 +78,7 @@ function sampleWorkspace(changes: Partial<Workspace> = {}): Workspace {
 		path: "/work/alpha",
 		branch: "placeholder-branch",
 		branchIsPlaceholder: true,
+		remoteFileSyncEnabled: false,
 		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "origin/main",

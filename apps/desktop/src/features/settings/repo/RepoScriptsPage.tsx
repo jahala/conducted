@@ -125,7 +125,7 @@ export function RepoScriptsPage({ repoId }: { repoId: RepoId }) {
 			<div className="flex flex-col gap-1">
 				<h1 className="text-2xl font-medium text-fg">Scripts</h1>
 				<p className="text-sm text-fg-muted">
-					Setup and archive scripts for the selected repository.
+					Commands that run when workspaces are set up or archived.
 				</p>
 			</div>
 

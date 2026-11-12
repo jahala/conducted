@@ -10,10 +10,12 @@
  * Must handle: a status dot on Setup (running, failed) and Run (running), the limit disabling "new
  * terminal" with the reason as its title, many terminals (the strip scrolls), middle-click closing
  * a terminal tab, the Ports tab being hidden until a port is detected or its scan fails, and a
- * cloud workspace's New terminal offering "Cloud terminal" and "Local terminal" (CLOUD-11).
+ * cloud workspace's New terminal offering "Cloud terminal" and "Local terminal" (CLOUD-11), and a
+ * terminal tab that starts a drag to the centre when its caller asks (Split tabs on, issue #527).
  * Test first: at the terminal limit the new-terminal button is disabled and says why.
  */
 import type { TerminalId } from "@conducted/shared";
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import { type FileSyncView, SYNC_OFF_STATUS } from "../../core/file-sync-view.ts";
 import { cn } from "../../ui/cn.ts";
 import { IconButton } from "../../ui/IconButton.tsx";
@@ -56,6 +58,10 @@ export interface ScriptsPanelTabsProps {
 	onNewTerminal: (hostKind?: "local" | "cloud") => void;
 	onCloseTerminal: (id: TerminalId) => void;
 	onToggleCollapsed: () => void;
+	/** Starts dragging a terminal tab. Without it the terminal tabs do not drag. */
+	onTerminalPointerDown?: (event: ReactPointerEvent, id: TerminalId) => void;
+	/** Swallows the click that ends a terminal tab's drag. */
+	onTerminalClickCapture?: (event: ReactMouseEvent) => void;
 }
 
 const sameTab = (left: ScriptsPanelTabId, right: ScriptsPanelTabId): boolean => {
@@ -91,6 +97,8 @@ export function ScriptsPanelTabs({
 	onNewTerminal,
 	onCloseTerminal,
 	onToggleCollapsed,
+	onTerminalPointerDown,
+	onTerminalClickCapture,
 }: ScriptsPanelTabsProps) {
 	const atLimit = (terminalCount ?? terminals.length) >= terminalLimit;
 	const reason = `Maximum ${terminalLimit} terminals allowed`;
@@ -109,6 +117,12 @@ export function ScriptsPanelTabs({
 			onAuxClick={(event) => {
 				if (id.kind === "terminal" && event.button === 1) onCloseTerminal(id.terminalId);
 			}}
+			onPointerDown={
+				id.kind === "terminal" && onTerminalPointerDown !== undefined
+					? (event) => onTerminalPointerDown(event, id.terminalId)
+					: undefined
+			}
+			onClickCapture={id.kind === "terminal" ? onTerminalClickCapture : undefined}
 			className={cn(
 				"inline-flex h-8 shrink-0 items-center gap-1.5 border-b-2 px-2 text-xs font-medium transition-colors",
 				sameTab(active, id)

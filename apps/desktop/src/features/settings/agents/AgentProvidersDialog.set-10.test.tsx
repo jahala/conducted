@@ -100,7 +100,9 @@ describe("SET-10 OpenCode providers", () => {
 		});
 		fireEvent.click(screen.getByRole("button", { name: "Save DeepSeek key" }));
 
-		await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith("API key saved"));
+		await waitFor(() =>
+			expect(toasts.toast).toHaveBeenCalledWith("API key saved", expect.anything()),
+		);
 		const key = {
 			agent: "acp" as const,
 			acpAgent: "opencode" as const,
@@ -145,7 +147,9 @@ describe("SET-10 OpenCode providers", () => {
 		await choose("Provider", "Z.AI");
 		fireEvent.change(await screen.findByLabelText("Z.AI"), { target: { value: "sk-zhipu" } });
 		fireEvent.click(screen.getByRole("button", { name: "Save Z.AI key" }));
-		await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith("API key saved"));
+		await waitFor(() =>
+			expect(toasts.toast).toHaveBeenCalledWith("API key saved", expect.anything()),
+		);
 
 		await choose("Provider", "Zhipu AI");
 		expect(await screen.findByLabelText("Zhipu AI")).toBeTruthy();

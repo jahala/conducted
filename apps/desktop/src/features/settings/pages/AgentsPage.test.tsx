@@ -149,11 +149,11 @@ describe("SET-03 AgentsPage", () => {
 
 		render(page());
 		fireEvent.click(screen.getByRole("button", { name: "Run claude /login" }));
-		expect(await screen.findByText("claude setup-token")).toBeTruthy();
+		expect((await screen.findAllByText("claude setup-token")).length).toBeGreaterThan(0);
 		fireEvent.change(screen.getByLabelText("Paste code from Claude"), {
 			target: { value: "code-123" },
 		});
-		fireEvent.click(screen.getByRole("button", { name: "Finish sign-in" }));
+		fireEvent.click(screen.getByRole("button", { name: "Connect" }));
 
 		await waitFor(() => expect(spies.finishLogin).toHaveBeenCalledWith("login-1", "code-123"));
 		// Opening the page, finishing the sign-in, and the dialog closing once the agent is signed in.
@@ -176,11 +176,11 @@ describe("SET-03 AgentsPage", () => {
 
 		render(page());
 		fireEvent.click(screen.getByRole("button", { name: "Run claude /login" }));
-		expect(await screen.findByText("claude setup-token")).toBeTruthy();
+		expect((await screen.findAllByText("claude setup-token")).length).toBeGreaterThan(0);
 		fireEvent.change(screen.getByLabelText("Paste code from Claude"), {
 			target: { value: "code-123" },
 		});
-		fireEvent.click(screen.getByRole("button", { name: "Finish sign-in" }));
+		fireEvent.click(screen.getByRole("button", { name: "Connect" }));
 
 		expect(await screen.findByText("Claude login successful.")).toBeTruthy();
 	});
@@ -254,11 +254,10 @@ describe("SET-03 AgentsPage", () => {
 		render(page());
 		fireEvent.click(screen.getByRole("button", { name: "Run codex login" }));
 		expect(await screen.findByText("The sign-in timed out.")).toBeTruthy();
-		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+		fireEvent.click(screen.getByRole("button", { name: "Restart device authorization" }));
 
 		await waitFor(() => expect(spies.cancelLogin).toHaveBeenCalledWith("login-1"));
 		await waitFor(() => expect(spies.login).toHaveBeenCalledTimes(2));
-		expect(await screen.findByText("Enter the new code.")).toBeTruthy();
 		expect(spies.cancelLogin.mock.invocationCallOrder[0]).toBeLessThan(
 			spies.login.mock.invocationCallOrder[1] ?? 0,
 		);

@@ -379,6 +379,53 @@ describe("test-only-exports", () => {
 	);
 
 	test(
+		"counts a script in scripts/ as a user, and a script's test as a test",
+		async () => {
+			putBacklog();
+			put("apps/desktop/tsconfig.json", TSCONFIG);
+			put("packages/sidecar/tsconfig.json", TSCONFIG);
+			put(
+				"scripts/tsconfig.json",
+				JSON.stringify({
+					compilerOptions: {
+						strict: true,
+						noEmit: true,
+						allowImportingTsExtensions: true,
+						types: [],
+					},
+					include: ["**/*.ts"],
+				}),
+			);
+			put(
+				"packages/sidecar/src/mapping.ts",
+				[
+					"/** @feature CHAT-01 A */",
+					"export function forTheSpike() { return 1; }",
+					"export function forItsTestOnly() { return 2; }",
+					"",
+				].join("\n"),
+			);
+			put(
+				"packages/sidecar/src/mapping.test.ts",
+				'import { forItsTestOnly, forTheSpike } from "./mapping.ts";\nvoid [forItsTestOnly(), forTheSpike()];\n',
+			);
+			put(
+				"scripts/spike.ts",
+				'/** A spike. */\nimport { forTheSpike } from "../packages/sidecar/src/mapping.ts";\nexport const counted = forTheSpike();\n',
+			);
+			put(
+				"scripts/spike.test.ts",
+				'import { forItsTestOnly } from "../packages/sidecar/src/mapping.ts";\nvoid forItsTestOnly();\n',
+			);
+			const found = await scanTestOnlyExports(root);
+			expect(found.map((v) => `${v.file} ${v.name}`)).toEqual([
+				"packages/sidecar/src/mapping.ts forItsTestOnly",
+			]);
+		},
+		COMPILER_TIMEOUT_MS,
+	);
+
+	test(
 		"flags a repository method with no production caller, and honours a marker for a known pending screen",
 		async () => {
 			putBacklog();

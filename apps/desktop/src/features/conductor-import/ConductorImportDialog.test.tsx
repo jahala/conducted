@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it } from "vitest";
 import { conductorDatabasePath } from "../../core/conductor-import/plan.ts";
 import { ServicesProvider } from "../../core/context.tsx";
+import { conductorChatRows, done, said, text, wrote } from "../../test/conductor-chat.ts";
 import { buildConductorFixture } from "../../test/conductor-fixture.ts";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
 import { ProjectStep } from "../onboarding/ProjectStep.tsx";
@@ -18,7 +19,7 @@ afterEach(() => {
 	test = undefined;
 });
 
-function seed(mounted: TestContainer): void {
+function seed(mounted: TestContainer, withHistory = false): void {
 	const home = mounted.container.platform.fs.paths.home;
 	const root = `${home}/conductor/repos/alpha`;
 	const worktree = `${home}/conductor/workspaces/alpha/oslo`;
@@ -36,7 +37,20 @@ function seed(mounted: TestContainer): void {
 					state: "ready",
 				},
 			],
-			sessions: [{ id: "s-1", workspace_id: "w-oslo", agent_type: "claude", title: "Fix login" }],
+			sessions: [
+				{ id: "s-1", workspace_id: "w-oslo", agent_type: "claude", title: "Fix login" },
+				...(withHistory
+					? [{ id: "s-2", workspace_id: "w-oslo", agent_type: "codex", title: "Codex chat" }]
+					: []),
+			],
+			session_messages: withHistory
+				? [
+						...conductorChatRows("s-1", [
+							{ turnId: "t-1", rows: [said("Hi"), wrote(text("u-1", "Hello.")), wrote(done(""))] },
+						]),
+						...conductorChatRows("s-2", [{ turnId: "t-1", rows: [said("Hi Codex")] }], 50),
+					]
+				: [],
 			env_vars: [{ key: "API_TOKEN", scope: "shared", context: "local", value: SECRET }],
 			terminal_sessions: [{ session_id: "t-1", workspace_id: "w-oslo", cwd: "/tmp" }],
 		}),
@@ -56,10 +70,14 @@ function seed(mounted: TestContainer): void {
 	});
 }
 
-async function mount(view: "settings" | "onboarding", onFinish = () => {}): Promise<TestContainer> {
+async function mount(
+	view: "settings" | "onboarding",
+	onFinish = () => {},
+	withHistory = false,
+): Promise<TestContainer> {
 	const mounted = createTestContainer();
 	test = mounted;
-	seed(mounted);
+	seed(mounted, withHistory);
 	await mounted.container.services.settings.start();
 	await mounted.container.services.conductorImport.start();
 	render(
@@ -134,5 +152,24 @@ describe("APP-17 the import from Conductor, on screen", () => {
 		);
 		expect(screen.queryByRole("button", { name: "Import from Conductor" })).toBeNull();
 		expect(screen.getByRole("button", { name: "Add a project" })).toBeTruthy();
+	});
+
+	it("the dry run says which chats bring their history, and the outcome names a chat whose history failed", async () => {
+		// The container is not started, so its sidecar cannot map: the Claude chat comes over
+		// without its history, as it would if the sidecar had stopped.
+		await mount("settings", () => {}, true);
+
+		fireEvent.click(screen.getByRole("button", { name: "Review import" }));
+		const dialog = within(await screen.findByRole("dialog"));
+		expect(await dialog.findByText("Chat history")).toBeTruthy();
+		expect(dialog.getByText("1 chat with its history (3 entries)")).toBeTruthy();
+		expect(dialog.getByText("Codex: 1 chat (1 entry)")).toBeTruthy();
+		expect(dialog.getByText(/History not brought: no mapping for this agent yet\./)).toBeTruthy();
+
+		fireEvent.click(dialog.getByRole("button", { name: "Import" }));
+
+		expect(await dialog.findByText(/Imported 1 project, 1 workspace and 2 chats\./)).toBeTruthy();
+		expect(dialog.getByText(/History not brought for 1 chat\./)).toBeTruthy();
+		expect(dialog.getByText(/Fix login: The sidecar has not been started\./)).toBeTruthy();
 	});
 });

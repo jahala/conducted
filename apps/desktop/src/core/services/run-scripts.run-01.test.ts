@@ -45,6 +45,7 @@ const workspaceFor = (id: WorkspaceId, patch: Partial<Workspace> = {}): Workspac
 	path: `/workspaces/${id}`,
 	branch: `branch-${id}`,
 	branchIsPlaceholder: true,
+	remoteFileSyncEnabled: false,
 	host: { kind: "local" },
 	displayName: null,
 	targetBranch: "main",

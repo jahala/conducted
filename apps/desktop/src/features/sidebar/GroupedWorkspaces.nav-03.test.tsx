@@ -115,6 +115,7 @@ function workspace(id: string, overrides: Partial<Workspace> = {}): Workspace {
 		path: `/workspaces/${id}`,
 		branch: `branch-${id}`,
 		branchIsPlaceholder: false,
+		remoteFileSyncEnabled: false,
 		host: { kind: "local" },
 		displayName: id,
 		targetBranch: "main",

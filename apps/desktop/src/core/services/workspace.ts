@@ -1748,6 +1748,18 @@ export class WorkspaceService {
 		return ok(undefined);
 	}
 
+	/**
+	 * Saves a cloud workspace's Sync files switch, then shows it in the store, as Conductor's
+	 * `setWorkspaceRemoteFileSyncEnabled` does (CLOUD-11). A failed write leaves the stored value.
+	 */
+	async setRemoteFileSyncEnabled(id: WorkspaceId, enabled: boolean): Promise<Result<void>> {
+		const written = await this.#deps.repos.workspaces.setRemoteFileSyncEnabled(id, enabled);
+		if (!written.ok) return written;
+		const current = this.store.getState().workspacesById[id];
+		if (current !== undefined) this.#upsert({ ...current, remoteFileSyncEnabled: enabled });
+		return ok(undefined);
+	}
+
 	/** Backs `Actions.workspaces.retrySetup`. A second call while setup runs is ignored. */
 	async retrySetup(id: WorkspaceId): Promise<Result<void>> {
 		const found = await this.#deps.repos.workspaces.get(id);

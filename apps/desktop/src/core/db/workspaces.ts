@@ -16,6 +16,10 @@
  * CLOUD-01: the host columns (migration 0009) read back as the workspace's `host`. A local row has
  * no URL or sandbox id and a cloud row has both; any other mix is an error Result, so a half-written
  * cloud row is never read as local.
+ * CLOUD-11: `remote_file_sync_enabled` (migration 0019) reads back as the workspace's Sync files
+ * switch. `create` writes the caller's first value in the same transaction as the insert. The
+ * shared insert statement leaves the column at its default of 0: the Conductor import also writes
+ * through it, and it brings only workspaces on the Mac, whose switch is off in Conductor too.
  * CLOUD-13: the lists local work runs over (ports and the states startup repair scans) hold local
  * rows only. `listAll` stays the merged list the sidebar draws, so a cloud workspace still appears
  * with its host. CLOUD-19: the folder names hold every host's rows, because the
@@ -74,6 +78,7 @@ export interface WorkspaceRow {
 	host_kind: Host["kind"];
 	host_url: string | null;
 	host_vm_id: string | null;
+	remote_file_sync_enabled: number;
 	last_activity_at: number;
 	created_at: number;
 	updated_at: number;
@@ -81,9 +86,12 @@ export interface WorkspaceRow {
 
 /**
  * The workspace model has no setup log path. Our design choice: the path stays a column read
- * through `getSetupLogPath` and written at insert, so the shared model type does not change.
+ * through `getSetupLogPath` and written at insert, so the shared model type does not change. The
+ * Sync files switch is not part of the shared insert (see the header); `create` writes it.
  */
-export type WorkspaceInsert = Workspace & { setupLogPath: string | null };
+export type WorkspaceInsert = Omit<Workspace, "remoteFileSyncEnabled"> & {
+	setupLogPath: string | null;
+};
 
 /** The host columns as a `Host`: local has neither URL nor sandbox id, cloud has both. */
 export function hostFromRow(
@@ -142,6 +150,7 @@ export function workspaceFromRow(row: WorkspaceRow): Result<Workspace> {
 			activeSessionId: row.active_session_id,
 			filesCopied: row.files_copied,
 			host: host.value,
+			remoteFileSyncEnabled: fromFlag(row.remote_file_sync_enabled),
 			lastActivityAt: row.last_activity_at,
 			createdAt: row.created_at,
 			updatedAt: row.updated_at,
@@ -185,10 +194,13 @@ export function workspaceToParams(workspace: WorkspaceInsert): Result<readonly u
 	};
 }
 
-const COLUMNS = `id, repo_id, directory_name, path, branch, branch_is_placeholder, display_name,
-	target_branch, state, kanban_status, port, pinned_at, linked_paths, pr_number, pr_title,
-	pr_description, archive_commit, setup_log_path, archived_at, active_session_id, files_copied,
-	host_kind, host_url, host_vm_id, last_activity_at, created_at, updated_at`;
+/** The columns the shared insert writes, in `workspaceToParams` order. */
+const INSERT_COLUMNS = `id, repo_id, directory_name, path, branch, branch_is_placeholder,
+	display_name, target_branch, state, kanban_status, port, pinned_at, linked_paths, pr_number,
+	pr_title, pr_description, archive_commit, setup_log_path, archived_at, active_session_id,
+	files_copied, host_kind, host_url, host_vm_id, last_activity_at, created_at, updated_at`;
+/** Every column a `WorkspaceRow` reads. */
+const COLUMNS = `${INSERT_COLUMNS}, remote_file_sync_enabled`;
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const WORKSPACES_SQL = {
@@ -200,7 +212,7 @@ export const WORKSPACES_SQL = {
 	getSetupLogPath: "SELECT setup_log_path FROM workspaces WHERE id = $1",
 	listDirectoryNames: "SELECT directory_name FROM workspaces WHERE repo_id = $1",
 	listPorts: "SELECT port FROM workspaces WHERE host_kind = 'local'",
-	insert: `INSERT INTO workspaces (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+	insert: `INSERT INTO workspaces (${INSERT_COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
 		$11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)`,
 	transitionState: "UPDATE workspaces SET state = $1, updated_at = $2 WHERE id = $3 AND state = $4",
 	markArchived: `UPDATE workspaces SET state = 'archived', archive_commit = $1, archived_at = $2,
@@ -217,6 +229,7 @@ export const WORKSPACES_SQL = {
 	setSetupLogPath: "UPDATE workspaces SET setup_log_path = $1, updated_at = $2 WHERE id = $3",
 	setActiveSession: "UPDATE workspaces SET active_session_id = $1 WHERE id = $2",
 	setFilesCopied: "UPDATE workspaces SET files_copied = $1, updated_at = $2 WHERE id = $3",
+	setRemoteFileSyncEnabled: "UPDATE workspaces SET remote_file_sync_enabled = $1 WHERE id = $2",
 	finishUnarchive: `UPDATE workspaces SET state = 'ready', branch = $1, directory_name = $2,
 		path = $3, last_activity_at = MAX(last_activity_at, $4), archived_at = NULL, updated_at = $4
 		WHERE id = $5 AND state = 'initializing'`,
@@ -237,6 +250,8 @@ export interface NewWorkspace {
 	setupLogPath: string | null;
 	/** Where it lives (CLOUD-01). A workspace made on the Mac is `LOCAL_HOST`. */
 	host: Host;
+	/** The Sync files switch's first value (CLOUD-11). False for a workspace on the Mac. */
+	remoteFileSyncEnabled: boolean;
 }
 
 export interface WorkspaceRepository {
@@ -311,6 +326,11 @@ export interface WorkspaceRepository {
 	setActiveSession(id: WorkspaceId, sessionId: SessionId | null): Promise<Result<void>>;
 	/** WORKSPACES_SQL.setFilesCopied, after setup copied files into the new worktree. */
 	setFilesCopied(id: WorkspaceId, count: number): Promise<Result<void>>;
+	/**
+	 * WORKSPACES_SQL.setRemoteFileSyncEnabled: the Sync files switch (CLOUD-11). Like Conductor's
+	 * write it leaves updated_at alone. A missing workspace is `db.not_found`.
+	 */
+	setRemoteFileSyncEnabled(id: WorkspaceId, enabled: boolean): Promise<Result<void>>;
 	/**
 	 * WORKSPACES_SQL.finishUnarchive: makes the restored worktree the workspace's branch, folder and
 	 * path, sets it ready, clears archived_at and moves last_activity_at to the restore time (never
@@ -400,6 +420,7 @@ export function createWorkspaceRepository(db: Database, deps: RepositoryDeps): W
 					activeSessionId: null,
 					filesCopied: null,
 					host: input.host,
+					remoteFileSyncEnabled: input.remoteFileSyncEnabled,
 					lastActivityAt: at,
 					createdAt: at,
 					updatedAt: at,
@@ -412,7 +433,14 @@ export function createWorkspaceRepository(db: Database, deps: RepositoryDeps): W
 					params.value,
 					"Creating a workspace",
 				);
-				return written.ok ? ok(workspace) : err(written.error);
+				if (!written.ok) return err(written.error);
+				const synced = await executeStatement(
+					tx,
+					WORKSPACES_SQL.setRemoteFileSyncEnabled,
+					[toFlag(workspace.remoteFileSyncEnabled), workspace.id],
+					"Creating a workspace",
+				);
+				return synced.ok ? ok(workspace) : err(synced.error);
 			}),
 		transitionState: async (id, from, to) => {
 			const written = await executeStatement(
@@ -504,6 +532,13 @@ export function createWorkspaceRepository(db: Database, deps: RepositoryDeps): W
 				WORKSPACES_SQL.setFilesCopied,
 				[count, now(), id],
 				"Saving the copied file count",
+			),
+		setRemoteFileSyncEnabled: (id, enabled) =>
+			executeExisting(
+				db,
+				WORKSPACES_SQL.setRemoteFileSyncEnabled,
+				[toFlag(enabled), id],
+				"Saving the Sync files switch",
 			),
 		touchActivity: (id, at) =>
 			executeVoid(db, WORKSPACES_SQL.touchActivity, [at, id], "Touching workspace activity"),

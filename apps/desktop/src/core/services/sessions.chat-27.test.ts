@@ -128,6 +128,7 @@ const seedWorkspace = async (repositories: Repositories) => {
 			path: sampleWorkspace.path,
 			branch: sampleWorkspace.branch,
 			branchIsPlaceholder: sampleWorkspace.branchIsPlaceholder,
+			remoteFileSyncEnabled: false,
 			host: { kind: "local" },
 			targetBranch: sampleWorkspace.targetBranch,
 			port: sampleWorkspace.port,

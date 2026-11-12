@@ -35,6 +35,7 @@
  * and a plain string into code `tauri_error`.
  */
 
+import type { ConductorMessageKey, ConductorPlacedRow } from "@conducted/protocol";
 import {
 	type AppError,
 	appError,
@@ -374,6 +375,8 @@ export const COMMANDS = {
 	conductorImportFind: "conductor_import_find", // APP-17
 	conductorImportCopy: "conductor_import_copy", // APP-17
 	conductorImportRead: "conductor_import_read", // APP-17
+	conductorImportReadMessageKeys: "conductor_import_read_message_keys", // APP-18
+	conductorImportReadMessages: "conductor_import_read_messages", // APP-18
 	conductorImportMoveSecrets: "conductor_import_move_secrets", // APP-17
 	conductorImportDiscard: "conductor_import_discard", // APP-17
 	visualizationServe: "visualization_serve", // CHAT-22
@@ -1507,7 +1510,9 @@ interface FsPathsPayload {
 
 /**
  * `conductor_import_find { source }`, `conductor_import_copy { source }`, `conductor_import_read { copyPath }`,
- * `conductor_import_move_secrets { copyPath, moves }`, `conductor_import_discard` (APP-17).
+ * `conductor_import_move_secrets { copyPath, moves }`, `conductor_import_discard` (APP-17);
+ * `conductor_import_read_message_keys { copyPath, sessionId, afterRowid, limit }` and
+ * `conductor_import_read_messages { copyPath, sessionId, rowids }` (APP-18).
  */
 export function createTauriConductorImport(bindings: TauriBindings): ConductorImport {
 	return {
@@ -1517,6 +1522,19 @@ export function createTauriConductorImport(bindings: TauriBindings): ConductorIm
 			invokeResult<ConductorCopy>(bindings, COMMANDS.conductorImportCopy, { source: sourcePath }),
 		read: (copyPath) =>
 			invokeResult<ConductorSnapshot>(bindings, COMMANDS.conductorImportRead, { copyPath }),
+		readMessageKeys: (copyPath, sessionId, afterRowid, limit) =>
+			invokeResult<ConductorMessageKey[]>(bindings, COMMANDS.conductorImportReadMessageKeys, {
+				copyPath,
+				sessionId,
+				afterRowid,
+				limit,
+			}),
+		readMessages: (copyPath, sessionId, rowids) =>
+			invokeResult<ConductorPlacedRow[]>(bindings, COMMANDS.conductorImportReadMessages, {
+				copyPath,
+				sessionId,
+				rowids: [...rowids],
+			}),
 		moveSecrets: (copyPath, moves) =>
 			invokeResult<string[]>(bindings, COMMANDS.conductorImportMoveSecrets, {
 				copyPath,

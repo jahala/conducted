@@ -66,6 +66,8 @@ export interface WorkspaceSeed {
 	lastActivityAt?: number;
 	/** A cloud workspace's Worker; a Mac workspace by default. */
 	host?: Host;
+	/** A cloud workspace's saved Sync files switch; off by default, as on the Mac. */
+	remoteFileSyncEnabled?: boolean;
 }
 
 /** Adds a workspace under `~/conducted/workspaces/<project>/<name>`, ready unless the seed says otherwise. */
@@ -88,6 +90,7 @@ export async function addWorkspace(
 			linkedPaths: [],
 			setupLogPath: null,
 			host: seed.host ?? LOCAL_HOST,
+			remoteFileSyncEnabled: seed.remoteFileSyncEnabled ?? false,
 		}),
 	);
 	const state = seed.state ?? "ready";

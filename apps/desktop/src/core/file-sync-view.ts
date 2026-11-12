@@ -1,8 +1,8 @@
 /**
  * @feature CLOUD-11 Local mirror and file sync for a cloud workspace
- * Owns: the labels, descriptions and view shape a screen shows for a workspace's file sync, and the
- * message for a preview opened before the mirror exists. The file-sync service and every screen
- * that shows its state share them.
+ * Owns: the labels, descriptions and view shape a screen shows for a workspace's file sync, the
+ * toasts for a Sync files switch that fails, and the message for a preview opened before the
+ * mirror exists. The file-sync service and every screen that shows its state share them.
  * Behaviour: services-map.md 5B.7 and 5B.10.1 (file sync); ui-map.md 3.7 (the statuses Conductor
  * shows). The wording is Conductor's, read from its sync row (renderApp `ygo`, `Joe`, `SZs`).
  */
@@ -43,6 +43,19 @@ export const LOCAL_TERMINAL_SYNC_NOT_READY_DESCRIPTION =
 export const LOCAL_TERMINAL_SYNC_FAILED_DESCRIPTION =
 	"The local terminal cannot start until Sync files recovers.";
 export const WORKSPACE_NOT_READY_DESCRIPTION = "The workspace is not ready yet.";
+/**
+ * The toast when the Sync files switch fails (Conductor's `ygo`, renderApp @5583234 and @5583511).
+ * Turning it off can fail only in the save. Turning it on fails in the save or the first sync, and
+ * Conductor names both as a failed start, without a colon when the error has no message.
+ */
+export const UPDATE_SYNC_PREFERENCE_FAILED = "Failed to update sync preference";
+export const START_FILE_SYNC_FAILED = "Failed to start file sync";
+
+export function syncSwitchFailedMessage(enabled: boolean, reason: string): string {
+	if (!enabled) return `${UPDATE_SYNC_PREFERENCE_FAILED}: ${reason}`;
+	return reason === "" ? START_FILE_SYNC_FAILED : `${START_FILE_SYNC_FAILED}: ${reason}`;
+}
+
 /** Conductor's error when a local-mirror preview is opened before the mirror exists (CLOUD-11). */
 export const PREVIEW_MIRROR_UNAVAILABLE_MESSAGE =
 	"Couldn't open preview: local workspace mirror is unavailable.";

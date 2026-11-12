@@ -473,6 +473,8 @@ export interface Actions {
 		/** Saves the sidebar's project order by drag (NAV-04). */
 		reorder: Act<[orderedIds: RepoId[]]>;
 		updateConfig: Act<[repoId: RepoId, config: RepoConfig]>;
+		/** The gitignored files a new workspace would copy, for the Misc page's preview (SET-07). */
+		copyPreview: Act<[repoId: RepoId], string[]>;
 		setIcon: Act<[repoId: RepoId, icon: RepoIconChoice]>;
 		/** Drops this Mac's change to a shared run action, so the shared version applies again. */
 		resetRunAction: Act<[repoId: RepoId, actionId: string]>;
@@ -707,6 +709,15 @@ export interface Actions {
 		/** Runs a shell code block from the chat in a new terminal and returns it. */
 		runCommand: Act<[workspaceId: WorkspaceId, command: string], Terminal>;
 		close: Act<[id: TerminalId]>;
+		/**
+		 * Moves a terminal's tab between the centre strip and the bottom panel, keeping its live
+		 * shell and scrollback (#527). Refused for a terminal of another workspace, a script
+		 * terminal, and a terminal already in that strip.
+		 */
+		move: Act<
+			[workspaceId: WorkspaceId, id: TerminalId, placement: Terminal["placement"]],
+			Terminal
+		>;
 	};
 	files: {
 		/**
@@ -868,7 +879,7 @@ export interface Actions {
 		find: Act<[], { bytes: number } | null>;
 		/** The dry run: copies Conductor's database and lists what would come over. */
 		preview: Act<[], ImportPreview>;
-		/** Imports what the last dry run showed, all or nothing. */
+		/** Imports what the last dry run showed, all or nothing, then each chat's history. */
 		run: Act<[], ImportOutcome>;
 		/** Drops the dry run and its copy. */
 		cancel: Act;
@@ -899,8 +910,11 @@ export interface Actions {
 	};
 }
 
-/** The import from Conductor's view types, for its screens (APP-17). */
+/** The import from Conductor's view types, for its screens (APP-17, APP-18). */
+export type { HistoryFailure, HistoryOutcome } from "./conductor-import/history.ts";
 export type {
+	HistoryCount,
+	HistoryPreview,
 	ImportKind,
 	ImportPreview,
 	KindCount,

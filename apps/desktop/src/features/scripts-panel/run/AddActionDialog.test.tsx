@@ -45,9 +45,15 @@ describe("SET-07 AddActionDialog", () => {
 			target: { value: "Dev server" },
 		});
 
-		expect(screen.getByText('An action called "Dev server" already exists.')).toBeTruthy();
+		expect(screen.getByText("Action names must be unique")).toBeTruthy();
 		const save = screen.getByRole("button", { name: "Save action" }) as HTMLButtonElement;
 		expect(save.disabled).toBe(true);
+	});
+
+	it("says a name cannot be empty once the command is typed", () => {
+		renderDialog();
+		fireEvent.change(screen.getByLabelText("Command"), { target: { value: "pnpm test" } });
+		expect(screen.getByText("Action names can't be empty")).toBeTruthy();
 	});
 
 	it("opens the icon picker from Choose action icon", () => {

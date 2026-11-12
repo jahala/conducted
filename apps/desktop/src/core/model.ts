@@ -147,6 +147,11 @@ export interface Workspace {
 	 * Every call checks it first (core/host.ts).
 	 */
 	host: Host;
+	/**
+	 * A cloud workspace's Sync files switch, saved so a restart keeps it (CLOUD-11). A new cloud
+	 * workspace takes the Advanced setting's value; a local workspace has no mirror and is false.
+	 */
+	remoteFileSyncEnabled: boolean;
 	lastActivityAt: number;
 	createdAt: number;
 	updatedAt: number;
@@ -341,7 +346,7 @@ export interface ChatTurn {
 	startCheckpointId: string | null;
 	endCheckpointId: string | null;
 	changes: FileChange[];
-	outcome: "running" | "success" | "error" | "cancelled" | "interrupted";
+	outcome: "running" | "success" | "error" | "cancelled" | "interrupted" | "unrecorded";
 	error: string | null;
 	/** When the turn started and ended, in milliseconds since the epoch. Null end while it runs. */
 	startedAt: number;

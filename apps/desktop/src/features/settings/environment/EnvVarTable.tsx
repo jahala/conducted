@@ -3,8 +3,9 @@
  * @feature SET-11 Documented variables on the Environment page
  * Owns: one scope's variables as Conductor's table, with the documented variables behind their
  * link and the side panel that edits, sets or shows one variable.
- * Behaviour: Conductor's variables section (renderApp Cnr and lci @10697720-10708700): an optional
- * muted heading; a fixed table in a rounded border whose empty state sits inside it ("No variables
+ * Behaviour: Conductor's variables section (renderApp Cnr and lci @10697720-10708700): a heading
+ * ("Variables" when the table has no title of its own); a fixed table in a rounded border with no
+ * header row (Conductor's table holds only its body), whose empty state sits inside it ("No variables
  * set" / "Add a variable to make it available in this environment."); each row has a lock (its
  * tooltip "Securely saved by Conducted") beside the name in mono with the meaning of a documented
  * name under it; the value as an eye button ("Reveal NAME" / "Hide NAME") and dots, or the value,
@@ -204,7 +205,7 @@ export function EnvVarTable({
 
 	return (
 		<section className="flex flex-col gap-4">
-			{title === undefined ? null : <h3 className="text-sm font-medium text-fg-muted">{title}</h3>}
+			<h3 className="text-sm font-medium text-fg-muted">{title ?? "Variables"}</h3>
 			{hideEmptyState && empty ? null : (
 				<div className="overflow-hidden rounded-md border border-border">
 					<table className="w-full table-fixed text-sm">
@@ -452,6 +453,9 @@ function VariableRow({
 						{description === undefined ? null : (
 							<div className="max-w-full truncate text-xs text-fg-muted">{description}</div>
 						)}
+						{dimmed ? (
+							<div className="max-w-full truncate text-xs text-fg-muted">Locally overwritten</div>
+						) : null}
 					</div>
 				</div>
 			</td>

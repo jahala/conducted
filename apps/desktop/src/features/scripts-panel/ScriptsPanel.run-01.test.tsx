@@ -15,6 +15,7 @@ import type { RepoConfig, RunAction, Workspace } from "../../core/model.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
 import { WithSurfaces } from "../../test/surfaces.tsx";
 import { toast } from "../../ui/Toast.tsx";
+import { TabDragProvider } from "../workspace/tab-drag.tsx";
 import { ScriptsPanel } from "./ScriptsPanel.tsx";
 
 const dev: RunAction = {
@@ -93,7 +94,9 @@ describe("RUN-01 scripts panel", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<WithSurfaces>
-					<ScriptsPanel workspaceId={workspace.id} />
+					<TabDragProvider>
+						<ScriptsPanel workspaceId={workspace.id} />
+					</TabDragProvider>
 				</WithSurfaces>
 			</ServicesProvider>,
 		);
@@ -112,7 +115,9 @@ describe("RUN-01 scripts panel", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<WithSurfaces>
-					<ScriptsPanel workspaceId={workspace.id} />
+					<TabDragProvider>
+						<ScriptsPanel workspaceId={workspace.id} />
+					</TabDragProvider>
 				</WithSurfaces>
 			</ServicesProvider>,
 		);
@@ -144,7 +149,9 @@ describe("RUN-01 scripts panel", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<WithSurfaces>
-					<ScriptsPanel workspaceId={workspace.id} />
+					<TabDragProvider>
+						<ScriptsPanel workspaceId={workspace.id} />
+					</TabDragProvider>
 				</WithSurfaces>
 			</ServicesProvider>,
 		);
@@ -169,7 +176,9 @@ describe("RUN-01 scripts panel", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<WithSurfaces>
-					<ScriptsPanel workspaceId={workspace.id} />
+					<TabDragProvider>
+						<ScriptsPanel workspaceId={workspace.id} />
+					</TabDragProvider>
 				</WithSurfaces>
 			</ServicesProvider>,
 		);
@@ -186,7 +195,9 @@ describe("RUN-01 scripts panel", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<WithSurfaces>
-					<ScriptsPanel workspaceId={workspace.id} />
+					<TabDragProvider>
+						<ScriptsPanel workspaceId={workspace.id} />
+					</TabDragProvider>
 				</WithSurfaces>
 			</ServicesProvider>,
 		);
@@ -201,7 +212,9 @@ describe("RUN-01 scripts panel", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<WithSurfaces>
-					<ScriptsPanel workspaceId={workspace.id} />
+					<TabDragProvider>
+						<ScriptsPanel workspaceId={workspace.id} />
+					</TabDragProvider>
 				</WithSurfaces>
 			</ServicesProvider>,
 		);
@@ -223,7 +236,9 @@ describe("RUN-01 scripts panel", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<WithSurfaces>
-					<ScriptsPanel workspaceId={workspace.id} />
+					<TabDragProvider>
+						<ScriptsPanel workspaceId={workspace.id} />
+					</TabDragProvider>
 				</WithSurfaces>
 			</ServicesProvider>,
 		);

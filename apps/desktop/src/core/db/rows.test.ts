@@ -137,7 +137,11 @@ describe("workspaces", () => {
 		expect(params.ok).toBe(true);
 		if (!params.ok) return;
 		expect(params.value[12]).toBe('["/code/other","/code/shared"]');
-		const row = rowFrom<Parameters<typeof workspaceFromRow>[0]>(columns, params.value);
+		// The insert leaves the Sync files switch to its own write (migration 0019); a stored row has it.
+		const row = {
+			...rowFrom<Parameters<typeof workspaceFromRow>[0]>(columns, params.value),
+			remote_file_sync_enabled: 0,
+		};
 		const { setupLogPath: _ignored, ...model } = sampleWorkspace;
 		expect(workspaceFromRow(row)).toEqual({ ok: true, value: model });
 	});
