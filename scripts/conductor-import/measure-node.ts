@@ -5,7 +5,8 @@
  * It loads measure-import.ts through Vite's module runner, as Vitest loads the desktop's tests,
  * because the Node stand-in reads SQLite with node:sqlite, which Bun lacks, and Node alone cannot
  * read the app's TypeScript. It sends measure.ts one JSON line per message on file descriptor 3:
- * the sidecar's pid, the moment the dry run begins, the dry run's counts, then the numbers or the stage that failed.
+ * the sidecar's pid, the moment the dry run begins, the dry run's counts, the moment the import
+ * ends, then the numbers or the stage that failed.
  * Behaviour: docs/plans/migrate-from-conductor.md ("Chat history"); issue #556.
  * Must handle: only numbers and fixed words cross to the parent; an error's message is never sent,
  * because it could quote a row; Vite writes its cache inside the run's folder.
@@ -22,6 +23,7 @@ export type ChildMessage =
 	| { kind: "sidecar"; pid: number }
 	| { kind: "started" }
 	| { kind: "dryRun"; dryRun: Measured["dryRun"] }
+	| { kind: "imported" }
 	| { kind: "measured"; measured: Measured }
 	| { kind: "failed"; stage: Stage | "load" };
 
@@ -74,6 +76,7 @@ async function main(folder: string, bunPath: string, socketFolder: string): Prom
 				onSidecar: (pid) => send({ kind: "sidecar", pid }),
 				onStarted: () => send({ kind: "started" }),
 				onDryRun: (dryRun) => send({ kind: "dryRun", dryRun }),
+				onImported: () => send({ kind: "imported" }),
 			});
 			send({ kind: "measured", measured });
 			return 0;
