@@ -34,6 +34,8 @@ function migratedFolder(root: string): FreshFolder {
 		exe: join(root, "Conducted.app/Contents/MacOS/conducted"),
 		profile: join(root, "sandbox.sb"),
 		appData: join(home, "Library/Application Support/build.conducted.app"),
+		probe: join(root, "refused/probe"),
+		programRoots: [root],
 	};
 	mkdirSync(folder.appData, { recursive: true });
 	const db = new Database(join(folder.appData, "conducted.db"));

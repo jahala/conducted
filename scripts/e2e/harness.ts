@@ -23,7 +23,15 @@
  * (`sandboxProfile` in conductor-reference/sidecar-diff/seal.ts): no network beyond loopback and no
  * writes in the owner's home folder. So the app's first launch downloads no agent programs, and a
  * path that escaped the fresh folder fails instead of writing the owner's files.
- * Test first: fails the run when a folder of this run is left on disk.
+ * Our design choice: the app runs programs only from the fresh folder and the system's own
+ * folders (issue #640). The login shell the app reads its PATH from reads none of the system's
+ * startup files (the fresh home's `.zshenv`), so the agent catalogue finds none of the owner's
+ * programs, and the profile refuses any program outside those folders, so a path written out in
+ * full cannot reach them either. Each launch proves the sandbox refuses a probe program, and fails
+ * when the app's login PATH holds another folder; a process seen under the app that runs a program
+ * from another folder fails the run.
+ * Test first: fails the run when a folder of this run is left on disk; names the PATH folders
+ * outside the fresh folder and the system's own.
  */
 import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import {
@@ -140,6 +148,10 @@ export interface FreshFolder {
 	profile: string;
 	/** The app's data folder, where its database lives. */
 	appData: string;
+	/** A program outside the folders programs may run from: the known case the sandbox refuses. */
+	probe: string;
+	/** The folders the app may run programs from: this folder and the system's own. */
+	programRoots: string[];
 }
 
 /** Removes the folders of earlier runs whose harness is gone. Returns how many. */
@@ -165,6 +177,7 @@ export function makeFreshFolder(bundle: string, tracker: Tracker): FreshFolder {
 	mkdirSync(tmp);
 	const app = join(root, "Conducted.app");
 	const profile = join(root, "sandbox.sb");
+	const refused = join(root, "refused");
 	const folder: FreshFolder = {
 		root,
 		home,
@@ -172,13 +185,58 @@ export function makeFreshFolder(bundle: string, tracker: Tracker): FreshFolder {
 		exe: join(app, "Contents/MacOS/conducted"),
 		profile,
 		appData: join(home, "Library/Application Support", IDENTIFIER),
+		probe: join(refused, "probe"),
+		programRoots: [root, ...systemProgramRoots()],
 	};
 	tracker.folders.add(folder);
 	const cloned = spawnSync("/bin/cp", ["-c", "-R", bundle, app], { encoding: "utf8" });
 	if (cloned.status !== 0) throw new Error(`Could not clone the test app: ${cloned.stderr}`);
-	writeFileSync(profile, sandboxProfile(homedir(), ["/bin/ps"]));
+	mkdirSync(refused);
+	writeFileSync(folder.probe, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+	writeFileSync(join(home, ".zshenv"), ZSHENV);
+	writeFileSync(profile, freshFolderProfile(folder, refused));
 	return folder;
 }
+
+/**
+ * The fresh home's first zsh startup file. It stops zsh from reading the system's startup files,
+ * so the app's login shell keeps the PATH the harness gave it: `/etc/zprofile` runs
+ * `path_helper`, which adds `/usr/local/bin` and `/etc/paths.d`'s folders, such as Homebrew's.
+ */
+const ZSHENV = "unsetopt GLOBAL_RCS\n";
+
+/**
+ * The folders the system's own programs run from. The developer folder is where `/usr/bin/git`
+ * and `/usr/bin/xcodebuild` hand over to the selected Xcode or Command Line Tools.
+ */
+function systemProgramRoots(): string[] {
+	const developer = spawnSync("/usr/bin/xcode-select", ["-p"], {
+		env: { PATH: SYSTEM_PATH },
+		encoding: "utf8",
+	});
+	const folder = developer.stdout.trim();
+	if (developer.status !== 0 || folder === "") {
+		throw new Error(`xcode-select names no developer folder: ${developer.stderr.trim()}`);
+	}
+	return [...SYSTEM_PROGRAMS, realpathSync(folder)];
+}
+
+const SYSTEM_PROGRAMS = ["/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/libexec", "/System"];
+
+/**
+ * The fresh folder's sandbox profile: the sidecar differential run's, with programs allowed only
+ * from the folder's program roots, and the probe's folder always refused.
+ */
+export function freshFolderProfile(
+	folder: Pick<FreshFolder, "programRoots">,
+	refused: string,
+): string {
+	return `${sandboxProfile(homedir(), ["/bin/ps"], folder.programRoots)}(deny process-exec* (subpath ${JSON.stringify(refused)}))\n`;
+}
+
+/** True when `path` is one of `roots` or inside one. */
+const within = (path: string, roots: readonly string[]): boolean =>
+	roots.some((root) => path === root || path.startsWith(`${root}/`));
 
 /** Removes a fresh folder. Only folders this harness made are passed in. */
 export function removeFreshFolder(folder: FreshFolder): void {
@@ -251,9 +309,72 @@ function keychainSearchList(folder: FreshFolder): string[] {
  */
 export function isolationProblems(folder: FreshFolder): string[] {
 	const owner = homedir();
-	return keychainSearchList(folder)
-		.filter((keychain) => keychain.startsWith(`${owner}/`))
-		.map((keychain) => `the app would search the owner's Keychain ${keychain}`);
+	return [
+		...keychainSearchList(folder)
+			.filter((keychain) => keychain.startsWith(`${owner}/`))
+			.map((keychain) => `the app would search the owner's Keychain ${keychain}`),
+		...probeProblems(folder),
+	];
+}
+
+/**
+ * Empty when the sandbox refuses to run the probe, a program outside the folders programs may run
+ * from. A profile that let it run would let the app run the owner's programs too.
+ */
+function probeProblems(folder: FreshFolder): string[] {
+	const ran = spawnSync("/usr/bin/sandbox-exec", ["-f", folder.profile, folder.probe], {
+		env: { PATH: SYSTEM_PATH },
+		encoding: "utf8",
+	});
+	if (ran.status !== 0 && ran.stderr.includes("Operation not permitted")) return [];
+	return [`the sandbox let ${folder.probe} run, so the app could run programs from anywhere`];
+}
+
+/** The folders on a PATH that are outside `roots`. */
+export function foldersOutside(path: string, roots: readonly string[]): string[] {
+	return path.split(":").filter((entry) => entry !== "" && !within(entry, roots));
+}
+
+/** The app's login-shell PATH, the one its agent catalogue finds programs on (`shell_login_env`). */
+async function loginPath(browser: Browser): Promise<string> {
+	// WebDriver waits for the promise a script returns.
+	const answer = await browser.execute(async () => {
+		const internals = (
+			window as unknown as {
+				__TAURI_INTERNALS__: { invoke(command: string, args: unknown): Promise<unknown> };
+			}
+		).__TAURI_INTERNALS__;
+		return await internals
+			.invoke("shell_login_env", {})
+			.catch((error: unknown) => ({ error: String(error) }));
+	});
+	const path = (answer as { path?: unknown }).path;
+	if (typeof path !== "string") {
+		throw new Error(`The app's login shell PATH could not be read: ${JSON.stringify(answer)}`);
+	}
+	return path;
+}
+
+/** The executable a process runs, as `lsof` names its first program text; null once it is gone. */
+function executableOf(pid: number): string | null {
+	const files = spawnSync("/usr/sbin/lsof", ["-a", "-p", String(pid), "-d", "txt", "-Fn"], {
+		encoding: "utf8",
+	});
+	const first = files.stdout.split("\n").find((line) => line.startsWith("n"));
+	return first === undefined ? null : first.slice(1);
+}
+
+/** Records each process under the app that runs a program from outside the folder's program roots. */
+function notePrograms(pids: readonly number[], folder: FreshFolder, tracker: Tracker): void {
+	for (const pid of pids) {
+		tracker.seen.add(pid);
+		const program = executableOf(pid);
+		if (program !== null && !within(program, folder.programRoots)) {
+			tracker.outside.add(
+				`the app ran ${program}, outside the fresh folder and the system's own folders`,
+			);
+		}
+	}
 }
 
 /** A running copy of the app over one fresh folder. */
@@ -276,6 +397,8 @@ export interface Tracker {
 	folders: Set<FreshFolder>;
 	/** Every pid the run saw under an app, checked once more at the end. */
 	seen: Set<number>;
+	/** Each program seen running under an app from outside its folder and the system's folders. */
+	outside: Set<string>;
 }
 
 export const newTracker = (base: string = BASE): Tracker => ({
@@ -283,6 +406,7 @@ export const newTracker = (base: string = BASE): Tracker => ({
 	apps: new Set(),
 	folders: new Set(),
 	seen: new Set(),
+	outside: new Set(),
 });
 
 function listensOn(pid: number, port: number): boolean {
@@ -404,7 +528,13 @@ export async function launch(folder: FreshFolder, tracker: Tracker): Promise<Run
 			`${cause instanceof Error ? cause.message : String(cause)}; the window showed "${shown}"; the app printed "${printed}"; its log ends: ${appLogTail(folder)}`,
 		);
 	}
-	for (const id of descendants(pid)) tracker.seen.add(id);
+	notePrograms(descendants(pid), folder, tracker);
+	const outside = foldersOutside(await loginPath(browser), folder.programRoots);
+	if (outside.length > 0) {
+		throw new Error(
+			`The app's login shell PATH holds folders outside the fresh folder and the system's own: ${outside.join(", ")}`,
+		);
+	}
 	return { folder, child, pid, port, browser, output };
 }
 
@@ -428,7 +558,7 @@ export async function proveFreshPageStorage(app: RunningApp): Promise<void> {
  * fails the check; the run's cleanup then stops it.
  */
 export async function quit(app: RunningApp, tracker: Tracker): Promise<void> {
-	for (const id of descendants(app.pid)) tracker.seen.add(id);
+	notePrograms(descendants(app.pid), app.folder, tracker);
 	await app.browser.execute(() => {
 		const internals = (
 			window as unknown as {
@@ -472,8 +602,9 @@ function heldByRun(pid: number, roots: readonly string[]): boolean {
 
 /**
  * Stops every app the run still holds, then every process an app started that outlived it, and
- * removes every folder the run made. Returns what outlived its app or stayed on disk, which fails
- * the run.
+ * removes every folder the run made. Returns each program seen running under an app from outside
+ * its folder and the system's folders, what outlived its app and what stayed on disk, all of which
+ * fail the run.
  */
 export async function cleanUp(tracker: Tracker): Promise<string[]> {
 	const roots = [...tracker.folders].map((folder) => folder.root);
@@ -483,7 +614,8 @@ export async function cleanUp(tracker: Tracker): Promise<string[]> {
 		tracker.apps.delete(child);
 	}
 	const outlived = [...tracker.seen].filter((id) => alive(id) && heldByRun(id, roots));
-	const left = outlived.map((id) => `process ${id} outlived its app`);
+	const left = [...tracker.outside, ...outlived.map((id) => `process ${id} outlived its app`)];
+	tracker.outside.clear();
 	await stopLeftovers(outlived);
 	for (const folder of [...tracker.folders]) {
 		removeFreshFolder(folder);
