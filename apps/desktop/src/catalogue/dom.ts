@@ -152,8 +152,13 @@ export async function typeInto(
  * Points the pointer at the first element matching `selector` named `name`, as a pointer moving onto
  * it does: over, enter, then a move. A hover card opens on enter; a tooltip opens on the move.
  */
-export async function hover(document: Document, selector: string, name: string): Promise<void> {
-	const element = await find(document, selector, name);
+export async function hover(
+	document: Document,
+	selector: string,
+	name: string,
+	options: { prefix?: boolean } = {},
+): Promise<void> {
+	const element = await find(document, selector, name, options);
 	const init = { bubbles: true, cancelable: true, pointerType: "mouse" } as const;
 	element.dispatchEvent(new PointerEvent("pointerover", init));
 	element.dispatchEvent(new PointerEvent("pointerenter", init));

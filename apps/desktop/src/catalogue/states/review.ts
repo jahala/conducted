@@ -2,17 +2,19 @@
  * @feature catalogue States of the review screens: Changes, diff, comments, AI review and previews
  * Owns: the PR status popover, the Changes filter open, the target branch picker and its failure,
  * the untracked-files note, a commit scope, a diff that cannot load or has nothing to show, a
- * whitespace-only diff, the review menu, dialog and tooltip, an SVG preview, an empty CSV preview
- * and the editor's find and replace bar.
+ * whitespace-only diff, the review menu, dialog and tooltip, an SVG preview, an empty CSV preview,
+ * the editor's find and replace bar, a video and a PDF that cannot load, and unsaved edits to a file
+ * that changed on disk (the banner, and the save it refuses), and a file with a merge conflict.
  * Behaviour: ui-map.md 3.2, 3.6 and 5.2; REV-01, REV-02, REV-03, REV-05 and REV-08.
  * Test first: not applicable; the screenshot run opens every state.
  */
 
-import { ARBOR_FILES } from "../cast.ts";
+import { fileQueryKey } from "../../core/hooks.ts";
+import { ARBOR_FILES, type Cast } from "../cast.ts";
 import { click, has, hover, pressUntilTaken, shows } from "../dom.ts";
 import type { ScriptedFile } from "../git-repo.ts";
 import { setSetting } from "../seeds.ts";
-import type { CatalogueState } from "../state.ts";
+import type { AfterContext, CatalogueState } from "../state.ts";
 import type { World } from "../world.ts";
 import { arborScene, COMMITTED_ONLY, prOf } from "./git.ts";
 import { loginStack, stacked } from "./stacks.ts";
@@ -226,6 +228,76 @@ const EDIT_FIND: CatalogueState = {
 	}),
 };
 
+/**
+ * A preview whose file the webview cannot load. The catalogue's files have asset:// addresses, which
+ * the browser cannot open, as the app's webview cannot open a codec it does not know.
+ */
+const previewFails = (id: string, title: string, path: string, text: string): CatalogueState => ({
+	id,
+	group: "File viewer",
+	title,
+	seed: arborScene({
+		blobs: { [path]: new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]) },
+		search: { tab: "file", path, fileMode: "edit" },
+		after: ({ document }) => click(document, "button", "Preview"),
+		ready: (document) => shows(document, text),
+	}),
+});
+
+const NOTES = "notes.txt";
+
+/** The user has unsaved edits to notes.txt, and an agent then writes the file. */
+async function changeOnDisk({ app, world }: AfterContext, cast: Cast): Promise<void> {
+	const workspace = cast.arbor;
+	// A planted file has the modified time 0; the editor opened it at that time.
+	app.container.services.workspaceFiles.editDraft(workspace.id, NOTES, "alpha beta\nmy edit\n", {
+		text: "alpha beta\n",
+		modifiedAt: 0,
+	});
+	const written = await world.memory.platform.fs.writeTextAtomic(
+		`${workspace.path}/${NOTES}`,
+		"alpha beta\nthe agent's line\n",
+	);
+	if (!written.ok) throw new Error(`Writing ${NOTES} failed: ${written.error.message}`);
+	// The viewer polls the modified time every 5 seconds; read it now instead.
+	await app.queryClient.invalidateQueries({ queryKey: fileQueryKey(workspace.id, NOTES) });
+}
+
+const DISK_CHANGE: CatalogueState = {
+	id: "file-changed-on-disk",
+	group: "File viewer",
+	title: "Unsaved edits to a file that changed on disk",
+	seed: arborScene({
+		files: { [NOTES]: "alpha beta\n" },
+		search: { tab: "file", path: NOTES, fileMode: "edit" },
+		after: changeOnDisk,
+		ready: (document) =>
+			shows(document, "Keep mine") && has(document, "[role=status]", "Unsaved changes"),
+	}),
+};
+
+const SAVE_REFUSED: CatalogueState = {
+	id: "file-save-changed-on-disk",
+	group: "File viewer",
+	title: "Saving edits to a file that changed on disk",
+	seed: arborScene({
+		files: { [NOTES]: "alpha beta\n" },
+		search: { tab: "file", path: NOTES, fileMode: "edit" },
+		after: async (context, cast) => {
+			await changeOnDisk(context, cast);
+			// Saving belongs to the editor, so Cmd+S is pressed with the editor focused.
+			await pressUntilTaken(
+				context.document,
+				"s",
+				{ meta: true },
+				"[data-file-viewer] .cm-content",
+			);
+		},
+		ready: (document) =>
+			shows(document, "File changed on disk. Keep or discard your edits to save."),
+	}),
+};
+
 const preview = (
 	id: string,
 	title: string,
@@ -276,6 +348,33 @@ export const REVIEW_STATES: CatalogueState[] = [
 		{ "logo.svg": '<svg xmlns="http://www.w3.org/2000/svg"><circle r="10" /></svg>\n' },
 		"View rendered SVG",
 	),
+	previewFails(
+		"file-video-failed",
+		"A video the webview cannot load",
+		"demo.mp4",
+		"Failed to load video",
+	),
+	previewFails(
+		"file-pdf-failed",
+		"A PDF the webview cannot load",
+		"guide.pdf",
+		"Failed to load PDF",
+	),
+	DISK_CHANGE,
+	SAVE_REFUSED,
+	{
+		id: "file-conflicts",
+		group: "File viewer",
+		title: "Edit mode on a file with a merge conflict",
+		seed: arborScene({
+			files: {
+				"src/config.ts":
+					"export const config = {\n<<<<<<< HEAD\n\tport: 3000,\n=======\n\tport: 4000,\n>>>>>>> main\n};\n",
+			},
+			search: { tab: "file", path: "src/config.ts", fileMode: "edit" },
+			ready: (document) => shows(document, "Accept incoming change"),
+		}),
+	},
 	preview(
 		"file-csv-empty",
 		"An empty CSV file",

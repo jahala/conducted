@@ -1,8 +1,10 @@
 /**
  * @feature catalogue States of the full pages in the main layout: Home, new workspace, backlog, diagnostics
- * Owns: the seeds for Home with the cast, the new workspace page with a project chosen and in
+ * Owns: the seeds for Home with the cast, the new workspace page with a project chosen (and its
+ * Create from picker open) and in
  * cloud mode (ready, and waiting for the Worker's GitHub token, CLOUD-19), the backlog with saved
- * workspaces and empty, and the Diagnostics page.
+ * workspaces and empty, the Diagnostics page, Home with a workspace still being created and one being
+ * archived, and an archived workspace's file tab.
  * Behaviour: ui-map.md 2 (routes /all-workspaces, /create, /backlog, /diagnostics), WS-11 (backlog),
  * APP-03 (diagnostics).
  * Test first: not applicable; the screenshot run opens every state.
@@ -10,9 +12,9 @@
 
 import { ok } from "@conducted/shared";
 import type { CloudReadiness } from "../../core/organization.ts";
-import { animateCast, seedCast } from "../cast.ts";
+import { animateCast, seedCast, workspaceRoute } from "../cast.ts";
 import { click, find, shows, typeInto } from "../dom.ts";
-import { CLAUDE_CONFIG, must, setSetting } from "../seeds.ts";
+import { addWorkspace, CLAUDE_CONFIG, must, setSetting } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
 import type { World } from "../world.ts";
 
@@ -27,6 +29,40 @@ async function seedCloudOrganization(world: World, readiness: CloudReadiness) {
 }
 
 export const PAGE_STATES: CatalogueState[] = [
+	{
+		id: "home-workspace-transitions",
+		group: "Pages",
+		title: "Home with a workspace being created and one being archived",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			await addWorkspace(world, cast.atlas, {
+				name: "harbor",
+				branch: "sam/billing-export",
+				state: "initializing",
+			});
+			await addWorkspace(world, cast.atlas, {
+				name: "isle",
+				branch: "sam/legacy-cleanup",
+				state: "archiving",
+			});
+			return {
+				route: "/all-workspaces",
+				ready: (document) => shows(document, "Initializing…") && shows(document, "Archiving…"),
+			};
+		},
+	},
+	{
+		id: "workspace-archived-file",
+		group: "Pages",
+		title: "An archived workspace's file tab",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: workspaceRoute(cast.delta, { tab: "file", path: "README.md", fileMode: "diff" }),
+				ready: (document) => shows(document, "Workspace archived"),
+			};
+		},
+	},
 	{
 		id: "home",
 		group: "Pages",
@@ -118,6 +154,19 @@ export const PAGE_STATES: CatalogueState[] = [
 			return {
 				route: `/create?repo=${cast.atlas.id}`,
 				ready: (document) => document.querySelector('[role="dialog"] textarea') !== null,
+			};
+		},
+	},
+	{
+		id: "new-workspace-create-from",
+		group: "Pages",
+		title: "New workspace dialog, the Create from picker open",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/create?repo=${cast.atlas.id}`,
+				after: ({ document }) => click(document, "button", "Show or hide the create-from picker"),
+				ready: (document) => shows(document, "Starts from"),
 			};
 		},
 	},

@@ -59,7 +59,8 @@ export interface WorkspaceSeed {
 	name: string;
 	/** Defaults to `sam/<name>`. */
 	branch?: string;
-	state?: "ready" | "archived" | "failed";
+	/** "initializing" and "archiving" leave it partway, as a creation or an archive still running. */
+	state?: "initializing" | "ready" | "archiving" | "archived" | "failed";
 	displayName?: string;
 	pr?: { number: number; title: string };
 	pinned?: boolean;
@@ -96,13 +97,13 @@ export async function addWorkspace(
 	const state = seed.state ?? "ready";
 	if (state === "failed") {
 		must(await workspaces.transitionState(created.id, "initializing", "failed"));
-	} else {
+	} else if (state !== "initializing") {
 		must(await workspaces.transitionState(created.id, "initializing", "ready"));
 	}
-	if (state === "archived") {
+	if (state === "archiving" || state === "archived") {
 		must(await workspaces.transitionState(created.id, "ready", "archiving"));
-		must(await workspaces.markArchived(created.id, "4f1c2ab"));
 	}
+	if (state === "archived") must(await workspaces.markArchived(created.id, "4f1c2ab"));
 	if (seed.displayName !== undefined) {
 		must(await workspaces.setDisplayName(created.id, seed.displayName));
 	}

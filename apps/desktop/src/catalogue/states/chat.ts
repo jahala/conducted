@@ -6,7 +6,7 @@
  * approval, a question and a plan review; a workspace with a closed chat, so the tab strip offers
  * "View chat history"; a workspace address no workspace answers ("Workspace not
  * found"); and a reply that uses every Markdown part (headings, lists, inline code, a code block, a
- * table, a quote, a callout, links and a rule).
+ * table, a quote, a callout, links and a rule); and the plan review bar's three tooltips.
  * Behaviour: ui-map.md 3.3 (chat), sessions-and-chats.md "Questions, approvals and plans".
  * Test first: not applicable; the screenshot run opens every state.
  */
@@ -237,4 +237,23 @@ export const CHAT_STATES: CatalogueState[] = [
 			"Invalidate cached prices on write",
 		),
 	},
+	...(
+		[
+			["chat-plan-copy-tooltip", "Copy", "Copy plan to clipboard"],
+			["chat-plan-hand-off-tooltip", "Hand off", "Send plan to a new chat for implementation"],
+			["chat-plan-approve-tooltip", "Approve", "Execute plan in current chat"],
+		] as const
+	).map(
+		([id, button, tooltip]): CatalogueState => ({
+			id,
+			group: "Workspace chat",
+			title: `Plan review, the ${button} button's tooltip`,
+			seed: castChat(
+				(cast) => ({ route: chatRoute(cast.fjord, cast.chats.fjord), workspace: cast.fjord }),
+				tooltip,
+				// Approve's name carries its shortcut after the word.
+				(document) => hover(document, "button", button, { prefix: button === "Approve" }),
+			),
+		}),
+	),
 ];

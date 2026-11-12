@@ -4,7 +4,9 @@
  * actions menu, a chat tab's context menu, the diff scope menu with the branch's commits, the
  * All files tab, the Checks tab, the header with no pull request, an open one, a draft, one with a
  * failed check, one ready to merge and a merged one, the Changes tab when the tree is clean and when git fails,
- * the Changes tab as a folder tree with a filter that matches nothing, and the tab strip's new tab menu.
+ * the Changes tab as a folder tree with a filter that matches nothing, the tab strip's new tab menu,
+ * a changed file's right-click menu and its discard confirm, the Rename workspace dialog, and the
+ * Artifacts tab with one file.
  * Behaviour: ui-map.md 3.6 (Git panel), 3.4 (diff view), 3.7.x (pull request header); core/status/
  * git-header.ts decides the header state and its main action.
  * Test first: not applicable; the screenshot run opens every state.
@@ -19,7 +21,7 @@ import {
 	seedCast,
 	workspaceRoute,
 } from "../cast.ts";
-import { click, has, rightClick, shows, typeInto } from "../dom.ts";
+import { click, find, has, rightClick, shows, typeInto } from "../dom.ts";
 import type { PrKind, ScriptedPr } from "../github.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, DAY } from "../time.ts";
@@ -36,6 +38,8 @@ export interface GitScene {
 	skipPullRequest?: boolean;
 	/** Extra files to plant in arbor, by path, so a state can show several file kinds. */
 	files?: Readonly<Record<string, string>>;
+	/** Binary files to plant in arbor, by path: a video or a PDF the file tab previews. */
+	blobs?: Readonly<Record<string, Uint8Array>>;
 }
 
 /** The cast with arbor open, its git described by `scene.git`. */
@@ -46,6 +50,9 @@ export const arborScene =
 		const workspace: Workspace = cast.arbor;
 		for (const [path, text] of Object.entries(scene.files ?? {})) {
 			world.memory.controls.files.set(`${workspace.path}/${path}`, text);
+		}
+		for (const [path, bytes] of Object.entries(scene.blobs ?? {})) {
+			world.memory.controls.blobs.set(`${workspace.path}/${path}`, bytes);
 		}
 		const route =
 			scene.search === undefined
@@ -87,6 +94,41 @@ export const GIT_STATES: CatalogueState[] = [
 		seed: arborScene({ ready: (document) => shows(document, "safe-next.test.ts") }),
 	},
 	{
+		id: "git-file-row-menu",
+		group: "Git panel",
+		title: "Changes tab, a changed file's right-click menu",
+		seed: arborScene({
+			after: ({ document }) => rightClick(document, "button", "Open src/auth/sign-in.ts"),
+			ready: (document) => shows(document, "Copy relative path"),
+		}),
+	},
+	{
+		id: "git-discard-file-dialog",
+		group: "Git panel",
+		title: "Changes tab, asking before it discards a file's changes",
+		seed: arborScene({
+			after: async ({ document }) => {
+				await rightClick(document, "button", "Open src/auth/sign-in.ts");
+				await click(document, "[role=menuitem]", "Discard changes");
+			},
+			ready: (document) => shows(document, "Discard file changes?"),
+		}),
+	},
+	{
+		id: "git-artifacts",
+		group: "Git panel",
+		title: "Artifacts tab with a file the agent left in .context",
+		seed: arborScene({
+			files: { ".context/release-notes.md": "# Release notes\n" },
+			after: async ({ document }) => {
+				await click(document, "button,[role=tab]", "Artifacts");
+				// A file's Attach button shows on hover or focus; reach it as the keyboard does.
+				(await find(document, "button", "Attach to chat")).focus();
+			},
+			ready: (document) => document.activeElement?.textContent === "Attach to chat",
+		}),
+	},
+	{
 		id: "git-diff",
 		group: "Git panel",
 		title: "A file's diff",
@@ -114,6 +156,18 @@ export const GIT_STATES: CatalogueState[] = [
 			after: ({ document }) =>
 				rightClick(document, "a[aria-current=page]", "Fix login redirect", { prefix: true }),
 			ready: (document) => shows(document, "Move to section"),
+		}),
+	},
+	{
+		id: "workspace-rename-dialog",
+		group: "Workspace chat",
+		title: "The Rename workspace dialog, from the sidebar row's right click",
+		seed: arborScene({
+			after: async ({ document }) => {
+				await rightClick(document, "a[aria-current=page]", "Fix login redirect", { prefix: true });
+				await click(document, "[role=menuitem]", "Rename");
+			},
+			ready: (document) => shows(document, "Enter a new name for this workspace"),
 		}),
 	},
 	{

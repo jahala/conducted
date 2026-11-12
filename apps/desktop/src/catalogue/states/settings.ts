@@ -9,14 +9,15 @@
  * variables; atlas's Add action dialog and icon picker; the Agents page's provider forms (Anthropic,
  * subscription, Vertex, both Bedrock modes, ChatGPT, Cursor, custom), its card badges and both
  * sign-in dialogs; a changed setting's actions menu; the Connect GitHub and disconnect dialogs; the
- * environment file picker, variable editor, import banner and local-override table; and the MCP
- * list loading, empty, filtered and failed.
+ * environment file picker, variable editor, import banner and local-override table; the MCP
+ * list loading, empty, filtered and failed; and a project's Actions page with no actions, and with
+ * a hidden shared action, a personal action and a shared one changed on this Mac.
  * Behaviour: ui-map.md 6 (settings pages).
  * Test first: not applicable; the screenshot run opens every state.
  */
 import { chatRoute, seedCast } from "../cast.ts";
 import { seedConductorDatabase } from "../conductor-database.ts";
-import { click, find, shows, typeInto } from "../dom.ts";
+import { click, find, has, shows, typeInto } from "../dom.ts";
 import { scriptGitHub } from "../github.ts";
 import { setSetting } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
@@ -900,6 +901,57 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				route: `/settings/repos/${cast.atlas.id}/actions`,
 				after: ({ document }) => click(document, "button", "Add"),
 				ready: (document) => document.querySelector('input[placeholder="My action"]') !== null,
+			};
+		},
+	},
+	{
+		id: "settings-repo-actions-empty",
+		group: "Settings",
+		title: "relay: Actions, with no actions yet",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			// relay shares no settings file, so it has no run actions.
+			world.memory.controls.files.delete(`${cast.relay.rootPath}/.conducted/settings.toml`);
+			return {
+				route: `/settings/repos/${cast.relay.id}/actions`,
+				ready: (document) => shows(document, "No custom actions yet. Add one to get started."),
+			};
+		},
+	},
+	{
+		id: "settings-repo-actions-own",
+		group: "Settings",
+		title: "atlas: Actions, one hidden, one personal and one changed on this Mac",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			const repoId = cast.atlas.id;
+			return {
+				route: `/settings/repos/${repoId}/actions`,
+				after: async ({ app, document }) => {
+					const { actions, services } = app.container;
+					const loaded = await services.repo.loadConfig(repoId);
+					if (!loaded.ok)
+						throw new Error(`Loading atlas's settings failed: ${loaded.error.message}`);
+					const shared = loaded.value.runScripts;
+					const dev = shared.find((action) => action.id === "dev");
+					if (dev === undefined) throw new Error("atlas has no dev action.");
+					const saved = await actions.projects.updateConfig(repoId, {
+						...loaded.value,
+						runScripts: [
+							...shared.map((action) =>
+								action.id === "dev" ? { ...action, command: "pnpm dev --port 4000" } : action,
+							),
+							{ ...dev, id: "lint", label: "Lint", command: "pnpm lint", isDefault: false },
+						],
+					});
+					if (!saved.ok) throw new Error(`Saving atlas's actions failed: ${saved.error.message}`);
+					// The user hides the first action from the list.
+					await click(document, "button", "Hide action");
+				},
+				ready: (document) =>
+					has(document, "button", "Show action") &&
+					has(document, "button", "Delete action") &&
+					document.querySelector(`[title="Reset to your repo's settings.toml"]`) !== null,
 			};
 		},
 	},

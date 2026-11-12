@@ -1,7 +1,7 @@
 /**
  * @feature catalogue States of the command palette, the file viewer and the scripts panel
- * Owns: the command palette open over a workspace, the Feedback dialog (opened as Send feedback opens it), the Clone GitHub repo dialog with its repository lists, a code file open in the file viewer, the file viewer
- * for a file that is gone (its error state), and the scripts panel's Run tab before and after its dev
+ * Owns: the command palette open over a workspace, the Passport opened from it, the Feedback dialog (opened as Send feedback opens it), the Clone GitHub repo dialog with its repository lists, a code file open in the file viewer, the file viewer
+ * for a file that is gone (its error state), a browser tab waiting for its dev server, and the scripts panel's Run tab before and after its dev
  * script ran. The in-memory Platform ends a command's terminal at once (platform/memory.ts), so a script
  * that is still running cannot be shown.
  * Behaviour: ui-map.md 5.1 (command palette), 3.4 (file tab), 3.7 (scripts panel).
@@ -9,7 +9,7 @@
  */
 import { useOverlayStore } from "../../app/overlay-store.ts";
 import { chatRoute, refreshGit, seedCast, workspaceRoute } from "../cast.ts";
-import { click, pressUntilTaken, shows } from "../dom.ts";
+import { click, has, pressUntilTaken, shows } from "../dom.ts";
 import type { CatalogueState } from "../state.ts";
 
 export const OVERLAY_STATES: CatalogueState[] = [
@@ -26,6 +26,23 @@ export const OVERLAY_STATES: CatalogueState[] = [
 					await pressUntilTaken(document, "k", { meta: true });
 				},
 				ready: (document) => document.querySelector('[aria-label="Command palette tabs"]') !== null,
+			};
+		},
+	},
+	{
+		id: "passport",
+		group: "Overlays and panels",
+		title: "The Passport, opened from the command palette",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await pressUntilTaken(document, "k", { meta: true });
+					await click(document, "[role=option]", "Passport", { prefix: true });
+				},
+				ready: (document) => shows(document, "CITIES VISITED"),
 			};
 		},
 	},
@@ -142,6 +159,23 @@ export const OVERLAY_STATES: CatalogueState[] = [
 					fileMode: "edit",
 				}),
 				after: ({ app }) => refreshGit(app, cast.arbor),
+			};
+		},
+	},
+	{
+		id: "browser-tab-starting",
+		group: "Overlays and panels",
+		title: "Browser tab while the dev server has not answered yet",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				// arbor's own port, where nothing listens in the catalogue.
+				route: workspaceRoute(cast.arbor, {
+					tab: "browser",
+					browserUrl: `http://localhost:${cast.arbor.port}/`,
+				}),
+				ready: (document) =>
+					has(document, "button", "Reload") && shows(document, "Starting preview"),
 			};
 		},
 	},
