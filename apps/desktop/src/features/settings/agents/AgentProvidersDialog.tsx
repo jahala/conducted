@@ -53,8 +53,8 @@ import { Button } from "../../../ui/Button.tsx";
 import { Checkbox } from "../../../ui/Checkbox.tsx";
 import { cn } from "../../../ui/cn.ts";
 import { Dialog, DialogContent, DialogFooter } from "../../../ui/Dialog.tsx";
-import { SearchIcon } from "../../../ui/icons.tsx";
 import { Input, Label } from "../../../ui/Input.tsx";
+import { SearchIcon } from "../../../ui/icons.tsx";
 import { Select } from "../../../ui/Select.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
 import {
