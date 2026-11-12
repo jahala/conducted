@@ -10,8 +10,7 @@
  * `pnpm --dir apps/desktop catalogue`; docs/engineering.md says how.
  * Our design choice: "settled" means the start-up finished, the fonts are loaded, and settle.ts holds:
  * the router is idle, no query or mutation is running, the state's own `ready` check holds, the page
- * has not changed for ten animation frames in a row, and the ready check still holds then. The
- * after-step waits for the page to go quiet first, so it acts on a loaded screen as a user does. Every
+ * has not changed for ten animation frames in a row, and the ready check still holds then. Every
  * wait is bounded by frames, so a state that never settles fails with a reason instead of hanging.
  * Must handle: an unknown state id (the index page with a notice); a seed or after-step that throws
  * (marked failed, with the message on screen); the release build never includes this file
@@ -25,7 +24,7 @@ import { startApp } from "../main.tsx";
 import { CatalogueIndex } from "./CatalogueIndex.tsx";
 import { CATALOGUE_MARKER } from "./marker.ts";
 import { setSetting } from "./seeds.ts";
-import { MAX_FRAMES, nextFrame, settle, waitFor, waitForQuiet } from "./settle.ts";
+import { MAX_FRAMES, nextFrame, settle, waitFor } from "./settle.ts";
 import { openCatalogueDatabase } from "./sqlite.ts";
 import type { CatalogueState, Theme } from "./state.ts";
 import { CATALOGUE_STATES } from "./states/index.ts";
@@ -78,10 +77,6 @@ async function mountState(
 	};
 	await waitFor("the router is loading", activity.routerIdle);
 	if (scene.after !== undefined) {
-		// The after-step acts on a loaded screen, as a user does. Until the page is quiet the app may
-		// still move the focus (the composer takes it once it has loaded), which closes a menu the
-		// step opened.
-		await waitForQuiet(document.body);
 		await withinFrames("the state's after-step", scene.after({ world, app, document }));
 	}
 	await document.fonts.ready;

@@ -15,7 +15,7 @@
 import type { Workspace } from "../../core/model.ts";
 import { animateCast, type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, has, hover, shows } from "../dom.ts";
+import { click, clickOn, find, has, hover, shows } from "../dom.ts";
 import { addChat, addEvents, addRepo, must } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
@@ -128,7 +128,9 @@ async function attachmentChat(
 		after: async ({ app, document }) => {
 			await animateCast(world, cast, app);
 			await refreshGit(app, cast.arbor);
-			await click(document, "button", "Open redirect.png");
+			// Not `click`: it would wait for a quiet page, and by then the image has failed to load
+			// (the browser cannot open asset:// addresses) and its Open button is gone.
+			clickOn(await find(document, "button", "Open redirect.png"));
 			await then?.step(document);
 		},
 		ready: (document) => shows(document, then?.text ?? "Copy image"),

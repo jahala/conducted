@@ -3,8 +3,13 @@
  * Owns: finding a control by its role and accessible text, waiting a bounded number of frames for it to
  * appear, and clicking, pointing at, typing into or pressing keys in it with real DOM events (Cmd and
  * Alt modifiers included), so the app's own handlers run.
+ * Our design choice: each of those acts once the page has gone quiet, as a user acts on a loaded
+ * screen. Until then the app may still move the focus (the composer takes it once it has loaded),
+ * which would close a menu the step just opened. `find` and the `...On` helpers do not wait.
  * Test first: not applicable; the screenshot run opens every state that uses it.
  */
+
+import { waitForQuiet } from "./settle.ts";
 
 /** The most frames to wait for a control to appear, about five seconds at 60 frames a second. */
 const MAX_FRAMES = 300;
@@ -53,6 +58,7 @@ export async function click(
 	name: string,
 	options: { prefix?: boolean } = {},
 ): Promise<void> {
+	await waitForQuiet(document.body);
 	clickOn(await find(document, selector, name, options));
 }
 
@@ -76,6 +82,7 @@ export async function rightClick(
 	name: string,
 	options: { prefix?: boolean } = {},
 ): Promise<void> {
+	await waitForQuiet(document.body);
 	rightClickOn(await find(document, selector, name, options));
 }
 
@@ -137,6 +144,7 @@ export async function typeInto(
 	name: string,
 	text: string,
 ): Promise<void> {
+	await waitForQuiet(document.body);
 	const element = await find(document, selector, name);
 	if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) {
 		throw new Error(`${selector} named "${name}" is not a text field.`);
@@ -163,6 +171,7 @@ export async function hover(
 	name: string,
 	options: { prefix?: boolean } = {},
 ): Promise<void> {
+	await waitForQuiet(document.body);
 	const element = await find(document, selector, name, options);
 	const init = { bubbles: true, cancelable: true, pointerType: "mouse" } as const;
 	element.dispatchEvent(new PointerEvent("pointerover", init));
@@ -192,6 +201,7 @@ export async function pressUntilTaken(
 	modifiers: { meta?: boolean; alt?: boolean } = {},
 	at?: string,
 ): Promise<void> {
+	await waitForQuiet(document.body);
 	for (let frame = 0; frame < MAX_FRAMES; frame++) {
 		if (press(document, key, modifiers, at)) return;
 		await nextFrame();
