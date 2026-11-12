@@ -2,8 +2,8 @@
  * @feature catalogue States of a cloud workspace's port forwarding, shared preview URL and file sync
  * Owns: a cloud workspace open on its Ports tab with a forwarded port and a detected one, the
  * Forward ports popover, the Choose preview URL port picker, the Waiting for ports state, the
- * workspace actions menu's Pause port forwarding dialog, and the file-sync states in the scripts
- * panel and the header popover (CLOUD-09, CLOUD-11).
+ * workspace actions menu's Pause port forwarding dialog, the file-sync states in the scripts
+ * panel and the header popover (CLOUD-09, CLOUD-11), and a sandbox whose disk is nearly full.
  * Behaviour: ui-map.md 3.7 (the Ports tab, its popover and the file-sync states), 5.2 (the
  * workspace actions menu), 4 (the sidebar's Forwarding ports badge); the words are Conductor's.
  * Our design choice: the Worker answers the catalogue's cloud requests through the memory
@@ -44,6 +44,8 @@ interface CloudOptions {
 	forward?: { remotePort: number; localPort: number };
 	/** More forwards, such as one whose sandbox port is gone. */
 	extraForwards?: { remotePort: number; localPort: number }[];
+	/** The sandbox's disk nearly full: 200 MB left of 4 GB. */
+	lowDisk?: boolean;
 }
 
 /** The cloud requests every state needs: the workspace's state, its ports and its file list. */
@@ -59,7 +61,10 @@ function scriptCloud(world: World, options: CloudOptions = {}): void {
 					resources: {
 						cpu: { capacityCores: 0.25, usedPercent: 12 },
 						memory: { totalBytes: 1024 ** 3, usedPercent: 20 },
-						disk: { totalBytes: 4 * 1024 ** 3, availableBytes: 2 * 1024 ** 3, usedPercent: 50 },
+						disk:
+							options.lowDisk === true
+								? { totalBytes: 4 * 1024 ** 3, availableBytes: 200 * 1024 ** 2, usedPercent: 95 }
+								: { totalBytes: 4 * 1024 ** 3, availableBytes: 2 * 1024 ** 3, usedPercent: 50 },
 					},
 				}),
 			});
@@ -300,6 +305,15 @@ export const CLOUD_STATES: CatalogueState[] = [
 			ports: [],
 		},
 	),
+	{
+		id: "cloud-low-disk",
+		group: "Cloud",
+		title: "Cloud workspace whose sandbox disk is nearly full",
+		seed: async (world): Promise<Scene> => {
+			const { scene } = await cloudWorkspace(world, "preview", { lowDisk: true });
+			return { ...scene, ready: (document) => shows(document, "Low disk") };
+		},
+	},
 	{
 		id: "cloud-actions-pause",
 		group: "Cloud",
