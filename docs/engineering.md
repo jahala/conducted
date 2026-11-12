@@ -151,6 +151,15 @@ It never computes or guesses a checksum: a release without one is refused. It mo
 the newest wrapper the Claude Code manifest's `sdkCompat` tested, and says so. When every pinned
 copy is current, it changes nothing.
 
+Between app updates, the program manager moves Claude Code forward on its own (D133,
+`apps/desktop/src-tauri/src/binaries/follow.rs`). At launch and once a day it reads
+`https://downloads.claude.ai/claude-code-releases/latest` and that release's `manifest.json`, the
+two files Claude Code's own installer reads. It installs the release for new chats when it is newer
+than the copy that runs and its `sdkCompat.testedWrapperVersions` lists the SDK the sidecar pins,
+with the size and SHA-256 the manifest states. The feed's version stays the floor and the answer
+when the host is out of reach. `build.rs` reads the SDK pin from `packages/sidecar/package.json`,
+so it has one home. Codex, gh, watchexec and the cloud image keep their pins.
+
 `.github/workflows/agent-programs.yml` runs the script daily and on manual dispatch. When a file
 changes, it updates the `chore/agent-program-versions` branch and opens or updates one pull
 request from it. The workflow needs no secret beyond its own token; the script reads GitHub with
