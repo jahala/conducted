@@ -161,12 +161,10 @@
 		"by": "seed"
 	},
 	"route:R1714453": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-01",
-		"item": "Conductor shows \"/repository/$repositoryId/workspace/$localWorkspaceId\" (route, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D086",
+		"note": "The workspace route. Ours is the same address, /repository/$repositoryId/workspace/$workspaceId, with another name for its last parameter; every workspace state opens it with real ids. The harness matches routes by exact text, so a parameterised address cannot be seeded.",
+		"by": "hand"
 	},
 	"route:R1715305": {
 		"status": "matched",
@@ -208,12 +206,10 @@
 		"by": "hand"
 	},
 	"route:R2983757": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "WS-01",
-		"item": "Conductor shows \"/settings/user/providers\" (route, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D086",
+		"note": "The address of Conductor's Agents settings page. Ours is /settings/user/agents; an address is not wording the app shows, and the page itself is matched by its title and rows.",
+		"by": "hand"
 	},
 	"route:R2986285": {
 		"status": "decided",

@@ -470,8 +470,8 @@ describe("RUN-06 terminal view", () => {
 		renderView(
 			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
 		);
+		test.memory.controls.queueDialogAnswers({ confirm: true });
 		fireEvent.click(screen.getByRole("button", { name: "open-link" }));
-		fireEvent.click(screen.getByRole("button", { name: "Open" }));
 		await waitFor(() =>
 			expect(toastSpy).toHaveBeenCalledWith("Couldn't open the link", expect.anything()),
 		);
@@ -651,18 +651,38 @@ describe("RUN-06 terminal view", () => {
 		});
 	});
 
-	it("asks before opening a terminal link", async () => {
+	// Conductor asks with the dialog plugin's system dialog (renderApp, title:R4363426): title "Open
+	// link?", "Open this terminal link?" then a blank line and the link, Open and Cancel, kind warning.
+	it("asks before opening a terminal link, in the system dialog as Conductor does", async () => {
+		const confirm = vi.spyOn(test.memory.platform.dialogs, "confirm");
+		test.memory.controls.queueDialogAnswers({ confirm: true });
 		state.connection = { state: "ready", data: fakeConnection() };
 		renderView(
 			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
 		);
 		fireEvent.click(screen.getByRole("button", { name: "open-link" }));
-		expect(screen.getByText("Open link?")).toBeTruthy();
-		expect(screen.getByText(/Open this terminal link\?/)).toBeTruthy();
-		expect(screen.getByText(/https:\/\/example\.com/)).toBeTruthy();
-		fireEvent.click(screen.getByRole("button", { name: "Open" }));
-		expect(state.openUrl).toHaveBeenCalledWith("https://example.com");
-		await waitFor(() => expect(screen.queryByText("Open link?")).toBeNull());
+		await waitFor(() => expect(state.openUrl).toHaveBeenCalledWith("https://example.com"));
+		expect(confirm).toHaveBeenCalledWith({
+			title: "Open link?",
+			message: "Open this terminal link?\n\nhttps://example.com",
+			okLabel: "Open",
+			cancelLabel: "Cancel",
+			kind: "warning",
+		});
+		expect(screen.queryByText("Open link?")).toBeNull();
+	});
+
+	it("opens nothing when the system dialog is cancelled", async () => {
+		test.memory.controls.queueDialogAnswers({ confirm: false });
+		const confirm = vi.spyOn(test.memory.platform.dialogs, "confirm");
+		state.connection = { state: "ready", data: fakeConnection() };
+		renderView(
+			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "open-link" }));
+		await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+		await confirm.mock.results[0]?.value;
+		expect(state.openUrl).not.toHaveBeenCalled();
 	});
 
 	it("shows a load error when the terminal cannot be found", () => {

@@ -17,7 +17,8 @@
  * Must handle: a terminal that has ended (history shown, banner with exit code), a terminal that
  * cannot be found, the PTY failing to spawn, output arriving before the view is ready (buffer it),
  * output faster than rendering (acknowledge bytes only after they are written, for flow control),
- * a resize while hidden (fit on show), and find with no matches.
+ * a resize while hidden (fit on show), find with no matches, and a clicked link, opened only after
+ * the system dialog Conductor shows ("Open link?", renderApp title:R4363426) is answered Open.
  * The selected text gets Conductor's bar with "Add to chat": it attaches the selection to the
  * workspace's newest chat as `terminal-selection-<time>.txt`, clears it, and names a failed attach.
  * Test first: output written to a connection before mount appears in the terminal buffer after
@@ -33,6 +34,7 @@ import {
 	useState,
 } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
+import { useServices } from "../../core/context.tsx";
 import {
 	useActions,
 	useSessions,
@@ -43,7 +45,6 @@ import {
 import type { TerminalConnection, TerminalUnsubscribe } from "../../core/model.ts";
 import { terminalLimit as limitForMode } from "../../core/terminals.ts";
 import { Button } from "../../ui/Button.tsx";
-import { Dialog, DialogClose, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { LoadableView } from "../../ui/LoadableView.tsx";
 import { toastError } from "../../ui/Toast.tsx";
@@ -217,7 +218,7 @@ export function TerminalView({
 	const openChats = useSessions(workspaceId);
 	const chatForSelection = openChats.state === "ready" ? openChats.data[0] : undefined;
 	const tabFreakMode = useSetting<boolean>("experimental_tab_freak_mode");
-	const [pendingLink, setPendingLink] = useState<string | null>(null);
+	const { platform } = useServices();
 	const [selectedText, setSelectedText] = useState("");
 	const source = connection.state === "ready" ? connection.data : null;
 	const buffered = useMemo(
@@ -313,13 +314,18 @@ export function TerminalView({
 		}
 	};
 
-	const openPendingLink = () => {
-		const url = pendingLink;
-		setPendingLink(null);
-		if (url === null) return;
-		void actions.app.openUrl(url).then((result) => {
-			if (!result.ok) toastError("Couldn't open the link", result.error);
+	/** Conductor asks in the system dialog, with these words, before it opens a terminal link. */
+	const openLink = async (url: string): Promise<void> => {
+		const confirmed = await platform.dialogs.confirm({
+			title: "Open link?",
+			message: `Open this terminal link?\n\n${url}`,
+			okLabel: "Open",
+			cancelLabel: "Cancel",
+			kind: "warning",
 		});
+		if (!confirmed) return;
+		const opened = await actions.app.openUrl(url);
+		if (!opened.ok) toastError("Couldn't open the link", opened.error);
 	};
 
 	const search = useCallback(
@@ -408,7 +414,7 @@ export function TerminalView({
 									visible={visible}
 									ended={ended !== null}
 									focusOnMount={focusOnMount}
-									onOpenLink={setPendingLink}
+									onOpenLink={(url) => void openLink(url)}
 									onCopy={copySelection}
 									onSelectionChange={setSelectedText}
 								/>
@@ -458,25 +464,6 @@ export function TerminalView({
 					terminalLimit={limitReached ? effectiveLimit : undefined}
 				/>
 			) : null}
-			<Dialog
-				open={pendingLink !== null}
-				onOpenChange={(open) => {
-					if (!open) setPendingLink(null);
-				}}
-			>
-				<DialogContent
-					title="Open link?"
-					description={`Open this terminal link? ${pendingLink ?? ""}`}
-					size="sm"
-				>
-					<DialogFooter>
-						<DialogClose asChild>
-							<Button variant="secondary">Cancel</Button>
-						</DialogClose>
-						<Button onClick={openPendingLink}>Open</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
 		</div>
 	);
 }
