@@ -431,6 +431,8 @@ Popovers: model picker, "+" menu, Forward ports, Resources, View options, chat h
 
 Source: registry `sb` in M@3782527. 176 entries. Each has `id`, key (logical or physical), `configurable`, `category`, optional `when` (global, input focus, terminal focus, dialog ids). Overrides persist under `keybinding_overrides_v1`. A conflict table (`fsn`) says which commands share a scope, so rebinding can detect real conflicts. Send key mode setting "Send messages with": `Enter` or `Cmd+Enter` swaps the four `chat.*` Enter bindings. VERIFIED M@3782527-3807000.
 
+While a dialog is open, the root key listener runs a shortcut only when the dialog registered it or its command is marked global. A handler registered inside a dialog is bound to that dialog's id. VERIFIED @680362 (the rule), @2232794 (`Kn` adds the dialog's id). The global ones: Command palette, Toggle theme, Shortcuts help, Settings, Quit, Close diagnostics, Send feedback, Open debug tools, Open sidecar logs, Open app log viewer, Toggle Garry mode, Toggle zen mode, Zoom in, Zoom out, Reset zoom, Navigate back, Navigate forward, Go to Home, Quick open file, Search in files, Create new workspace from PR, branch, or issue, Archive workspace, Link issue, and the two onboarding keys. VERIFIED M@3778851-3796000. "A dialog is open" means the dialog store holds an active dialog id (@681094), which the dialogs built on its `F0` wrapper set (23 of them, the New workspace dialog among them, @11505182). About 16 dialogs, most on Settings pages, use the bare dialog root (`S_`) and set no id, so app shortcuts still work under them. A popover is not a dialog.
+
 **General**
 
 | Keys | Action | Notes |
