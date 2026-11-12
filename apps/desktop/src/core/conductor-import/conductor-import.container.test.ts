@@ -18,7 +18,8 @@ import { answerHistory } from "../../test/sidecar-history.ts";
 import { DIFF_COMMENTS_SQL } from "../db/diff-comments.ts";
 import { SESSION_EVENTS_SQL } from "../db/session-events.ts";
 import { userMessageEvent } from "../db/test-fixtures.ts";
-import { conductorDatabasePath } from "./plan.ts";
+import { formatSpace } from "../disk-space.ts";
+import { conductorDatabasePath, SPACE_MARGIN_BYTES } from "./plan.ts";
 
 const HOME = "/Users/conducted";
 const ROOT = `${HOME}/conductor/repos/alpha`;
@@ -714,6 +715,19 @@ describe("APP-18 chat history from Conductor, through the container", () => {
 		expect(open).toEqual([]);
 	});
 
+	it("an imported agent event keeps no raw payload: the original stays in Conductor's database (D132)", async () => {
+		const test = await setUp();
+		must(await test.container.services.conductorImport.preview());
+		must(await test.container.services.conductorImport.run());
+
+		const agent = await test.database.select<{ content: string }>(
+			"SELECT content FROM session_events WHERE session_id = 's-1' AND type = 'agent'",
+		);
+		expect(agent.length).toBeGreaterThan(0);
+		const withRaw = agent.filter((row) => "raw" in (JSON.parse(row.content).message ?? {}));
+		expect(withRaw).toEqual([]);
+	});
+
 	it("a chat of an agent with no mapping comes over without history", async () => {
 		const test = await setUp();
 		must(await test.container.services.conductorImport.preview());
@@ -840,5 +854,77 @@ describe("APP-18 chat history from Conductor, through the container", () => {
 		]);
 		expect(await eventCount(test, "s-3")).toBe(0);
 		expect(await eventCount(test, "s-1")).toBeGreaterThan(0);
+	});
+});
+
+describe("D132 the disk space chat history takes, through the container", () => {
+	it("the dry run says the space chat history takes, the space it needs and the space free", async () => {
+		const test = await setUp();
+		test.memory.controls.setDatabaseFreeBytes(50e9);
+		const preview = must(await test.container.services.conductorImport.preview());
+
+		const { space } = preview;
+		expect(space.freeBytes).toBe(50e9);
+		// Two chats' history comes, so it takes some space, and the import asks room to work in.
+		expect(space.historyBytes).toBeGreaterThan(0);
+		expect(space.neededBytes).toBeGreaterThan(space.historyBytes + SPACE_MARGIN_BYTES);
+		expect(space.fits).toBe(true);
+	});
+
+	it("the dry run says when the disk does not have the space", async () => {
+		const test = await setUp();
+		test.memory.controls.setDatabaseFreeBytes(1e9);
+		const preview = must(await test.container.services.conductorImport.preview());
+
+		expect(preview.space.freeBytes).toBe(1e9);
+		expect(preview.space.fits).toBe(false);
+	});
+
+	it("a dry run that cannot reach the sidecar fails with its reason, instead of measuring too little", async () => {
+		const test = await setUp(
+			{},
+			{
+				answer: (call) =>
+					call.method === "closeConductorHistory" || call.method === "indexConductorHistory"
+						? sidecarRefuses("The sidecar is not running.")
+						: undefined,
+			},
+		);
+
+		const preview = await test.container.services.conductorImport.preview();
+
+		expect(preview.ok).toBe(false);
+		if (preview.ok) return;
+		expect(preview.error.message).toContain("The sidecar is not running.");
+		// Its copy is gone, so the next try starts from a fresh dry run.
+		expect(test.memory.controls.conductorDatabases.size).toBe(1);
+	});
+
+	it("an import with too little free space refuses before writing anything, and leaves Conducted as it was", async () => {
+		const test = await setUp();
+		const before = await countRows(test);
+		const conductor = conductorState(test);
+		const preview = must(await test.container.services.conductorImport.preview());
+		// The disk filled up between the dry run and the import.
+		test.memory.controls.setDatabaseFreeBytes(preview.space.neededBytes - 1);
+
+		const outcome = await test.container.services.conductorImport.run();
+
+		expect(outcome.ok).toBe(false);
+		if (outcome.ok) return;
+		expect(outcome.error.code).toBe("import_no_space");
+		expect(outcome.error.message).toContain(formatSpace(preview.space.neededBytes));
+		expect(outcome.error.message).toContain(formatSpace(preview.space.neededBytes - 1));
+		expect(await countRows(test)).toEqual(before);
+		expect(await eventCount(test, "s-1")).toBe(0);
+		expect(test.memory.controls.secrets.size).toBe(0);
+		expect(await test.memory.platform.fs.exists(`${ROOT}/.conducted`)).toBe(false);
+		expect(conductorState(test)).toBe(conductor);
+		// Its copy is gone, so the next try starts from a fresh dry run.
+		expect(test.memory.controls.conductorDatabases.size).toBe(1);
+		expect(test.container.services.conductorImport.store.getState()).toMatchObject({
+			phase: "failed",
+			error: { code: "import_no_space" },
+		});
 	});
 });

@@ -241,6 +241,8 @@ export interface MemoryPlatformControls {
 	seedConductorDatabase(path: string, tables: MemoryConductorDatabase): void;
 	/** The database at `path` and the files beside it, as one text. */
 	conductorFingerprint(path: string): string;
+	/** What `app.databaseFreeBytes` answers from now on. It starts at `MEMORY_FREE_BYTES`. */
+	setDatabaseFreeBytes(bytes: number): void;
 	/** The visualization pages the scheme would serve, by address, oldest first (CHAT-22). */
 	readonly visualizationPages: ReadonlyMap<string, string>;
 	/** Log lines written through `app.writeLog`. */
@@ -290,6 +292,9 @@ const normalizePath = (path: string): string => {
 	if (joined === "") return "/";
 	return absolute ? `/${joined}` : joined;
 };
+
+/** What `app.databaseFreeBytes` answers until a test sets it: 500 GiB, a roomy Mac's disk. */
+export const MEMORY_FREE_BYTES = 500 * 1024 ** 3;
 
 /** Most artifact entries one page returns, as file_search.rs `MAX_ARTIFACT_PAGE`. */
 const MAX_ARTIFACT_PAGE = 200;
@@ -488,6 +493,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	let vibrancy: boolean | null = null;
 	let trafficLightPosition: { x: number; y: number } | null = null;
 	let networkOnline = true;
+	let databaseFreeBytes = MEMORY_FREE_BYTES;
 
 	const sidecarLineListeners = new Set<ValueListener<string>>();
 	const sidecarRestartListeners = new Set<ValueListener<void>>();
@@ -1621,6 +1627,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		channel: options.channel ?? "dev",
 		health: async () => ok(undefined),
 		dbVersionWarning: async () => ok(null),
+		databaseFreeBytes: async () => ok(databaseFreeBytes),
 		onDeepLink: (listener) => listen(deepLinkListeners, listener),
 		onDeepLinkRejected: (listener) => listen(deepLinkRejectedListeners, listener),
 		onQuitRequested: (listener) => listen(quitListeners, listener),
@@ -1837,6 +1844,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		conductorDatabases,
 		seedConductorDatabase: (path, tables) => {
 			conductorDatabases.set(path, cloneDatabase(tables));
+		},
+		setDatabaseFreeBytes: (bytes) => {
+			databaseFreeBytes = bytes;
 		},
 		conductorFingerprint: (path) => {
 			const folder = path.slice(0, path.lastIndexOf("/") + 1);

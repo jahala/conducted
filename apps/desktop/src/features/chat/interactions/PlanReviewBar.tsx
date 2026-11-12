@@ -19,8 +19,11 @@
  * not approved, with no feedback, so its agent stops waiting (claude-runner 3.5: a cancelled plan
  * review is a plain denial). Approving first turns the chat's stored plan mode off and only then
  * answers, so a turn that starts right after the approval cannot run on the old plan-mode config.
- * Cmd+Shift+Enter approves. The shortcut is a chat-card command, so Approve takes focus when the
- * bar opens, as the question card does.
+ * Cmd+Shift+Enter approves wherever focus is, as in Conductor, whose chat pane registers the
+ * shortcut beside the composer's commands (renderApp @9295505). Focus stays in the composer. The
+ * composer handles the key first and sends its text as the plan's adjustments when it holds any
+ * (renderApp @9313268); with an empty composer the key reaches this bar. Only the chat on screen
+ * takes it, so a second chat beside it in a split pane keeps its plan.
  * Must handle: plan file path present (a link to open the file); the interaction is
  * withdrawn; Approve sets plan mode off before it answers, and a failed config write keeps the bar
  * open with the error; a hand-off whose closing answer fails says so.
@@ -30,8 +33,9 @@
 
 import type { Interaction, InteractionAnswer, SessionConfig } from "@conducted/protocol";
 import { type InteractionId, ok, type Result, type SessionId } from "@conducted/shared";
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useCommandHandler } from "../../../app/command-dispatcher.ts";
+import { useServices } from "../../../core/context.tsx";
 import { useActions, useChat, useLiveShortcut, useSessions } from "../../../core/hooks.ts";
 import type { Session } from "../../../core/model.ts";
 import { Button } from "../../../ui/Button.tsx";
@@ -76,16 +80,13 @@ function PlanReviewForm({
 	session,
 }: PlanReviewBarProps & { session: Session }) {
 	const actions = useActions();
+	const { services } = useServices();
 	const listed = useSessions(session.workspaceId);
 	const [target, setTarget] = useState<string>(NEW_CHAT);
 	const [pending, setPending] = useState<"approve" | "handOff" | null>(null);
 	const [failure, setFailure] = useState<string | null>(null);
 	const [chosen, setChosen] = useState<string | null>(null);
 	const busy = useRef(false);
-	/** Approve takes focus when the bar opens, so Cmd+Shift+Enter reaches the bar's handler. */
-	const focusOnMount = useCallback((node: HTMLButtonElement | null) => {
-		node?.focus();
-	}, []);
 	const approveShortcut = useLiveShortcut("chat.approvePlan");
 
 	const chats =
@@ -156,19 +157,20 @@ function PlanReviewForm({
 	}
 
 	function submitShortcut(): boolean {
+		if (services.sessions.store.getState().viewingSessionId !== sessionId) return false;
 		if (busy.current || chosen !== null) return false;
 		void approve();
 		return true;
 	}
 
-	useCommandHandler("chat.approvePlan", "area", submitShortcut);
+	// Below the composer's handler (area), which takes the key when it holds plan adjustments.
+	useCommandHandler("chat.approvePlan", "base", submitShortcut);
 
 	const disabled = pending !== null || chosen !== null;
 
 	return (
 		<fieldset
 			aria-label="Plan review"
-			data-command-scope="chat-card"
 			className="m-0 flex flex-col gap-2 rounded-xl border border-border bg-surface px-4 py-2"
 		>
 			<div className="flex flex-wrap items-center gap-3">
@@ -220,7 +222,6 @@ function PlanReviewForm({
 						</Tooltip>
 						<Tooltip content="Execute plan in current chat">
 							<Button
-								ref={focusOnMount}
 								size="xs"
 								className="px-3"
 								onClick={() => void approve()}

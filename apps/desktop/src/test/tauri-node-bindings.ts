@@ -19,6 +19,7 @@
  */
 import { type ChildProcess, spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
+import { constants as fsConstants } from "node:fs";
 import {
 	copyFile,
 	lstat,
@@ -28,6 +29,7 @@ import {
 	rename,
 	rm,
 	stat,
+	statfs,
 	writeFile,
 } from "node:fs/promises";
 import { constants as osConstants } from "node:os";
@@ -228,7 +230,7 @@ async function fileFacts(path: string): Promise<[number, number] | null> {
 
 const SIDE_FILES = ["", "-wal", "-journal"] as const;
 
-/** conductor_import.rs `copy_database`: bytes in, three tries, then the copy opened and settled. */
+/** conductor_import.rs `copy_database`: cloned in, three tries, then the copy opened and settled. */
 async function copyConductorDatabase(source: string, folder: string): Promise<unknown> {
 	const found = isAbsolute(source) ? await stat(source).catch(() => null) : null;
 	if (found?.isFile() !== true) {
@@ -239,7 +241,10 @@ async function copyConductorDatabase(source: string, folder: string): Promise<un
 		const destination = join(folder, `conductor-${Date.now()}-${process.pid}-${attempt}.db`);
 		const before = await Promise.all(SIDE_FILES.map((side) => fileFacts(`${source}${side}`)));
 		for (const [index, side] of SIDE_FILES.entries()) {
-			if (before[index] !== null) await copyFile(`${source}${side}`, `${destination}${side}`);
+			// As Rust's `std::fs::copy`: a clone on APFS, which takes no space; bytes elsewhere.
+			if (before[index] !== null) {
+				await copyFile(`${source}${side}`, `${destination}${side}`, fsConstants.COPYFILE_FICLONE);
+			}
 		}
 		const after = await Promise.all(SIDE_FILES.map((side) => fileFacts(`${source}${side}`)));
 		if (JSON.stringify(before) !== JSON.stringify(after)) {
@@ -265,63 +270,62 @@ async function copyConductorDatabase(source: string, folder: string): Promise<un
 }
 
 /** conductor_import.rs `read_snapshot`, for a copy directly inside the import's folder. */
-async function readConductorCopy(
-	copyPath: string,
-	folder: string,
-	databases: DatabaseSync[],
-): Promise<unknown> {
+async function readConductorCopy(copyPath: string, folder: string): Promise<unknown> {
 	const found = await stat(copyPath).catch(() => null);
 	if (dirname(copyPath) !== folder || found?.isFile() !== true) {
 		return fail("conductor_import_bad_copy", `${copyPath} is not a copy this import made.`);
 	}
+	// As conductor_import.rs drops its connection, each read closes the copy when it answers.
 	const db = new DatabaseSync(copyPath, { readOnly: true });
-	databases.push(db);
-	const exists = (table: string): boolean =>
-		db
-			.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?")
-			.get(table)?.n !== 0;
-	const tables: Record<string, unknown> = {};
-	for (const table of CONDUCTOR_READ_TABLES) {
-		if (!exists(table)) {
-			tables[table] = null;
-			continue;
+	try {
+		const exists = (table: string): boolean =>
+			db
+				.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?")
+				.get(table)?.n !== 0;
+		const tables: Record<string, unknown> = {};
+		for (const table of CONDUCTOR_READ_TABLES) {
+			if (!exists(table)) {
+				tables[table] = null;
+				continue;
+			}
+			tables[table] =
+				table === "env_vars"
+					? db
+							.prepare("SELECT key, scope, context, value IS NOT NULL AS has_value FROM env_vars")
+							.all()
+							.map((row) => ({ ...row, has_value: row.has_value !== 0 }))
+					: db
+							.prepare(`SELECT * FROM "${table}"`)
+							.all()
+							.map((row) => ({ ...row }));
 		}
-		tables[table] =
-			table === "env_vars"
-				? db
-						.prepare("SELECT key, scope, context, value IS NOT NULL AS has_value FROM env_vars")
-						.all()
-						.map((row) => ({ ...row, has_value: row.has_value !== 0 }))
-				: db
-						.prepare(`SELECT * FROM "${table}"`)
-						.all()
-						.map((row) => ({ ...row }));
-	}
-	const counts: Record<string, unknown> = {};
-	for (const table of CONDUCTOR_COUNTED_TABLES) {
-		counts[table] = exists(table)
-			? Number(db.prepare(`SELECT COUNT(*) AS n FROM "${table}"`).get()?.n)
-			: null;
-	}
-	const messageRows = exists("session_messages")
-		? Object.fromEntries(
-				db
-					.prepare(
-						`SELECT session_id, COUNT(*) AS n FROM session_messages
+		const counts: Record<string, unknown> = {};
+		for (const table of CONDUCTOR_COUNTED_TABLES) {
+			counts[table] = exists(table)
+				? Number(db.prepare(`SELECT COUNT(*) AS n FROM "${table}"`).get()?.n)
+				: null;
+		}
+		const messageRows = exists("session_messages")
+			? Object.fromEntries(
+					db
+						.prepare(
+							`SELECT session_id, COUNT(*) AS n FROM session_messages
 						WHERE sent_at IS NOT NULL AND session_id IS NOT NULL GROUP BY session_id`,
-					)
-					.all()
-					.map((row) => [String(row.session_id), Number(row.n)]),
-			)
-		: null;
-	return { tables, counts, messageRows };
+						)
+						.all()
+						.map((row) => [String(row.session_id), Number(row.n)]),
+				)
+			: null;
+		return { tables, counts, messageRows };
+	} finally {
+		db.close();
+	}
 }
 
 /** conductor_import.rs `read_message_keys` and `read_messages`, for a copy the import made. */
 async function readConductorMessages(
 	args: Record<string, unknown>,
 	folder: string,
-	databases: DatabaseSync[],
 	keys: boolean,
 ): Promise<unknown> {
 	const copyPath = String(args.copyPath);
@@ -329,31 +333,35 @@ async function readConductorMessages(
 	if (dirname(copyPath) !== folder || found?.isFile() !== true) {
 		return fail("conductor_import_bad_copy", `${copyPath} is not a copy this import made.`);
 	}
+	// As conductor_import.rs drops its connection, each read closes the copy when it answers.
 	const db = new DatabaseSync(copyPath, { readOnly: true });
-	databases.push(db);
-	const exists =
-		db
-			.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?")
-			.get("session_messages")?.n !== 0;
-	if (!exists) return [];
-	const sessionId = String(args.sessionId);
-	const rows = keys
-		? db
-				.prepare(
-					`SELECT rowid, role, turn_id, sent_at, created_at, COALESCE(length(content), 0) AS chars
+	try {
+		const exists =
+			db
+				.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?")
+				.get("session_messages")?.n !== 0;
+		if (!exists) return [];
+		const sessionId = String(args.sessionId);
+		const rows = keys
+			? db
+					.prepare(
+						`SELECT rowid, role, turn_id, sent_at, created_at, COALESCE(length(content), 0) AS chars
 					FROM session_messages WHERE session_id = ? AND sent_at IS NOT NULL AND rowid > ?
 					ORDER BY rowid LIMIT ?`,
-				)
-				.all(sessionId, Number(args.afterRowid), Math.max(1, Number(args.limit)))
-		: db
-				.prepare(
-					`SELECT rowid, id, role, content, sent_at, created_at, turn_id FROM session_messages
+					)
+					.all(sessionId, Number(args.afterRowid), Math.max(1, Number(args.limit)))
+			: db
+					.prepare(
+						`SELECT rowid, id, role, content, sent_at, created_at, turn_id FROM session_messages
 					WHERE session_id = ? AND sent_at IS NOT NULL
 						AND rowid IN (SELECT value FROM json_each(?))
 					ORDER BY rowid`,
-				)
-				.all(sessionId, JSON.stringify(args.rowids ?? []));
-	return rows.map((row) => ({ ...row }));
+					)
+					.all(sessionId, JSON.stringify(args.rowids ?? []));
+		return rows.map((row) => ({ ...row }));
+	} finally {
+		db.close();
+	}
 }
 
 /** `dir` is a folder the caller made and removes. Everything the bindings create lives in it. */
@@ -459,6 +467,14 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				return undefined;
 			case COMMANDS.fsPaths:
 				return paths;
+			case COMMANDS.dbFreeBytes: {
+				// db.rs `free_bytes`: statfs's available blocks on the disk of the app's folder. The
+				// run's folder holds that folder, which a run may not have made yet.
+				const disk = await statfs(dir).catch((error: Error) => {
+					throw new CommandFailure("db_free_space_failed", error.message);
+				});
+				return disk.bavail * disk.bsize;
+			}
 			case COMMANDS.logWrite:
 				return undefined;
 			case COMMANDS.httpFetch: {
@@ -672,11 +688,11 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 			case COMMANDS.conductorImportCopy:
 				return copyConductorDatabase(String(args.source), conductorFolder);
 			case COMMANDS.conductorImportRead:
-				return readConductorCopy(String(args.copyPath), conductorFolder, databases);
+				return readConductorCopy(String(args.copyPath), conductorFolder);
 			case COMMANDS.conductorImportReadMessageKeys:
-				return readConductorMessages(args, conductorFolder, databases, true);
+				return readConductorMessages(args, conductorFolder, true);
 			case COMMANDS.conductorImportReadMessages:
-				return readConductorMessages(args, conductorFolder, databases, false);
+				return readConductorMessages(args, conductorFolder, false);
 			case COMMANDS.conductorImportDiscard: {
 				const names = await readdir(conductorFolder).catch(() => [] as string[]);
 				for (const name of names) await rm(join(conductorFolder, name), { force: true });

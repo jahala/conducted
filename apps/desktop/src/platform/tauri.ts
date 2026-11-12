@@ -339,6 +339,7 @@ export const COMMANDS = {
 	windowSetTrafficLights: "window_set_traffic_lights",
 	windowToggleInspector: "window_toggle_inspector",
 	dbVersionCheck: "db_version_check",
+	dbFreeBytes: "db_free_bytes", // APP-18
 	shellRun: "shell_run",
 	shellStart: "shell_start",
 	shellCancel: "shell_cancel",
@@ -511,7 +512,7 @@ interface DbVersionCheck {
 	message: string | null;
 }
 
-/** `app_info` -> `{ version, channel }`; `app_quit`; `resource_usage { workspacePaths }`; `log_write`; `log_set_level { level }`; `logs_export`; `set_quit_handler_ready`; `db_version_check`; `deep_link_launch`. Events: quit, deep link, refused deep link. */
+/** `app_info` -> `{ version, channel }`; `app_quit`; `resource_usage { workspacePaths }`; `log_write`; `log_set_level { level }`; `logs_export`; `set_quit_handler_ready`; `db_version_check`; `db_free_bytes`; `deep_link_launch`. Events: quit, deep link, refused deep link. */
 export function createTauriAppInfo(
 	bindings: TauriBindings,
 	info: { version: string; channel: "dev" | "release" },
@@ -545,6 +546,7 @@ export function createTauriAppInfo(
 			}
 			return ok(null);
 		},
+		databaseFreeBytes: () => invokeResult<number>(bindings, COMMANDS.dbFreeBytes),
 		onDeepLink: (listener) =>
 			onLaunchAndEvent<string>(
 				bindings,
