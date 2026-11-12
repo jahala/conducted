@@ -10,6 +10,7 @@ Dialogs, clipboard text and images, opening URLs, notifications permission and t
 | ------------------------------------------------ | ---------------------------------------------------------------------------- | ------------------- | -------------------------------------- |
 | `app.health`                                     | `health`                                                                     | lib.rs              |                                        |
 | `app.dbVersionWarning`                           | `db_version_check`                                                           | db.rs               |                                        |
+| `app.databaseFreeBytes`                          | `db_free_bytes`                                                              | db.rs               |                                        |
 | `app.version`, `app.channel`                     | `app_info`                                                                   | lib.rs              |                                        |
 | `app.onQuitRequested`, `app.quit`                | `app_quit`                                                                   | lib.rs              | `app://quit-requested`                 |
 | `app.onDeepLink`                                 | `deep_link_launch` (the launch links)                                        | deep_link.rs        | `app://deep-link`                      |

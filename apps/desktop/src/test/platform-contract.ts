@@ -370,6 +370,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	c("app", "health", "health is Ok", "health() returns Ok when the shell is up."),
 	c(
 		"app",
+		"database-free-bytes",
+		"databaseFreeBytes answers the space free on the database's disk",
+		"databaseFreeBytes is Ok with a whole number of bytes: on a real disk above zero, and with a free space set by the controls, that number (D132).",
+	),
+	c(
+		"app",
 		"write-log-never-throws",
 		"writeLog never throws",
 		"writeLog with an object that cannot be serialised does not throw and does not reject.",
@@ -646,6 +652,8 @@ export interface ContractControls {
 	): void | Promise<void>;
 	/** The size, modified time and bytes of every file beside the database at `path`, as one text. */
 	conductorFingerprint?(path: string): string | Promise<string>;
+	/** Sets what `app.databaseFreeBytes` answers, for a stand-in with no disk of its own (D132). */
+	setDatabaseFreeBytes?(bytes: number): void;
 	/** What the layer below the platform last received. */
 	readonly dockBadge?: number | null;
 	readonly clipboardText?: string | null;
@@ -1659,6 +1667,21 @@ const STEPS: Record<string, ContractStep> = {
 		expectOk(ctx, await ctx.platform.app.health(), "health");
 	},
 
+	"app.database-free-bytes": async (ctx) => {
+		const set = ctx.controls?.setDatabaseFreeBytes;
+		if (set !== undefined) {
+			set(12_345_678);
+			const told = expectOk(ctx, await ctx.platform.app.databaseFreeBytes(), "free bytes");
+			ctx.assert(told === 12_345_678, `databaseFreeBytes answered ${told}, not the set 12345678`);
+			return;
+		}
+		const free = expectOk(ctx, await ctx.platform.app.databaseFreeBytes(), "free bytes");
+		ctx.assert(
+			Number.isSafeInteger(free) && free > 0,
+			`databaseFreeBytes answered ${String(free)}, not a whole number of bytes above zero`,
+		);
+	},
+
 	"app.write-log-never-throws": async (ctx) => {
 		const circular: Record<string, unknown> = {};
 		circular.self = circular;
@@ -2418,6 +2441,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"clipboard.write-text": ["clipboard.writeText"],
 	"clipboard.read-file-paths": ["clipboard.readFilePaths"],
 	"app.health": ["app.health"],
+	"app.database-free-bytes": ["app.databaseFreeBytes"],
 	"app.deep-link-rejected": ["app.onDeepLinkRejected"],
 	"app.resource-usage": ["app.resourceUsage"],
 	"app.write-log-never-throws": ["app.writeLog"],

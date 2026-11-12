@@ -36,6 +36,8 @@ serde_json = "1"
 base64 = "0.22"
 tauri-plugin-sql = { version = "2.6.0", features = ["sqlite"] }
 rusqlite = { version = "0.32", default-features = false }
+# `statfs` for the free space on the database's disk (D132): its struct differs by platform.
+libc = "0.2"
 tauri-plugin-shell = "2.6.0"
 tauri-plugin-fs = "2.7.1"
 tauri-plugin-dialog = "2.8.4"
@@ -45,8 +47,8 @@ tauri-plugin-deep-link = "2.6.3"
 tauri-plugin-window-state = "2.5.0"
 thiserror = "2.0.21"
 security-framework = "3.7.0"
-system-configuration = "0.7"
-core-foundation = "0.9"
+system-configuration = "0.8"
+core-foundation = "0.10"
 portable-pty = "0.9.0"
 alacritty_terminal = "0.26.0"
 globset = "0.4"
@@ -60,7 +62,7 @@ reqwest = { version = "0.13", default-features = false, features = ["native-tls"
 futures-util = "0.3"
 # The Rust shell owns the cloud WebSocket because the web view cannot set its headers (CLOUD-03).
 tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
-sha2 = "0.10"
+sha2 = "0.11"
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 sysinfo = { version = "0.40.1", default-features = false, features = ["system"] }

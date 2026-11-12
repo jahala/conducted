@@ -2,6 +2,9 @@ import type { SessionId } from "@conducted/shared";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Editor } from "@tiptap/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CommandDispatcher, useCommandHandler } from "../../app/command-dispatcher.ts";
+import { ServicesProvider } from "../../core/context.tsx";
+import { createTestContainer } from "../../test/container.ts";
 import { ComposerEditor } from "./ComposerEditor.tsx";
 import type { SendIntent, SendWith } from "./send-key.ts";
 
@@ -29,6 +32,12 @@ async function mountEditor(sendWith: SendWith = "enter") {
 	return { onSubmit, editor: ready };
 }
 
+/** The chat's fork command as a screen registers it, so the test sees whether the key reached it. */
+function ForkHandler({ onFork }: { onFork: () => boolean }) {
+	useCommandHandler("chat.fork", "area", onFork);
+	return null;
+}
+
 const type = (editor: Editor, text: string) => {
 	act(() => {
 		editor.commands.insertContent(text);
@@ -52,6 +61,45 @@ describe("COMP-01 ComposerEditor", () => {
 		// Conductor's placeholder for a chat's composer.
 		expect(screen.getByText("Ask to make changes, @mention files, run /commands")).toBeTruthy();
 		await waitFor(() => expect(screen.getByLabelText("composer")).toBeTruthy());
+	});
+
+	// ProseMirror prevents the default of every Enter (key code 13) it does not handle, and the root
+	// listener skips a prevented key, so Cmd+Alt+Enter ("Fork chat to new tab") and Cmd+Shift+Enter
+	// ("Approve plan") did nothing while the composer had focus (issue #586).
+	it("runs the app's shortcut on a modified Enter before the editor takes the key", async () => {
+		const test = createTestContainer();
+		const fork = vi.fn(() => true);
+		try {
+			test.container.services.sessions.store.setState({ viewingSessionId: sessionId });
+			let editor: Editor | null = null;
+			render(
+				<ServicesProvider container={test.container}>
+					<CommandDispatcher>
+						<ForkHandler onFork={fork} />
+						<ComposerEditor
+							sessionId={sessionId}
+							disabled={false}
+							onSubmit={vi.fn()}
+							onEditorReady={(ready) => {
+								editor = ready;
+							}}
+						/>
+					</CommandDispatcher>
+				</ServicesProvider>,
+			);
+			await waitFor(() => expect(editor).not.toBeNull());
+			const ready = editor as unknown as Editor;
+			type(ready, "hello");
+
+			fireEvent.keyDown(ready.view.dom, { key: "Enter", keyCode: 13, metaKey: true, altKey: true });
+
+			expect(fork).toHaveBeenCalledTimes(1);
+			expect(ready.getText()).toBe("hello");
+		} finally {
+			cleanup();
+			await test.container.stop();
+			test.close();
+		}
 	});
 
 	it("sends 'hello' on Enter in Enter mode", async () => {

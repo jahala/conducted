@@ -300,11 +300,14 @@ describe("s1-ui-1 join", () => {
 
 			await mountChatPane(test, workspace.id, created.id);
 
-			const bar = await screen.findByRole("group", { name: "Plan review" });
-			// The bar takes focus as it opens; the shortcut goes through the app's root dispatcher.
-			await waitFor(() => expect(bar.contains(document.activeElement)).toBe(true));
-			fireEvent.keyDown(document.activeElement as Element, {
+			await screen.findByRole("group", { name: "Plan review" });
+			// Focus stays in the composer while the plan waits (Chromium on the catalogue state
+			// chat-plan-review, issue #586), so the key is pressed there and reaches the app's root
+			// dispatcher, as Conductor's chat pane command does.
+			fireEvent.keyDown(await screen.findByRole("textbox", { name: "composer" }), {
 				key: "Enter",
+				// ProseMirror takes every keydown with code 13, as a browser sends Enter.
+				keyCode: 13,
 				metaKey: true,
 				shiftKey: true,
 			});

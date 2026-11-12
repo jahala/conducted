@@ -732,7 +732,7 @@ version = "0.3.3"
 dependencies = [
  "alacritty_terminal",
  "base64 0.22.1",
- "core-foundation 0.9.4",
+ "core-foundation 0.10.1",
  "dirs",
  "flate2",
  "futures-util",
@@ -742,6 +742,7 @@ dependencies = [
  "grep-searcher",
  "ignore",
  "image",
+ "libc",
  "lzma-rust2",
  "muda",
  "native-tls",
@@ -757,9 +758,9 @@ dependencies = [
  "security-framework",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "sysinfo",
- "system-configuration",
+ "system-configuration 0.8.0",
  "tar",
  "tauri",
  "tauri-build",
@@ -2429,7 +2430,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "socket2",
- "system-configuration",
+ "system-configuration 0.7.0",
  "tokio",
  "tower-service",
  "tracing",
@@ -5399,6 +5400,17 @@ checksum = "a13f3d0daba03132c0aa9767f98351b3488edc2c100cda2d2ec2b04f3d8d3c8b"
 dependencies = [
  "bitflags 2.13.2",
  "core-foundation 0.9.4",
+ "system-configuration-sys",
+]
+
+[[package]]
+name = "system-configuration"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "501336eb7ba9e417300a6a0fa985721065467aa83a6dcf0422a8e43e4c0328fa"
+dependencies = [
+ "bitflags 2.13.2",
+ "core-foundation 0.10.1",
  "system-configuration-sys",
 ]
 

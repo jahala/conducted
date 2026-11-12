@@ -966,7 +966,26 @@ Chosen:
 
 Why: the owner's rule. Every glyph comes from its published package, never from Conductor's bundle (D002), and is checked against Conductor's at the same version.
 
-## D132. End-to-end tests drive the real app through its own WebDriver server (2026-11-12)
+## D132. The import from Conductor fits on the disk (2026-11-12)
+
+Decided by the lead after measuring the import at full size (#556). The dialog's new lines are ours, since Conductor has no import from us, and are the owner's to judge.
+
+Context: the lead counted the chat history import on a copy of the owner's database. 288 Claude chats map to 2,128,838 events. Stored as our events they take 12.12 GB of JSON, and 3.77 GB without each agent message's `raw`. The owner's Mac has 15 GiB free, so the import as built could fill the disk.
+
+Chosen:
+
+- **Imported agent events keep no `raw`.** `raw` keeps the original SDK message so a later translator can read an event again. For an imported chat, that original is Conductor's own row. It stays in Conductor's database, and the import can run again from it. The mapper drops `raw` (`packages/sidecar/src/import/conductor-history.ts`). Events our own runner writes keep it.
+- **The dry run measures the history it brings.** It reads and maps each chat as the import does, and sizes each event as the writer stores it (`storedEventBytes` in `core/db/session-events.ts`). It writes nothing. So the dry run now takes about as long as the import's history step.
+- **SQLite's overhead is computed from its file format.** `TablePages` in `core/conductor-import/plan.ts` packs the rows into 4 KiB pages as SQLite appends them: a page takes rows until the next one does not fit, and a row larger than a page holds fills overflow pages. The table's four indexes take their entries' bytes at 85% fill; they measured 88% to 89% full with random UUID ids, as Conductor's are. On made-up chats of four shapes the estimate is 0.2% to 2.7% above what the database grew by, and the test allows 0% to 5% (`conductor-import.space.container.test.ts`). A flat allowance on the rows' bytes missed by up to 90%, because how full a page gets depends on the rows' sizes. A test lists the table's indexes, so a new index fails until the estimate counts it.
+- **What must be free.** The history, plus the largest chat a second time, plus a margin of 2 GiB. The largest chat counts twice because SQLite's journal holds a chat's whole transaction before it is copied into the database, and keeps that size until the app closes. The margin keeps the Mac working after the import. With no history to write, the import asks for nothing.
+- **Free space comes from Rust.** `app.databaseFreeBytes` asks `statfs` for the disk that holds `conducted.db`, and answers the available blocks as `df` shows them. A disk that cannot be asked is `db_free_space_failed`.
+- **The import refuses before it writes.** It reads the free space again when it starts. If the disk no longer has room, it stops with both numbers, changes nothing and drops its copy, so the next try starts from a new dry run.
+- **What the dialog says.** Under "Chat history": "Takes about <size> of disk space", then "<size> is free." When the space is not there, a red notice reads "There is not enough free disk space. The import needs <size> free, and <size> is free. Free up space, then try again.", and Try again takes Import's place. Sizes are decimal GB with one decimal, as Finder shows a disk, and whole MB below 1 GB.
+- **The measure script checks the estimate on real data.** It prints the dry run's figures beside the scratch database's file and journal, before and after the import. The Node stand-in clones Conductor's database as Rust does, so on APFS neither copy takes space.
+
+Why: the owner's disk must not fill. `raw` was most of the weight, and the original stays in Conductor's database. The dry run already promises to say what the import will do before it does it, and the space it takes is part of that.
+
+## D133. End-to-end tests drive the real app through its own WebDriver server (2026-11-12)
 
 Decided by the lead's brief for part 1 of #564, under the owner's plan in the issue ("The app runs in a debug build with Tauri's WebdriverIO service ... The plugin is compiled only into the test build. A check fails if it's in the release bundle.").
 

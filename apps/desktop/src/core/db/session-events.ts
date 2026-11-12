@@ -4,7 +4,8 @@
  * @feature APP-18 Chat history from Conductor
  * Owns: the chat's append-only event log: append, append many in one statement (an imported
  * chat's history, APP-18), read in order, mark reverted, find turns cut off by a crash, and sum a
- * workspace's reported agent cost.
+ * workspace's reported agent cost; `storedEventBytes`, what one appended event takes in the table,
+ * which the Conductor import's dry run sums (D132).
  * Behaviour: sessions.md section 5 (durable events, acknowledgement after the write),
  * services-map.md 2.3.3 (append event, revert events), sessions-and-chats.md "How chats are stored".
  * Must handle: append is idempotent on (session_id, event_id) and assigns the next idx in the same
@@ -89,6 +90,76 @@ export function sessionEventToParams(
 		ok: true,
 		value: [sessionId, event.eventId, event.type, event.turnId, content.value, receivedAt],
 	};
+}
+
+/** The text columns `appendMany` writes for one event: event id, type, turn id, content. */
+type StoredColumns = [string, string, string, string];
+
+function storedColumns(event: SessionEvent): Result<StoredColumns> {
+	const content = stringifyJson(event, "session_events.content");
+	if (!content.ok) return content;
+	return ok([event.eventId, event.type, event.turnId, content.value]);
+}
+
+/** UTF-8 bytes of a text, counted without encoding it. */
+function utf8Bytes(text: string): number {
+	let bytes = 0;
+	for (let index = 0; index < text.length; index++) {
+		const unit = text.charCodeAt(index);
+		if (unit < 0x80) bytes += 1;
+		else if (unit < 0x800) bytes += 2;
+		else if (unit >= 0xd800 && unit < 0xdc00 && (text.charCodeAt(index + 1) & 0xfc00) === 0xdc00) {
+			// A surrogate pair is one character of four bytes.
+			bytes += 4;
+			index++;
+		} else bytes += 3;
+	}
+	return bytes;
+}
+
+/** The two whole-number columns, idx and received_at, at SQLite's widest. */
+const NUMBER_COLUMNS_BYTES = 16;
+
+/**
+ * The table's indexes (migrations 0001 and 0010), each by the text columns its entries repeat:
+ * the primary key (session_id, idx), the unique (session_id, event_id), idx_session_events_turn
+ * (session_id, turn_id) and idx_session_events_unreverted_turn (reverted_at, session_id, turn_id,
+ * type, idx). A test lists the table's indexes, so a new one fails until it is counted here.
+ */
+export const SESSION_EVENT_INDEXES = [
+	"sqlite_autoindex_session_events_1",
+	"sqlite_autoindex_session_events_2",
+	"idx_session_events_turn",
+	"idx_session_events_unreverted_turn",
+] as const;
+
+/** What one appended event stores: its row, and the text its index entries repeat. */
+export interface StoredEventBytes {
+	/** The row's text columns as UTF-8 and its numbers. */
+	row: number;
+	/** The text the four index entries hold, as UTF-8; their numbers are SQLite's page format. */
+	indexKeys: number;
+}
+
+/**
+ * The bytes `appendMany` stores for this event, before SQLite's pages (APP-18, D132). The
+ * Conductor import's dry run sums them.
+ */
+export function storedEventBytes(
+	sessionId: SessionId,
+	event: SessionEvent,
+): Result<StoredEventBytes> {
+	const columns = storedColumns(event);
+	if (!columns.ok) return columns;
+	const [eventId, type, turnId, content] = columns.value.map(utf8Bytes) as [
+		number,
+		number,
+		number,
+		number,
+	];
+	const session = utf8Bytes(sessionId);
+	const row = session + eventId + type + turnId + content + NUMBER_COLUMNS_BYTES;
+	return ok({ row, indexKeys: 4 * session + eventId + 2 * turnId + type });
 }
 
 const COLUMNS = "session_id, idx, event_id, type, turn_id, content, received_at, reverted_at";
@@ -249,11 +320,11 @@ export function createSessionEventRepository(
 		},
 		appendMany: async (sessionId, events, receivedAt) => {
 			if (events.length === 0) return ok(0);
-			const entries: [string, string, string, string][] = [];
+			const entries: StoredColumns[] = [];
 			for (const event of events) {
-				const content = stringifyJson(event, "session_events.content");
-				if (!content.ok) return err(content.error);
-				entries.push([event.eventId, event.type, event.turnId, content.value]);
+				const columns = storedColumns(event);
+				if (!columns.ok) return err(columns.error);
+				entries.push(columns.value);
 			}
 			const list = stringifyJson(entries, "session_events batch");
 			if (!list.ok) return err(list.error);

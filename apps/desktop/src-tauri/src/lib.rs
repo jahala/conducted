@@ -785,6 +785,7 @@ pub fn run() {
             window::window_set_vibrancy,
             window::window_set_traffic_lights,
             db::db_version_check,
+            db::db_free_bytes,
             logger::log_write,
             logger::log_set_level,
             logger::logs_export,

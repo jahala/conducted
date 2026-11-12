@@ -71,6 +71,7 @@ export const PLATFORM_ERROR_CODES = [
 	"cloud_url_not_allowed",
 	"cloud_vm_id_invalid",
 	"db_check_failed",
+	"db_free_space_failed",
 	"db_migration_failed",
 	"db_open_failed",
 	"db_path_unavailable",
@@ -589,6 +590,13 @@ export interface AppInfo {
 	 * stops with a "database is newer than this app" screen (PLAT-17).
 	 */
 	dbVersionWarning(): Promise<Result<{ databaseVersion: number; appVersion: number } | null>>;
+	/**
+	 * The bytes free to this user on the disk that holds Conducted's database: `statfs`'s available
+	 * blocks, as `df` shows them. The import checks it before it writes chat history (D132). The
+	 * app's folder not known is `db_path_unavailable`; a disk that cannot be asked is
+	 * `db_free_space_failed`.
+	 */
+	databaseFreeBytes(): Promise<Result<number>>;
 	onDeepLink(listener: (url: string) => void): Unsubscribe;
 	/**
 	 * A link the Rust shell refused before the UI's parser saw it, such as one over 64 KiB

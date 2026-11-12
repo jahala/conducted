@@ -4,7 +4,9 @@
  * Owns: `planConductorImport`, the pure step that turns a snapshot of Conductor's database, the
  * repository folders it names and the rows Conducted already has into the rows to write, the
  * values to move into the Keychain, the settings files to write and the dry run's lists;
- * `conductorDatabasePath`, where Conductor keeps its database.
+ * `conductorDatabasePath`, where Conductor keeps its database; and the dry run's disk space check
+ * (D132): `TablePages`, what chat history takes in SQLite's pages and indexes, and `importSpace`,
+ * what must be free for it.
  * Behaviour: docs/plans/migrate-from-conductor.md ("What comes over", safety rules 5 and 7);
  * services-map.md 2.4.1 (workspace states: Conductor deletes failed and unfinished local
  * workspaces at start and treats `setting_up` as ready; `manual_status ?? derived_status`, with an
@@ -37,18 +39,21 @@ import {
 	zCodexPersonality,
 	zEffort,
 } from "@conducted/protocol";
-import type {
-	AgentKind,
-	CommentId,
-	RepoId,
-	SectionId,
-	SessionId,
-	WorkspaceId,
+import {
+	type AgentKind,
+	appError,
+	type CommentId,
+	type RepoId,
+	type SectionId,
+	type SessionId,
+	type WorkspaceId,
 } from "@conducted/shared";
 import type { ConductorSecretMove, ConductorSnapshot } from "../../platform/platform.ts";
 import { localSettingsFile, sharedSettingsFile } from "../app-paths.ts";
 import type { EnvVar } from "../db/env-vars.ts";
+import { SESSION_EVENT_INDEXES, type StoredEventBytes } from "../db/session-events.ts";
 import type { WorkspaceInsert } from "../db/workspaces.ts";
+import { noSpaceMessage } from "../disk-space.ts";
 import { type FavoriteModel, MAX_FAVORITES } from "../favorite-model.ts";
 import type { WorktreeEntry } from "../git/status.ts";
 import type {
@@ -181,8 +186,112 @@ export interface HistoryChat {
 	config: SessionConfig;
 }
 
-/** What the dry run shows. It holds names, counts and reasons, never a secret value. */
-export interface ImportPreview {
+/**
+ * SQLite's page: the app sets no page size, so it is SQLite's default. The other numbers are
+ * SQLite's file format (sqlite.org/fileformat2.html, "B-tree Pages"): a table
+ * leaf's header, the most and least of a row a leaf holds before the rest goes to overflow pages,
+ * and an overflow page's room.
+ */
+const PAGE_BYTES = 4096;
+const LEAF_HEADER_BYTES = 8;
+const MAX_LOCAL_BYTES = PAGE_BYTES - 35;
+const MIN_LOCAL_BYTES = Math.floor(((PAGE_BYTES - 12) * 32) / 255) - 23;
+const OVERFLOW_PAGE_BYTES = PAGE_BYTES - 4;
+/** A cell's own bytes beside its row: the row's record header, two varints, its pointer. */
+const CELL_BYTES = 20;
+
+/**
+ * An index entry's own bytes beside the text it repeats: its record header, the row's rowid, the
+ * idx where the index keeps it, the entry's size and its pointer on the page.
+ */
+const INDEX_ENTRY_BYTES = 13;
+/**
+ * How full the index pages are. On made-up chats whose message and turn ids are random UUIDs, as
+ * Conductor's are, they were 88% to 89% full: SQLite moves entries between sibling pages before it
+ * splits one. The estimate takes 85%, so it errs above (conductor-import.space.container.test.ts).
+ */
+const INDEX_FILL = 0.85;
+
+/**
+ * The pages a run of rows takes in the events table (D132). Rows are appended in rowid order, so
+ * SQLite fills each leaf page and starts the next when a row does not fit. A row larger than a
+ * leaf holds keeps a part on the leaf and fills overflow pages with the rest, full but the last.
+ */
+export class TablePages {
+	#leaves = 0;
+	#overflow = 0;
+	#used = 0;
+	#indexBytes = 0;
+
+	/** One event, as `storedEventBytes` counts it. */
+	add({ row: rowBytes, indexKeys }: StoredEventBytes): void {
+		this.#indexBytes += (indexKeys + SESSION_EVENT_INDEXES.length * INDEX_ENTRY_BYTES) / INDEX_FILL;
+		const local = rowBytes <= MAX_LOCAL_BYTES ? rowBytes : localPart(rowBytes);
+		this.#overflow += Math.ceil((rowBytes - local) / OVERFLOW_PAGE_BYTES);
+		const cell = local + CELL_BYTES + (local < rowBytes ? 4 : 0);
+		if (this.#leaves === 0 || this.#used + cell > PAGE_BYTES - LEAF_HEADER_BYTES) {
+			this.#leaves++;
+			this.#used = 0;
+		}
+		this.#used += cell;
+	}
+
+	/** The table's pages and the indexes' share. */
+	get diskBytes(): number {
+		return (this.#leaves + this.#overflow) * PAGE_BYTES + Math.ceil(this.#indexBytes);
+	}
+}
+
+/** SQLite's rule for the part of a large row its leaf keeps, so its overflow pages are full. */
+function localPart(rowBytes: number): number {
+	const kept = MIN_LOCAL_BYTES + ((rowBytes - MIN_LOCAL_BYTES) % OVERFLOW_PAGE_BYTES);
+	return kept <= MAX_LOCAL_BYTES ? kept : MIN_LOCAL_BYTES;
+}
+
+/** What the dry run measured of the history it brings (D132). */
+export interface HistorySize {
+	/** What the database grows by: `TablePages` over every event. */
+	diskBytes: number;
+	/** The same for the chat with the most, which one transaction writes. */
+	largestChatDiskBytes: number;
+}
+
+/** The free space the import leaves on the disk, so the Mac keeps working (D132). */
+export const SPACE_MARGIN_BYTES = 2 * 1024 ** 3;
+
+/** The disk space the import's chat history takes, and whether the disk has it (D132). */
+export interface ImportSpace {
+	/** What the database grows by: the history's rows in SQLite's pages and indexes. */
+	historyBytes: number;
+	/**
+	 * What must be free to start: the history, room for SQLite's journal to hold the largest
+	 * chat's transaction, and the margin.
+	 */
+	neededBytes: number;
+	/** Free on the disk that holds Conducted's database, when it was read. */
+	freeBytes: number;
+	fits: boolean;
+}
+
+/**
+ * The space check (D132). SQLite's journal holds a whole chat's transaction before its pages are
+ * copied into the database, and keeps that size until the app closes, so the largest chat counts
+ * twice while the import runs. With nothing to write, the import leaves the disk as it found it,
+ * so no margin is asked.
+ */
+export function importSpace(size: HistorySize, freeBytes: number): ImportSpace {
+	const historyBytes = size.diskBytes;
+	const neededBytes =
+		historyBytes === 0 ? 0 : historyBytes + size.largestChatDiskBytes + SPACE_MARGIN_BYTES;
+	return { historyBytes, neededBytes, freeBytes, fits: neededBytes <= freeBytes };
+}
+
+/** The refusal when the disk cannot hold the import, with both numbers (D132). */
+export const noSpaceError = (space: ImportSpace) =>
+	appError("import_no_space", noSpaceMessage(space));
+
+/** What the plan shows before the dry run has measured the space. */
+export interface PlanPreview {
 	kinds: Record<ImportKind, KindCount>;
 	history: HistoryPreview;
 	leftOut: LeftOut[];
@@ -192,6 +301,11 @@ export interface ImportPreview {
 	scriptMentions: ScriptMention[];
 	/** The settings files the import writes, each a new file. */
 	files: string[];
+}
+
+/** What the dry run shows. It holds names, counts and reasons, never a secret value. */
+export interface ImportPreview extends PlanPreview {
+	space: ImportSpace;
 }
 
 /** One settings file to write, as a new file, with the scripts it holds. */
@@ -227,7 +341,7 @@ export interface ImportPlan {
 	history: HistoryChat[];
 	secretMoves: ConductorSecretMove[];
 	files: SettingsFileWrite[];
-	preview: ImportPreview;
+	preview: PlanPreview;
 }
 
 /** A repository folder Conductor names, as the dry run found it on disk. */

@@ -5,8 +5,9 @@
  * Behaviour: docs/engineering.md, "States catalogue". "Settled" means the router is idle, no query or
  * mutation is running, the state's own `ready` check holds, and the page has not changed for ten
  * animation frames in a row.
- * Must handle: every wait is bounded by frames, so a state that never settles fails with the reason
- * instead of hanging the screenshot run; a ready check that held once and no longer holds once the
+ * Must handle: every wait is bounded by HANG_MS of time, so a state that never settles fails with the
+ * reason instead of hanging the screenshot run, while a busy runner that draws frames slowly still
+ * settles; a ready check that held once and no longer holds once the
  * page is quiet fails the state, since the picture would not show what the state is about.
  * Test first: a ready check that holds, then stops holding before the page goes quiet, fails the
  * settle with the state's id.
@@ -14,19 +15,38 @@
 
 /** Frames the page must stay unchanged before it counts as settled. */
 const QUIET_FRAMES = 10;
-/** The most frames any wait may take, about twenty seconds at 60 frames a second. */
-export const MAX_FRAMES = 1_200;
+/**
+ * The longest any one wait may take. It is sized to catch a hang: a busy CI runner draws frames
+ * slowly or late, and that slowness must still pass. Every wait in the catalogue uses it. It stays
+ * well under the screenshot run's own 60-second wait for a page, so a state that hangs fails here,
+ * with its reason.
+ */
+export const HANG_MS = 20_000;
 
 export const nextFrame = (): Promise<void> =>
 	new Promise((resolve) => requestAnimationFrame(() => resolve()));
 
-/** Waits, one frame at a time, until `holds` is true. Fails with `what` after MAX_FRAMES. */
-export async function waitFor(what: string, holds: () => boolean): Promise<void> {
-	for (let frame = 0; frame < MAX_FRAMES; frame++) {
-		if (holds()) return;
+/**
+ * Calls `get` once a frame until it returns a value, and returns that value. Returns undefined when
+ * `limitMs` pass first.
+ */
+export async function poll<T>(
+	get: () => T | undefined,
+	limitMs: number = HANG_MS,
+): Promise<T | undefined> {
+	const deadline = performance.now() + limitMs;
+	for (;;) {
+		const value = get();
+		if (value !== undefined) return value;
+		if (performance.now() >= deadline) return undefined;
 		await nextFrame();
 	}
-	throw new Error(`The screen never settled: ${what}.`);
+}
+
+/** Waits, one frame at a time, until `holds` is true. Fails with `what` after HANG_MS. */
+export async function waitFor(what: string, holds: () => boolean): Promise<void> {
+	const held = await poll(() => (holds() ? true : undefined));
+	if (held === undefined) throw new Error(`The screen never settled: ${what}.`);
 }
 
 /** Waits until nothing on the page changed for QUIET_FRAMES frames in a row. */
@@ -38,13 +58,12 @@ export async function waitForQuiet(root: Node): Promise<void> {
 	observer.observe(root, { subtree: true, childList: true, attributes: true, characterData: true });
 	try {
 		let quiet = 0;
-		for (let frame = 0; frame < MAX_FRAMES; frame++) {
-			await nextFrame();
+		const settled = await poll(() => {
 			quiet = changed ? 0 : quiet + 1;
 			changed = false;
-			if (quiet >= QUIET_FRAMES) return;
-		}
-		throw new Error("The screen never settled: the page kept changing.");
+			return quiet >= QUIET_FRAMES ? true : undefined;
+		});
+		if (settled === undefined) throw new Error("The screen never settled: the page kept changing.");
 	} finally {
 		observer.disconnect();
 	}
