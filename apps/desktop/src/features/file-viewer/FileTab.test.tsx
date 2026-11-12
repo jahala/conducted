@@ -190,7 +190,7 @@ describe("REV-08 FileTab", () => {
 		}
 	});
 
-	it("shows the save in flight and then its error in the header", async () => {
+	it("shows the save in flight and then Conductor's Retry update control", async () => {
 		const { test, client, workspace } = await setup("/code/workspaces/tab-saving");
 		try {
 			let finish: (result: Result<{ modifiedAt: number }>) => void = () => {};
@@ -217,7 +217,9 @@ describe("REV-08 FileTab", () => {
 			await act(async () => {
 				finish(err(appError("other", "The disk is full.")));
 			});
-			await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("The disk is full."));
+			await waitFor(() =>
+				expect(screen.getByRole("button", { name: "Update failed. Retry" })).toBeTruthy(),
+			);
 			expect(screen.queryByRole("status", { name: "Saving file" })).toBeNull();
 			expect(screen.getByRole("status", { name: "Unsaved changes" })).toBeTruthy();
 		} finally {

@@ -1,8 +1,8 @@
 /**
  * @feature catalogue What an after-step does on the page, as a user would
  * Owns: finding a control by its role and accessible text, waiting a bounded number of frames for it to
- * appear, and clicking or typing into it with real DOM events (Cmd and Alt modifiers included), so
- * the app's own handlers run.
+ * appear, and clicking, pointing at, typing into or pressing keys in it with real DOM events (Cmd and
+ * Alt modifiers included), so the app's own handlers run.
  * Test first: not applicable; the screenshot run opens every state that uses it.
  */
 
@@ -94,16 +94,26 @@ export function rightClickOn(element: HTMLElement): void {
 }
 
 /**
- * Presses a key with nothing focused, as after clicking an empty part of the window. Returns whether
- * the app took the key (its handler prevented the default).
+ * Presses a key as a user does. With `at`, the key goes to the first element matching that selector,
+ * focused as after clicking into it; without it, nothing has focus, as after clicking an empty part
+ * of the window. Returns whether the app took the key (its handler prevented the default); false
+ * while the element `at` names is not on the page.
  */
 export function press(
 	document: Document,
 	key: string,
 	modifiers: { meta?: boolean; alt?: boolean } = {},
+	at?: string,
 ): boolean {
-	if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-	const target = document.body;
+	let target: HTMLElement = document.body;
+	if (at === undefined) {
+		if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+	} else {
+		const found = document.querySelector<HTMLElement>(at);
+		if (found === null) return false;
+		found.focus();
+		target = found;
+	}
 	const init = {
 		key,
 		bubbles: true,
@@ -138,7 +148,10 @@ export async function typeInto(
 	element.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-/** Points the pointer at the first element matching `selector` named `name`, opening a hover card. */
+/**
+ * Points the pointer at the first element matching `selector` named `name`, as a pointer moving onto
+ * it does: over, enter, then a move. A hover card opens on enter; a tooltip opens on the move.
+ */
 export async function hover(document: Document, selector: string, name: string): Promise<void> {
 	const element = await find(document, selector, name);
 	const init = { bubbles: true, cancelable: true, pointerType: "mouse" } as const;
@@ -146,6 +159,8 @@ export async function hover(document: Document, selector: string, name: string):
 	element.dispatchEvent(new PointerEvent("pointerenter", init));
 	element.dispatchEvent(new MouseEvent("mouseover", init));
 	element.dispatchEvent(new MouseEvent("mouseenter", init));
+	element.dispatchEvent(new PointerEvent("pointermove", init));
+	element.dispatchEvent(new MouseEvent("mousemove", init));
 }
 
 /** True when an element matching `selector` is named `name`: an icon button counts by its aria-label. */
@@ -158,17 +173,20 @@ export const shows = (document: Document, text: string): boolean =>
 
 /**
  * Presses a shortcut until the app takes it, one try a frame. The key listener reads the user's key
- * bindings, which load a moment after the screen first draws.
+ * bindings, which load a moment after the screen first draws. `at` is as in `press`: a key that
+ * belongs to one area (Cmd+F in the file editor) is pressed with that area focused.
  */
 export async function pressUntilTaken(
 	document: Document,
 	key: string,
 	modifiers: { meta?: boolean; alt?: boolean } = {},
+	at?: string,
 ): Promise<void> {
 	for (let frame = 0; frame < MAX_FRAMES; frame++) {
-		if (press(document, key, modifiers)) return;
+		if (press(document, key, modifiers, at)) return;
 		await nextFrame();
 	}
 	const chord = `${modifiers.meta === true ? "Cmd+" : ""}${modifiers.alt === true ? "Alt+" : ""}`;
-	throw new Error(`The app never took the key ${chord}${key}.`);
+	const where = at === undefined ? "" : ` in ${at}`;
+	throw new Error(`The app never took the key ${chord}${key}${where}.`);
 }

@@ -6,7 +6,7 @@
  * Behaviour: ui-map.md 3.2, File tab ("Toggle file edit mode" is Cmd+E; "View options": "Hide
  * whitespace changes", "Wrap lines"; "Unified view", "Split view", "Entire file"). Measured from
  * Conductor 0.92.1 (renderApp @9633986, @9642796): the header is 8px top and bottom, 12px left and
- * 4px right on the canvas; the file chip at the left; at the right, 8px apart, "Copy file contents to clipboard"
+ * 4px right on the canvas; the file chip at the left; at the right, 8px apart, "Copy file contents"
  * as a 28px icon button, then one segmented group (32px tall, the muted fill, 2px inside) of 28px
  * icon toggles with 12px icons: the diff layouts when the file has changes, the whole file as
  * Entire file (raw), the editor, and the preview; then the vertical-dots "View options" menu.
@@ -51,7 +51,7 @@ export interface FileTabHeaderProps {
 	saving: boolean;
 	saveError: string | null;
 	onSave: () => void;
-	/** The file's text for "Copy file contents to clipboard"; null while it loads or when it is not text. */
+	/** The file's text for "Copy file contents"; null while it loads or when it is not text. */
 	copyText: string | null;
 	onCopy: (text: string) => unknown;
 	/** Width of the tab in pixels, so Split view can disable itself when too narrow. */
@@ -110,7 +110,7 @@ export function FileTabHeader({
 						text={copyText ?? ""}
 						onCopy={onCopy}
 						iconOnly
-						label="Copy file contents to clipboard"
+						label="Copy file contents"
 						disabled={copyText === null}
 						size="sm"
 						className="w-7 px-0 text-sidebar-fg-muted [&_svg]:size-3"
@@ -177,9 +177,18 @@ export function FileTabHeader({
 				</p>
 			) : null}
 			{saveError === null ? null : (
-				<p role="alert" className="px-3 pb-1 text-xs text-danger">
-					{saveError}
-				</p>
+				<div className="px-3 pb-1">
+					{/* Conductor's failed-update control (renderApp @9637835). */}
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={onSave}
+						aria-label="Update failed. Retry"
+						className="w-24 shrink-0 text-xs text-danger"
+					>
+						Retry update
+					</Button>
+				</div>
 			)}
 		</div>
 	);

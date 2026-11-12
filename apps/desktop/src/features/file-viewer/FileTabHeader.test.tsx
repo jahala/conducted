@@ -20,6 +20,8 @@ const preferences: DiffPreferences = {
 const baseProps = {
 	path: "src/a.ts",
 	oldPath: null,
+	mode: "diff",
+	onModeChange: () => {},
 	editDisabledReason: null,
 	previewAvailable: true,
 	rawAvailable: true,
@@ -107,15 +109,14 @@ describe("REV-08 FileTabHeader", () => {
 				button.getAttribute("aria-label"),
 			),
 		).toEqual(["Unified view", "Split view", "Entire file", "Edit", "Preview"]);
-		fireEvent.click(screen.getByRole("button", { name: "Copy file contents to clipboard" }));
+		fireEvent.click(screen.getByRole("button", { name: "Copy file contents" }));
 		expect(onCopy).toHaveBeenCalledWith("const a = 1;\n");
 	});
 
 	it("disables Copy file contents until the text is loaded", () => {
 		render(<FileTabHeader {...baseProps} mode="edit" onModeChange={() => {}} copyText={null} />);
 		expect(
-			(screen.getByRole("button", { name: "Copy file contents to clipboard" }) as HTMLButtonElement)
-				.disabled,
+			(screen.getByRole("button", { name: "Copy file contents" }) as HTMLButtonElement).disabled,
 		).toBe(true);
 	});
 
@@ -141,5 +142,16 @@ describe("REV-08 FileTabHeader", () => {
 			<FileTabHeader {...baseProps} rawAvailable={false} mode="diff" onModeChange={onModeChange} />,
 		);
 		expect(screen.queryByRole("button", { name: "Entire file" })).toBeNull();
+	});
+});
+
+describe("REV-08 FileTabHeader failed update", () => {
+	it("shows Conductor's Retry update control after a failed save", () => {
+		const onSave = vi.fn();
+		render(<FileTabHeader {...baseProps} mode="edit" saveError="disk changed" onSave={onSave} />);
+		const retry = screen.getByRole("button", { name: "Update failed. Retry" });
+		expect(retry.textContent).toBe("Retry update");
+		fireEvent.click(retry);
+		expect(onSave).toHaveBeenCalledTimes(1);
 	});
 });

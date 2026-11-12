@@ -39,6 +39,11 @@ export interface ScriptedRepo {
 	/** For example `origin/main`. */
 	target: string;
 	files: ScriptedFile[];
+	/**
+	 * Tracked files the branch leaves as they were, by path, with their text. `git show` reads them
+	 * at any ref, as git reads a file no commit on the branch touched.
+	 */
+	unchanged?: Readonly<Record<string, string>>;
 	/** Commits on the branch, newest first. */
 	commits: ScriptedCommit[];
 	/** Null when the branch was never pushed. */
@@ -263,6 +268,8 @@ export function scriptRepo(repo: ScriptedRepo): ShellScript {
 			const spec = args.find((arg) => arg.includes(":")) ?? "";
 			const path = spec.slice(spec.indexOf(":") + 1);
 			const file = fileAt(path);
+			const kept = file === undefined ? repo.unchanged?.[path] : undefined;
+			if (kept !== undefined) return out(kept);
 			if (file === undefined || file.before === "")
 				return out("", 128, `fatal: path '${path}' does not exist\n`);
 			return out(file.before);

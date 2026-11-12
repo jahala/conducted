@@ -18,6 +18,7 @@
  * Test first: choosing a commit entry calls onChange with { kind: "commit", sha }.
  */
 import type { RepoId, WorkspaceId } from "@conducted/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { DiffScope } from "../../../core/api.ts";
 import {
@@ -89,6 +90,7 @@ function BranchList({
 	onSelect: (branch: string) => void;
 }) {
 	const branches = useBranches(repoId);
+	const queryClient = useQueryClient();
 	return (
 		<TargetBranchPicker
 			branches={branches.state === "ready" ? branches.data : []}
@@ -96,6 +98,9 @@ function BranchList({
 			onSelect={onSelect}
 			loading={branches.state === "loading"}
 			error={branches.state === "error" ? branches.error.message : null}
+			onRetry={() => {
+				void queryClient.invalidateQueries({ queryKey: ["git", "branches", repoId] });
+			}}
 		/>
 	);
 }

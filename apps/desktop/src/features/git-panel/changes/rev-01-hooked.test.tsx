@@ -92,6 +92,7 @@ beforeEach(() => {
 	state.branches = { state: "ready", data: [] };
 	state.branchesThrow = null;
 	state.setViewed.mockReset();
+	state.setViewed.mockResolvedValue({ ok: true, value: undefined });
 	state.discardFile.mockReset();
 	state.toast.error.mockReset();
 });
@@ -119,6 +120,13 @@ const renderChanges = (onOpenFile = vi.fn()) => {
 };
 
 describe("REV-01 changes tab", () => {
+	it("saves a file's Viewed mark through the git service", () => {
+		state.files = { state: "ready", data: [file("src/a.ts")] };
+		renderChanges();
+		fireEvent.click(screen.getByRole("checkbox", { name: "Viewed src/a.ts" }));
+		expect(state.setViewed).toHaveBeenCalledWith(workspaceId, "src/a.ts", true);
+	});
+
 	it("shows only the rows that match the filter", () => {
 		state.files = {
 			state: "ready",
@@ -182,7 +190,7 @@ describe("REV-01 changes tab", () => {
 	it("asks the user to finish a rebase before showing changes", () => {
 		state.git = { state: "ready", data: gitState({ operation: "rebase" }) };
 		renderChanges();
-		expect(screen.getByRole("heading", { name: "Finish the rebase" })).toBeTruthy();
+		expect(screen.getByText("Finish rebasing or merging to see changes")).toBeTruthy();
 	});
 
 	it("shows the error's own message when the changed files cannot be read", () => {

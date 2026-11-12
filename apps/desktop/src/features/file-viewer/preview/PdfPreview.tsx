@@ -40,7 +40,7 @@ export function PdfPreview({ url, fileName }: PdfPreviewProps) {
 			<PreviewUnavailable
 				fileName={fileName}
 				sizeBytes={null}
-				reason="Failed to load PDF."
+				reason="Failed to load PDF"
 				onRetry={() => {
 					setFailedUrl(null);
 					setAttempt((value) => value + 1);

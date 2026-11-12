@@ -251,7 +251,11 @@ export function DiffView({
 	const oldFile = diff.oldText === null ? null : { name: diff.path, contents: diff.oldText };
 	const newFile = diff.newText === null ? null : { name: diff.path, contents: diff.newText };
 	let content: ReactNode = null;
-	if (!cannotRender) {
+	const noChanges = !diff.binary && diff.oldText !== null && diff.oldText === diff.newText;
+	if (!cannotRender && noChanges) {
+		// Conductor's words in a diff with nothing to draw (renderApp @9957581).
+		content = <p className="p-4 text-center text-fg-muted">No changes in this file</p>;
+	} else if (!cannotRender) {
 		if (oldFile !== null && newFile !== null) {
 			content = (
 				<MultiFileDiff<CommentAnnotation, undefined>

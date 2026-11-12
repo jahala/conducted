@@ -180,12 +180,9 @@
 		"by": "seed"
 	},
 	"settings_key:ssh_key_path": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-12",
-		"owner": "hand",
-		"note": "SSH into a cloud workspace."
+		"status": "matched",
+		"ours": "ssh_key_path",
+		"by": "seed"
 	},
 	"settings_key:delete_branch_on_archive": {
 		"status": "matched",
@@ -415,12 +412,9 @@
 		"by": "hand"
 	},
 	"settings_key:conductor_root_path": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SET-02",
-		"owner": "hand",
-		"note": "The app data folder on the Advanced page."
+		"status": "matched",
+		"ours": "conductor_root_path",
+		"by": "seed"
 	},
 	"settings_key:dashboard_enabled": {
 		"status": "matched",
@@ -494,12 +488,10 @@
 		"by": "seed"
 	},
 	"settings_key:experimental_legacy_file_preview_and_editing": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "REV-08",
-		"owner": "hand",
-		"note": "The file viewer and editor."
+		"status": "decided",
+		"decision": "D086",
+		"by": "hand",
+		"note": "An experimental switch for Conductor's old file editor, judged internal and never added (docs/plans/items/README.md); a key name D086 leaves out."
 	},
 	"settings_key:experimental_show_agent_cost": {
 		"status": "matched",
