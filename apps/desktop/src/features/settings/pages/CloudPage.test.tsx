@@ -53,7 +53,7 @@ interface ImportSettings {
 	mcpServers: Record<string, unknown>;
 }
 
-/** Renders the page with two remote servers in Cursor's local config, its import sheet open. */
+/** Renders the page with two remote servers in Cursor's local config, its import dialog open. */
 async function mountImport(settings: { current: ImportSettings }): Promise<TestContainer> {
 	const mounted = createTestContainer();
 	test = mounted;
@@ -83,6 +83,7 @@ async function mountImport(settings: { current: ImportSettings }): Promise<TestC
 			<Toaster />
 		</ServicesProvider>,
 	);
+	fireEvent.mouseDown(await screen.findByRole("tab", { name: "Recommended" }), { button: 0 });
 	fireEvent.click(await screen.findByRole("button", { name: "Import from local" }));
 	return mounted;
 }
@@ -298,9 +299,9 @@ describe("CLOUD-17 CloudPage", () => {
 				},
 			}),
 		);
-		expect(await screen.findByText("linear")).toBeTruthy();
-		// The row names its authentication with Conductor's label, and never the token.
-		expect(screen.getByText("Bearer token")).toBeTruthy();
+		expect(await screen.findByRole("group", { name: "Linear MCP server" })).toBeTruthy();
+		// Conductor's row shows the name only: no authentication label, and never the token.
+		expect(screen.queryByText("Bearer token")).toBeNull();
 		expect(screen.queryByText("lin_api_x")).toBeNull();
 	});
 
@@ -336,8 +337,12 @@ describe("CLOUD-17 CloudPage", () => {
 			</ServicesProvider>,
 		);
 
+		fireEvent.mouseDown(await screen.findByRole("tab", { name: "Recommended" }), { button: 0 });
 		fireEvent.click(await screen.findByRole("button", { name: "Import from local" }));
-		fireEvent.click(await screen.findByRole("checkbox", { name: "localServer" }));
+		// Conductor's sheet chooses every local server at first.
+		expect(
+			(await screen.findByRole("checkbox", { name: "localServer" })).getAttribute("aria-checked"),
+		).toBe("true");
 		fireEvent.click(screen.getByRole("button", { name: "Add 1 MCP server" }));
 
 		await waitFor(() =>
@@ -385,27 +390,28 @@ describe("CLOUD-17 CloudPage", () => {
 		await mountImport(settings);
 		const checked = (name: string) =>
 			screen.getByRole("checkbox", { name }).getAttribute("aria-checked");
-		expect(await screen.findByRole("button", { name: "Select all" })).toBeTruthy();
-		expect(checked("alpha")).toBe("false");
-		expect(checked("beta")).toBe("false");
-
-		fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+		// Conductor's sheet opens with every server chosen.
+		expect(await screen.findByRole("button", { name: "Deselect all" })).toBeTruthy();
 		expect(checked("alpha")).toBe("true");
 		expect(checked("beta")).toBe("true");
-		expect(screen.getByRole("button", { name: "Deselect all" })).toBeTruthy();
 
 		fireEvent.click(screen.getByRole("button", { name: "Deselect all" }));
 		expect(checked("alpha")).toBe("false");
 		expect(checked("beta")).toBe("false");
 		expect(screen.getByRole("button", { name: "Select all" })).toBeTruthy();
 
+		fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+		expect(checked("alpha")).toBe("true");
+		expect(checked("beta")).toBe("true");
+		expect(screen.getByRole("button", { name: "Deselect all" })).toBeTruthy();
+
 		// The toggle acts on what the search leaves, as Conductor's does.
 		fireEvent.change(screen.getByPlaceholderText("Search MCP servers..."), {
 			target: { value: "alp" },
 		});
-		fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+		fireEvent.click(screen.getByRole("button", { name: "Deselect all" }));
 		fireEvent.click(screen.getByRole("button", { name: "Add 1 MCP server" }));
-		await waitFor(() => expect(Object.keys(settings.current.mcpServers)).toEqual(["alpha"]));
+		await waitFor(() => expect(Object.keys(settings.current.mcpServers)).toEqual(["beta"]));
 	});
 
 	it("keeps a saved bearer token when an edit leaves the token field blank", async () => {
@@ -424,7 +430,10 @@ describe("CLOUD-17 CloudPage", () => {
 		};
 		await mountPage(settings);
 
-		fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+		fireEvent.keyDown(await screen.findByRole("button", { name: "Linear actions" }), {
+			key: "Enter",
+		});
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Edit" }));
 		fireEvent.change(await screen.findByLabelText("URL"), {
 			target: { value: "https://mcp.linear.app/v2/mcp" },
 		});

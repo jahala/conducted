@@ -1,22 +1,27 @@
 /**
  * @feature CLOUD-17 MCP servers in the cloud sandbox
- * Owns: the Cloud page's MCP servers: the servers every cloud workspace's agents get, the add and
- * edit panel, and "Import from local".
- * Behaviour: ui-map.md 6 Organization (MCP: "Installed", "Import from local", "Select MCP servers",
- * auth types None, OAuth, Bearer token, Custom headers) and renderApp (the add form's Name, URL and
- * Authentication fields, its wording, and the import sheet's search over name, URL and source and
- * its "Select all" / "Deselect all" toggle). Conductor's page is an organisation page, which D004 and
- * D018 keep out; ours is the personal Cloud page on the Mac's own Worker (D121). OAuth is not
- * offered: Conductor completes it through its hosted service's callback and token store (D004,
- * D018, D025), which this app has no equivalent to. A cloud server overrides the agent's local
- * server of the same name (D121).
- * Data: the `mcpServers` of useCloudSettings; Actions.cloud.saveMcpServer, removeMcpServer,
- * importMcpServers and scanLocalMcpServers.
- * Must handle: no servers (designed empty state); a save the Worker refuses (its reason stays on
- * the panel); a scan that finds nothing (the right one of Conductor's three messages); a search that
- * matches nothing (Conductor's "No matching MCP servers."); a config it cannot read (named); a server
- * already saved (not offered again); a name the Worker reserves (made unique or refused); every
- * secret never shown once saved.
+ * Owns: the Cloud page's MCP section: the servers every cloud workspace's agents get, in
+ * Conductor's Installed and Recommended tabs, the add and edit dialog, and "Import from local".
+ * Behaviour: Conductor's MCP settings page in renderApp-DeUrsznk.js, read 2026-11-12 (offsets are
+ * characters): the "MCP" heading (`NHe` @8717783) and the entry's description (@11304259); the
+ * tabs, the installed search, the empty lines and the newest-first list (`$Pa` @10778950 to
+ * @10779710); a row's name and its actions menu with Edit and Delete (`KAt` @8719151); the add and
+ * edit dialog's fields, choices, placeholders and messages (`BDa` and `$Da` @10721094 to @10728036);
+ * the Recommended tab's search and "Import from local" card (`TPa` @10763650, `OPa` @10766909);
+ * and the "Select MCP servers" dialog, which chooses every server at first (`MPa` @10769053, `LPa`
+ * for its empty lines). Conductor's page is an organisation page, which D004 and D018 keep out;
+ * ours is the personal Cloud page on the Mac's own Worker (D121).
+ * Left out, as gaps: OAuth (Conductor completes it through its hosted callback and token store,
+ * D121), the Recommended catalogue (22 of its 24 entries are OAuth servers), the brand logos and
+ * favicons a row's icon shows (Conductor's own assets and Google's favicon service; the row keeps
+ * Conductor's fallback initial), and the brand display names (`GXo`); a name is shown with its
+ * first letter raised, Conductor's rule for every other name.
+ * Data: the `mcpServers` of useCloudSettings; Actions.cloud.scanLocalMcpServers. Saves, deletes and
+ * imports go through the page's callbacks, which toast Conductor's failure titles.
+ * Must handle: no servers and a search that matches none (Conductor's lines); a save the Worker
+ * refuses (the dialog stays open, the page toasts why); a scan that finds nothing or cannot read
+ * (the right one of Conductor's lines); a server already saved (not offered again); a name the
+ * Worker reserves (Conductor's name message); every secret never shown once saved.
  * Test first: adding a bearer-token server saves it and the list shows it without its token.
  */
 import { type ReactNode, useEffect, useState } from "react";
@@ -25,47 +30,133 @@ import {
 	type CloudMcpServer,
 	headerLines,
 	type ImportedMcpServer,
+	RESERVED_NAMES,
+	SERVER_NAME,
 	uniqueMcpServerName,
 } from "../../../core/cloud-mcp.ts";
 import { useActions } from "../../../core/hooks.ts";
-import { Badge } from "../../../ui/Badge.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { Checkbox } from "../../../ui/Checkbox.tsx";
-import { EmptyState } from "../../../ui/EmptyState.tsx";
+import { Dialog, DialogContent, DialogFooter } from "../../../ui/Dialog.tsx";
 import { Input, Label, Textarea } from "../../../ui/Input.tsx";
-import { Select } from "../../../ui/Select.tsx";
-import { Sheet, SheetContent } from "../../../ui/Sheet.tsx";
 import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "../../../ui/Table.tsx";
+	HardDriveDownloadIcon,
+	MoreVerticalIcon,
+	PencilIcon,
+	PlusIcon,
+	SearchIcon,
+	TrashIcon,
+} from "../../../ui/icons.tsx";
+import { Kbd } from "../../../ui/Kbd.tsx";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../../ui/Menu.tsx";
+import { Select } from "../../../ui/Select.tsx";
+import { Spinner } from "../../../ui/Spinner.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../ui/Tabs.tsx";
 import { toast } from "../../../ui/Toast.tsx";
 
-/** Conductor's name rule, with our app tools' reserved name. */
-const SERVER_NAME = /^[A-Za-z0-9_-]{1,64}$/;
-const RESERVED = new Set(["conductor", "conducted"]);
-
+/** Conductor's choices, in its order, without OAuth (D121). */
 const AUTH_OPTIONS: readonly { value: CloudMcpAuth; label: string }[] = [
-	{ value: "none", label: "None" },
 	{ value: "bearer", label: "Bearer token" },
 	{ value: "headers", label: "Custom headers" },
+	{ value: "none", label: "None" },
 ];
 
-function nameProblem(name: string): string | null {
-	if (!SERVER_NAME.test(name)) {
-		return 'Names can be 1-64 letters, numbers, hyphens, or underscores — no spaces ("conducted" names are reserved)';
+const NAME_MESSAGE =
+	'Names can be 1-64 letters, numbers, hyphens, or underscores — no spaces ("conducted" names are reserved)';
+
+const BEARER = "Bearer ";
+
+/** The words the Recommended search finds "Import from local" by (Conductor's `vPa`). */
+const IMPORT_KEYWORDS = [
+	"import from local",
+	"Claude Code",
+	"Claude Desktop",
+	"Claude",
+	"Codex",
+	"Cursor",
+	"OpenCode",
+]
+	.join(" ")
+	.toLowerCase();
+
+const EMPTY_LINE = "flex min-h-16 items-center justify-center text-sm text-fg-muted";
+const FIELD_INPUT = {
+	autoComplete: "off",
+	autoCorrect: "off",
+	autoCapitalize: "off",
+	spellCheck: false,
+} as const;
+
+/** The name a row shows: the first letter raised, as Conductor shows a name it has no brand for. */
+function displayName(name: string): string {
+	return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+/** A URL without its trailing slashes, so two spellings of one server compare equal. */
+function normalizedUrl(url: string): string | null {
+	try {
+		const parsed = new URL(url);
+		parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+		return parsed.href;
+	} catch {
+		return null;
 	}
-	if (RESERVED.has(name.toLowerCase())) {
-		return `${name} is reserved for the app's own tools. Choose another name.`;
-	}
-	return null;
+}
+
+/** One local server's identity: its URL and its sorted headers. */
+function candidateKey(candidate: ImportedMcpServer): string {
+	const headers = JSON.stringify(
+		Object.entries(candidate.headers).sort(([left], [right]) => left.localeCompare(right)),
+	);
+	return `${normalizedUrl(candidate.url) ?? candidate.url}\u0000${headers}`;
+}
+
+/** Whether a local server is already saved: the same name, or the same URL when it has no headers. */
+function alreadySaved(
+	candidate: ImportedMcpServer,
+	servers: Readonly<Record<string, CloudMcpServer>>,
+): boolean {
+	const url = Object.keys(candidate.headers).length === 0 ? normalizedUrl(candidate.url) : null;
+	return Object.entries(servers).some(
+		([name, server]) =>
+			name === candidate.name || (url !== null && normalizedUrl(server.url) === url),
+	);
+}
+
+/** The header text with the token as its Authorization header, as a switch to Custom headers keeps it. */
+function withBearerHeader(headersText: string, token: string): string {
+	let replaced = false;
+	const lines = headersText.split("\n").map((line) => {
+		const trimmed = line.trim();
+		const colon = trimmed.indexOf(":");
+		if (
+			replaced ||
+			colon <= 0 ||
+			trimmed.slice(0, colon).trim().toLowerCase() !== "authorization"
+		) {
+			return line;
+		}
+		replaced = true;
+		return `${trimmed.slice(0, colon).trim()}: ${BEARER}${token}`;
+	});
+	if (replaced) return lines.join("\n");
+	return [`Authorization: ${BEARER}${token}`, ...lines.filter((line) => line.trim() !== "")].join(
+		"\n",
+	);
+}
+
+/** The bearer token in the header text's Authorization header, as a switch to Bearer token keeps it. */
+function bearerFromHeaders(headersText: string): string | undefined {
+	const parsed = headerLines(headersText);
+	if (!parsed.ok) return undefined;
+	const value = Object.entries(parsed.headers).find(
+		([header]) => header.toLowerCase() === "authorization",
+	)?.[1];
+	return value?.startsWith(BEARER) ? value.slice(BEARER.length) : undefined;
 }
 
 function urlProblem(url: string): string | null {
+	if (url === "") return "Enter a server URL";
 	try {
 		const parsed = new URL(url);
 		if (parsed.protocol !== "https:") return "Enter an HTTPS server URL";
@@ -77,97 +168,68 @@ function urlProblem(url: string): string | null {
 	}
 }
 
-/** The authentication column's label. */
-function authLabel(server: CloudMcpServer): string {
-	if (server.authType === "bearer") return "Bearer token";
-	if (server.authType === "headers") return "Custom headers";
-	return "None";
-}
-
 interface Draft {
 	name: string;
 	url: string;
 	authType: CloudMcpAuth;
 	bearerToken: string;
 	headersText: string;
-	/** True when the saved server already has a credential the user may keep by leaving the field. */
-	credentialSaved: boolean;
+	/** True when the saved server holds a credential an empty field keeps. */
+	credentialConfigured: boolean;
 }
 
 function draftFor(name: string, server: CloudMcpServer | null): Draft {
-	if (server === null) {
-		return {
-			name: "",
-			url: "",
-			authType: "none",
-			bearerToken: "",
-			headersText: "",
-			credentialSaved: false,
-		};
-	}
 	return {
 		name,
-		url: server.url,
-		authType: server.authType,
+		url: server?.url ?? "",
+		authType: server?.authType ?? "none",
 		bearerToken: "",
-		headersText:
-			server.authType === "headers"
-				? Object.entries(server.headers ?? {})
-						.map(([header, value]) => `${header}: ${value}`)
-						.join("\n")
-				: "",
-		credentialSaved: server.authType !== "none",
+		headersText: "",
+		credentialConfigured: server !== null && server.authType !== "none",
 	};
 }
 
-/** What stops a draft from being saved, in the panel's words, or null. */
-function draftProblem(
+/** The server a draft saves, or the message that stops it, in Conductor's order of checks. */
+function checkedDraft(
 	draft: Draft,
 	taken: readonly string[],
 	editing: string | null,
 	previous: CloudMcpServer | null,
 ): { message: string } | { server: CloudMcpServer } {
 	const name = draft.name.trim();
-	const problem = nameProblem(name);
-	if (problem !== null) return { message: problem };
+	if (!SERVER_NAME.test(name) || RESERVED_NAMES.has(name.toLowerCase())) {
+		return { message: NAME_MESSAGE };
+	}
 	if (name !== editing && taken.includes(name)) {
 		return { message: `An MCP server named "${name}" already exists` };
 	}
 	const url = draft.url.trim();
 	const urlIssue = urlProblem(url);
 	if (urlIssue !== null) return { message: urlIssue };
+	if (draft.authType === "none") return { server: { url, authType: "none" } };
 	if (draft.authType === "bearer") {
 		const token = draft.bearerToken.trim();
-		if (token === "") {
-			if (draft.credentialSaved && previous?.authType === "bearer") {
-				// The token is not shown again; an untouched field keeps the saved one.
-				return { server: { url, authType: "bearer", bearerToken: previous.bearerToken } };
-			}
-			return { message: "Enter a bearer token" };
+		if (token !== "") return { server: { url, authType: "bearer", bearerToken: token } };
+		// The token is never shown again; an untouched field keeps the saved one.
+		if (draft.credentialConfigured && previous?.authType === "bearer") {
+			return { server: { url, authType: "bearer", bearerToken: previous.bearerToken } };
 		}
-		return { server: { url, authType: "bearer", bearerToken: token } };
+		return { message: "Enter a bearer token" };
 	}
-	if (draft.authType === "headers") {
-		if (
-			draft.credentialSaved &&
-			draft.headersText.trim() === "" &&
-			previous?.authType === "headers"
-		) {
-			return { server: { url, authType: "headers", headers: previous.headers } };
-		}
-		const lines = headerLines(draft.headersText);
-		if (!lines.ok) return { message: lines.message };
-		if (Object.keys(lines.headers).length === 0) {
-			return { message: "Enter headers" };
-		}
+	const lines = headerLines(draft.headersText);
+	if (!lines.ok) return { message: lines.message };
+	if (Object.keys(lines.headers).length > 0) {
 		return { server: { url, authType: "headers", headers: lines.headers } };
+	}
+	if (draft.credentialConfigured && previous?.authType === "headers") {
+		return { server: { url, authType: "headers", headers: previous.headers } };
 	}
 	return { server: { url, authType: "none" } };
 }
 
 export interface CloudMcpServersSectionProps {
 	servers: Readonly<Record<string, CloudMcpServer>>;
-	/** Saves one server; false keeps the panel open. */
+	/** Saves one server; false keeps the dialog open. */
 	onSave: (name: string, server: CloudMcpServer) => Promise<boolean>;
 	onRemove: (name: string) => Promise<boolean>;
 	onImport: (servers: Readonly<Record<string, CloudMcpServer>>) => Promise<boolean>;
@@ -179,84 +241,133 @@ export function CloudMcpServersSection({
 	onRemove,
 	onImport,
 }: CloudMcpServersSectionProps) {
+	const [tab, setTab] = useState("installed");
+	const [installedQuery, setInstalledQuery] = useState("");
+	const [recommendedQuery, setRecommendedQuery] = useState("");
 	const [editing, setEditing] = useState<string | null | undefined>(undefined);
 	const [importing, setImporting] = useState(false);
-	const names = Object.keys(servers).sort((left, right) => left.localeCompare(right));
+	const names = Object.keys(servers);
+	const needle = installedQuery.trim().toLowerCase();
+	// Newest first, as Conductor lists them.
+	const shown = names
+		.filter(
+			(name) =>
+				needle === "" ||
+				name.toLowerCase().includes(needle) ||
+				(servers[name] as CloudMcpServer).url.toLowerCase().includes(needle),
+		)
+		.reverse();
+	const recommended = recommendedQuery.trim().toLowerCase();
+	const importMatches = recommended === "" || IMPORT_KEYWORDS.includes(recommended);
+
+	const runImport = (chosen: readonly ImportedMcpServer[]) => {
+		setImporting(false);
+		const taken = [...names];
+		const toImport: Record<string, CloudMcpServer> = {};
+		for (const candidate of chosen) {
+			const name = uniqueMcpServerName(candidate.name, taken);
+			taken.push(name);
+			toImport[name] =
+				Object.keys(candidate.headers).length > 0
+					? { url: candidate.url, authType: "headers", headers: candidate.headers }
+					: { url: candidate.url, authType: "none" };
+		}
+		const added = Object.keys(toImport).length;
+		void onImport(toImport).then((imported) => {
+			if (!imported) return;
+			// Conductor's import ends on the Installed tab with the search cleared.
+			setInstalledQuery("");
+			setTab("installed");
+			toast.success(added === 1 ? "Added 1 MCP server" : `Added ${added} MCP servers`);
+		});
+	};
 
 	return (
 		<div className="flex flex-col gap-3 border-t border-border py-4">
-			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div className="flex flex-col gap-1">
-					<p className="text-sm font-medium text-fg">MCP servers</p>
-					<p className="max-w-prose text-sm text-fg-muted">
-						Configure MCP servers for cloud workspaces.
-					</p>
-				</div>
-				<div className="flex gap-2">
-					<Button variant="secondary" onClick={() => setImporting(true)}>
-						Import from local
-					</Button>
-					<Button variant="default" onClick={() => setEditing(null)}>
-						Add MCP server
-					</Button>
-				</div>
+			<div className="flex flex-col gap-1">
+				<h3 className="text-sm font-medium text-fg">MCP</h3>
+				<p className="max-w-prose text-sm text-fg-muted">
+					Configure MCP servers for cloud workspaces.
+				</p>
 			</div>
-			{names.length === 0 ? (
-				<EmptyState compact title="No MCP servers configured." />
-			) : (
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Name</TableHead>
-							<TableHead>URL</TableHead>
-							<TableHead>Authentication</TableHead>
-							<TableHead>
-								<span className="sr-only">Actions</span>
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{names.map((name) => {
-							const server = servers[name] as CloudMcpServer;
-							return (
-								<TableRow key={name}>
-									<TableCell>
-										<span className="font-medium text-fg">{name}</span>
-									</TableCell>
-									<TableCell className="max-w-72 truncate font-mono text-fg-muted">
-										{server.url}
-									</TableCell>
-									<TableCell>
-										<Badge>{authLabel(server)}</Badge>
-									</TableCell>
-									<TableCell className="text-right">
-										<div className="flex justify-end gap-1">
-											<Button variant="ghost" size="sm" onClick={() => setEditing(name)}>
-												Edit
-											</Button>
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() => {
-													void onRemove(name).then((removed) => {
-														if (!removed) {
-															toast.error("Check your connection and try again.");
-														}
-													});
-												}}
-											>
-												Remove
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							);
-						})}
-					</TableBody>
-				</Table>
-			)}
+			<Tabs value={tab} onValueChange={setTab} className="w-full">
+				<TabsList className="justify-start gap-6 px-0">
+					<TabsTrigger value="installed" className="px-0">
+						Installed
+					</TabsTrigger>
+					<TabsTrigger value="recommended" className="px-0">
+						Recommended
+					</TabsTrigger>
+				</TabsList>
+				<TabsContent value="installed" className="mt-6 flex flex-col gap-3">
+					<div className="flex gap-2">
+						<div className="relative min-w-0 flex-1">
+							<SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-fg-muted" />
+							<Input
+								type="text"
+								placeholder="Search installed MCPs"
+								value={installedQuery}
+								onChange={(event) => setInstalledQuery(event.target.value)}
+								className="pl-8"
+							/>
+						</div>
+						<Button size="sm" onClick={() => setEditing(null)}>
+							<PlusIcon className="size-3.5" />
+							Add MCP server
+						</Button>
+					</div>
+					{shown.length === 0 ? (
+						<div className={EMPTY_LINE}>
+							{names.length === 0
+								? "No MCP servers installed"
+								: "No installed MCPs match your search"}
+						</div>
+					) : (
+						<div className="divide-y divide-border overflow-hidden rounded-md border border-border">
+							{shown.map((name) => (
+								<ServerRow
+									key={name}
+									name={name}
+									onEdit={() => setEditing(name)}
+									onDelete={() => void onRemove(name)}
+								/>
+							))}
+						</div>
+					)}
+				</TabsContent>
+				<TabsContent value="recommended" className="mt-6 flex flex-col gap-6">
+					<div className="relative">
+						<SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-fg-muted" />
+						<Input
+							type="text"
+							placeholder="Search recommended MCPs"
+							value={recommendedQuery}
+							onChange={(event) => setRecommendedQuery(event.target.value)}
+							className="pl-8"
+						/>
+					</div>
+					{importMatches ? (
+						<div className="grid grid-cols-3 gap-3">
+							<button
+								type="button"
+								onClick={() => setImporting(true)}
+								className="flex min-h-14 min-w-0 items-center gap-2.5 rounded-lg border border-border bg-canvas p-2.5 text-left transition-[background-color,scale] duration-100 hover:bg-hover active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50"
+							>
+								<span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-fg">
+									<HardDriveDownloadIcon className="size-4" />
+								</span>
+								<span className="min-w-0 truncate text-sm font-medium text-fg">
+									Import from local
+								</span>
+							</button>
+						</div>
+					) : (
+						<div className={EMPTY_LINE}>No recommended MCPs match your search</div>
+					)}
+				</TabsContent>
+			</Tabs>
 			{editing !== undefined ? (
-				<AddEditServerSheet
+				<ServerDialog
 					editing={editing}
 					server={editing === null ? null : (servers[editing] ?? null)}
 					taken={names}
@@ -266,17 +377,65 @@ export function CloudMcpServersSection({
 				/>
 			) : null}
 			{importing ? (
-				<ImportLocalSheet
-					servers={servers}
-					onClose={() => setImporting(false)}
-					onImport={onImport}
-				/>
+				<ImportDialog servers={servers} onClose={() => setImporting(false)} onChoose={runImport} />
 			) : null}
 		</div>
 	);
 }
 
-function AddEditServerSheet({
+function ServerRow({
+	name,
+	onEdit,
+	onDelete,
+}: {
+	name: string;
+	onEdit: () => void;
+	onDelete: () => void;
+}) {
+	const shown = displayName(name);
+	return (
+		// biome-ignore lint/a11y/useSemanticElements: Conductor's row is a named group of a list, not a form's fieldset.
+		<div
+			role="group"
+			aria-label={`${shown} MCP server`}
+			className="flex min-h-16 items-center gap-3 px-3"
+		>
+			<span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
+				<span
+					aria-hidden="true"
+					className="flex size-4 shrink-0 items-center justify-center text-xs leading-none font-medium text-fg-muted"
+				>
+					{shown.trim().charAt(0).toUpperCase()}
+				</span>
+			</span>
+			<div className="min-w-0 flex-1">
+				<div className="truncate text-sm font-medium text-fg">{shown}</div>
+			</div>
+			<Menu>
+				<MenuTrigger asChild>
+					<Button
+						variant="ghost"
+						size="xs"
+						aria-label={`${shown} actions`}
+						className="w-6 shrink-0 px-0 text-fg-muted"
+					>
+						<MoreVerticalIcon className="size-3.5" />
+					</Button>
+				</MenuTrigger>
+				<MenuContent align="end">
+					<MenuItem icon={<PencilIcon className="size-4" />} onSelect={onEdit}>
+						Edit
+					</MenuItem>
+					<MenuItem destructive icon={<TrashIcon className="size-4" />} onSelect={onDelete}>
+						Delete
+					</MenuItem>
+				</MenuContent>
+			</Menu>
+		</div>
+	);
+}
+
+function ServerDialog({
 	editing,
 	server,
 	taken,
@@ -293,65 +452,58 @@ function AddEditServerSheet({
 }) {
 	const [draft, setDraft] = useState<Draft>(() => draftFor(editing ?? "", server));
 	const [error, setError] = useState<string | null>(null);
-	const [saving, setSaving] = useState(false);
+	const [pending, setPending] = useState(false);
+	const adding = editing === null;
 
 	const update = (change: Partial<Draft>) => setDraft((current) => ({ ...current, ...change }));
 
+	const changeAuth = (next: CloudMcpAuth) => {
+		const change: Partial<Draft> = { authType: next };
+		const token = draft.bearerToken.trim();
+		if (next === "headers" && draft.authType === "bearer" && token !== "") {
+			change.headersText = withBearerHeader(draft.headersText, token);
+		}
+		if (next === "bearer" && draft.authType === "headers") {
+			const carried = bearerFromHeaders(draft.headersText);
+			if (carried !== undefined) change.bearerToken = carried;
+		}
+		update(change);
+	};
+
 	const save = async () => {
-		const checked = draftProblem(draft, taken, editing, server);
+		if (pending) return;
+		const checked = checkedDraft(draft, taken, editing, server);
 		if ("message" in checked) {
 			setError(checked.message);
 			return;
 		}
 		setError(null);
-		setSaving(true);
+		setPending(true);
 		const name = draft.name.trim();
-		const saved = await onSave(name, checked.server);
-		setSaving(false);
-		if (!saved) {
-			setError("Check your connection and try again.");
-			return;
-		}
-		if (editing !== null && editing !== name) {
-			const removed = await onRemove(editing);
-			if (!removed) {
-				setError("Check your connection and try again.");
-				return;
-			}
-		}
-		onClose();
+		let saved = await onSave(name, checked.server);
+		if (saved && editing !== null && editing !== name) saved = await onRemove(editing);
+		setPending(false);
+		// A refused save keeps the dialog open; the page has toasted why.
+		if (saved) onClose();
 	};
 
 	return (
-		<Sheet open onOpenChange={(open) => (open ? undefined : onClose())}>
-			<SheetContent
-				title={editing === null ? "Add MCP server" : "Edit MCP server"}
-				footer={
-					<>
-						<Button variant="secondary" onClick={onClose}>
-							Cancel
-						</Button>
-						<Button
-							variant="default"
-							data-primary-action
-							loading={saving}
-							onClick={() => void save()}
-						>
-							Save
-						</Button>
-					</>
-				}
+		<Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
+			<DialogContent
+				title={adding ? "Add MCP server" : "Edit MCP server"}
+				size="xl"
+				onConfirm={() => void save()}
 			>
-				<div className="mt-6 flex flex-col gap-4">
+				<div className="flex flex-col gap-3">
 					<Field label="Name" htmlFor="mcp-server-name">
 						<Input
 							id="mcp-server-name"
 							value={draft.name}
 							onChange={(event) => update({ name: event.target.value })}
 							placeholder="my-server"
-							autoFocus
-							autoComplete="off"
 							className="font-mono"
+							autoFocus={adding}
+							{...FIELD_INPUT}
 						/>
 					</Field>
 					<Field label="URL" htmlFor="mcp-server-url">
@@ -360,8 +512,8 @@ function AddEditServerSheet({
 							value={draft.url}
 							onChange={(event) => update({ url: event.target.value })}
 							placeholder="https://example.com/mcp"
-							autoComplete="off"
 							className="font-mono"
+							{...FIELD_INPUT}
 						/>
 					</Field>
 					<Field label="Authentication" htmlFor="mcp-server-auth">
@@ -369,29 +521,22 @@ function AddEditServerSheet({
 							id="mcp-server-auth"
 							value={draft.authType}
 							options={AUTH_OPTIONS}
-							onValueChange={(value) =>
-								update({
-									authType: value,
-									credentialSaved: false,
-									...(value === "bearer" ? { headersText: "" } : {}),
-								})
-							}
+							onValueChange={changeAuth}
 						/>
 					</Field>
 					{draft.authType === "bearer" ? (
 						<Field label="Token" htmlFor="mcp-server-token">
 							<Input
 								id="mcp-server-token"
-								type="password"
 								value={draft.bearerToken}
 								onChange={(event) => update({ bearerToken: event.target.value })}
 								placeholder={
-									draft.credentialSaved
+									draft.credentialConfigured
 										? "Credential configured — enter a token to replace"
 										: "Paste token"
 								}
-								autoComplete="off"
 								className="font-mono"
+								{...FIELD_INPUT}
 							/>
 						</Field>
 					) : null}
@@ -401,19 +546,36 @@ function AddEditServerSheet({
 								id="mcp-server-headers"
 								value={draft.headersText}
 								onChange={(event) => update({ headersText: event.target.value })}
-								placeholder="Header-Name: value"
-								className="min-h-28 font-mono"
+								placeholder={
+									draft.credentialConfigured
+										? "Credential configured — enter headers to replace"
+										: "X-Api-Key: value\nOne header per line"
+								}
+								className="min-h-16 font-mono text-sm"
 							/>
 						</Field>
 					) : null}
-					<p className="text-sm text-fg-muted">
-						The credential is kept in your Worker. A cloud workspace receives a placeholder and the
-						Worker swaps the real value in when the server is called.
-					</p>
 					{error === null ? null : <p className="text-sm text-danger">{error}</p>}
+					<DialogFooter>
+						<Button variant="ghost" size="sm" onClick={onClose}>
+							Cancel
+						</Button>
+						<Button size="sm" data-primary-action disabled={pending} onClick={() => void save()}>
+							{pending ? (
+								"Saving…"
+							) : (
+								<>
+									Save
+									<span aria-hidden="true" className="ml-2 inline-flex items-center opacity-60">
+										⌘<Kbd>↵</Kbd>
+									</span>
+								</>
+							)}
+						</Button>
+					</DialogFooter>
 				</div>
-			</SheetContent>
-		</Sheet>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
@@ -434,222 +596,182 @@ function Field({
 	);
 }
 
-function ImportLocalSheet({
+interface LocalScan {
+	candidates: ImportedMcpServer[];
+	unreadableSources: string[];
+	skippedCount: number;
+}
+
+/** What the dialog says when it offers nothing, in Conductor's order (`LPa`). */
+function nothingToOffer(scan: LocalScan): string {
+	if (scan.candidates.length > 0) return "All local MCP servers are already added";
+	if (scan.unreadableSources.length > 0) return "Couldn't read local MCP configs";
+	if (scan.skippedCount > 0) {
+		return "No servers to import — only remote (HTTPS) servers are supported";
+	}
+	return "No local MCP servers found";
+}
+
+function ImportDialog({
 	servers,
 	onClose,
-	onImport,
+	onChoose,
 }: {
 	servers: Readonly<Record<string, CloudMcpServer>>;
 	onClose: () => void;
-	onImport: (servers: Readonly<Record<string, CloudMcpServer>>) => Promise<boolean>;
+	onChoose: (chosen: readonly ImportedMcpServer[]) => void;
 }) {
 	const actions = useActions();
-	const [scan, setScan] = useState<ImportedMcpServer[] | null>(null);
-	const [unreadable, setUnreadable] = useState<string[]>([]);
-	const [skipped, setSkipped] = useState(0);
-	const [error, setError] = useState<string | null>(null);
-	const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
+	const [scan, setScan] = useState<LocalScan | null>(null);
+	const [failed, setFailed] = useState(false);
+	// Conductor chooses every server at first and records the ones the user clears.
+	const [cleared, setCleared] = useState<ReadonlySet<string>>(new Set());
 	const [query, setQuery] = useState("");
-	const [saving, setSaving] = useState(false);
 
 	useEffect(() => {
 		let live = true;
 		void actions.cloud.scanLocalMcpServers().then((result) => {
 			if (!live) return;
-			if (!result.ok) {
-				setError(result.error.message);
-				setScan([]);
-				return;
-			}
-			setScan(result.value.candidates);
-			setUnreadable(result.value.unreadableSources);
-			setSkipped(result.value.skippedCount);
+			if (result.ok) setScan(result.value);
+			else setFailed(true);
 		});
 		return () => {
 			live = false;
 		};
 	}, [actions]);
 
-	const installed = new Set(Object.keys(servers).map((name) => name.toLowerCase()));
-	const installedUrls = new Set(Object.values(servers).map((server) => server.url));
-	const fresh =
-		scan === null
-			? null
-			: scan.filter(
-					(candidate) =>
-						!installed.has(candidate.name.toLowerCase()) && !installedUrls.has(candidate.url),
-				);
-	// The search matches what Conductor's does: the name, the URL or the sources, without case.
+	const offered =
+		scan === null ? [] : scan.candidates.filter((candidate) => !alreadySaved(candidate, servers));
+	const chosen = offered.filter((candidate) => !cleared.has(candidateKey(candidate)));
 	const needle = query.trim().toLowerCase();
 	const visible =
-		fresh === null
-			? null
-			: needle === ""
-				? fresh
-				: fresh.filter((candidate) =>
-						[candidate.name, candidate.url, candidate.sources.join(", ")].some((text) =>
-							text.toLowerCase().includes(needle),
-						),
-					);
-	const everyVisibleUnchosen =
-		visible !== null && visible.length > 0 && visible.every((item) => !chosen.has(item.url));
+		needle === ""
+			? offered
+			: offered.filter((candidate) =>
+					[candidate.name, candidate.url, candidate.sources.join(", ")].some((text) =>
+						text.toLowerCase().includes(needle),
+					),
+				);
+	const everyVisibleChosen =
+		visible.length > 0 && visible.every((candidate) => !cleared.has(candidateKey(candidate)));
 
-	const toggleAll = () => {
-		if (visible === null) return;
-		setChosen((current) => {
+	const toggle = (candidate: ImportedMcpServer) => {
+		setCleared((current) => {
+			const key = candidateKey(candidate);
+			const next = new Set(current);
+			if (next.has(key)) next.delete(key);
+			else next.add(key);
+			return next;
+		});
+	};
+
+	const toggleVisible = () => {
+		setCleared((current) => {
 			const next = new Set(current);
 			for (const candidate of visible) {
-				if (everyVisibleUnchosen) next.add(candidate.url);
-				else next.delete(candidate.url);
+				const key = candidateKey(candidate);
+				if (everyVisibleChosen) next.add(key);
+				else next.delete(key);
 			}
 			return next;
 		});
 	};
 
-	const toggle = (url: string) => {
-		setChosen((current) => {
-			const next = new Set(current);
-			if (next.has(url)) next.delete(url);
-			else next.add(url);
-			return next;
-		});
-	};
-
-	const runImport = async () => {
-		if (fresh === null) return;
-		const taken = Object.keys(servers);
-		const toImport: Record<string, CloudMcpServer> = {};
-		for (const candidate of fresh) {
-			if (!chosen.has(candidate.url)) continue;
-			const name = uniqueMcpServerName(candidate.name, taken);
-			taken.push(name);
-			toImport[name] = {
-				url: candidate.url,
-				authType: Object.keys(candidate.headers).length > 0 ? "headers" : "none",
-				...(Object.keys(candidate.headers).length > 0 ? { headers: candidate.headers } : {}),
-			};
-		}
-		setSaving(true);
-		const imported = await onImport(toImport);
-		setSaving(false);
-		if (!imported) {
-			setError("Check your connection and try again.");
-			return;
-		}
-		const added = Object.keys(toImport).length;
-		toast(added === 1 ? "Added 1 MCP server" : `Added ${added} MCP servers`);
-		onClose();
-	};
-
-	const footer = (
-		<>
-			<Button variant="secondary" onClick={onClose}>
-				Cancel
-			</Button>
-			<Button
-				variant="default"
-				data-primary-action
-				disabled={chosen.size === 0}
-				loading={saving}
-				onClick={() => void runImport()}
+	const centred = "flex flex-1 items-center justify-center text-sm text-fg-muted";
+	let body: ReactNode;
+	if (scan === null && !failed) {
+		body = (
+			<div
+				role="status"
+				aria-label="Scanning local MCP servers"
+				className="flex flex-1 flex-col items-center justify-center gap-2 text-sm text-fg-muted"
 			>
-				{chosen.size === 0
-					? "Add MCP servers"
-					: chosen.size === 1
-						? "Add 1 MCP server"
-						: `Add ${chosen.size} MCP servers`}
-			</Button>
-		</>
-	);
-
-	return (
-		<Sheet open onOpenChange={(open) => (open ? undefined : onClose())}>
-			<SheetContent title="Select MCP servers" footer={footer}>
-				<div className="mt-6 flex flex-col gap-3">
-					{error === null ? null : <p className="text-sm text-danger">{error}</p>}
-					{scan === null ? (
-						<p role="status" className="text-sm text-fg-muted">
-							Reading local MCP configs...
-						</p>
-					) : fresh !== null && fresh.length > 0 ? (
-						<>
-							<p className="text-sm text-fg-muted">
-								Remote MCP servers found in this Mac's agent configs.
-							</p>
-							<div className="flex items-center gap-2">
-								<Input
-									value={query}
-									onChange={(event) => setQuery(event.target.value)}
-									placeholder="Search MCP servers..."
-									aria-label="Search MCP servers"
-									autoFocus
-									autoComplete="off"
-									className="flex-1"
+				{/* The box around it carries the status, as Conductor's does. */}
+				<span aria-hidden="true">
+					<Spinner label="Scanning" kind="typing" className="size-5 text-fg-muted" />
+				</span>
+				<span>Scanning local MCP servers…</span>
+			</div>
+		);
+	} else if (scan === null) {
+		body = <p className={centred}>Couldn't read local MCP configs</p>;
+	} else if (offered.length === 0) {
+		body = <p className={centred}>{nothingToOffer(scan)}</p>;
+	} else {
+		body = (
+			<div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border">
+				<div className="flex shrink-0 items-center gap-1 border-b border-border p-1.5">
+					<Input
+						value={query}
+						onChange={(event) => setQuery(event.target.value)}
+						placeholder="Search MCP servers..."
+						className="h-8 flex-1 border-0 shadow-none focus-visible:ring-0"
+						autoFocus
+						{...FIELD_INPUT}
+					/>
+					{visible.length > 0 ? (
+						<Button
+							variant="ghost"
+							size="sm"
+							className="shrink-0 text-fg-muted"
+							onClick={toggleVisible}
+						>
+							{everyVisibleChosen ? "Deselect all" : "Select all"}
+						</Button>
+					) : null}
+				</div>
+				<div className="max-h-72 min-h-0 flex-1 overflow-y-auto p-1">
+					{visible.length > 0 ? (
+						visible.map((candidate, index) => (
+							<label
+								key={candidateKey(candidate)}
+								htmlFor={`mcp-import-${index}`}
+								className="flex cursor-pointer items-center gap-2.5 rounded-sm px-2 py-1.5 hover:bg-hover"
+							>
+								<Checkbox
+									id={`mcp-import-${index}`}
+									aria-label={candidate.name}
+									checked={!cleared.has(candidateKey(candidate))}
+									onCheckedChange={() => toggle(candidate)}
 								/>
-								{visible !== null && visible.length > 0 ? (
-									<Button variant="ghost" size="sm" onClick={toggleAll}>
-										{everyVisibleUnchosen ? "Select all" : "Deselect all"}
-									</Button>
-								) : null}
-							</div>
-							{visible !== null && visible.length > 0 ? (
-								<Table>
-									<TableHeader>
-										<TableRow>
-											<TableHead>
-												<span className="sr-only">Choose</span>
-											</TableHead>
-											<TableHead>Name</TableHead>
-											<TableHead>Source</TableHead>
-										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{visible.map((candidate) => (
-											<TableRow key={candidate.url}>
-												<TableCell>
-													<Checkbox
-														aria-label={candidate.name}
-														checked={chosen.has(candidate.url)}
-														onCheckedChange={() => toggle(candidate.url)}
-													/>
-												</TableCell>
-												<TableCell>
-													<div className="flex flex-col">
-														<span className="font-medium text-fg">{candidate.name}</span>
-														<span className="max-w-72 truncate font-mono text-xs text-fg-muted">
-															{candidate.url}
-														</span>
-													</div>
-												</TableCell>
-												<TableCell className="text-fg-muted">
-													{candidate.sources.join(", ")}
-												</TableCell>
-											</TableRow>
-										))}
-									</TableBody>
-								</Table>
-							) : (
-								<p className="px-2 py-4 text-center text-sm text-fg-muted">
-									No matching MCP servers.
-								</p>
-							)}
-						</>
-					) : unreadable.length > 0 ? (
-						<EmptyState
-							compact
-							title="Couldn't read local MCP configs"
-							body={unreadable.join(", ")}
-						/>
-					) : skipped > 0 ? (
-						<EmptyState
-							compact
-							title="No servers to import — only remote (HTTPS) servers are supported"
-						/>
+								<span className="flex min-w-0 flex-col">
+									<span className="truncate text-sm text-fg">{candidate.name}</span>
+									<span className="truncate text-xs text-fg-muted">
+										{`${candidate.sources.join(", ")} · ${candidate.url}`}
+									</span>
+								</span>
+							</label>
+						))
 					) : (
-						<EmptyState compact title="All local MCP servers are already added" />
+						<p className="px-2 py-4 text-center text-sm text-fg-muted">No matching MCP servers.</p>
 					)}
 				</div>
-			</SheetContent>
-		</Sheet>
+			</div>
+		);
+	}
+
+	return (
+		<Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
+			<DialogContent title="Select MCP servers" size="xl" className="h-[30rem] overflow-hidden">
+				<div className="flex min-h-0 flex-1">{body}</div>
+				<DialogFooter>
+					<Button variant="ghost" size="sm" onClick={onClose}>
+						Cancel
+					</Button>
+					<Button
+						size="sm"
+						data-primary-action
+						disabled={chosen.length === 0}
+						onClick={() => onChoose(chosen)}
+					>
+						{chosen.length === 0
+							? "Add MCP servers"
+							: chosen.length === 1
+								? "Add 1 MCP server"
+								: `Add ${chosen.length} MCP servers`}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	);
 }
