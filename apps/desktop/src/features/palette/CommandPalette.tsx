@@ -259,7 +259,10 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 		const position = section === undefined ? 0 : section.workspaceIds.length;
 		const result = await actions.sections.place(workspaceId as WorkspaceId, sectionId, position);
 		if (!result.ok) {
-			toastError("Couldn't move the workspace", result.error);
+			toastError(
+				sectionId === null ? "Couldn't remove workspace from section" : "Couldn't move workspace",
+				result.error,
+			);
 			return;
 		}
 		close();

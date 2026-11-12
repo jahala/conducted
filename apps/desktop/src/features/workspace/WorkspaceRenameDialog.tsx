@@ -35,6 +35,7 @@ export function WorkspaceRenameDialog({
 			open={open}
 			onOpenChange={onOpenChange}
 			title="Rename workspace"
+			description={<span className="sr-only">Enter a new name for this workspace</span>}
 			initialName={initialName}
 			onSubmit={(name) => actions.workspaces.rename(workspaceId, name)}
 		/>

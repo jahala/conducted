@@ -153,7 +153,7 @@ describe("AGENT-03 an assistant message with an error in the chat", () => {
 			const alert = within(alerts[0] as HTMLElement);
 			expect(alert.getByText("Authentication required")).toBeTruthy();
 			expect(alert.getByText(said)).toBeTruthy();
-			expect(alert.getByRole("link", { name: "Open agent settings" })).toBeTruthy();
+			expect(alert.getByRole("link", { name: "Open settings" })).toBeTruthy();
 			expect(screen.getAllByText(said)).toHaveLength(1);
 		} finally {
 			await stop();

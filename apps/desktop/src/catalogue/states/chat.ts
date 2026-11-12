@@ -3,8 +3,10 @@
  * Owns: a finished conversation (its work folded into one "3 tool calls, 2 messages" row, the final reply
  * and the footer with the turn's files), the same with that row opened (thinking, Read, Edit and Bash
  * rows), a chat that is working with a queued follow-up, and the three cards an agent waits on: a tool
- * approval, a question and a plan review; and a reply that uses every Markdown part (headings, lists,
- * inline code, a code block, a table, a quote, a callout, links and a rule).
+ * approval, a question and a plan review; a workspace with a closed chat, so the tab strip offers
+ * "View chat history"; a workspace address no workspace answers ("Workspace not
+ * found"); and a reply that uses every Markdown part (headings, lists, inline code, a code block, a
+ * table, a quote, a callout, links and a rule).
  * Behaviour: ui-map.md 3.3 (chat), sessions-and-chats.md "Questions, approvals and plans".
  * Test first: not applicable; the screenshot run opens every state.
  */
@@ -12,8 +14,8 @@
 import type { Workspace } from "../../core/model.ts";
 import { animateCast, type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, hover, shows } from "../dom.ts";
-import { addChat, addEvents } from "../seeds.ts";
+import { click, has, hover, shows } from "../dom.ts";
+import { addChat, addEvents, addRepo, must } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
 import type { World } from "../world.ts";
@@ -197,6 +199,34 @@ export const CHAT_STATES: CatalogueState[] = [
 			(cast) => ({ route: chatRoute(cast.ember, cast.chats.ember), workspace: cast.ember }),
 			"How long should a failed webhook keep retrying?",
 		),
+	},
+	{
+		id: "chat-history-button",
+		group: "Workspace chat",
+		title: "A workspace with a closed chat, so the tab strip offers View chat history",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			const chat = await addChat(world, cast.grove, { title: "Fix the login redirect" });
+			must(await world.repositories.sessions.close(chat.id));
+			return {
+				route: `/repository/${cast.grove.repoId}/workspace/${cast.grove.id}`,
+				ready: (document) => has(document, "button", "View chat history"),
+			};
+		},
+	},
+	{
+		id: "workspace-not-found",
+		group: "Workspace chat",
+		title: "A workspace address that no workspace answers, on a Mac with no workspaces",
+		// With any workspace loaded, the route sends an unknown id to All workspaces (router.tsx), so
+		// the gate's card shows only while the list is empty.
+		seed: async (world): Promise<Scene> => {
+			const atlas = await addRepo(world, { name: "atlas" });
+			return {
+				route: `/repository/${atlas.id}/workspace/workspace-that-is-gone`,
+				ready: (document) => shows(document, "Workspace not found"),
+			};
+		},
 	},
 	{
 		id: "chat-plan-review",

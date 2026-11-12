@@ -114,7 +114,72 @@ describe("CHAT-06 chat banners", () => {
 		);
 		expect(await screen.findByText("Authentication required")).toBeTruthy();
 		expect(screen.getByText("Codex authentication required")).toBeTruthy();
-		expect(await screen.findByRole("link", { name: "Open agent settings" })).toBeTruthy();
+		expect(await screen.findByRole("link", { name: "Open settings" })).toBeTruthy();
+	});
+
+	it("reads a Codex sign-in error as 'Codex authentication required'", async () => {
+		renderWithRouter(
+			<ChatBanner
+				agent="codex"
+				block={{
+					kind: "error",
+					item: {
+						kind: "error",
+						code: "agent_auth_required",
+						message: "Codex authentication required. Sign in to Codex in the agent settings.",
+						retryable: false,
+					},
+				}}
+			/>,
+		);
+		expect(await screen.findByText("Codex authentication required")).toBeTruthy();
+		expect(
+			screen.getByText("Please configure Codex authentication in Settings to use Codex."),
+		).toBeTruthy();
+	});
+
+	it("reads an expired ChatGPT login as 'ChatGPT login expired'", async () => {
+		renderWithRouter(
+			<ChatBanner
+				agent="codex"
+				block={{
+					kind: "error",
+					item: {
+						kind: "error",
+						code: "agent_auth_required",
+						message: "ChatGPT login expired. Sign in to ChatGPT in the agent settings.",
+						retryable: false,
+					},
+				}}
+			/>,
+		);
+		expect(await screen.findByText("ChatGPT login expired")).toBeTruthy();
+		expect(
+			screen.getByText(
+				"Your ChatGPT login has expired. Reconnect ChatGPT, then send your message again.",
+			),
+		).toBeTruthy();
+	});
+
+	it("reads a Cursor sign-in error as 'Cursor API key required'", async () => {
+		renderWithRouter(
+			<ChatBanner
+				agent="cursor"
+				block={{
+					kind: "error",
+					item: {
+						kind: "error",
+						code: "agent_auth_required",
+						message: "Cursor API key is not configured",
+						retryable: false,
+					},
+				}}
+			/>,
+		);
+		expect(await screen.findByText("Cursor API key required")).toBeTruthy();
+		expect(
+			screen.getByText("Add a Cursor API key in provider settings to use Cursor."),
+		).toBeTruthy();
 	});
 });
 
