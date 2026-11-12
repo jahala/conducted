@@ -397,9 +397,11 @@ async function todoToolsChat(world: World): Promise<Scene> {
 	await addEvents(world, chat.id, talk.events);
 	return {
 		route: chatRoute(cast.grove, chat),
-		after: async ({ app }) => {
+		after: async ({ app, document }) => {
 			await animateCast(world, cast, app);
 			await refreshGit(app, cast.grove);
+			// The turn's work is folded into one row; open it to show each todo card's title.
+			await openRow(document, "3 tool calls");
 		},
 		ready: (document) =>
 			shows(document, "No todos") &&

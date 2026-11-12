@@ -12,6 +12,7 @@
 import { useOverlayStore } from "../../app/overlay-store.ts";
 import { chatRoute, refreshGit, seedCast, workspaceRoute } from "../cast.ts";
 import { click, has, pressUntilTaken, shows } from "../dom.ts";
+import { setSetting } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
 
 /**
@@ -276,6 +277,7 @@ export const OVERLAY_STATES: CatalogueState[] = [
 		title: "Browser tab while the dev server has not answered yet",
 		seed: async (world) => {
 			const cast = await seedCast(world);
+			await setSetting(world, "experimental_in_app_browser_preview", true);
 			return {
 				// arbor's own port, where nothing listens in the catalogue.
 				route: workspaceRoute(cast.arbor, {

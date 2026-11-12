@@ -3,8 +3,8 @@
  * Owns: the seeds for Home with the cast, the new workspace page with a project chosen (and its
  * Create from picker open) and in
  * cloud mode (ready, and waiting for the Worker's GitHub token, CLOUD-19), the backlog with saved
- * workspaces and empty, the Diagnostics page, Home with a workspace still being created and one being
- * archived, an archived workspace's file tab, and an address that matches no page.
+ * workspaces and empty, the Diagnostics page, the sidebar with a workspace still being created and
+ * one being archived, an archived workspace's file tab, and an address that matches no page.
  * Behaviour: ui-map.md 2 (routes /all-workspaces, /create, /backlog, /diagnostics), WS-11 (backlog),
  * APP-03 (diagnostics).
  * Test first: not applicable; the screenshot run opens every state.
@@ -12,8 +12,8 @@
 
 import { ok } from "@conducted/shared";
 import type { CloudReadiness } from "../../core/organization.ts";
-import { animateCast, seedCast, workspaceRoute } from "../cast.ts";
-import { click, find, shows, typeInto } from "../dom.ts";
+import { animateCast, chatRoute, seedCast, workspaceRoute } from "../cast.ts";
+import { click, find, has, shows, typeInto } from "../dom.ts";
 import { addWorkspace, CLAUDE_CONFIG, must, setSetting } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
 import type { World } from "../world.ts";
@@ -39,9 +39,9 @@ export const PAGE_STATES: CatalogueState[] = [
 		},
 	},
 	{
-		id: "home-workspace-transitions",
+		id: "sidebar-workspace-transitions",
 		group: "Pages",
-		title: "Home with a workspace being created and one being archived",
+		title: "The sidebar with a workspace being created and one being archived",
 		seed: async (world) => {
 			const cast = await seedCast(world);
 			await addWorkspace(world, cast.atlas, {
@@ -54,9 +54,10 @@ export const PAGE_STATES: CatalogueState[] = [
 				branch: "sam/legacy-cleanup",
 				state: "archiving",
 			});
+			// The sidebar row names each workspace's status; Home's cards do not.
 			return {
-				route: "/all-workspaces",
-				ready: (document) => shows(document, "Initializing…") && shows(document, "Archiving…"),
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				ready: (document) => has(document, "[aria-label]", "Initializing…"),
 			};
 		},
 	},

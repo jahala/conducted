@@ -4,7 +4,7 @@
  * search with no match,
  * the untracked-files note, a commit scope, a diff that cannot load or has nothing to show, a
  * whitespace-only diff, the review menu, dialog and tooltip, an SVG preview, an empty CSV preview,
- * the editor's find and replace bar, a video and a PDF that cannot load, and unsaved edits to a file
+ * the editor's find and replace bar, a video that cannot load, and unsaved edits to a file
  * that changed on disk (the banner, and the save it refuses), a file with a merge conflict, and a
  * new comment for the AI on a diff, and the question when it is cancelled with text.
  * Behaviour: ui-map.md 3.2, 3.6 and 5.2; REV-01, REV-02, REV-03, REV-05 and REV-08.
@@ -410,12 +410,6 @@ export const REVIEW_STATES: CatalogueState[] = [
 		"A video the webview cannot load",
 		"demo.mp4",
 		"Failed to load video",
-	),
-	previewFails(
-		"file-pdf-failed",
-		"A PDF the webview cannot load",
-		"guide.pdf",
-		"Failed to load PDF",
 	),
 	NEW_COMMENT_STATE,
 	DISCARD_COMMENT,

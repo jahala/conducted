@@ -14,7 +14,7 @@
  */
 
 import { ok } from "@conducted/shared";
-import { type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
+import { animateCast, type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { click, findFirst, rightClickOn, shows } from "../dom.ts";
 import { must, setSetting } from "../seeds.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
@@ -80,6 +80,8 @@ const updateNotice = (
 		return {
 			route: chatRoute(cast.arbor, cast.chats.arbor),
 			after: async ({ app }) => {
+				// With the auto-restart on, the notice stays only while an agent works: beacon's does.
+				if (autoRestart) await animateCast(world, cast, app);
 				must(await app.container.actions.app.checkForUpdates());
 				if (stage === "ready") must(await app.container.actions.app.installUpdate());
 			},

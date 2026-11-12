@@ -5,7 +5,7 @@
  * All files tab, the Checks tab, the header with no pull request, an open one, a draft, one with a
  * failed check, one ready to merge and a merged one, the Changes tab when the tree is clean and when git fails,
  * the Changes tab as a folder tree with a filter that matches nothing, the tab strip's new tab menu,
- * a changed file's right-click menu and its discard confirm, the Rename workspace dialog, the toast
+ * a file's right-click menu in All files, a changed file's discard confirm, the Rename workspace dialog, the toast
  * after Copy link, the question before archiving a workspace whose agent works, the Artifacts tab
  * with one file, and the All files tab holding every kind in Conductor's brand file icon table, in
  * parts.
@@ -140,9 +140,12 @@ export const GIT_STATES: CatalogueState[] = [
 	{
 		id: "git-file-row-menu",
 		group: "Git panel",
-		title: "Changes tab, a changed file's right-click menu",
+		title: "All files tab, a file's right-click menu",
 		seed: arborScene({
-			after: ({ document }) => rightClick(document, "button", "Open src/auth/sign-in.ts"),
+			after: async ({ document }) => {
+				await click(document, "button,[role=tab]", "All files");
+				await rightClick(document, '[role="treeitem"]', "README.md");
+			},
 			ready: (document) => shows(document, "Copy relative path"),
 		}),
 	},

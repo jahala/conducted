@@ -801,13 +801,12 @@ export const SETTINGS_STATES: CatalogueState[] = [
 	{
 		id: "settings-key-bindings-recording",
 		group: "Settings",
-		title: "Keyboard shortcuts, recording a new key for Cycle effort level",
+		title: "Keyboard shortcuts, recording a new key for the command palette",
 		seed: async (world) => {
 			await seedCast(world);
 			return {
 				route: "/settings/user/key-bindings",
-				after: ({ document }) =>
-					click(document, "button", "Change shortcut for Cycle effort level"),
+				after: ({ document }) => click(document, "button", "Change shortcut for Command palette"),
 				ready: (document) => shows(document, "Type shortcut"),
 			};
 		},
@@ -1021,10 +1020,25 @@ export const SETTINGS_STATES: CatalogueState[] = [
 					const saved = await actions.projects.updateConfig(repoId, {
 						...loaded.value,
 						runScripts: [
+							// The origins the Edit and Add dialogs give: a shared action edited on this Mac,
+							// and an action of this Mac only.
 							...shared.map((action) =>
-								action.id === "dev" ? { ...action, command: "pnpm dev --port 4000" } : action,
+								action.id === "dev"
+									? {
+											...action,
+											command: "pnpm dev --port 4000",
+											origin: "changed_locally" as const,
+										}
+									: action,
 							),
-							{ ...dev, id: "lint", label: "Lint", command: "pnpm lint", isDefault: false },
+							{
+								...dev,
+								id: "lint",
+								label: "Lint",
+								command: "pnpm lint",
+								isDefault: false,
+								origin: "local" as const,
+							},
 						],
 					});
 					if (!saved.ok) throw new Error(`Saving atlas's actions failed: ${saved.error.message}`);
