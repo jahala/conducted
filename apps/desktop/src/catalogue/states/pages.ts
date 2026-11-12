@@ -2,7 +2,7 @@
  * @feature catalogue States of the full pages in the main layout: Home, new workspace, backlog, diagnostics
  * Owns: the seeds for Home with the cast, the new workspace page with a project chosen (and its
  * Create from picker open, and its slash command menu) and in
- * cloud mode (ready, and waiting for the Worker's GitHub token, CLOUD-19), the backlog with saved
+ * cloud mode (ready, with no project yet, and waiting for the Worker's GitHub token, CLOUD-19), the backlog with saved
  * workspaces and empty, the Diagnostics page, an archived workspace's file tab, and an address that matches no page.
  * Behaviour: ui-map.md 2 (routes /all-workspaces, /create, /backlog, /diagnostics), WS-11 (backlog),
  * APP-03 (diagnostics).
@@ -183,6 +183,23 @@ export const PAGE_STATES: CatalogueState[] = [
 				ready: (document) =>
 					document.querySelector('[role="dialog"] button[aria-label="Repository"]') !== null,
 			};
+		},
+	},
+	{
+		id: "new-workspace-cloud-no-projects",
+		group: "Pages",
+		title: "New workspace dialog in the cloud before any project was added",
+		seed: async (world) => {
+			// No cast: this Mac has no project yet, so the Worker has none to clone.
+			await setSetting(world, "active_organization", "cloud");
+			const readiness: CloudReadiness = {
+				github: true,
+				agents: { anthropic: true, openai: false, cursor: false },
+			};
+			world.memory.controls.scriptCloud((request) =>
+				request.path === "/readiness" ? ok({ status: 200, body: JSON.stringify(readiness) }) : null,
+			);
+			return { route: "/create", ready: (document) => shows(document, "Add one") };
 		},
 	},
 	{
