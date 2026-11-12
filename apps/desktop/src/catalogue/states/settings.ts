@@ -1089,6 +1089,21 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		},
 	},
 	{
+		id: "settings-repo-copy-preview-failed",
+		group: "Settings",
+		title: "atlas: Misc, the files to copy when git cannot list them",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			// A pattern to copy, so the page asks git for the ignored files; the catalogue's git for
+			// atlas's own clone does not answer that, as a git that fails would not.
+			world.memory.controls.files.set(`${cast.atlas.rootPath}/.worktreeinclude`, ".env\n");
+			return {
+				route: `/settings/repos/${cast.atlas.id}/misc`,
+				ready: (document) => shows(document, "Could not preview files to copy."),
+			};
+		},
+	},
+	{
 		id: "settings-repo-add-action",
 		group: "Settings",
 		title: "atlas: Actions, the Add action dialog",
