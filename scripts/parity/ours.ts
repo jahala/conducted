@@ -101,7 +101,7 @@ export function settingsKeys(): string[] {
 export function tables(root: string): string[] {
 	const dir = join(root, "apps/desktop/src-tauri/migrations");
 	const names = files(dir, /\.sql$/).flatMap((path) => schemaTables(readFileSync(path, "utf8")));
-	// tauri-plugin-sql keeps its applied-version ledger in this table (apps/desktop/src-tauri/src/db.rs);
+	// sqlx's migrator keeps its applied-version ledger in this table (apps/desktop/src-tauri/src/db.rs);
 	// no migration creates it, so the SQL files alone never name it.
 	return nonEmpty("tables", [...names, "_sqlx_migrations"]);
 }

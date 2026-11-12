@@ -165,7 +165,7 @@
 		"status": "matched",
 		"ours": "_sqlx_migrations",
 		"by": "hand",
-		"note": "The SQL plugin's migration ledger, which our shell uses too."
+		"note": "sqlx's migration ledger: Conductor's SQL plugin keeps it, and so does our shell's migrator (D137)."
 	},
 	"table:identity_acceptances": {
 		"status": "gap",

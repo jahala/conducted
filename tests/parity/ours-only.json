@@ -245,6 +245,24 @@
 		"note": "Ours, placed in Conductor's layout: Add to backlog and the Backlog page (docs/design.md)."
 	},
 	{
+		"text": "db_execute",
+		"inventory": "tauri_command",
+		"decision": "D137",
+		"note": "Ours: the app's one database connection (database.rs), in place of Conductor's sql plugin commands."
+	},
+	{
+		"text": "db_open",
+		"inventory": "tauri_command",
+		"decision": "D137",
+		"note": "Ours: the app's one database connection (database.rs), in place of Conductor's sql plugin commands."
+	},
+	{
+		"text": "db_select",
+		"inventory": "tauri_command",
+		"decision": "D137",
+		"note": "Ours: the app's one database connection (database.rs), in place of Conductor's sql plugin commands."
+	},
+	{
 		"text": "ghp_...",
 		"state": "settings-account",
 		"decision": "D098",
