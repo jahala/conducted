@@ -44,6 +44,7 @@ pub mod attachments;
 pub mod binaries;
 pub mod cloud;
 pub mod conductor_import;
+pub mod database;
 pub mod db;
 pub mod deep_link;
 pub mod error;
@@ -690,11 +691,6 @@ pub fn run() {
     let shell_state = prepare_shell_state();
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::new().build())
-        .plugin(
-            tauri_plugin_sql::Builder::default()
-                .add_migrations(db::DB_URL, db::migrations())
-                .build(),
-        )
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -704,6 +700,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(instance_lock)
+        .manage(database::DatabaseState::default())
         .manage(shell_state)
         .manage(pty::PtyState::default())
         .manage(sidecar::SidecarState::default())
@@ -773,6 +770,9 @@ pub fn run() {
             window::window_set_traffic_lights,
             db::db_version_check,
             db::db_free_bytes,
+            database::db_open,
+            database::db_execute,
+            database::db_select,
             logger::log_write,
             logger::log_set_level,
             logger::logs_export,
@@ -904,6 +904,11 @@ pub fn run() {
                 // The app is closing, so only stderr is left to report a failed stop.
                 if let Err(error) = tauri::async_runtime::block_on(sidecar::shutdown(&state)) {
                     eprintln!("could not stop the sidecar on exit: {error}");
+                }
+                // Last, so SQLite folds its write-ahead log into the file (PLAT-02).
+                let database = app.state::<database::DatabaseState>();
+                if let Err(error) = tauri::async_runtime::block_on(database::close(&database)) {
+                    eprintln!("could not close the database on exit: {error}");
                 }
             }
         });
