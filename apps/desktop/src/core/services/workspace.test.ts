@@ -270,6 +270,9 @@ function makeHarness(
 			registered.push(path);
 			return ok(undefined);
 		},
+		async includeSshConfig() {
+			return ok(false);
+		},
 		async readBytes() {
 			return ok(new Uint8Array());
 		},

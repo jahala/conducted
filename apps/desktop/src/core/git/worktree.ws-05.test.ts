@@ -81,6 +81,9 @@ function makeFs(overrides: Partial<FileSystem> = {}): {
 		async registerRoot() {
 			return ok(undefined);
 		},
+		async includeSshConfig() {
+			return ok(false);
+		},
 		assetUrl(path: string) {
 			return `asset://localhost/${encodeURIComponent(path)}`;
 		},

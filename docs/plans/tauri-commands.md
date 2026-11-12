@@ -35,6 +35,7 @@ Dialogs, clipboard text and images, opening URLs and notifications permission us
 | `fs.trash`                                       | `fs_trash`                                                                   | files.rs            |                                        |
 | `fs.paths`                                       | `fs_paths`                                                                   | files.rs            |                                        |
 | `fs.registerRoot`                                | `fs_register_root` (also adds the folder to the asset protocol's scope)      | files.rs            |                                        |
+| `fs.includeSshConfig`                            | `fs_include_ssh_config` (no arguments: the one line in `~/.ssh/config`)      | files.rs            |                                        |
 | `fs.assetUrl`                                    | (`convertFileSrc`, the asset protocol)                                       | files.rs            |                                        |
 | `fileSearch.listTree`                            | `search_list_tree`                                                           | file_search.rs      |                                        |
 | `fileSearch.fuzzyMatch`                          | `search_fuzzy`                                                               | file_search.rs      |                                        |

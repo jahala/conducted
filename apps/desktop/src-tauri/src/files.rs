@@ -37,6 +37,8 @@
 //! - The user's `~/.claude.json`, `~/.claude/`, `~/.conducted/` and Claude Desktop's
 //!   `claude_desktop_config.json`.
 //! - The default workspaces folder, `~/conducted/`.
+//! - The SSH config entries the app owns, `~/.ssh/conducted_config` and
+//!   `~/.ssh/conducted_config.d/` (CLOUD-12). The rest of `~/.ssh` is out of scope.
 //! - The check resolves symlinks and `..` first, so a link inside a root cannot lead out of it.
 //! - A path outside every root fails with `fs_out_of_scope` and names the path.
 //! - `fs_stat` resolves only the parent folder and then reads the link itself, so a link is
@@ -45,6 +47,14 @@
 //!   and workspace services register every project folder and workspace folder they load or add,
 //!   so a repository outside `~/conducted` is reachable. A registration lasts until the app quits;
 //!   the UI registers again on every start. A relative path fails with `fs_relative_path`.
+//!
+//! - `fs_include_ssh_config` is the one write the app makes to a `~/.ssh` file it does not own
+//!   (CLOUD-12, issue #611). It takes no path and no text: it adds
+//!   `Include <home>/.ssh/conducted_config` and a blank line in front of `~/.ssh/config` when the
+//!   file does not hold that text yet, keeps every other byte, writes through a link to the file
+//!   it points to, and keeps the file's mode. A missing config is made; a missing `~/.ssh` is
+//!   `fs_not_found`; a config it cannot read is an error and is never overwritten. The web view
+//!   never reads the file.
 //!
 //! - A registered folder is also added to the asset protocol's scope, so the web view can load
 //!   previews from it through `Platform.fs.assetUrl`. The static scope in `tauri.conf.json` is
@@ -108,6 +118,13 @@ pub const MAX_READ_BYTES: u64 = 64 * 1024 * 1024;
 
 /// How many symbolic links one scope check follows before giving up.
 const MAX_LINK_HOPS: usize = 40;
+
+/// The SSH config file the app owns under `~/.ssh`; the user's `~/.ssh/config` includes it
+/// (CLOUD-12). Mirrors `SSH_CONFIG_NAME` in platform.ts.
+pub const SSH_CONFIG_NAME: &str = "conducted_config";
+/// The folder of per-app SSH config files the app owns under `~/.ssh`. Mirrors
+/// `SSH_CONFIG_DIR_NAME` in platform.ts.
+pub const SSH_CONFIG_DIR_NAME: &str = "conducted_config.d";
 
 /// File facts. Mirrors `FileStat` in `apps/desktop/src/platform/platform.ts`.
 #[derive(Debug, Clone, Serialize)]
@@ -231,12 +248,14 @@ fn normalise_lexically(path: &Path) -> PathBuf {
     resolved
 }
 
-/// Canonicalises a root when it exists, so a link in the root itself cannot hide a match.
+/// Resolves a root the way a path is resolved, so a link in the root itself cannot hide a match.
+/// A root that does not exist yet is resolved from its deepest existing folder, so a root under a
+/// linked folder (a `~/.ssh` that links into a dotfiles folder) matches the paths below it before
+/// it is made.
 fn root_for_compare(root: &Path) -> PathBuf {
-    match fs::canonicalize(root) {
+    match resolve_for_scope(root) {
         Ok(resolved) => resolved,
-        // A root that does not exist yet is compared as written. Nothing can be read under it
-        // until it is created, and a later check canonicalises it.
+        // A root that cannot be resolved is compared as written.
         Err(_) => normalise_lexically(root),
     }
 }
@@ -300,8 +319,11 @@ fn default_roots(app: &AppHandle) -> CommandResult<Vec<PathBuf>> {
     Ok(roots)
 }
 
-/// The home-folder roots: the Claude configuration the UI imports and the folders the app owns.
+/// The home-folder roots: the Claude configuration the UI imports, the folders the app owns, and
+/// the two SSH config entries the app owns under `~/.ssh` (CLOUD-12). The rest of `~/.ssh` stays
+/// out; the one line the app adds to `~/.ssh/config` goes through `fs_include_ssh_config`.
 fn home_roots(home: &Path) -> Vec<PathBuf> {
+    let ssh = home.join(".ssh");
     vec![
         home.join(".claude.json"),
         home.join(".claude"),
@@ -311,6 +333,8 @@ fn home_roots(home: &Path) -> Vec<PathBuf> {
             .join("Claude")
             .join("claude_desktop_config.json"),
         home.join("conducted"),
+        ssh.join(SSH_CONFIG_NAME),
+        ssh.join(SSH_CONFIG_DIR_NAME),
     ]
 }
 
@@ -912,6 +936,53 @@ pub fn allow_assets_under<R: Runtime>(app: &AppHandle<R>, folder: &Path) -> Comm
                 folder.display()
             ),
         })
+}
+
+/// `existing` with `line` and a blank line in front, or `None` when `existing` already holds the
+/// line's text anywhere, as Conductor's check finds it. Every byte of `existing` is kept, so a file
+/// that is not UTF-8 is not rewritten. packages/shared/fixtures/ssh-include.json holds the cases
+/// the TypeScript stand-ins answer too.
+fn with_ssh_include(existing: &[u8], line: &[u8]) -> Option<Vec<u8>> {
+    if existing.windows(line.len()).any(|window| window == line) {
+        return None;
+    }
+    let mut next = Vec::with_capacity(line.len() + 2 + existing.len());
+    next.extend_from_slice(line);
+    next.extend_from_slice(b"\n\n");
+    next.extend_from_slice(existing);
+    Some(next)
+}
+
+/// Adds `Include <home>/.ssh/conducted_config` to `<home>/.ssh/config` when it is not there.
+/// Returns whether the file changed. A missing config is made; a missing `~/.ssh` is
+/// `fs_not_found`, and a config that cannot be read is an error, never overwritten.
+fn include_ssh_config_at(home: &Path) -> CommandResult<bool> {
+    let ssh = home.join(".ssh");
+    let config = ssh.join("config");
+    let line = format!("Include {}", ssh.join(SSH_CONFIG_NAME).to_string_lossy());
+    let existing = match read_bytes_limited(&config) {
+        Ok(bytes) => bytes,
+        Err(CommandError::Failed {
+            code: "fs_not_found",
+            ..
+        }) => Vec::new(),
+        Err(error) => return Err(error),
+    };
+    match with_ssh_include(&existing, line.as_bytes()) {
+        None => Ok(false),
+        Some(next) => {
+            write_bytes_atomic_with(&config, &next, rename_file)?;
+            Ok(true)
+        }
+    }
+}
+
+/// Adds the app's one include line to the user's `~/.ssh/config` (CLOUD-12, issue #611). The web
+/// view names nothing: the file and the line are fixed here, so this command cannot read
+/// `~/.ssh/config` back or write anything else into it. Returns whether the file changed.
+#[tauri::command]
+pub async fn fs_include_ssh_config() -> CommandResult<bool> {
+    blocking("fs_task_failed", || include_ssh_config_at(&home_dir()?)).await
 }
 
 /// Moves an app-managed file or folder to the Trash without the web view's path scope.
@@ -1863,6 +1934,205 @@ mod tests {
                 "x-apple.systempreferences:*",
             ],
             "the opener scope is the exact list, not a broader web scope"
+        );
+    }
+
+    /// A home folder with an `~/.ssh` holding the user's own files, as a Mac has them.
+    fn home_with_ssh_files() -> (TempDir, PathBuf) {
+        let folder = TempDir::new();
+        let ssh = folder.path().join(".ssh");
+        fs::create_dir(&ssh).expect("ssh folder");
+        for name in [
+            "config",
+            "known_hosts",
+            "id_ed25519",
+            "conducted_config.bak",
+        ] {
+            fs::write(ssh.join(name), name).expect("seed an ssh file");
+        }
+        (folder, ssh)
+    }
+
+    #[test]
+    fn cloud_12_the_scope_reaches_only_the_ssh_files_the_app_owns() {
+        let (home, ssh) = home_with_ssh_files();
+        let roots = home_roots(home.path());
+
+        for allowed in [
+            ssh.join(SSH_CONFIG_NAME),
+            ssh.join(SSH_CONFIG_DIR_NAME),
+            ssh.join(SSH_CONFIG_DIR_NAME).join("ssh.config"),
+        ] {
+            check_path_in_scope(&as_string(&allowed), &roots)
+                .unwrap_or_else(|error| panic!("{} is refused: {error:?}", allowed.display()));
+        }
+        for refused in [
+            ssh.clone(),
+            ssh.join("config"),
+            ssh.join("known_hosts"),
+            ssh.join("id_ed25519"),
+            ssh.join("conducted_config.bak"),
+            ssh.join(SSH_CONFIG_DIR_NAME).join("..").join("id_ed25519"),
+        ] {
+            let error = check_path_in_scope(&as_string(&refused), &roots)
+                .expect_err("a file the user owns is out of scope");
+            assert_out_of_scope(error);
+        }
+    }
+
+    #[test]
+    fn cloud_12_a_linked_ssh_folder_reaches_the_app_files_before_they_exist() {
+        let folder = TempDir::new();
+        let real = folder.path().join("dotfiles").join("ssh");
+        fs::create_dir_all(&real).expect("the linked folder");
+        fs::write(real.join("config"), "Host a\n").expect("seed config");
+        let home = folder.path().join("home");
+        fs::create_dir(&home).expect("home");
+        symlink(&real, home.join(".ssh")).expect("link ~/.ssh");
+        let roots = home_roots(&home);
+
+        let app_config = home
+            .join(".ssh")
+            .join(SSH_CONFIG_DIR_NAME)
+            .join("ssh.config");
+        check_path_in_scope(&as_string(&app_config), &roots)
+            .expect("the app's file under a linked ~/.ssh is in scope before it exists");
+        let error = check_path_in_scope(&as_string(&home.join(".ssh").join("config")), &roots)
+            .expect_err("the user's config stays out of scope");
+        assert_out_of_scope(error);
+    }
+
+    #[test]
+    fn cloud_12_the_include_rule_answers_the_shared_fixture() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../packages/shared/fixtures/ssh-include.json"
+        ))
+        .expect("the fixture is JSON");
+        let line = fixture["line"]
+            .as_str()
+            .expect("the fixture names the line");
+        let cases = fixture["cases"]
+            .as_array()
+            .expect("the fixture lists cases");
+        assert!(!cases.is_empty());
+        for case in cases {
+            let name = case["name"].as_str().expect("a case has a name");
+            let existing = case["existing"].as_str().expect("a case has a file");
+            let next = with_ssh_include(existing.as_bytes(), line.as_bytes());
+            let expected = case["next"].as_str().map(|text| text.as_bytes().to_vec());
+            assert_eq!(next, expected, "{name}");
+        }
+    }
+
+    fn include_line(home: &Path) -> String {
+        format!(
+            "Include {}",
+            home.join(".ssh").join(SSH_CONFIG_NAME).display()
+        )
+    }
+
+    #[test]
+    fn cloud_12_include_ssh_config_adds_the_line_once_and_keeps_every_byte() {
+        let (home, ssh) = home_with_ssh_files();
+        let existing: &[u8] = b"Host a\r\n    User b\n# \xff not UTF-8\nno final newline";
+        fs::write(ssh.join("config"), existing).expect("seed config");
+        fs::set_permissions(ssh.join("config"), fs::Permissions::from_mode(0o600))
+            .expect("config mode");
+
+        assert!(include_ssh_config_at(home.path()).expect("the first include"));
+        assert!(!include_ssh_config_at(home.path()).expect("the second include"));
+
+        let mut expected = format!("{}\n\n", include_line(home.path())).into_bytes();
+        expected.extend_from_slice(existing);
+        assert_eq!(fs::read(ssh.join("config")).expect("read config"), expected);
+        let mode = fs::metadata(ssh.join("config"))
+            .expect("config facts")
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o600, "the config keeps its mode");
+        for name in ["known_hosts", "id_ed25519", "conducted_config.bak"] {
+            assert_eq!(
+                fs::read_to_string(ssh.join(name)).expect("an untouched file"),
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn cloud_12_include_ssh_config_makes_a_missing_config() {
+        let folder = TempDir::new();
+        fs::create_dir(folder.path().join(".ssh")).expect("ssh folder");
+
+        assert!(include_ssh_config_at(folder.path()).expect("the include"));
+
+        assert_eq!(
+            fs::read_to_string(folder.path().join(".ssh").join("config")).expect("read config"),
+            format!("{}\n\n", include_line(folder.path()))
+        );
+    }
+
+    #[test]
+    fn cloud_12_include_ssh_config_without_ssh_folder_is_not_found_and_makes_nothing() {
+        let folder = TempDir::new();
+
+        let error = include_ssh_config_at(folder.path()).expect_err("no ~/.ssh");
+
+        assert!(
+            matches!(
+                error,
+                CommandError::Failed {
+                    code: "fs_not_found",
+                    ..
+                }
+            ),
+            "{error:?}"
+        );
+        assert!(!folder.path().join(".ssh").exists());
+    }
+
+    #[test]
+    fn cloud_12_include_ssh_config_writes_through_a_linked_config() {
+        let folder = TempDir::new();
+        let ssh = folder.path().join(".ssh");
+        fs::create_dir(&ssh).expect("ssh folder");
+        let real = folder.path().join("dotfiles-config");
+        fs::write(&real, "Host a\n").expect("seed the real config");
+        symlink(&real, ssh.join("config")).expect("link the config");
+
+        assert!(include_ssh_config_at(folder.path()).expect("the include"));
+
+        assert!(
+            fs::symlink_metadata(ssh.join("config"))
+                .expect("the link")
+                .file_type()
+                .is_symlink(),
+            "the link stays a link"
+        );
+        assert_eq!(
+            fs::read_to_string(&real).expect("read the real config"),
+            format!("{}\n\nHost a\n", include_line(folder.path()))
+        );
+    }
+
+    #[test]
+    fn cloud_12_include_ssh_config_leaves_an_unreadable_config_alone() {
+        let folder = TempDir::new();
+        let ssh = folder.path().join(".ssh");
+        fs::create_dir(&ssh).expect("ssh folder");
+        let config = ssh.join("config");
+        fs::write(&config, "Host a\n").expect("seed config");
+        fs::set_permissions(&config, fs::Permissions::from_mode(0o000)).expect("lock config");
+
+        let result = include_ssh_config_at(folder.path());
+
+        fs::set_permissions(&config, fs::Permissions::from_mode(0o600)).expect("unlock config");
+        assert!(
+            result.is_err(),
+            "an unreadable config is an error: {result:?}"
+        );
+        assert_eq!(
+            fs::read_to_string(&config).expect("read config"),
+            "Host a\n"
         );
     }
 }
