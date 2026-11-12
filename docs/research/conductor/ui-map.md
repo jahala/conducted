@@ -195,7 +195,7 @@ Approval card (`XYo`, VERIFIED @8830523-8833000):
 - "Network access" card with Deny and Approve. VERIFIED @8173658.
 - Local-command approvals can set "Always allow local commands" (Settings > Advanced).
 
-Plan approval (`dca`, VERIFIED @9259644): bar with "Sending to <chat>" picker, "Copy", "Hand off" (tooltip "Send plan to a new chat for implementation"), "Approve" (`Cmd+Shift+Enter`, tooltip "Execute plan in current chat"). A feedback box can reject the plan. Sidebar status text: "Review plan".
+Plan approval (`dca`, VERIFIED @9259644): bar with "Sending to <chat>" picker, "Copy", "Hand off" (tooltip "Send plan to a new chat for implementation"), "Approve" (`Cmd+Shift+Enter`, tooltip "Execute plan in current chat"). A feedback box can reject the plan. Sidebar status text: "Review plan". The bar shows only while a plan waits and plan mode is on (VERIFIED @9314918); the key acts under the same condition (@9295497). Approve and the key run one action: with text in the composer it sends the text as the plan's adjustments, otherwise it approves (@9313268).
 
 Question UI (`CUi`, VERIFIED @8144303): wizard with one page per question. Header, question, option list with descriptions, multi-select, secret input, "Other..." free text (`0`), previous and next (arrow keys), number keys `1..9` pick options, `Enter` submits, buttons Submit and "Cancel agent". Sidebar status text: "Answer question". Answers return as text "question / answer / (Skipped)".
 
