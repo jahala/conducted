@@ -1627,14 +1627,9 @@
 		"by": "seed"
 	},
 	"title:R4363426": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Terminal, run and files",
-		"class": "wording",
-		"backlog": "RUN-06",
-		"item": "Confirm 'Open this terminal link?' with Cancel and Open",
-		"owner": "hand",
-		"note": "Conductor asks in a system dialog (the dialog plugin's confirm, kind warning, renderApp @4363426); ours asks in a dialog the app draws, with the same title, text and buttons. Matching means replacing our dialog with the system one, which waits for the owner's yes. Once it is a system dialog, D134 covers it.",
+		"status": "decided",
+		"decision": "D134",
+		"note": "The title of the system dialog that asks before a terminal link opens (the dialog plugin's confirm, kind warning). Ours passes the same title, text and buttons from TerminalView; TerminalView.test.tsx asserts them.",
 		"by": "hand"
 	},
 	"title:R4405982": {

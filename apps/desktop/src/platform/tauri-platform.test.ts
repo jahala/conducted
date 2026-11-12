@@ -151,6 +151,15 @@ describe("PLAT-02 Tauri dialogs, opener and clipboard", () => {
 		expect(await dialogs.confirm({ title: "Confirm", message: "Continue?", okLabel: "Yes" })).toBe(
 			true,
 		);
+		expect(
+			await dialogs.confirm({
+				title: "Open link?",
+				message: "Open this terminal link?",
+				okLabel: "Open",
+				cancelLabel: "Cancel",
+				kind: "warning",
+			}),
+		).toBe(true);
 
 		expect(calls).toEqual([
 			["open", { title: "Pick", defaultPath: "/start", directory: true, multiple: false }],
@@ -158,6 +167,11 @@ describe("PLAT-02 Tauri dialogs, opener and clipboard", () => {
 			["open", { title: "Pick again", directory: true, multiple: false }],
 			["save", { title: "Save", defaultPath: "/x" }],
 			["ask", "Continue?", { title: "Confirm", okLabel: "Yes" }],
+			[
+				"ask",
+				"Open this terminal link?",
+				{ title: "Open link?", okLabel: "Open", cancelLabel: "Cancel", kind: "warning" },
+			],
 		]);
 	});
 
