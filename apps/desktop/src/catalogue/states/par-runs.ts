@@ -13,6 +13,7 @@ import { chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { click, find, pressUntilTaken, shows, typeInto } from "../dom.ts";
 import { scriptGitHub } from "../github.ts";
 import { setSetting } from "../seeds.ts";
+import { waitFor } from "../settle.ts";
 import type { CatalogueState } from "../state.ts";
 import { CATALOGUE_NOW } from "../time.ts";
 
@@ -116,11 +117,10 @@ async function openTerminal(
 ): Promise<void> {
 	void app;
 	await click(document, "button", "New terminal");
-	for (let frame = 0; frame < 300; frame++) {
-		if (document.querySelector("[data-terminal-view] .xterm-screen") !== null) return;
-		await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
-	}
-	throw new Error("The terminal view never appeared.");
+	await waitFor(
+		"the terminal view never appeared",
+		() => document.querySelector("[data-terminal-view] .xterm-screen") !== null,
+	);
 }
 
 export const PAR_RUN_STATES: CatalogueState[] = [

@@ -24,17 +24,23 @@ import { startApp } from "../main.tsx";
 import { CatalogueIndex } from "./CatalogueIndex.tsx";
 import { CATALOGUE_MARKER } from "./marker.ts";
 import { setSetting } from "./seeds.ts";
-import { MAX_FRAMES, nextFrame, settle, waitFor } from "./settle.ts";
+import { HANG_MS, poll, settle, waitFor } from "./settle.ts";
 import { openCatalogueDatabase } from "./sqlite.ts";
 import type { CatalogueState, Theme } from "./state.ts";
 import { CATALOGUE_STATES } from "./states/index.ts";
 import { createWorld } from "./world.ts";
 
-/** Fails with `what` when `work` has not finished after MAX_FRAMES frames. */
-async function withinFrames<T>(what: string, work: Promise<T>): Promise<T> {
+/**
+ * The longest a state's after-step may take. An after-step runs several waits, each bounded by
+ * HANG_MS, so a wait that hangs inside it fails first and names what it waited for.
+ */
+const AFTER_STEP_MS = 2 * HANG_MS;
+
+/** Fails with `what` when `work` has not finished after `limitMs`. */
+async function withinLimit<T>(what: string, limitMs: number, work: Promise<T>): Promise<T> {
 	let finished = false;
 	const timeout = (async (): Promise<never> => {
-		for (let frame = 0; frame < MAX_FRAMES && !finished; frame++) await nextFrame();
+		await poll(() => (finished ? true : undefined), limitMs);
 		throw new Error(`The screen never settled: ${what} did not finish.`);
 	})();
 	try {
@@ -77,7 +83,11 @@ async function mountState(
 	};
 	await waitFor("the router is loading", activity.routerIdle);
 	if (scene.after !== undefined) {
-		await withinFrames("the state's after-step", scene.after({ world, app, document }));
+		await withinLimit(
+			"the state's after-step",
+			AFTER_STEP_MS,
+			scene.after({ world, app, document }),
+		);
 	}
 	await document.fonts.ready;
 	await settle(state.id, scene.ready, activity);

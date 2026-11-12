@@ -18,9 +18,10 @@ import type { SessionId } from "@conducted/shared";
 import type { Session, Workspace } from "../../core/model.ts";
 import { animateCast, type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { type Conversation, conversation } from "../conversation.ts";
-import { click, has, rightClick, shows } from "../dom.ts";
+import { click, findFirst, has, rightClick, shows } from "../dom.ts";
 import { deliverEvents, setLiveState } from "../live.ts";
 import { addChat, addEvents, CLAUDE_CONFIG } from "../seeds.ts";
+import { nextFrame, waitFor } from "../settle.ts";
 import type { AfterContext, CatalogueState } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
 import type { World } from "../world.ts";
@@ -142,25 +143,6 @@ function runningTurn(
 	const turn = chat.user(ask);
 	then(chat, turn);
 	return chat;
-}
-
-const nextFrame = (): Promise<void> =>
-	new Promise((resolve) => requestAnimationFrame(() => resolve()));
-
-/** Waits a bounded number of frames for `holds`, as the dom helpers wait for a control. */
-async function waitFor(holds: () => boolean): Promise<void> {
-	for (let frame = 0; frame < 300; frame++) {
-		if (holds()) return;
-		await nextFrame();
-	}
-	throw new Error("The screen never showed what the state waits for.");
-}
-
-async function waitForElement(document: Document, selector: string): Promise<HTMLElement> {
-	await waitFor(() => document.querySelector(selector) !== null);
-	const element = document.querySelector<HTMLElement>(selector);
-	if (element === null) throw new Error(`No ${selector} appeared.`);
-	return element;
 }
 
 /** A chat whose first turn ended because its agent needs signing in, worded as `message`. */
@@ -413,12 +395,14 @@ export const BANNER_STATES: CatalogueState[] = [
 			"Where is the session cookie set?",
 			async ({ document }) => {
 				// A reader scrolls back to the first question once the list has drawn its end.
-				const scroller = await waitForElement(document, "[data-testid=virtuoso-scroller]");
-				await waitFor(() => scroller.scrollTop > 0);
+				const scroller = await findFirst(document, "[data-testid=virtuoso-scroller]");
+				await waitFor("the chat never scrolled to its end", () => scroller.scrollTop > 0);
 				for (let frame = 0; frame < 30; frame++) await nextFrame();
 				scroller.scrollTop = 0;
 				scroller.dispatchEvent(new Event("scroll"));
-				await waitFor(() => has(document, "button", "Scroll to bottom"));
+				await waitFor("Scroll to bottom never showed", () =>
+					has(document, "button", "Scroll to bottom"),
+				);
 			},
 		),
 	},

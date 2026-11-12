@@ -10,25 +10,21 @@
 import { type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { click, shows } from "../dom.ts";
 import { setSetting } from "../seeds.ts";
+import { waitFor } from "../settle.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import type { World } from "../world.ts";
 
 const MB = 1024 * 1024;
 
-/** The most frames to wait for the composer to take focus, about five seconds at 60 a second. */
-const MAX_FRAMES = 300;
-
 /**
  * Waits until the composer has focused itself, as it does once its editor exists. A popover
  * opened before that closes when the focus moves.
  */
-async function composerFocused(document: Document): Promise<void> {
-	for (let frame = 0; frame < MAX_FRAMES; frame++) {
-		if (document.activeElement?.getAttribute("aria-label") === "composer") return;
-		await new Promise((resolve) => requestAnimationFrame(resolve));
-	}
-	throw new Error("The composer never took focus.");
-}
+const composerFocused = (document: Document): Promise<void> =>
+	waitFor(
+		"the composer never took focus",
+		() => document.activeElement?.getAttribute("aria-label") === "composer",
+	);
 
 /**
  * The app with its WebKit helpers and sidecar, two agents with the tools they started in arbor
