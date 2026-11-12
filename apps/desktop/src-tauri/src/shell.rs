@@ -1138,6 +1138,8 @@ pub fn start_background_capture(app: AppHandle) {
 }
 
 /// Programs the web view may start. The resolved file must also sit in a trusted folder.
+/// The `programs` guard (`scripts/guards/structure.ts`, `pnpm guards`) checks that each program
+/// the UI starts is here.
 pub const ALLOWED_PROGRAMS: &[&str] = &[
     "git",
     "gh",
@@ -2351,94 +2353,12 @@ mod tests {
         .expect("a managed program path is allowed");
     }
 
-    /// The `program: "<value>"` literals in the UI's TypeScript, skipping test files: those talk
-    /// to the in-memory Platform and never reach this allowlist.
-    fn ui_program_literals(dir: &Path, found: &mut Vec<String>) {
-        let entries = std::fs::read_dir(dir).expect("the UI source folder is readable");
-        for entry in entries {
-            let path = entry.expect("the folder entry is readable").path();
-            if path.is_dir() {
-                ui_program_literals(&path, found);
-                continue;
-            }
-            let name = path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or("");
-            let is_source = matches!(
-                path.extension().and_then(|extension| extension.to_str()),
-                Some("ts" | "tsx")
-            );
-            if !is_source || name.contains(".test.") {
-                continue;
-            }
-            let source = std::fs::read_to_string(&path).expect("the source file is readable");
-            found.extend(program_literal_values(&source));
-        }
-    }
-
-    /// Every `program: "<value>"` in one source file.
-    fn program_literal_values(source: &str) -> Vec<String> {
-        let mut values = Vec::new();
-        let mut rest = source;
-        while let Some(at) = rest.find("program:") {
-            rest = &rest[at + "program:".len()..];
-            let Some(quoted) = rest.trim_start().strip_prefix('"') else {
-                continue;
-            };
-            let Some(end) = quoted.find('"') else {
-                continue;
-            };
-            values.push(quoted[..end].to_string());
-            rest = &quoted[end..];
-        }
-        values
-    }
-
-    /// The allowlist holds names; a program the UI names by path (`/bin/echo`) is checked by
-    /// its file name, as `check_program_allowed` does.
-    fn program_file_name(program: &str) -> &str {
-        Path::new(program)
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or(program)
-    }
-
     #[test]
     fn git_16_allows_the_xcode_licence_programs() {
         for program in ["xcodebuild", "osascript"] {
             assert!(
                 ALLOWED_PROGRAMS.contains(&program),
                 "the Xcode licence flow starts {program}"
-            );
-        }
-    }
-
-    #[test]
-    fn git_16_every_program_the_ui_starts_is_allowed() {
-        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("../src");
-        let mut programs = Vec::new();
-        ui_program_literals(&src, &mut programs);
-        assert!(
-            programs.iter().any(|program| program.as_str() == "git"),
-            "the scan reads the UI source at {src:?}"
-        );
-        for program in &programs {
-            assert!(
-                ALLOWED_PROGRAMS.contains(&program_file_name(program)),
-                "the UI starts {program}, which the allowlist refuses"
-            );
-        }
-        // These reach the shell through a variable, so the literal scan cannot see them.
-        for program in [
-            "zsh",
-            "checkpointer.sh",
-            "spotlighter.sh",
-            "git-busy-check.sh",
-        ] {
-            assert!(
-                ALLOWED_PROGRAMS.contains(&program),
-                "the UI starts {program}, which the allowlist refuses"
             );
         }
     }
