@@ -1389,6 +1389,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			nextAttemptAt: null,
 			error: null,
 			path: null,
+			follow: null,
 		};
 
 	const setProgramStatus = (status: ProgramStatus): void => {

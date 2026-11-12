@@ -223,7 +223,9 @@ describe("PLAT-02 the Platform's error codes are one list", () => {
 
 	it("lists every code a Rust command can return", () => {
 		const missing: string[] = [];
-		for (const file of readdirSync(RUST_SRC).filter((name) => name.endsWith(".rs"))) {
+		// Every Rust source, those in a module's own folder (binaries/follow.rs) too.
+		const sources = readdirSync(RUST_SRC, { recursive: true, encoding: "utf8" });
+		for (const file of sources.filter((name) => name.endsWith(".rs"))) {
 			const codes = rustErrorCodes(readFileSync(join(RUST_SRC, file), "utf8"));
 			for (const code of codes) if (!known.has(code)) missing.push(`${file}: ${code}`);
 		}
