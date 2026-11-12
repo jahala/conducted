@@ -4,7 +4,7 @@
  * Create from picker open) and in
  * cloud mode (ready, and waiting for the Worker's GitHub token, CLOUD-19), the backlog with saved
  * workspaces and empty, the Diagnostics page, Home with a workspace still being created and one being
- * archived, and an archived workspace's file tab.
+ * archived, an archived workspace's file tab, and an address that matches no page.
  * Behaviour: ui-map.md 2 (routes /all-workspaces, /create, /backlog, /diagnostics), WS-11 (backlog),
  * APP-03 (diagnostics).
  * Test first: not applicable; the screenshot run opens every state.
@@ -29,6 +29,15 @@ async function seedCloudOrganization(world: World, readiness: CloudReadiness) {
 }
 
 export const PAGE_STATES: CatalogueState[] = [
+	{
+		id: "route-not-found",
+		group: "Pages",
+		title: "An address that matches no page",
+		seed: async (world) => {
+			await seedCast(world);
+			return { route: "/no-such-page", ready: (document) => shows(document, "Not Found") };
+		},
+	},
 	{
 		id: "home-workspace-transitions",
 		group: "Pages",
