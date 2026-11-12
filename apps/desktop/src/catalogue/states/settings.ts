@@ -29,6 +29,7 @@ import { type ConductorRows, seedConductorDatabase } from "../conductor-database
 import { click, fillIn, find, findFirst, has, shows, typeInto } from "../dom.ts";
 import { scriptGitHub } from "../github.ts";
 import { setSetting } from "../seeds.ts";
+import { waitFor } from "../settle.ts";
 import type { CatalogueState } from "../state.ts";
 import type { World } from "../world.ts";
 
@@ -1110,12 +1111,16 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				// A first save reads the file whole, so the app can overwrite it later, as Conductor's
 				// writer can (mutateSettingsFile, main @416065). Then an edit elsewhere breaks the file.
 				after: async ({ world: shown, document }) => {
+					const file = `${shown.memory.platform.fs.paths.home}/.conducted/settings.toml`;
 					await click(document, "[role=switch]", "Delete branch on archive");
-					await find(document, '[role=switch][aria-checked="true"]', "Delete branch on archive");
-					shown.memory.controls.addFile(
-						`${shown.memory.platform.fs.paths.home}/.conducted/settings.toml`,
-						"[git\ndelete_branch_on_archive = true\n",
+					// The switch turns on before the save ends, so the file is broken only once the save
+					// has written it; breaking it sooner would refuse the first save too.
+					await waitFor("the first save reached the settings file", () =>
+						(shown.memory.controls.files.get(file) ?? "").includes(
+							"delete_branch_on_archive = true",
+						),
 					);
+					shown.memory.controls.addFile(file, "[git\ndelete_branch_on_archive = true\n");
 					await click(document, "[role=switch]", "Delete branch on archive");
 				},
 				ready: (document) => has(document, "[data-sonner-toast] button", "Overwrite file"),
