@@ -4540,12 +4540,12 @@
 		"owner": "hand"
 	},
 	"text:R10945315": {
-		"status": "matched",
-		"state": "settings-agents-no-match",
-		"via": "text",
-		"role": "heading",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section > h2",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-10",
+		"item": "Providers dialog: 'No providers match your search.'",
+		"owner": "hand"
 	},
 	"text:R10948699": {
 		"status": "matched",

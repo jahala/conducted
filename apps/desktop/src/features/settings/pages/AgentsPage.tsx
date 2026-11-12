@@ -4,7 +4,7 @@
  * Owns: the Agents page of Settings: for each agent program, whether it is installed, its version
  * and path, whether it is signed in, and the sign-in action. Also the Claude in Chrome switch and
  * the way into each agent's own config editor (SET-12).
- * Behaviour: ui-map.md 6, "Agents" table and "Agents page" (provider search, one card per
+ * Behaviour: ui-map.md 6, "Agents" table and "Agents page" (one card per
  * provider: Claude Code, Codex, Cursor, OpenCode and Pi; states "Loaded from env", "API key
  * configured", "Validation failed"; "Claude settings JSON", "Codex config" and
  * "Use Claude Code with Chrome"). Programs are downloaded, updated and removed by the program
@@ -20,12 +20,17 @@
  * (agents/AgentCard). "Use Claude Code with Chrome" sits in Claude Code's panel under a rule.
  * Conductor's tabs carry each agent's logo (renderApp v_e); the app ships no agent logos, so the tabs
  * are text only. Refresh waits for the check, and a failed check is a toast.
- * Our design choice: "Search providers" filters the tabs and sits at the right of the tab row; the MCP
- * servers region stays under the panel. Conductor's "Claude Code executable path" is our Advanced page's
- * program path (SET-02); the capture also shows it in the agent's panel, which needs a way for this
- * page to check a path (a new hook or action, listed in docs/reports/parity-gaps-2026-11-07.md).
- * Must handle: a retry after a failed sign-in (the first one is cancelled first), loading and error, a provider filter with no match ("No providers match your
- * search."), nothing installed (the page leads with install help), a program found but failing its
+ * Conductor's tab row is the tab list alone across the page (renderApp @11008592: `mb-6
+ * justify-start gap-6 border-b`, in a `w-full` root @11009380), its tabs with no side padding. Its
+ * "Search providers" is not on this row: it filters OpenCode's key providers in the Providers dialog
+ * (@10944937, the dialog @10956427), which ours does not have yet.
+ * Our design choice: the MCP servers region stays under the panel. Conductor's "Claude Code
+ * executable path" is our Advanced page's program path (SET-02); the capture also shows it in the
+ * agent's panel, which needs a way for this page to check a path (a new hook or action, listed in
+ * docs/reports/parity-gaps-2026-11-07.md).
+ * Must handle: a retry after a failed sign-in (the first one is cancelled first), loading and error,
+ * five tabs at the default window whatever the system's scrollbars or font (issue #625), nothing
+ * installed (the page leads with install help), a program found but failing its
  * version check, Codex's toast after a ChatGPT login offers Conductor's "Manage usage" action,
  * version check ("Validation failed" with its warning), a sign-in in progress, a finished sign-in
  * that toasts Conductor's success sentence and restarts the agent's idle chats, and a refresh after
@@ -41,7 +46,6 @@ import { useActions, useAgentInstalls } from "../../../core/hooks.ts";
 import { agentLoginSuccessMessage, restartIdleAgentChats } from "../../../core/use-agent-login.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
-import { Input } from "../../../ui/Input.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../ui/Tabs.tsx";
@@ -85,7 +89,6 @@ export function AgentsPage() {
 	const value = useAgentInstalls();
 	const actions = useActions();
 	const services = useServices();
-	const [query, setQuery] = useState("");
 	const [busyKey, setBusyKey] = useState<string | null>(null);
 	const [login, setLogin] = useState<LoginState | null>(null);
 	const [providers, setProviders] = useState<AgentInstall | null>(null);
@@ -264,71 +267,41 @@ export function AgentsPage() {
 				}
 			>
 				{(agents) => {
-					const needle = query.trim().toLowerCase();
-					const filtered = [...agents]
-						.sort((left, right) => orderOf(left) - orderOf(right))
-						.filter((install) =>
-							needle === "" ? true : agentDisplayName(install).toLowerCase().includes(needle),
-						);
-
-					const searchBox = (
-						<div className="ml-auto flex shrink-0 items-center pb-1">
-							<Input
-								type="search"
-								aria-label="Search providers"
-								placeholder="Search providers"
-								value={query}
-								onChange={(event) => setQuery(event.target.value)}
-								className="h-7 w-44"
-							/>
-						</div>
-					);
-
+					const sorted = [...agents].sort((left, right) => orderOf(left) - orderOf(right));
 					const anyInstalled = agents.some((install) => install.installed);
-					const keys = filtered.map((install) => agentKey(install.agent, install.acpAgent));
+					const keys = sorted.map((install) => agentKey(install.agent, install.acpAgent));
 					const active = tab !== null && keys.includes(tab) ? tab : (keys[0] ?? "");
 					return (
 						<Tabs value={active} onValueChange={setTab} className="flex flex-col gap-6">
-							<div className="flex items-end gap-4 border-b border-separator">
-								<TabsList aria-label="Agents" className="gap-6 border-b-0 px-0">
-									{filtered.map((install) => (
-										<TabsTrigger
-											key={agentKey(install.agent, install.acpAgent)}
-											value={agentKey(install.agent, install.acpAgent)}
-											className="px-0! font-normal"
-										>
-											{agentDisplayName(install)}
-										</TabsTrigger>
-									))}
-								</TabsList>
-								{searchBox}
-							</div>
-							{filtered.length === 0 ? (
+							<TabsList aria-label="Agents" className="gap-6 px-0!">
+								{sorted.map((install) => (
+									<TabsTrigger
+										key={agentKey(install.agent, install.acpAgent)}
+										value={agentKey(install.agent, install.acpAgent)}
+										className="px-0!"
+									>
+										{agentDisplayName(install)}
+									</TabsTrigger>
+								))}
+							</TabsList>
+							{sorted.length === 0 ? (
 								<EmptyState
 									compact
-									title={
-										needle === "" ? "No agent programs found" : "No providers match your search."
-									}
-									body={
-										needle === ""
-											? "Install an agent program on this Mac, then choose Refresh."
-											: undefined
-									}
+									title="No agent programs found"
+									body="Install an agent program on this Mac, then choose Refresh."
 									action={
-										needle === "" ? (
-											<Button variant="secondary" onClick={() => void refresh()}>
-												Refresh
-											</Button>
-										) : undefined
+										<Button variant="secondary" onClick={() => void refresh()}>
+											Refresh
+										</Button>
 									}
 								/>
 							) : null}
-							{!anyInstalled && filtered.length > 0 ? (
+							{!anyInstalled && sorted.length > 0 ? (
 								<p className="text-sm text-fg-muted">
 									No agent programs were found. Install one below, then choose Refresh.
 								</p>
 							) : null}
-							{filtered.map((install) => (
+							{sorted.map((install) => (
 								<TabsContent
 									key={agentKey(install.agent, install.acpAgent)}
 									value={agentKey(install.agent, install.acpAgent)}

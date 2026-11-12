@@ -67,22 +67,6 @@ describe("SET-03 AgentsPage", () => {
 		expect(screen.queryByRole("button", { name: /Sign in|Run codex login/ })).toBeNull();
 	});
 
-	it("filters the cards by name and says when nothing matches", () => {
-		const { page } = harness([
-			install({ agent: "claude", authenticated: false }),
-			install({ agent: "codex", authenticated: false }),
-		]);
-		render(page());
-		const search = screen.getByLabelText("Search providers");
-
-		fireEvent.change(search, { target: { value: "codex" } });
-		expect(screen.getByRole("heading", { name: "Codex" })).toBeTruthy();
-		expect(screen.queryByRole("heading", { name: "Claude Code" })).toBeNull();
-
-		fireEvent.change(search, { target: { value: "nothing here" } });
-		expect(screen.getByText("No providers match your search.")).toBeTruthy();
-	});
-
 	it("starts a sign-in and shows the agent's instructions", async () => {
 		const { page, spies } = harness([install({ agent: "claude", authenticated: false })]);
 		render(page());
@@ -226,18 +210,6 @@ describe("SET-03 AgentsPage", () => {
 		expect(await screen.findByText("Codex now uses your ChatGPT plan")).toBeTruthy();
 
 		expect(spies.cancelLogin).not.toHaveBeenCalled();
-	});
-
-	it("does not claim nothing is installed when the search hides the installed agents", () => {
-		const { page } = harness([
-			install({ agent: "claude", authenticated: false }),
-			install({ agent: "codex", installed: false }),
-		]);
-		render(page());
-
-		fireEvent.change(screen.getByLabelText("Search providers"), { target: { value: "codex" } });
-
-		expect(screen.queryByText(/No agent programs were found/)).toBeNull();
 	});
 
 	it("cancels the first sign-in before a retry starts another", async () => {
