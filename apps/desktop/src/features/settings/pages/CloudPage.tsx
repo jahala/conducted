@@ -3,18 +3,21 @@
  * @feature CLOUD-07 Pair the desktop app with the user's Worker
  * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
  * Owns: the Cloud page of Settings: the Cloud Workspaces block (deploy, remove and pair, at the
- * top), the personal environment variables every cloud workspace receives, and the note that data
- * privacy mode stops cloud workspaces running. The commit identity lives on the Git page, where
- * Conductor puts it.
+ * top), the personal environment variables every cloud workspace receives, the MCP servers its
+ * agents see, and the note that data privacy mode stops cloud workspaces running. The commit
+ * identity lives on the Git page, where Conductor puts it.
  * Behaviour: D106, D109 and D113, as issue #489 placed them: an unpaired Mac deploys or pairs at
  * the top of this page and then sets its cloud variables on the same page. docs/research/conductor/
  * ui-map.md 6 Organization (Environment: personal cloud variables) and services-map.md 4.2.8
- * (`personalCloudEnvVars`); services-map.md 4.1.2 for the data-privacy rule. Conductor's page is an
- * organization page, which D004 and D018 keep out; the page is ours on the Mac's own Worker (D113).
+ * (`personalCloudEnvVars`); services-map.md 4.1.2 for the data-privacy rule; D121 for the MCP
+ * servers. Conductor's page is an organization page, which D004 and D018 keep out; the page is
+ * ours on the Mac's own Worker (D113).
  * Data: useCloudSettings for the saved variables, Actions.cloud.setCloudEnvVar and
- * removeCloudEnvVar for edits, useCloudPairing to reload when the pair changes,
+ * removeCloudEnvVar for edits, Actions.cloud.saveMcpServer, removeMcpServer and importMcpServers
+ * for the MCP servers, useCloudPairing to reload when the pair changes,
  * useSetting("enterprise_data_privacy") for the privacy note.
- * Children: CloudWorkerBlock, environment/EnvVarTable and environment/AddEnvVarForm.
+ * Children: CloudWorkerBlock, environment/EnvVarTable, environment/AddEnvVarForm and
+ * cloud/McpServersSection.
  * Must handle: a Mac with no Worker (the block offers Deploy and Pair, and no variables are shown),
  * a Worker that cannot be reached (the page's own "Conducted could not connect to cloud settings.
  * Try again."), no variables (the table's empty state), a name the Worker refuses (its message, the
@@ -23,6 +26,12 @@
  * panel open and shows the Worker's reason.
  */
 import { useEffect, useMemo, useState } from "react";
+import {
+	CLOUD_MCP_ADD_FAILED,
+	CLOUD_MCP_DELETE_FAILED,
+	CLOUD_MCP_UPDATE_FAILED,
+	type CloudMcpServer,
+} from "../../../core/cloud-mcp.ts";
 import { CLOUD_ENV_SAVE_FAILED, CLOUD_SETTINGS_UNREACHABLE } from "../../../core/cloud-messages.ts";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useCloudPairing, useCloudSettings, useSetting } from "../../../core/hooks.ts";
@@ -30,6 +39,7 @@ import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { PlusIcon } from "../../../ui/icons.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
+import { CloudMcpServersSection } from "../cloud/McpServersSection.tsx";
 import type { EnvDraft } from "../environment/AddEnvVarForm.tsx";
 import { AddEnvVarForm } from "../environment/AddEnvVarForm.tsx";
 import { type EnvTableRow, EnvVarTable } from "../environment/EnvVarTable.tsx";
@@ -119,6 +129,41 @@ export function CloudPage({ focusSettingKey = null }: { focusSettingKey?: string
 		else toast(`Copied ${name}`);
 	};
 
+	/** Saves one cloud MCP server; false keeps the panel open with the Worker's reason. */
+	const saveMcpServer = async (name: string, server: CloudMcpServer): Promise<boolean> => {
+		const isNew = settings?.mcpServers[name] === undefined;
+		const saved = await actions.cloud.saveMcpServer(name, server);
+		if (!saved.ok) {
+			toastError(isNew ? CLOUD_MCP_ADD_FAILED : CLOUD_MCP_UPDATE_FAILED, saved.error);
+			return false;
+		}
+		return true;
+	};
+
+	const removeMcpServer = async (name: string): Promise<boolean> => {
+		const removed = await actions.cloud.removeMcpServer(name);
+		if (!removed.ok) {
+			toastError(CLOUD_MCP_DELETE_FAILED, removed.error);
+			return false;
+		}
+		return true;
+	};
+
+	const importMcpServers = async (
+		servers: Readonly<Record<string, CloudMcpServer>>,
+	): Promise<boolean> => {
+		const imported = await actions.cloud.importMcpServers(servers);
+		if (!imported.ok) {
+			const count = Object.keys(servers).length;
+			toastError(
+				count === 1 ? "Couldn't add 1 MCP server" : `Couldn't add ${count} MCP servers`,
+				imported.error,
+			);
+			return false;
+		}
+		return true;
+	};
+
 	return (
 		<SettingsPageFrame
 			title="Cloud"
@@ -145,35 +190,43 @@ export function CloudPage({ focusSettingKey = null }: { focusSettingKey?: string
 					Reading cloud settings...
 				</p>
 			) : showingVariables ? (
-				<div className="flex flex-col gap-3 border-t border-border py-4">
-					<div className="flex items-start justify-between gap-4">
-						<div className="flex flex-col gap-1">
-							<p className="text-sm font-medium text-fg">Environment variables</p>
-							<p className="max-w-prose text-sm text-fg-muted">
-								These variables are given to every cloud workspace. They are kept in your Worker,
-								never in the sandbox's image.
-							</p>
+				<>
+					<div className="flex flex-col gap-3 border-t border-border py-4">
+						<div className="flex items-start justify-between gap-4">
+							<div className="flex flex-col gap-1">
+								<p className="text-sm font-medium text-fg">Environment variables</p>
+								<p className="max-w-prose text-sm text-fg-muted">
+									These variables are given to every cloud workspace. They are kept in your Worker,
+									never in the sandbox's image.
+								</p>
+							</div>
+							<Button variant="default" onClick={() => setAdding(true)}>
+								<PlusIcon className="size-4" />
+								Add environment variable
+							</Button>
 						</div>
-						<Button variant="default" onClick={() => setAdding(true)}>
-							<PlusIcon className="size-4" />
-							Add environment variable
-						</Button>
+						<EnvVarTable
+							scopeLabel="cloud variable"
+							rows={rows}
+							onReveal={async (name) => settings?.envVars[name] ?? null}
+							onCopy={copyVariable}
+							onSave={saveVariable}
+							onDelete={removeVariable}
+						/>
+						<AddEnvVarForm
+							open={adding}
+							onOpenChange={setAdding}
+							existingNames={existingNames}
+							onAdd={addVariables}
+						/>
 					</div>
-					<EnvVarTable
-						scopeLabel="cloud variable"
-						rows={rows}
-						onReveal={async (name) => settings?.envVars[name] ?? null}
-						onCopy={copyVariable}
-						onSave={saveVariable}
-						onDelete={removeVariable}
+					<CloudMcpServersSection
+						servers={settings?.mcpServers ?? {}}
+						onSave={saveMcpServer}
+						onRemove={removeMcpServer}
+						onImport={importMcpServers}
 					/>
-					<AddEnvVarForm
-						open={adding}
-						onOpenChange={setAdding}
-						existingNames={existingNames}
-						onAdd={addVariables}
-					/>
-				</div>
+				</>
 			) : null}
 			{privacy === true ? (
 				<p className="border-t border-border py-4 text-sm text-fg-muted">

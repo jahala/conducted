@@ -68,6 +68,7 @@ import { nodeProcessFacts, type ProcessFacts } from "../adapters/environment.ts"
 import type { SidecarConfig } from "../config.ts";
 import { createLogger, type Logger, type LogRecord } from "../logging/logger.ts";
 import type { AcpChild } from "../runners/acp/acp-client.ts";
+import type { CloudMcpServer } from "../runners/cloud-mcp.ts";
 import type { JsonRpcChild } from "../runners/codex/app-server-client.ts";
 import { cursorSdkFiles, FakeCursorRun, FakeCursorSdk } from "../test-support/cursor-fakes.ts";
 import { DEFAULT_APP_REPLIES, FakeApp } from "../test-support/fake-app.ts";
@@ -220,6 +221,8 @@ async function harness(
 		claude?: TalkingClaude;
 		/** User message texts in Claude's transcript, by uuid (RC-03). */
 		transcript?: Map<string, string>;
+		/** The cloud MCP servers a Worker set on this sandbox (CLOUD-17). */
+		cloudMcpServers?: CloudMcpServer[];
 	} = {},
 ): Promise<Harness> {
 	const app = new FakeApp();
@@ -257,6 +260,7 @@ async function harness(
 			skillPluginDir: options.skillPluginDir,
 			appVersion: "0.0.0",
 			logLevel: "info",
+			cloudMcpServers: options.cloudMcpServers ?? [],
 		},
 		{
 			app,
@@ -1344,6 +1348,35 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		expect(options[0]?.executable).toBe("node");
 	});
 
+	test("CLOUD-17 a Claude chat gets the sandbox's cloud MCP servers, with placeholders", async () => {
+		const folder = await workspaceFolder();
+		const h = await harness(folder, {
+			cloudMcpServers: [
+				{
+					name: "linear",
+					url: "https://mcp.linear.app/mcp",
+					headers: { authorization: "Bearer provided-by-worker" },
+				},
+			],
+		});
+
+		await h.handlers.warmAgent({
+			sessionId: "session-1" as SessionId,
+			config: baseConfig(),
+			workspace: workspaceFor(folder),
+			launch: { env: {}, providerKeys: {}, executablePath: "/opt/claude/cli.js" },
+		});
+
+		const mcpServers = sessionOptions(h.seen.claudeOptions)[0]?.mcpServers;
+		expect(mcpServers?.linear).toEqual({
+			type: "http",
+			url: "https://mcp.linear.app/mcp",
+			headers: { authorization: "Bearer provided-by-worker" },
+			alwaysLoad: true,
+		});
+		expect(mcpServers?.conducted).toBeDefined();
+	});
+
 	test("AGENT-09 AGENT-10 a Cursor chat starts the SDK in process and translates its output", async () => {
 		const folder = await workspaceFolder();
 		const run = new FakeCursorRun();
@@ -1607,6 +1640,7 @@ describe("s1-sidecar join the batch through the composition root", () => {
 			logDir: path.join(folder, "log"),
 			appVersion: "9.9.9",
 			logLevel: "debug",
+			cloudMcpServers: [],
 		};
 		const received: SidecarConfig[] = [];
 		const lines: string[] = [];
@@ -1653,6 +1687,31 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				data: expect.objectContaining({ appVersion: "9.9.9", logLevel: "debug" }),
 			}),
 		);
+	});
+
+	test("CLOUD-17 the MCP status listing asks the agent about the sandbox's cloud servers too", async () => {
+		const folder = await workspaceFolder();
+		const h = await harness(folder, {
+			cloudMcpServers: [{ name: "context", url: "https://mcp.context7.com/mcp", headers: {} }],
+		});
+		try {
+			unwrap(
+				await h.handlers.listMcpServers({
+					agent: "claude",
+					workspacePath: folder,
+					launch: { env: {}, providerKeys: {} },
+				}),
+			);
+			const mcpServers = h.seen.claudeOptions[0]?.options.mcpServers;
+			expect(mcpServers?.context).toEqual({
+				type: "http",
+				url: "https://mcp.context7.com/mcp",
+				headers: {},
+				alwaysLoad: true,
+			});
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
 	});
 
 	test("SIDE-21 model, slash command and MCP lists run the program and keys of the app's launch", async () => {

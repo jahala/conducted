@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import { turnEndUrl } from "./backup.ts";
 import type { Env } from "./env.ts";
 import { Outbound, type OutboundSecrets, outboundRequest } from "./outbound.ts";
+import { CLOUD_MCP_PLACEHOLDER, CLOUD_SETTINGS_KEY, type CloudMcpServer } from "./settings.ts";
 
 const SECRETS: OutboundSecrets = {
 	ANTHROPIC_API_KEY: "sk-ant-real",
@@ -18,19 +19,38 @@ const SECRETS: OutboundSecrets = {
 	GITHUB_TOKEN: "ghp-real",
 };
 
+const MCP: Record<string, CloudMcpServer> = {
+	context: { url: "https://mcp.context7.com/mcp", authType: "none" },
+	linear: { url: "https://mcp.linear.app/mcp", authType: "bearer", bearerToken: "lin-real" },
+	internal: {
+		url: "https://mcp.example.com/mcp",
+		authType: "headers",
+		headers: { "X-Api-Key": "key-real", "X-Tenant": "acme" },
+	},
+	unkeyed: { url: "https://mcp.unkeyed.example/mcp", authType: "bearer" },
+};
+
 const request = (url: string, headers: Record<string, string> = {}): Request =>
 	new Request(url, { headers });
 
-function prepared(url: string, headers: Record<string, string> = {}): Request {
-	const result = outboundRequest(request(url, headers), SECRETS);
+function prepared(
+	url: string,
+	headers: Record<string, string> = {},
+	mcpServers: Readonly<Record<string, CloudMcpServer>> = {},
+): Request {
+	const result = outboundRequest(request(url, headers), SECRETS, mcpServers);
 	if (result instanceof Response) {
 		throw new Error(`Expected a request, got ${result.status}`);
 	}
 	return result;
 }
 
-function refusal(url: string, secrets: OutboundSecrets = SECRETS): Response {
-	const result = outboundRequest(request(url), secrets);
+function refusal(
+	url: string,
+	secrets: OutboundSecrets = SECRETS,
+	mcpServers: Readonly<Record<string, CloudMcpServer>> = {},
+): Response {
+	const result = outboundRequest(request(url), secrets, mcpServers);
 	if (!(result instanceof Response)) throw new Error("Expected a refusal");
 	return result;
 }
@@ -164,6 +184,80 @@ describe("CLOUD-05 the outbound handler's credentials and allow-list", () => {
 		expect(blocked.status).toBe(403);
 		const unkeyed = await outbound.fetch(request("https://api.anthropic.com/v1/messages"));
 		expect(unkeyed.status).toBe(503);
+	});
+});
+
+describe("CLOUD-17 the outbound handler's cloud MCP servers", () => {
+	it("allows a server with no auth without touching its headers", () => {
+		const sent = prepared("https://mcp.context7.com/mcp", { accept: "application/json" }, MCP);
+		expect(sent.url).toBe("https://mcp.context7.com/mcp");
+		expect(sent.headers.get("accept")).toBe("application/json");
+		expect(sent.headers.get("authorization")).toBeNull();
+		expect(sent.redirect).toBe("manual");
+	});
+
+	it("replaces the sandbox's bearer placeholder with the Worker's token", () => {
+		const sent = prepared(
+			"https://mcp.linear.app/mcp",
+			{ authorization: `Bearer ${CLOUD_MCP_PLACEHOLDER}` },
+			MCP,
+		);
+		expect(sent.headers.get("authorization")).toBe("Bearer lin-real");
+	});
+
+	it("replaces every custom header's placeholder with the Worker's value", () => {
+		const sent = prepared(
+			"https://mcp.example.com/mcp",
+			{ "x-api-key": CLOUD_MCP_PLACEHOLDER, "x-tenant": CLOUD_MCP_PLACEHOLDER },
+			MCP,
+		);
+		expect(sent.headers.get("x-api-key")).toBe("key-real");
+		expect(sent.headers.get("x-tenant")).toBe("acme");
+	});
+
+	it("allows only the configured URL prefix on that host, and refuses look-alikes", () => {
+		expect(prepared("https://mcp.context7.com/mcp/sub", {}, MCP).url).toBe(
+			"https://mcp.context7.com/mcp/sub",
+		);
+		expect(refusal("https://mcp.context7.com/elsewhere", SECRETS, MCP).status).toBe(403);
+		expect(refusal("https://mcp.context7.com.example.com/mcp", SECRETS, MCP).status).toBe(403);
+		expect(refusal("http://mcp.context7.com/mcp", SECRETS, MCP).status).toBe(403);
+		expect(refusal("https://mcp.context7.com:8443/mcp", SECRETS, MCP).status).toBe(403);
+	});
+
+	it("refuses a server whose credential the Worker does not hold", () => {
+		const response = refusal("https://mcp.unkeyed.example/mcp", SECRETS, MCP);
+		expect(response.status).toBe(503);
+		expect(response.headers.get("content-type")).toContain("text/plain");
+	});
+
+	it("the real entrypoint reads the configured servers from the Worker's settings", async () => {
+		const outbound = new Outbound(createExecutionContext(), env as unknown as Env);
+		const { unkeyed: _unkeyed, ...stored } = MCP;
+		await env.BACKUPS.put(
+			CLOUD_SETTINGS_KEY,
+			JSON.stringify({ gitIdentity: null, envVars: {}, mcpServers: stored }),
+		);
+		const original = globalThis.fetch;
+		let sent: Request | null = null;
+		globalThis.fetch = async (input: RequestInfo | URL) => {
+			sent = input instanceof Request ? input : new Request(input);
+			return new Response("ok");
+		};
+		try {
+			const answer = await outbound.fetch(
+				request("https://mcp.linear.app/mcp", {
+					authorization: `Bearer ${CLOUD_MCP_PLACEHOLDER}`,
+				}),
+			);
+			expect(answer.status).toBe(200);
+			expect((sent as Request | null)?.headers.get("authorization")).toBe("Bearer lin-real");
+			const unknown = await outbound.fetch(request("https://mcp.nope.example/mcp"));
+			expect(unknown.status).toBe(403);
+		} finally {
+			globalThis.fetch = original;
+			await env.BACKUPS.delete(CLOUD_SETTINGS_KEY);
+		}
 	});
 });
 

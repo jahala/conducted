@@ -162,16 +162,53 @@ describe("CLOUD-03 the Worker's front door", () => {
 
 		const empty = await get("/settings");
 		expect(empty.status).toBe(200);
-		expect(await empty.json()).toEqual({ gitIdentity: null, envVars: {} });
+		expect(await empty.json()).toEqual({ gitIdentity: null, envVars: {}, mcpServers: {} });
 
 		const saved = {
 			gitIdentity: { name: "Sam Rivera", email: "sam@example.com" },
 			envVars: { NODE_ENV: "development" },
+			mcpServers: {},
 		};
 		const written = await post("/settings", saved);
 		expect(written.status).toBe(200);
 		expect(await written.json()).toEqual(saved);
 		expect(await (await get("/settings")).json()).toEqual(saved);
+	});
+
+	it("keeps the personal cloud MCP servers behind the same token and refuses an unusable one", async () => {
+		const saved = {
+			gitIdentity: null,
+			envVars: {},
+			mcpServers: {
+				linear: {
+					url: "https://mcp.linear.app/mcp",
+					authType: "bearer",
+					bearerToken: "lin_api_x",
+				},
+			},
+		};
+		const written = await post("/settings", saved);
+		expect(written.status).toBe(200);
+		expect(await written.json()).toEqual(saved);
+
+		expect(
+			(
+				await post("/settings", {
+					gitIdentity: null,
+					envVars: {},
+					mcpServers: { bad: { url: "http://example.com/mcp", authType: "none" } },
+				})
+			).status,
+		).toBe(400);
+		expect(
+			(
+				await post("/settings", {
+					gitIdentity: null,
+					envVars: {},
+					mcpServers: { conducted: { url: "https://example.com/mcp", authType: "none" } },
+				})
+			).status,
+		).toBe(400);
 	});
 
 	it("refuses a cloud variable the sandbox sets itself, and an unknown method", async () => {

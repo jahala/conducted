@@ -38,6 +38,7 @@ import type {
 import type { ModelInfo } from "@conducted/protocol";
 import { appError, err, ok } from "@conducted/shared";
 import { parseVersion, VERSION_PROBE_TIMEOUT_MS } from "../../models/agent-detection.ts";
+import { acpCloudMcpServers } from "../cloud-mcp.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
 import { findAgentProgram } from "../launch-env.ts";
 import type {
@@ -239,7 +240,10 @@ export class AcpRunner implements Runner {
 				adapter: this.deps.adapter,
 				connectClient,
 				translator,
-				mcpServers: appTools?.servers ?? [],
+				mcpServers: [
+					...(appTools?.servers ?? []),
+					...acpCloudMcpServers(this.deps.cloudMcpServers ?? []),
+				],
 				logger,
 				...(appTools === null ? {} : { onDispose: () => appTools.release() }),
 			},

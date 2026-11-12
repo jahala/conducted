@@ -134,6 +134,7 @@ describe("SET-02 GitPage", () => {
 			expect(settings.current).toEqual({
 				gitIdentity: { name: "Sam Rivera", email: "sam@example.com" },
 				envVars: {},
+				mcpServers: {},
 			}),
 		);
 	});

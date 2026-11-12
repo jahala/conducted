@@ -388,6 +388,7 @@ describe("AGENT-09 Cursor runner", () => {
 				logDir: path.join(root, "log"),
 				appVersion: "0.0.0",
 				logLevel: "info",
+				cloudMcpServers: [],
 			},
 			ports,
 		);

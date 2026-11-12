@@ -122,6 +122,7 @@ describe("SIDE-01 sidecar mode", () => {
 			...config,
 			appVersion: TEST_APP_VERSION,
 			logLevel: TEST_LOG_LEVEL,
+			cloudMcpServers: [],
 		});
 	});
 

@@ -44,6 +44,7 @@ describe("SIDE-01 sidecar settings", () => {
 				logDir: "/data/logs",
 				appVersion: "1.2.3",
 				logLevel: "info",
+				cloudMcpServers: [],
 			},
 		});
 	});
@@ -76,6 +77,25 @@ describe("SIDE-01 sidecar settings", () => {
 		const result = parseSidecarConfig({ ...good, CONDUCTED_SOMETHING_ELSE: "x" });
 		expect(result.ok).toBe(true);
 	});
+
+	test("CLOUD-17 a sandbox's cloud MCP servers are read, and a local start has none", () => {
+		const servers = [
+			{
+				name: "linear",
+				url: "https://mcp.linear.app/mcp",
+				headers: { authorization: "Bearer provided-by-worker" },
+			},
+		];
+		const result = parseSidecarConfig({
+			...good,
+			CONDUCTED_CLOUD_MCP_SERVERS_JSON: JSON.stringify(servers),
+		});
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.value.cloudMcpServers).toEqual(servers);
+		const local = parseSidecarConfig(good);
+		expect(local.ok).toBe(true);
+		if (local.ok) expect(local.value.cloudMcpServers).toEqual([]);
+	});
 });
 
 describe("SIDE-18 sidecar log settings", () => {
@@ -96,6 +116,7 @@ describe("SIDE-18 sidecar log settings", () => {
 				logDir: "/data/logs",
 				appVersion: "0.4.0",
 				logLevel: "debug",
+				cloudMcpServers: [],
 			},
 		});
 	});

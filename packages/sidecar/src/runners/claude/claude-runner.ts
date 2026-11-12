@@ -30,6 +30,7 @@
  */
 import type {
 	McpServerStatusConfig,
+	Options,
 	Query,
 	SDKUserMessage,
 	McpServerStatus as SdkMcpServerStatus,
@@ -39,6 +40,7 @@ import type {
 import type { Effort, ModelInfo } from "@conducted/protocol";
 import { appError } from "@conducted/shared";
 import { parseVersion, VERSION_PROBE_TIMEOUT_MS } from "../../models/agent-detection.ts";
+import { cloudClaudeServers } from "../cloud-mcp.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
 import { type AgentProgram, findAgentProgram } from "../launch-env.ts";
 import type {
@@ -193,7 +195,14 @@ export class ClaudeRunner implements Runner {
 
 	async listMcpServers(workspacePath: string, context: ListingContext): Promise<McpServerView[]> {
 		const program = await this.requireProgram(context);
-		const metadata = this.metadataQuery(program, context.env, workspacePath);
+		// The sandbox's cloud MCP servers are given to the listing too, so MCP status shows them
+		// (CLOUD-17, D121).
+		const metadata = this.metadataQuery(
+			program,
+			context.env,
+			workspacePath,
+			cloudClaudeServers(this.deps.cloudMcpServers ?? []),
+		);
 		try {
 			const servers = await metadata.query.mcpServerStatus();
 			return servers.map(toMcpServerView);
@@ -225,6 +234,7 @@ export class ClaudeRunner implements Runner {
 		program: AgentProgram,
 		env: Readonly<Record<string, string>>,
 		cwd?: string,
+		mcpServers?: Options["mcpServers"],
 	): { query: Query; end(): void } {
 		const abort = new AbortController();
 		const prompt = createMetadataPrompt();
@@ -239,6 +249,7 @@ export class ClaudeRunner implements Runner {
 				permissionMode: "default",
 				settingSources: [...CLAUDE_SETTING_SOURCES],
 				...(cwd === undefined ? {} : { cwd }),
+				...(mcpServers === undefined ? {} : { mcpServers }),
 			},
 		});
 		return {
