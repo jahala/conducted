@@ -4,7 +4,7 @@ import { ok } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import { vitestContractHarness } from "../test/contract-harness.ts";
 import { createNodeQueuedDatabase } from "../test/node-sql.ts";
-import { runPlatformContract } from "../test/platform-contract.ts";
+import { type ContractControls, runPlatformContract } from "../test/platform-contract.ts";
 import { createMemoryPlatform } from "./memory.ts";
 
 let caseNumber = 0;
@@ -34,9 +34,20 @@ runPlatformContract(
 			resources: `/memory/${caseNumber}/resources`,
 			enforceFileScope: true,
 		});
+		// The memory Platform's one connection is the database this run hands it, so the run is
+		// what can lose it. The controls keep their getters through the prototype.
+		let connectionOpen = true;
+		const loseDatabaseConnection = (): void => {
+			if (connectionOpen) db.close();
+			connectionOpen = false;
+		};
+		const controls: ContractControls = Object.assign(
+			Object.create(memory.controls) as ContractControls,
+			{ loseDatabaseConnection },
+		);
 		return {
 			platform: memory.platform,
-			controls: memory.controls,
+			controls,
 			// The default workspaces folder, so the cases write inside the default file scope.
 			root: `/memory/${caseNumber}/home/conducted`,
 			outside: `/memory/${caseNumber}/outside`,
@@ -44,7 +55,7 @@ runPlatformContract(
 				try {
 					expect(memory.controls.dispose()).toBe(0);
 				} finally {
-					db.close();
+					loseDatabaseConnection();
 				}
 			},
 		};

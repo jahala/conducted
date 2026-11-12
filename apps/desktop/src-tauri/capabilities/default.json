@@ -20,8 +20,6 @@
 				{ "url": "x-apple.systempreferences:*" }
 			]
 		},
-		"sql:default",
-		"sql:allow-execute",
 		"dialog:default",
 		"notification:default",
 		"clipboard-manager:default",

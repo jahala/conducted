@@ -2,7 +2,7 @@
 	"tauri_command:get_db_uri": {
 		"status": "decided",
 		"decision": "D086",
-		"note": "Conductor's shell command for its database file; our UI opens `conducted.db` through the SQL plugin directly.",
+		"note": "Conductor's shell command for its database file; our UI opens `conducted.db` with `db_open` (D137).",
 		"by": "hand"
 	},
 	"tauri_command:configure_http_proxy": {

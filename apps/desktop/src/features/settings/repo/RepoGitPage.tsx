@@ -15,7 +15,9 @@
  * with "origin" only as a placeholder, a branch list read only while the popover is open, a
  * repository value that differs from the user's (Reset to shared settings removes it, so the
  * shared settings.toml or the user's value applies again), a save or reset that fails (a toast says
- * so with Conductor's words, as does the row, and the switch shows the stored value), and only the newest read changing a row.
+ * so with Conductor's words, and the switch shows the stored value), only the newest read changing
+ * a row, and a value still loading (the switch shows the setting's default and cannot be changed,
+ * as Conductor's row does, renderApp @11165946; issue #615).
  * Test first: turning on Delete branch on archive writes this repository's value and leaves the
  * user's value alone.
  */
@@ -104,20 +106,14 @@ function RepoSwitchRow({
 	const change = async (next: boolean) => {
 		setError(null);
 		const saved = await services.settings.setForRepo(rootPath, settingKey, next);
-		if (!saved.ok) {
-			setError(saved.error.message);
-			toastSettingSaveFailed(saved.error);
-		}
+		if (!saved.ok) toastSettingSaveFailed(saved.error);
 		setVersion((value) => value + 1);
 	};
 
 	const reset = async () => {
 		setError(null);
 		const done = await actions.settings.resetForRepo(repoId, settingKey);
-		if (!done.ok) {
-			setError(done.error.message);
-			toastSettingSaveFailed(done.error);
-		}
+		if (!done.ok) toastSettingSaveFailed(done.error);
 		setVersion((value) => value + 1);
 	};
 
@@ -133,7 +129,7 @@ function RepoSwitchRow({
 		>
 			<Switch
 				aria-label={def.title}
-				checked={resolved?.value ?? false}
+				checked={resolved?.value ?? def.default === true}
 				disabled={resolved === null}
 				onCheckedChange={(checked) => void change(checked)}
 			/>

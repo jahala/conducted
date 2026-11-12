@@ -174,6 +174,13 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"Inserting a row that points to a missing parent fails; deleting a parent cascades where the schema says so.",
 	),
 	c(
+		"db",
+		"one-connection",
+		"a transaction is one connection's",
+		"When the connection is lost between BEGIN and COMMIT, the transaction's later statements, its commit and every statement after it fail. None runs on a new connection, so no part of the transaction saves on its own (issue #616, D137).",
+		"controls",
+	),
+	c(
 		"shell",
 		"run-stdout",
 		"run captures stdout and exit code",
@@ -632,6 +639,8 @@ export interface ContractControls {
 	emitWindowFocus?(focused: boolean): void | Promise<void>;
 	emitNetworkChanged?(online: boolean): void | Promise<void>;
 	emitDeepLinkRejected?(rejection: { code: string; message: string }): void | Promise<void>;
+	/** The database connection goes away, as a crash or the app's exit would take it (D137). */
+	loseDatabaseConnection?(): void | Promise<void>;
 	/** Puts files on the clipboard, as if copied in Finder. */
 	setClipboardFilePaths?(paths: readonly string[]): void;
 	/** Adds a scripted Worker answer (CLOUD-03). */
@@ -1056,6 +1065,34 @@ const STEPS: Record<string, ContractStep> = {
 		await ctx.platform.db.execute(`DELETE FROM contract_fk_parent WHERE id = $1`, [1]);
 		const rows = await ctx.platform.db.select(`SELECT id FROM contract_fk_child`);
 		ctx.assert(rows.length === 0, "deleting the parent did not cascade");
+	},
+
+	"db.one-connection": async (ctx) => {
+		const lose = ctx.controls?.loseDatabaseConnection;
+		ctx.assert(lose !== undefined, "the controls do not expose loseDatabaseConnection");
+		if (lose === undefined) return;
+		const table = "contract_one_connection";
+		await ctx.platform.db.execute(`CREATE TABLE ${table} (id INTEGER PRIMARY KEY)`);
+		const outcome = (promise: Promise<unknown>): Promise<"ran" | "refused"> =>
+			promise.then(
+				() => "ran",
+				() => "refused",
+			);
+		const seen: { second: "ran" | "refused" | "not reached" } = { second: "not reached" };
+		const transaction = await outcome(
+			ctx.platform.db.transaction(async (tx) => {
+				await tx.execute(`INSERT INTO ${table} (id) VALUES ($1)`, [1]);
+				await lose();
+				seen.second = await outcome(tx.execute(`INSERT INTO ${table} (id) VALUES ($1)`, [2]));
+			}),
+		);
+		ctx.assert(
+			seen.second === "refused",
+			`the second insert ${seen.second} after the connection was lost`,
+		);
+		ctx.assert(transaction === "refused", "the transaction committed on a lost connection");
+		const after = await outcome(ctx.platform.db.select(`SELECT id FROM ${table}`));
+		ctx.assert(after === "refused", "a statement after the loss ran on a new connection");
 	},
 
 	"shell.run-stdout": async (ctx) => {
@@ -2443,6 +2480,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"db.transaction-rollback": ["db.execute", "db.transaction", "db.select"],
 	"db.transaction-serialised": ["db.execute", "db.transaction"],
 	"db.foreign-keys": ["db.execute", "db.select"],
+	"db.one-connection": ["db.execute", "db.transaction", "db.select"],
 	"shell.run-stdout": ["shell.run"],
 	"shell.run-nonzero": ["shell.run"],
 	"shell.run-cwd-env-stdin": ["fs.mkdirp", "shell.run"],
