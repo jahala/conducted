@@ -301,12 +301,11 @@
 		"by": "hand"
 	},
 	"placeholder:R10944937": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents",
-		"backlog": "SET-10",
-		"item": "Providers dialog: 'Search providers' filters OpenCode's key providers by name or variable",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-agents-opencode-providers-search",
+		"via": "placeholder",
+		"role": "textbox",
+		"by": "hand"
 	},
 	"placeholder:R10958311": {
 		"status": "gap",
