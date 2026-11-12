@@ -36,4 +36,38 @@ describe("SIDE-02 NDJSON framing", () => {
 	test("SIDE-02 encodeLine ends with exactly one newline", () => {
 		expect(encodeLine({ a: 1 })).toBe('{"a":1}\n');
 	});
+
+	test("SIDE-02 a long line in many chunks costs time in proportion to its length (#617)", () => {
+		// One line of `chars` characters, pushed in 16 KiB chunks as a socket hands them over.
+		const CHUNK = 16 * 1024;
+		const pushLine = (chars: number): number => {
+			const line = `{"output":"${"x".repeat(chars - 14)}"}\n`;
+			const decoder = new LineDecoder();
+			const started = performance.now();
+			let decoded = 0;
+			for (let at = 0; at < line.length; at += CHUNK) {
+				decoded += decoder.push(line.slice(at, at + CHUNK)).length;
+			}
+			const took = performance.now() - started;
+			expect(decoded).toBe(1);
+			return took;
+		};
+		// The fastest of five runs, so a collector pause in one run does not decide it.
+		const fastest = (chars: number): number =>
+			Math.min(...Array.from({ length: 5 }, () => pushLine(chars)));
+		pushLine(1024 * 1024);
+		const short = fastest(2 * 1024 * 1024);
+		const long = fastest(8 * 1024 * 1024);
+		// Four times the line takes about four times as long when each character is handled once.
+		// Searching the whole line again for every chunk takes about sixteen times as long.
+		expect(long / short).toBeLessThan(8);
+	});
+
+	test("SIDE-02 twenty thousand short lines in one chunk come back in order", () => {
+		const decoder = new LineDecoder();
+		const chunk = Array.from({ length: 20_000 }, (_, index) => `[${index}]\n`).join("");
+		const out = decoder.push(chunk);
+		expect(out).toHaveLength(20_000);
+		expect(out[19_999]).toEqual({ ok: true, value: [19_999] });
+	});
 });
