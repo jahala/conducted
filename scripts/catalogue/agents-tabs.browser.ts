@@ -3,14 +3,14 @@
  * Owns: the browser check that the Agents page's tab row holds every agent's tab at the app's
  * default window, spans the page as Conductor's does, and never grows a scrollbar.
  * Behaviour: issue #625. On GitHub's macOS 15 runner the tab list read scrollWidth 358 and
- * clientWidth 345, so "Pi" sat behind a sideways scroll. 358px is the labels' width in Chromium to
- * the pixel, so the labels were not wider there: the list lost 13px to a scrollbar. Our list was a
- * scroll container one pixel shorter than its tabs (each tab's -mb-px), and a Mac whose scrollbars
- * take space (a mouse, or a runner with no trackpad) draws a vertical scrollbar in it. Conductor's
- * list clips and never scrolls (renderApp @4392128, `min-w-0 overflow-hidden max-w-full`; a tab is
- * `min-w-0 overflow-hidden whitespace-nowrap` with no negative margin, @4392863), and on Agents it is
- * alone across the page (@11008592 `mb-6 justify-start gap-6 border-b`, in a `w-full` root
- * @11009380). jsdom has no layout, so only a browser can measure this.
+ * clientWidth 345, so "Pi" sat behind a sideways scroll. Chromium reads the same row's content as
+ * 358px to the pixel, so the labels were no wider there: the list lost 13px to a scrollbar. Our
+ * list was a scroll container one pixel shorter than its tabs (each tab's -mb-px), and a Mac whose
+ * scrollbars take space (a mouse, or a runner with no trackpad) draws a vertical scrollbar in it.
+ * Conductor's list clips and never scrolls (renderApp @4392128, `min-w-0 overflow-hidden
+ * max-w-full`; a tab is `min-w-0 overflow-hidden whitespace-nowrap` with no negative margin,
+ * @4392863), and on Agents it is alone across the page (@11008592 `mb-6 justify-start gap-6
+ * border-b`, in a `w-full` root @11009380). jsdom has no layout, so only a browser can measure this.
  * Must handle: the labels at their own size; the labels 4% larger (a wider system font); scrollbars
  * that take space; a row too narrow for its tabs must be reported (the instrument is proved on a
  * known case).
