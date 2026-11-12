@@ -10,7 +10,8 @@
  * subscription, Vertex, both Bedrock modes, ChatGPT, Cursor, custom), its card badges and both
  * sign-in dialogs; a changed setting's actions menu; the Connect GitHub and disconnect dialogs; the
  * environment file picker, variable editor, import banner and local-override table; the MCP
- * list loading, empty, filtered and failed; Appearance with a custom code font; and a project's
+ * list loading, empty, filtered and failed; a subscription token saved and an Anthropic key taken
+ * from this Mac; Appearance with a custom code font; and a project's
  * Actions page with no actions, and with
  * a hidden shared action, a personal action and a shared one changed on this Mac.
  * Behaviour: ui-map.md 6 (settings pages).
@@ -18,7 +19,7 @@
  */
 import { chatRoute, seedCast } from "../cast.ts";
 import { seedConductorDatabase } from "../conductor-database.ts";
-import { click, find, has, shows, typeInto } from "../dom.ts";
+import { click, fillIn, find, findFirst, has, shows, typeInto } from "../dom.ts";
 import { scriptGitHub } from "../github.ts";
 import { setSetting } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
@@ -450,6 +451,43 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				route: "/settings/user/agents",
 				after: ({ document }) => openProviders(document, null, "Anthropic API key"),
 				ready: (document) => shows(document, "Use the key from this Mac"),
+			};
+		},
+	},
+	{
+		id: "settings-agents-key-imported",
+		group: "Settings",
+		title: "Agents: Claude Code's Anthropic API key taken from this Mac",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/agents",
+				after: async ({ document }) => {
+					await openProviders(document, null, "Anthropic API key");
+					await click(document, "label", "Use the key from this Mac");
+					await click(document, "button", "Save", { prefix: true });
+				},
+				ready: (document) => shows(document, "API key imported from env"),
+			};
+		},
+	},
+	{
+		id: "settings-agents-subscription-saved",
+		group: "Settings",
+		title: "Agents: Claude Code's subscription token entered and saved",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/agents",
+				after: async ({ document }) => {
+					await openProviders(document, null);
+					const field = await findFirst(document, '[role=dialog] input[type="password"]');
+					if (!(field instanceof HTMLInputElement)) throw new Error("No token field.");
+					fillIn(field, "sk-ant-oat01-sample-token");
+					await click(document, "button", "Save", { prefix: true });
+				},
+				ready: (document) =>
+					shows(document, "Connected with a setup token.") && shows(document, "API key saved"),
 			};
 		},
 	},

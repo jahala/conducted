@@ -141,6 +141,11 @@ export async function typeInto(
 	if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) {
 		throw new Error(`${selector} named "${name}" is not a text field.`);
 	}
+	fillIn(element, text);
+}
+
+/** Types into a text field found another way, such as a field with no name of its own. */
+export function fillIn(element: HTMLInputElement | HTMLTextAreaElement, text: string): void {
 	const prototype = Object.getPrototypeOf(element) as object;
 	const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
 	element.focus();
