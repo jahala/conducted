@@ -53,7 +53,12 @@ describe("SET-12 agent config files", () => {
 		const catalog = test.container.services.agentCatalog;
 		const path = codexFile(test);
 
-		expect(await test.memory.platform.fs.exists(path)).toBe(false);
+		// `~/.codex` is outside the default scope until the service registers it, so a check before
+		// the save is refused, not "missing" (issue #601).
+		expect(await test.memory.platform.fs.exists(path)).toMatchObject({
+			ok: false,
+			error: { code: "fs_out_of_scope" },
+		});
 		expect(await catalog.saveConfigFile("codex", 'model = "gpt-5"\n', null)).toEqual(ok(undefined));
 		expect(await test.memory.platform.fs.readText(path)).toEqual(ok('model = "gpt-5"\n'));
 
@@ -123,7 +128,7 @@ describe("SET-12 agent config files", () => {
 			expect(saved.error.code).toBe("agent_config_invalid");
 			expect(saved.error.message).toContain("is not valid TOML");
 		}
-		expect(await test.memory.platform.fs.exists(path)).toBe(false);
+		expect(await test.memory.platform.fs.exists(path)).toEqual(ok(false));
 	});
 
 	it("keeps the newer config read when two answer out of order", async () => {

@@ -935,7 +935,11 @@ export class RunScriptsService {
 		if (!mirrored.ok) {
 			return err(appError("run_local_mirror_unavailable", LOCAL_TERMINAL_MESSAGE, mirrored.error));
 		}
-		if (!(await this.#deps.fs.exists(mirrored.value))) {
+		const found = await this.#deps.fs.exists(mirrored.value);
+		if (!found.ok) {
+			return err(appError("run_local_mirror_unavailable", LOCAL_TERMINAL_MESSAGE, found.error));
+		}
+		if (!found.value) {
 			return err(appError("run_local_mirror_unavailable", LOCAL_TERMINAL_MESSAGE));
 		}
 		return ok(mirrored.value);

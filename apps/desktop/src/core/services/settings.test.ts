@@ -66,7 +66,7 @@ const fakeFs = (home = "/home/user"): FakeFs => {
 			return ok(undefined);
 		},
 		async exists(path) {
-			return files.has(path);
+			return ok(files.has(path));
 		},
 		async stat(path) {
 			return err(appError("fs_stat", `no stat for ${path}`));

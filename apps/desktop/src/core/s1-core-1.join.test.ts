@@ -197,7 +197,7 @@ describe("s1-core-1 join", () => {
 			startForLifetime(test);
 			expect((await test.container.start()).ok).toBe(true);
 
-			expect(await fs.exists(file)).toBe(false);
+			expect(await fs.exists(file)).toEqual(ok(false));
 		} finally {
 			await test.container.stop();
 			test.close();
@@ -538,7 +538,7 @@ describe("s1-core-1 join", () => {
 				await test.container.platform.fs.exists(
 					prInfoCacheFile(test.container.platform.fs.paths, workspace.id),
 				),
-			).toBe(true);
+			).toEqual(ok(true));
 		} finally {
 			await test.container.stop();
 			test.close();

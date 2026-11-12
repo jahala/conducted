@@ -30,7 +30,7 @@ import type {
 	Shell,
 } from "../../platform/platform.ts";
 import type { Workspace } from "../model.ts";
-import { customSshKeyMissing, expandSshKeyPath } from "../ssh-key.ts";
+import { expandSshKeyPath, readCustomPublicKey } from "../ssh-key.ts";
 import { cloudJson } from "./host-runtime.ts";
 
 type CloudHost = Extract<Host, { kind: "cloud" }>;
@@ -210,21 +210,19 @@ async function ensureKey(
 	const custom = customKeyPath.trim();
 	if (custom !== "") {
 		const keyPath = expandSshKeyPath(custom, deps.fs.paths.home);
-		const privateExists = await deps.fs.exists(keyPath);
-		const publicExists = await deps.fs.exists(`${keyPath}.pub`);
-		if (!privateExists || !publicExists) {
-			return err(appError("ssh_key_missing", customSshKeyMissing(keyPath)));
-		}
-		const publicKey = await deps.fs.readText(`${keyPath}.pub`);
-		const text = publicKey.ok ? publicKey.value.trim() : "";
-		if (text === "") return err(appError("ssh_key_missing", customSshKeyMissing(keyPath)));
-		return ok({ keyPath, publicKey: text });
+		// Through the shell, as Conductor reads it: the file commands do not reach `~/.ssh`, and a
+		// refusal there would read as a missing key (issue #601).
+		const publicKey = await readCustomPublicKey(deps.shell, keyPath, deps.fs.paths.home);
+		if (!publicKey.ok) return publicKey;
+		return ok({ keyPath, publicKey: publicKey.value });
 	}
 	const folder = `${deps.fs.paths.home}/${SSH_KEY_FOLDER}`;
 	const keyPath = `${folder}/${SSH_KEY_NAME}`;
-	if (!(await deps.fs.exists(keyPath))) {
-		const made = await deps.fs.mkdirp(folder);
-		if (!made.ok) return made;
+	const present = await deps.fs.exists(keyPath);
+	if (!present.ok) return present;
+	if (!present.value) {
+		const folderMade = await deps.fs.mkdirp(folder);
+		if (!folderMade.ok) return folderMade;
 		const generated = await deps.shell.run({
 			program: "ssh-keygen",
 			args: ["-t", "ed25519", "-N", "", "-f", keyPath, "-C", "conducted"],

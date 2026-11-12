@@ -1,4 +1,5 @@
 import type { Clock, Result } from "@conducted/shared";
+import { ok } from "@conducted/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMemoryPlatform } from "../../platform/memory.ts";
 import type { Database } from "../../platform/platform.ts";
@@ -391,9 +392,9 @@ describe("DATA-02 data lifetime", () => {
 
 		const report = must(await runStep(h, "remove-draft-files"));
 		expect(report.filesTrashed).toBe(2);
-		expect(await fs.exists(`${draftsDir(fs.paths)}/live.json`)).toBe(false);
-		expect(await fs.exists(`${draftsDir(fs.paths)}/recent.json`)).toBe(true);
-		expect(await fs.exists(`${draftsDir(fs.paths)}/gone.json`)).toBe(false);
+		expect(await fs.exists(`${draftsDir(fs.paths)}/live.json`)).toEqual(ok(false));
+		expect(await fs.exists(`${draftsDir(fs.paths)}/recent.json`)).toEqual(ok(true));
+		expect(await fs.exists(`${draftsDir(fs.paths)}/gone.json`)).toEqual(ok(false));
 	});
 
 	it("keeps the new-workspace draft while it is young, then removes it when it expires", async () => {
@@ -406,12 +407,12 @@ describe("DATA-02 data lifetime", () => {
 
 		const kept = must(await runStep(h, "remove-draft-files"));
 		expect(kept.filesTrashed).toBe(0);
-		expect(await fs.exists(path)).toBe(true);
+		expect(await fs.exists(path)).toEqual(ok(true));
 
 		h.setNow(NOW + 31 * DAY);
 		const removed = must(await runStep(h, "remove-draft-files"));
 		expect(removed.filesTrashed).toBe(1);
-		expect(await fs.exists(path)).toBe(false);
+		expect(await fs.exists(path)).toEqual(ok(false));
 	});
 
 	it("removes old draft attachments and sweeps old staging folders", async () => {
@@ -445,9 +446,9 @@ describe("DATA-02 data lifetime", () => {
 		const report = must(await runStep(h, "remove-draft-attachments"));
 		expect(report.rowsChanged).toBe(1);
 		expect(report.filesTrashed).toBe(2);
-		expect(await fs.exists(oldPath)).toBe(false);
-		expect(await fs.exists(orphanPath)).toBe(false);
-		expect(await fs.exists(recentPath)).toBe(true);
+		expect(await fs.exists(oldPath)).toEqual(ok(false));
+		expect(await fs.exists(orphanPath)).toEqual(ok(false));
+		expect(await fs.exists(recentPath)).toEqual(ok(true));
 		expect(await count(h.deps.db, "attachments")).toBe(1);
 	});
 
@@ -484,8 +485,8 @@ describe("DATA-02 data lifetime", () => {
 		expect(outcome.error.code).toBe("data_lifetime_path_outside");
 		expect(outcome.error.message).toContain(userFile);
 		expect(outcome.error.message).toContain(climbing);
-		expect(await fs.exists(userFile)).toBe(true);
-		expect(await fs.exists(climbing)).toBe(true);
+		expect(await fs.exists(userFile)).toEqual(ok(true));
+		expect(await fs.exists(climbing)).toEqual(ok(true));
 		expect(await count(h.deps.db, "attachments")).toBe(0);
 	});
 
@@ -510,8 +511,8 @@ describe("DATA-02 data lifetime", () => {
 		const report = must(await runStep(h, "remove-ended-terminals"));
 		expect(report.rowsChanged).toBe(1);
 		expect(report.filesTrashed).toBe(1);
-		expect(await fs.exists(terminalHistoryFile(fs.paths, "old"))).toBe(false);
-		expect(await fs.exists(terminalHistoryFile(fs.paths, "recent"))).toBe(true);
+		expect(await fs.exists(terminalHistoryFile(fs.paths, "old"))).toEqual(ok(false));
+		expect(await fs.exists(terminalHistoryFile(fs.paths, "recent"))).toEqual(ok(true));
 		const ids = (
 			await h.deps.db.select<{ id: string }>("SELECT id FROM terminals ORDER BY id")
 		).map((row) => row.id);
@@ -712,12 +713,12 @@ describe("DATA-02 data lifetime", () => {
 
 		const second = must(await runDataLifetimeJob(h.deps));
 		expect(second).toEqual({ kind: "skipped", lastRunAt: NOW });
-		expect(await h.deps.fs.exists(`${draftsDir(h.deps.fs.paths)}/old.json`)).toBe(true);
+		expect(await h.deps.fs.exists(`${draftsDir(h.deps.fs.paths)}/old.json`)).toEqual(ok(true));
 
 		h.setNow(NOW + DAY);
 		const third = must(await runDataLifetimeJob(h.deps));
 		expect(third.kind).toBe("ran");
-		expect(await h.deps.fs.exists(`${draftsDir(h.deps.fs.paths)}/old.json`)).toBe(false);
+		expect(await h.deps.fs.exists(`${draftsDir(h.deps.fs.paths)}/old.json`)).toEqual(ok(false));
 		const stored = await h.deps.db.select<{ value: string }>(
 			"SELECT value FROM settings WHERE key = $1",
 			[LIFETIME_LAST_RUN_KEY],
@@ -757,7 +758,7 @@ describe("DATA-02 data lifetime", () => {
 		expect(cut?.outcome.ok).toBe(false);
 		expect(report.steps[0]?.outcome.ok).toBe(true);
 		expect(report.steps.at(-1)?.outcome.ok).toBe(true);
-		expect(await h.deps.fs.exists(draftPath)).toBe(false);
+		expect(await h.deps.fs.exists(draftPath)).toEqual(ok(false));
 
 		const second = must(await runDataLifetimeJob(h.deps));
 		expect(second).toEqual({ kind: "skipped", lastRunAt: NOW });

@@ -90,6 +90,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	),
 	c(
 		"fs",
+		"exists-refused",
+		"exists on a refused path is an Err, never false",
+		"exists on a path outside the file scope returns Err with fs_out_of_scope, so a refusal never reads as a missing file; a missing path inside the scope is Ok(false) (issue #601).",
+	),
+	c(
+		"fs",
 		"mkdirp-idempotent",
 		"mkdirp can run twice",
 		"Creating a folder that exists is Ok, and parents are created.",
@@ -710,6 +716,11 @@ function expectErr<T>(ctx: ContractContext, result: Result<T>, what: string): Ap
 	return result.error;
 }
 
+/** Whether something is at `path`; a refused check fails the case. */
+async function existsAt(ctx: ContractContext, path: string): Promise<boolean> {
+	return expectOk(ctx, await ctx.platform.fs.exists(path), `exists ${path}`);
+}
+
 /** Waits for a real event. The timeout only catches a hang, it never paces the test. */
 async function waitForEvent<T>(
 	_ctx: ContractContext,
@@ -795,9 +806,9 @@ const STEPS: Record<string, ContractStep> = {
 		const text = "abcdef";
 		expectOk(ctx, await ctx.platform.fs.mkdirp(folder), "mkdirp");
 		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(file, text), "writeTextAtomic");
-		ctx.assert(await ctx.platform.fs.exists(file), "exists is true for a file");
-		ctx.assert(await ctx.platform.fs.exists(folder), "exists is true for a folder");
-		ctx.assert(!(await ctx.platform.fs.exists(ctx.path("absent"))), "exists is false elsewhere");
+		ctx.assert(await existsAt(ctx, file), "exists is true for a file");
+		ctx.assert(await existsAt(ctx, folder), "exists is true for a folder");
+		ctx.assert(!(await existsAt(ctx, ctx.path("absent"))), "exists is false elsewhere");
 		const fileStat = expectOk(ctx, await ctx.platform.fs.stat(file), "stat file");
 		ctx.assert(!fileStat.isDirectory, "a file is not a directory");
 		ctx.assert(
@@ -808,11 +819,27 @@ const STEPS: Record<string, ContractStep> = {
 		ctx.assert(folderStat.isDirectory, "a folder reports isDirectory");
 	},
 
+	"fs.exists-refused": async (ctx) => {
+		const outside = joinPath(ctx.outside, "program");
+		const refused = expectErr(
+			ctx,
+			await ctx.platform.fs.exists(outside),
+			"exists outside the file scope",
+		);
+		ctx.assert(refused.code === "fs_out_of_scope", `the error code was ${refused.code}`);
+		const missing = expectOk(
+			ctx,
+			await ctx.platform.fs.exists(ctx.path("not-there")),
+			"exists of a missing path",
+		);
+		ctx.assert(missing === false, `exists of a missing path was ${String(missing)}`);
+	},
+
 	"fs.mkdirp-idempotent": async (ctx) => {
 		const nested = ctx.path("deep/a/b");
 		expectOk(ctx, await ctx.platform.fs.mkdirp(nested), "first mkdirp");
 		expectOk(ctx, await ctx.platform.fs.mkdirp(nested), "second mkdirp");
-		ctx.assert(await ctx.platform.fs.exists(nested), "the nested folder exists");
+		ctx.assert(await existsAt(ctx, nested), "the nested folder exists");
 	},
 
 	"fs.read-dir": async (ctx) => {
@@ -842,11 +869,11 @@ const STEPS: Record<string, ContractStep> = {
 		const spelled = joinPath(folder, "inner/./../note.txt");
 		const resolved = joinPath(folder, "note.txt");
 		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(spelled, "dots"), "writeTextAtomic");
-		ctx.assert(await ctx.platform.fs.exists(resolved), "the file is at the resolved path");
+		ctx.assert(await existsAt(ctx, resolved), "the file is at the resolved path");
 		const read = expectOk(ctx, await ctx.platform.fs.readText(resolved), "readText");
 		ctx.assert(read === "dots", `readText returned ${JSON.stringify(read)}`);
 		ctx.assert(
-			!(await ctx.platform.fs.exists(joinPath(folder, "inner/note.txt"))),
+			!(await existsAt(ctx, joinPath(folder, "inner/note.txt"))),
 			"the file landed inside inner",
 		);
 	},
@@ -886,7 +913,7 @@ const STEPS: Record<string, ContractStep> = {
 		expectOk(ctx, await ctx.platform.fs.mkdirp(ctx.path("trash")), "mkdirp");
 		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(path, "bye"), "writeTextAtomic");
 		expectOk(ctx, await ctx.platform.fs.trash(path), "trash");
-		ctx.assert(!(await ctx.platform.fs.exists(path)), "trash removed the file from its folder");
+		ctx.assert(!(await existsAt(ctx, path)), "trash removed the file from its folder");
 	},
 
 	"db.roundtrip": async (ctx) => {
@@ -1938,7 +1965,7 @@ const STEPS: Record<string, ContractStep> = {
 			"resizeImage",
 		);
 		ctx.assert(file.path === destination, `resizeImage returned ${file.path}`);
-		ctx.assert(await ctx.platform.fs.exists(destination), "the resized copy is missing");
+		ctx.assert(await existsAt(ctx, destination), "the resized copy is missing");
 	},
 
 	"programs.install-status": async (ctx) => {
@@ -2376,6 +2403,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"fs.atomic-no-partial": ["fs.writeTextAtomic", "fs.mkdirp", "fs.readText", "fs.readDir"],
 	"fs.missing-file": ["fs.readText"],
 	"fs.exists-stat": ["fs.writeTextAtomic", "fs.mkdirp", "fs.exists", "fs.stat"],
+	"fs.exists-refused": ["fs.exists"],
 	"fs.mkdirp-idempotent": ["fs.mkdirp", "fs.exists"],
 	"fs.read-dir": ["fs.mkdirp", "fs.writeTextAtomic", "fs.readDir"],
 	"fs.dot-segments": ["fs.mkdirp", "fs.writeTextAtomic", "fs.exists", "fs.readText"],

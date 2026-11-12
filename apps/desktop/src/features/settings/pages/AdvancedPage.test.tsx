@@ -40,8 +40,8 @@ afterEach(() => {
 	test = undefined;
 });
 
-async function mountPage() {
-	test = createTestContainer();
+async function mountPage(options: Parameters<typeof createTestContainer>[0] = {}) {
+	test = createTestContainer(options);
 	await test.container.services.settings.start();
 	render(
 		<ServicesProvider container={test.container}>
@@ -54,6 +54,11 @@ async function mountPage() {
 describe("SET-02 AdvancedPage", () => {
 	it("refuses a program path that does not exist and does not save it", async () => {
 		const mounted = await mountPage();
+		mounted.memory.controls.scriptShell((command) =>
+			command.program === "which"
+				? ok({ exitCode: 1, stdout: "", stderr: `${command.args[0]} not found\n` })
+				: null,
+		);
 		const set = vi.spyOn(mounted.container.actions.settings, "set");
 
 		const input = screen.getByLabelText("Claude Code executable path");
@@ -63,6 +68,43 @@ describe("SET-02 AdvancedPage", () => {
 		expect(
 			await screen.findByText("No program exists at /definitely/not/here/claude."),
 		).toBeTruthy();
+		expect(set).not.toHaveBeenCalled();
+	});
+
+	// The file commands reach only the app's own folders (files.rs `default_roots`), so a typed path
+	// elsewhere was refused and the refusal read as "does not exist" (issue #601).
+	it("accepts a typed program path that exists outside the app's folders", async () => {
+		const mounted = await mountPage({ enforceFileScope: true });
+		mounted.memory.controls.scriptShell((command) =>
+			command.program === "which" && command.args[0] === "/bin/echo"
+				? ok({ exitCode: 0, stdout: "/bin/echo\n", stderr: "" })
+				: null,
+		);
+		const set = vi.spyOn(mounted.container.actions.settings, "set");
+
+		const input = screen.getByLabelText("Claude Code executable path");
+		fireEvent.change(input, { target: { value: "/bin/echo" } });
+		fireEvent.blur(input);
+
+		await waitFor(() => expect(set).toHaveBeenCalledWith("claude_executable_path", "/bin/echo"));
+		expect(screen.queryByText("No program exists at /bin/echo.")).toBeNull();
+	});
+
+	it("says why a program path could not be checked, and does not call it missing", async () => {
+		const mounted = await mountPage({ enforceFileScope: true });
+		mounted.memory.controls.scriptShell((command) =>
+			command.program === "which"
+				? err(appError("shell_spawn_failed", "which could not start."))
+				: null,
+		);
+		const set = vi.spyOn(mounted.container.actions.settings, "set");
+
+		const input = screen.getByLabelText("Codex executable path");
+		fireEvent.change(input, { target: { value: "/opt/tools/codex" } });
+		fireEvent.blur(input);
+
+		expect(await screen.findByText("which could not start.")).toBeTruthy();
+		expect(screen.queryByText("No program exists at /opt/tools/codex.")).toBeNull();
 		expect(set).not.toHaveBeenCalled();
 	});
 
@@ -84,14 +126,14 @@ describe("SET-02 AdvancedPage", () => {
 	it("offers Use system Claude Code when PATH has one, and saves its path when chosen", async () => {
 		test = createTestContainer();
 		const found = "/opt/homebrew/bin/claude";
+		// `which` finds the program by name on PATH, and by its path when the row checks it.
 		test.memory.controls.scriptShell((command) =>
-			command.program === "which" && command.args[0] === "claude"
+			command.program === "which" && (command.args[0] === "claude" || command.args[0] === found)
 				? ok({ exitCode: 0, stdout: `${found}\n`, stderr: "" })
 				: command.program === "which"
 					? ok({ exitCode: 1, stdout: "", stderr: "" })
 					: null,
 		);
-		expect((await test.container.platform.fs.writeTextAtomic(found, "")).ok).toBe(true);
 		await test.container.services.settings.start();
 		render(
 			<ServicesProvider container={test.container}>
@@ -124,9 +166,13 @@ describe("SET-02 AdvancedPage", () => {
 		const pickFile = vi
 			.spyOn(mounted.container.actions.app, "pickFile")
 			.mockResolvedValue(ok("/opt/tools/claude"));
-		// The picked program exists on the in-memory disk, so the path check lets it through.
-		expect((await mounted.container.platform.fs.writeTextAtomic("/opt/tools/claude", "")).ok).toBe(
-			true,
+		// `which` finds the picked program, so the path check lets it through.
+		mounted.memory.controls.scriptShell((command) =>
+			command.program === "which" && command.args[0] === "/opt/tools/claude"
+				? ok({ exitCode: 0, stdout: "/opt/tools/claude\n", stderr: "" })
+				: command.program === "which"
+					? ok({ exitCode: 1, stdout: "", stderr: "" })
+					: null,
 		);
 		const set = vi.spyOn(mounted.container.actions.settings, "set");
 
@@ -432,8 +478,32 @@ describe("SET-02 AdvancedPage", () => {
 			await waitFor(() => expect(set).toHaveBeenCalledWith("ssh_key_path", ""));
 		});
 
+		it("accepts a typed key pair outside the app's folders (issue #601)", async () => {
+			const mounted = await mountPage({ enforceFileScope: true });
+			const home = mounted.container.platform.fs.paths.home;
+			mounted.memory.controls.scriptShell((command) =>
+				command.program === "sh" && command.args.at(-1) === `${home}/.ssh/id_e2e`
+					? ok({ exitCode: 0, stdout: "ssh-ed25519 AAAAE2E e2e\n", stderr: "" })
+					: null,
+			);
+			const set = vi.spyOn(mounted.container.actions.settings, "set");
+
+			const input = screen.getByLabelText("SSH private key path");
+			fireEvent.change(input, { target: { value: "~/.ssh/id_e2e" } });
+			fireEvent.blur(input);
+
+			await waitFor(() => expect(set).toHaveBeenCalledWith("ssh_key_path", "~/.ssh/id_e2e"));
+			expect(screen.queryByText(/Custom SSH public key not found/)).toBeNull();
+		});
+
 		it("refuses a custom key with no .pub file in Conductor's words", async () => {
 			const mounted = await mountPage();
+			// The shell's read finds no public half: `cat` fails and prints nothing.
+			mounted.memory.controls.scriptShell((command) =>
+				command.program === "sh"
+					? ok({ exitCode: 1, stdout: "", stderr: "cat: /keys/missing.pub: No such file\n" })
+					: null,
+			);
 			const set = vi.spyOn(mounted.container.actions.settings, "set");
 			const input = screen.getByLabelText("SSH private key path");
 			fireEvent.change(input, { target: { value: "/keys/missing" } });
@@ -447,17 +517,11 @@ describe("SET-02 AdvancedPage", () => {
 
 		it("browses with Conductor's titles and saves an existing key pair", async () => {
 			const mounted = await mountPage();
-			expect((await mounted.container.platform.fs.writeTextAtomic("/keys/custom", "")).ok).toBe(
-				true,
+			mounted.memory.controls.scriptShell((command) =>
+				command.program === "sh" && command.args.at(-1) === "/keys/custom"
+					? ok({ exitCode: 0, stdout: "ssh-ed25519 AAAACUSTOM conducted\n", stderr: "" })
+					: null,
 			);
-			expect(
-				(
-					await mounted.container.platform.fs.writeTextAtomic(
-						"/keys/custom.pub",
-						"ssh-ed25519 AAAACUSTOM conducted\n",
-					)
-				).ok,
-			).toBe(true);
 			const pickFile = vi
 				.spyOn(mounted.container.actions.app, "pickFile")
 				.mockResolvedValue(ok("/keys/custom"));

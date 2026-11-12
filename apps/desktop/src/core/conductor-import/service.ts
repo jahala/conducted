@@ -358,12 +358,19 @@ export class ConductorImportService {
 			conductedLocal: false,
 			scriptFiles: {},
 		};
-		if (!(await fs.exists(root))) return ok(empty);
+		const found = await fs.exists(root);
+		if (!found.ok) return found;
+		if (!found.value) return ok(empty);
 		const listed = await this.#deps.git.stdout(worktreeList(), { cwd: root });
 		const unreadable: string[] = [];
 		const readToml = async (relative: string): Promise<SettingsFileContents | null> => {
 			const path = `${root}/${relative}`;
-			if (!(await fs.exists(path))) return null;
+			const present = await fs.exists(path);
+			if (!present.ok) {
+				unreadable.push(relative);
+				return null;
+			}
+			if (!present.value) return null;
 			const text = await fs.readText(path);
 			const parsed = text.ok ? this.#deps.toml.parse(text.value) : null;
 			if (parsed === null || !parsed.ok) {
@@ -386,15 +393,21 @@ export class ConductorImportService {
 			const text = await fs.readText(path);
 			if (text.ok) scriptFiles[relative] = text.value;
 		}
+		const conductorJson = await fs.exists(`${root}/conductor.json`);
+		if (!conductorJson.ok) return conductorJson;
+		const conductedShared = await fs.exists(sharedSettingsFile(root));
+		if (!conductedShared.ok) return conductedShared;
+		const conductedLocal = await fs.exists(localSettingsFile(root));
+		if (!conductedLocal.ok) return conductedLocal;
 		return ok({
 			exists: true,
 			worktrees: listed.ok ? parseWorktreeList(listed.value) : null,
 			shared,
 			local,
 			unreadable,
-			conductorJson: await fs.exists(`${root}/conductor.json`),
-			conductedShared: await fs.exists(sharedSettingsFile(root)),
-			conductedLocal: await fs.exists(localSettingsFile(root)),
+			conductorJson: conductorJson.value,
+			conductedShared: conductedShared.value,
+			conductedLocal: conductedLocal.value,
 			scriptFiles,
 		});
 	}

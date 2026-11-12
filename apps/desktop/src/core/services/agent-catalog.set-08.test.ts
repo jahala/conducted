@@ -356,7 +356,9 @@ describe("SET-08 config sync preview and copy", () => {
 				],
 			}),
 		);
-		expect(await mounted.container.platform.fs.exists(`${home}/.codex/skills/tool`)).toBe(false);
+		expect(await mounted.container.platform.fs.exists(`${home}/.codex/skills/tool`)).toEqual(
+			ok(false),
+		);
 		expect(
 			await mounted.container.platform.fs.readText(`${home}/.codex/skills/plain/SKILL.md`),
 		).toEqual(ok("# Plain\n"));

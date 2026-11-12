@@ -86,7 +86,7 @@ const harness = (overrides: Partial<SessionsServiceDeps> = {}): Harness => {
 		repositories: () => repositories,
 		repositoriesOn: () => repositories,
 		fs: {
-			exists: async () => true,
+			exists: async () => ok(true),
 			trash: async () => ok(undefined),
 		},
 		sidecar: {

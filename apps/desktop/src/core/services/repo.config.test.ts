@@ -74,7 +74,7 @@ function makeService(
 			return ok(undefined);
 		},
 		async exists(path: string) {
-			return files.has(path);
+			return ok(files.has(path));
 		},
 		async stat() {
 			return err(appError("fs_stat", "not used"));

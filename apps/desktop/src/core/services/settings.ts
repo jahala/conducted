@@ -1086,7 +1086,9 @@ export class SettingsService {
 		if (!path.ok) return path;
 		const fs = this.#deps.platform.fs;
 		const made = await this.#writes.run(path.value, async (): Promise<Result<void>> => {
-			if (await fs.exists(path.value)) return ok(undefined);
+			const found = await fs.exists(path.value);
+			if (!found.ok) return found;
+			if (found.value) return ok(undefined);
 			const folder = await fs.mkdirp(path.value.slice(0, path.value.lastIndexOf("/")));
 			if (!folder.ok) return folder;
 			return fs.writeTextAtomic(path.value, "");
@@ -1192,7 +1194,11 @@ export class SettingsService {
 	async #readFile(
 		path: string,
 	): Promise<Result<{ text: string | null; contents: SettingsFileContents }>> {
-		if (!(await this.#deps.platform.fs.exists(path))) {
+		const found = await this.#deps.platform.fs.exists(path);
+		if (!found.ok) {
+			return err(appError("settings_file_unreadable", `Could not read ${path}.`, found.error));
+		}
+		if (!found.value) {
 			return ok({ text: null, contents: emptyContents(path) });
 		}
 		const text = await this.#deps.platform.fs.readText(path);
@@ -1568,11 +1574,17 @@ export class SettingsService {
 					home: fs.paths.home,
 					exists: (candidate) => fs.exists(candidate),
 				});
-				const text = await fs.readText(resolved);
+				if (!resolved.ok) {
+					this.#deps.platform.app.writeLog("warn", `Could not find the environment file ${path}.`, {
+						cause: resolved.error.message,
+					});
+					continue;
+				}
+				const text = await fs.readText(resolved.value);
 				if (!text.ok) {
 					this.#deps.platform.app.writeLog(
 						"warn",
-						`Could not read the environment file ${resolved}.`,
+						`Could not read the environment file ${resolved.value}.`,
 						{ cause: text.error.message },
 					);
 					continue;
@@ -1862,7 +1874,9 @@ export class SettingsService {
 		const excludePath = `${repoRootPath.replace(/\/+$/, "")}/.git/info/exclude`;
 		const lines = ["/.conducted/*", "!.conducted/settings.toml"];
 		let text = "";
-		if (await fs.exists(excludePath)) {
+		const found = await fs.exists(excludePath);
+		if (!found.ok) return found;
+		if (found.value) {
 			const read = await fs.readText(excludePath);
 			if (!read.ok) return read;
 			text = read.value;

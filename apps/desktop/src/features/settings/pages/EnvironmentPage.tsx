@@ -31,7 +31,7 @@
  * Test first: adding a variable from the panel saves it in the scope and shows the row with a
  * hidden value.
  */
-import type { RepoId } from "@conducted/shared";
+import type { RepoId, Result } from "@conducted/shared";
 import { useEffect, useMemo, useState } from "react";
 import { useServices } from "../../../core/context.tsx";
 import { parseDotenv } from "../../../core/dotenv.ts";
@@ -74,7 +74,7 @@ export function EnvironmentPage({
 	const services = useServices().services;
 	const { platform } = useServices();
 	const [adding, setAdding] = useState(false);
-	const [files, setFiles] = useState<{ path: string; exists: boolean }[]>([]);
+	const [files, setFiles] = useState<{ path: string; exists: Result<boolean> }[]>([]);
 	const [candidates, setCandidates] = useState<string[]>([]);
 	const [importing, setImporting] = useState(false);
 	const [repoFiles, setRepoFiles] = useState<{
