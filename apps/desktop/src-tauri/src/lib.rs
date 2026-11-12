@@ -661,10 +661,33 @@ fn window_toggle_inspector(app: AppHandle) -> CommandResult<()> {
 
 /// Adds the embedded WebDriver server the end-to-end tests drive the window with (issue #564). Only
 /// the test build turns on the `e2e` feature; it listens on 127.0.0.1 at `TAURI_WEBDRIVER_PORT`.
+/// The test app also starts without taking the focus from the app the owner works in (#633).
 #[cfg(feature = "e2e")]
 fn with_test_driver<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
-    builder.plugin(tauri_plugin_wdio_webdriver::init())
+    builder
+        .plugin(tauri_plugin_wdio_webdriver::init())
+        .activate_ignoring_other_apps(false)
 }
+
+/// The test app opens behind the owner's work (#633): no Dock icon, never the active app, and its
+/// window kept below other windows. WebDriver drives the webview without the app being active.
+#[cfg(feature = "e2e")]
+fn open_behind(app: &mut tauri::App) {
+    app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+    if let Some(window) = app.get_webview_window("main")
+        && let Err(error) = window.set_always_on_bottom(true)
+    {
+        log_or_stderr(
+            app.handle(),
+            "warn",
+            &format!("could not keep the test window behind: {error}"),
+        );
+    }
+}
+
+/// Every other build opens as a normal app.
+#[cfg(not(feature = "e2e"))]
+fn open_behind(_app: &mut tauri::App) {}
 
 /// Every other build has no WebDriver server.
 #[cfg(not(feature = "e2e"))]
@@ -751,6 +774,7 @@ pub fn run() {
         .setup(|app| {
             let logger_state = app.state::<logger::LoggerState>();
             logger::start_writer(app.handle(), &logger_state)?;
+            open_behind(app);
             // A plain scrollback file left by an earlier version is encrypted here, before any
             // terminal opens. The key is read from the Keychain only when such a file exists.
             if let Err(error) = terminal_history::history_dir(app.handle()) {
