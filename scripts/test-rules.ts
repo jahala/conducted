@@ -165,8 +165,17 @@ export const MACOS_JOB: readonly Rule[] = [
 		why: "the Rust crate: its code, tests, fixtures, Cargo.lock and rust-toolchain.toml",
 	},
 	{
-		glob: "apps/desktop/src/**",
-		why: "the Rust tests read the UI source, and the macOS tests import it",
+		glob: "apps/desktop/src/{platform/tauri,core/app-paths}.ts",
+		why: "the Rust tests read the adapter's command names and the app's folder names",
+	},
+	{ glob: "apps/desktop/src/**/*.macos.test.ts", why: "the macOS tests" },
+	{
+		glob: "apps/desktop/src/test/{setup,hang-timeouts,dom-polyfills}.ts",
+		why: "the setup files Vitest runs before the macOS tests",
+	},
+	{
+		glob: "apps/desktop/src/{core/services/terminals,core/services/shell-integration,core/cloud/terminal,core/host,core/file-sync-view,core/status/archived,core/async/latest-wins,core/async/single-flight,platform/terminal-escapes}.ts",
+		why: "the UI files the macOS tests import",
 	},
 	{ glob: "apps/desktop/vite.config.ts", why: "the Vitest configuration of the macOS tests" },
 	{ glob: "apps/cloud/**", why: "the relay integration test starts the Worker from this folder" },
