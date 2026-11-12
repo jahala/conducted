@@ -1115,3 +1115,13 @@ Chosen:
 Why not the Worker: the Worker has the bucket binding and could empty it, but it must still be running to do so. A retry after a half-finished uninstall would then find no Worker and could never empty the bucket, and a sandbox could write a backup between the emptying and the Worker's delete.
 
 Left unverified on a real account: that the OAuth token from `wrangler login` may list objects (`GET .../objects`), and the exact HTTP status Cloudflare pairs with 10008. The code reads the error code, not the status. The tests run against a stand-in for the API in `cloud.rs`; the next `pnpm cloud:live-mcp` run checks it live, because its teardown is now the app's uninstall alone.
+
+## D139. CI's macOS job runs on a pull request only when the change can reach it (2026-11-12)
+
+Decided by the agent fixing issue #641, which the owner filed.
+
+Context: the `rust` job runs on `macos-latest`. On 2026-11-12 GitHub's arm64 Macs were short, and the job was cancelled after 15 minutes without a runner on seven pull requests and the v0.4.0 release, including #638, which changed only `scripts/e2e` and docs.
+
+Chosen: an Ubuntu job, `macos-changes`, compares the pull request with main (`scripts/macos-job.ts`) against `MACOS_JOB` in `scripts/test-rules.ts`, the paths the job checks, reads or installs. The `rust` job runs when one changed, when `macos-changes` failed, and on every push to main. Otherwise its condition skips it, and GitHub reports a job skipped by its condition as a success, so the required check passes. `scripts/macos-job.test.ts` holds the list to the paths the crate names and the files the macOS tests import.
+
+Why not skip the job's steps inside the job: the job would still wait for a macOS runner, which is the shortage. Why not a `paths` filter on the workflow: a required check whose workflow never starts holds the pull request forever.

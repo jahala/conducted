@@ -107,7 +107,10 @@ export function testFilesByRunner(
 	return byRunner;
 }
 
-/** Why the changed files need every test, one line per rule they hit; empty when none. */
+/**
+ * The rules the changed files hit, one line per rule; empty when none. By default the rules are
+ * RUN_EVERYTHING, so the lines say why every test runs; scripts/macos-job.ts passes MACOS_JOB.
+ */
 export function runEverythingReasons(
 	changed: readonly string[],
 	rules: readonly Rule[] = RUN_EVERYTHING,
