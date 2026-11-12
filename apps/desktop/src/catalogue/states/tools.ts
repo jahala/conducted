@@ -17,7 +17,7 @@ import { animateCast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
 import { click, find, rightClick, shows } from "../dom.ts";
 import { deliverEvents, setLiveState } from "../live.ts";
-import { addChat, addEvents } from "../seeds.ts";
+import { addChat, addEvents, CLAUDE_CONFIG } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
 import type { World } from "../world.ts";
@@ -441,7 +441,7 @@ async function planModeChat(world: World): Promise<Scene> {
 		after: async ({ app, document }) => {
 			await animateCast(world, cast, app);
 			await refreshGit(app, cast.grove);
-			await click(document, "button", "Expand", { prefix: true });
+
 			await rightClick(document, "button", "Propose plan", { prefix: true });
 		},
 		ready: (document) => shows(document, "Enter plan mode") && shows(document, "Copy plan"),
@@ -451,9 +451,11 @@ async function planModeChat(world: World): Promise<Scene> {
 /** A turn that writes two HTML visualizations the chat cannot show: one outside the workspace, one gone. */
 async function visualizationChat(world: World): Promise<Scene> {
 	const cast = await seedCast(world);
-	const chat = await addChat(world, cast.grove, { title: "Chart the cache hit rate" });
+	// Visualizations are Codex's.
+	const config = { ...CLAUDE_CONFIG, agent: "codex" as const, model: "gpt-5.5" };
+	const chat = await addChat(world, cast.grove, { title: "Chart the cache hit rate", config });
 	const talk = conversation("grove-visualizations", CATALOGUE_NOW - 5 * MINUTE);
-	const turn = talk.user("Chart the cache hit rate for the last week as an HTML page.");
+	const turn = talk.user("Chart the cache hit rate for the last week as an HTML page.", { config });
 	talk.tool(turn, {
 		tool: "write",
 		rawName: "Write",
@@ -472,10 +474,9 @@ async function visualizationChat(world: World): Promise<Scene> {
 	await addEvents(world, chat.id, talk.events);
 	return {
 		route: chatRoute(cast.grove, chat),
-		after: async ({ app, document }) => {
+		after: async ({ app }) => {
 			await animateCast(world, cast, app);
 			await refreshGit(app, cast.grove);
-			await click(document, "button", "Expand", { prefix: true });
 		},
 		ready: (document) =>
 			shows(document, "Visualization is outside the workspace:") &&

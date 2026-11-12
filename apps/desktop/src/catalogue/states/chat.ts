@@ -182,11 +182,19 @@ export const CHAT_STATES: CatalogueState[] = [
 		id: "chat-copied",
 		group: "Workspace chat",
 		title: "The turn footer's copy button just after copying the reply",
-		seed: castChat(
-			(cast) => ({ route: chatRoute(cast.arbor, cast.chats.arbor), workspace: cast.arbor }),
-			"Copied",
-			(document) => click(document, "button", "Copy final message"),
-		),
+		seed: async (world: World): Promise<Scene> => {
+			const cast = await seedCast(world);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await animateCast(world, cast, app);
+					await refreshGit(app, cast.arbor);
+					await click(document, "button", "Copy final message");
+				},
+				// An icon button: its name says Copied for a moment.
+				ready: (document) => has(document, "button", "Copied"),
+			};
+		},
 	},
 	{
 		id: "chat-long-message",
