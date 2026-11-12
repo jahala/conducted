@@ -16,7 +16,7 @@
 import type { Workspace } from "../../core/model.ts";
 import { animateCast, type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, clickOn, find, has, hover, shows } from "../dom.ts";
+import { click, has, hover, shows } from "../dom.ts";
 import { setLiveState } from "../live.ts";
 import { addChat, addEvents, addRepo, must } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
@@ -109,6 +109,21 @@ const markdownChat = async (world: World): Promise<Scene> => {
 };
 
 /** arbor's chat with a screenshot attached, and its attachment viewer open. */
+/**
+ * The screenshot the user attached: a browser window whose address ends at `/`. A picture the browser
+ * loads, so the chip keeps its Open button as it does for a real image.
+ */
+const REDIRECT_SCREENSHOT = `data:image/svg+xml,${encodeURIComponent(
+	'<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800">' +
+		'<rect width="1280" height="800" fill="#f4f4f5"/>' +
+		'<rect width="1280" height="56" fill="#e4e4e7"/>' +
+		'<rect x="160" y="14" width="960" height="28" rx="14" fill="#ffffff"/>' +
+		'<rect x="96" y="120" width="480" height="40" rx="6" fill="#d4d4d8"/>' +
+		'<rect x="96" y="192" width="1088" height="16" rx="4" fill="#e4e4e7"/>' +
+		'<rect x="96" y="224" width="880" height="16" rx="4" fill="#e4e4e7"/>' +
+		"</svg>",
+)}`;
+
 async function attachmentChat(
 	world: World,
 	then?: { step: (document: Document) => Promise<void>; text: string },
@@ -125,14 +140,13 @@ async function attachmentChat(
 	talk.usage(turn, 12_000);
 	talk.end(turn);
 	await addEvents(world, chat.id, talk.events);
+	world.showPicture(path, REDIRECT_SCREENSHOT);
 	return {
 		route: chatRoute(cast.arbor, chat),
 		after: async ({ app, document }) => {
 			await animateCast(world, cast, app);
 			await refreshGit(app, cast.arbor);
-			// Not `click`: it would wait for a quiet page, and by then the image has failed to load
-			// (the browser cannot open asset:// addresses) and its Open button is gone.
-			clickOn(await find(document, "button", "Open redirect.png"));
+			await click(document, "button", "Open redirect.png");
 			await then?.step(document);
 		},
 		ready: (document) => shows(document, then?.text ?? "Copy image"),
