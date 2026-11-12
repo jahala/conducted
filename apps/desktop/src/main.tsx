@@ -10,8 +10,8 @@
  * wires the Tauri Platform and calls it once when `index.html` has a `#root`; importing the module in a
  * test does not start a second app.
  * Must handle: a Platform that cannot be built (logged, no root mounted); the loading, blocked, failed and
- * wrong-CPU states drawn by APP-08's StartupScreen and StartupFailure (the blocked and failed states are also
- * logged); query and mutation failures, React render failures and unhandled errors all reaching the app log;
+ * wrong-CPU states drawn by APP-08's StartupScreen and StartupFailure (the blocked state is also logged here;
+ * a failed state is logged by app/startup.ts, which holds its whole error); query and mutation failures, React render failures and unhandled errors all reaching the app log;
  * the toast host inside the providers; one query client for the whole app; a notification click opened
  * through NAV-17's deep-link opener, the same one Platform deep links use.
  * Test first: mounting the entry builds a container, runs the startup sequence and renders the router.
@@ -305,12 +305,6 @@ export function startApp(options: StartAppOptions): StartedApp {
 			log("Startup blocked: the database is newer than this app", {
 				databaseVersion: state.databaseVersion,
 				appVersion: state.appVersion,
-			});
-		}
-		if (state.kind === "failed") {
-			log(`Startup failed during ${state.phase}`, {
-				message: state.message,
-				logPath: state.logPath,
 			});
 		}
 	};
