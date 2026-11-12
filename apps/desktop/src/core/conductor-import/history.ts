@@ -2,7 +2,8 @@
  * @feature APP-18 Chat history from Conductor: writing each chat's history
  * Owns: `importChatHistories`, which brings the history of each chat the plan names, one chat at
  * a time: it reads the chat's rows from the copy through the Rust shell, has the sidecar map them
- * (packages/sidecar/src/import/history-imports.ts) and stores the events as the chat's own;
+ * (packages/sidecar/src/import/history-imports.ts), stages the events and then stores them as
+ * the chat's own;
  * `measureChatHistories`, the dry run's pass over the same reads and mapping, which sizes each
  * event as the writer stores it and writes nothing (D132).
  * Behaviour: docs/plans/migrate-from-conductor.md ("Chat history"), safety rules 1 (only the copy
@@ -10,17 +11,21 @@
  * Must handle: memory stays bounded by one read, never a chat: the first read pages the chat's
  * rows without their content and the sidecar keeps only their places; the second fetches the rows
  * the sidecar names, at most `rowsPerRead` holding at most `charsPerRead` characters, and the
- * events of each read are written before the next; a message too large for the sidecar's line
- * fails its chat with that reason, before it is sent; each chat's events are written in one
- * transaction, which also counts them and reads the first back, so a failure leaves the chat
- * without history and never half of it; a failed chat is named with its reason and the next
- * chat goes on; a chat that gained an event since the dry run (the user sent a message) is left
- * as it is and counted, never added to; the sidecar's mapping is closed whatever happens.
+ * events of each read are staged before the next; a message too large for the sidecar's line
+ * fails its chat with that reason, before it is sent; a chat's events join it in one transaction,
+ * which also counts them and reads the first back, so a failure leaves the chat without history
+ * and never half of it; a failed chat is named with its reason and the next chat goes on; a chat
+ * that gained an event since the dry run (the user sent a message) is left as it is and counted,
+ * never added to; the sidecar's mapping and the staging are closed whatever happens.
  * Our design choice: an imported event is received at the import's time, while its own time
  * (`at`) is Conductor's, so the chat shows when things happened and the data lifetime job, which
  * ages events by when they were received, treats imported events as events received at import.
- * The first read happens before the transaction, which holds the app's one database queue, so
- * the time other writes wait is the second read only.
+ * Our design choice (D135): the app has one database queue, and a transaction holds it, so the
+ * reads and the mapping happen outside any transaction. Each read's events go into a staging that
+ * no reader of the chat sees, one statement each, and the app's own writes take their turn between
+ * them. The chat's transaction then copies the staged events in one statement, so the queue waits
+ * for SQLite's copy of one chat and never for its reads. The staging is a temporary database
+ * SQLite deletes when it is detached, after each chat, or when the app closes.
  * Test first: a Claude chat with several turns comes over, and our chat shows those turns.
  */
 import type { SessionEvent } from "@conducted/protocol";
@@ -108,14 +113,22 @@ async function importOne(
 	// A mapping an earlier run left open under this id must not take this run's rows.
 	const cleared = await deps.sidecar.request("closeConductorHistory", { historyId });
 	if (!cleared.ok) return cleared;
+	const events = deps.repositoriesOn(deps.db).sessionEvents;
 	try {
+		const before = await events.count(chat.sessionId);
+		if (!before.ok) return before;
+		if (before.value > 0) return ok("changed");
 		const indexed = await indexChat(chat, historyId, deps);
 		if (!indexed.ok) return indexed;
+		const staged = await stageChat(chat, historyId, deps);
+		if (!staged.ok) return staged;
 		return await inTransaction(deps.db, "Writing a chat's history", (tx) =>
-			writeChat(chat, historyId, tx, deps),
+			publishChat(chat, staged.value, tx, deps),
 		);
 	} finally {
-		// A failed close leaves nothing behind: the sidecar drops a mapping when a newer one opens.
+		// A failed close leaves nothing behind: the next chat's staging replaces this one, and the
+		// sidecar drops a mapping when a newer one opens.
+		await events.closeStaging();
 		await deps.sidecar.request("closeConductorHistory", { historyId });
 	}
 }
@@ -189,39 +202,61 @@ async function eachRead(
 	}
 }
 
-/** Inside the chat's transaction: the second read, written read by read, then checked. */
-async function writeChat(
+/** What a chat's staging holds: how many events, and the first, to read back once published. */
+interface Staged {
+	count: number;
+	first: SessionEvent | undefined;
+}
+
+/** Outside any transaction: the second read, each read's events staged in one statement. */
+async function stageChat(
 	chat: HistoryChat,
 	historyId: string,
+	deps: HistoryDeps,
+): Promise<Result<Staged>> {
+	const events = deps.repositoriesOn(deps.db).sessionEvents;
+	const opened = await events.openStaging();
+	if (!opened.ok) return opened;
+	const staged: Staged = { count: 0, first: undefined };
+	const read = await eachRead(chat, historyId, deps, async (mapped) => {
+		staged.first ??= mapped[0];
+		const written = await events.stageMany(mapped);
+		if (!written.ok) return written;
+		if (written.value !== mapped.length) {
+			return err(mismatch(`${mapped.length} events were to be staged, ${written.value} were`));
+		}
+		staged.count += written.value;
+		return ok(undefined);
+	});
+	return read.ok ? ok(staged) : read;
+}
+
+/** Inside the chat's transaction: the staged events into the chat, then checked. */
+async function publishChat(
+	chat: HistoryChat,
+	staged: Staged,
 	tx: Database,
 	deps: HistoryDeps,
 ): Promise<Result<"brought" | "changed">> {
 	const events = deps.repositoriesOn(tx).sessionEvents;
+	// The user may have sent a message in the chat while its history was read.
 	const before = await events.count(chat.sessionId);
 	if (!before.ok) return before;
 	if (before.value > 0) return ok("changed");
-	let written = 0;
-	let first: SessionEvent | undefined;
-	const read = await eachRead(chat, historyId, deps, async (mapped) => {
-		first ??= mapped[0];
-		const appended = await events.appendMany(chat.sessionId, mapped, deps.now);
-		if (!appended.ok) return appended;
-		if (appended.value !== mapped.length) {
-			return err(mismatch(`${mapped.length} events were to be written, ${appended.value} were`));
-		}
-		written += appended.value;
-		return ok(undefined);
-	});
-	if (!read.ok) return read;
+	const published = await events.publishStaged(chat.sessionId, deps.now);
+	if (!published.ok) return published;
+	if (published.value !== staged.count) {
+		return err(mismatch(`${staged.count} events were to be written, ${published.value} were`));
+	}
 	const after = await events.count(chat.sessionId);
 	if (!after.ok) return after;
-	if (after.value !== written) {
-		return err(mismatch(`${written} events were written, but ${after.value} are there`));
+	if (after.value !== staged.count) {
+		return err(mismatch(`${staged.count} events were written, but ${after.value} are there`));
 	}
-	if (first !== undefined) {
+	if (staged.first !== undefined) {
 		const sample = await events.listFrom(chat.sessionId, 0, 1);
 		if (!sample.ok) return sample;
-		if (stable(sample.value[0]?.event) !== stable(first)) {
+		if (stable(sample.value[0]?.event) !== stable(staged.first)) {
 			return err(mismatch("The first event read back differs from what was written"));
 		}
 	}

@@ -403,6 +403,12 @@ const must = <T>(result: { ok: true; value: T } | { ok: false; error: { message:
 	return result.value;
 };
 
+/** The test's container, for a sidecar answer that acts on it while the import runs. */
+const running = (): TestContainer => {
+	if (current === null) throw new Error("No container is running.");
+	return current;
+};
+
 describe("APP-17 import from Conductor, through the container", () => {
 	it("finds Conductor's database without copying it", async () => {
 		const test = await setUp();
@@ -781,6 +787,81 @@ describe("APP-18 chat history from Conductor, through the container", () => {
 		expect(retried.history).toEqual({ chats: 1, changed: 0, failed: [] });
 		expect(await eventCount(test, "s-3")).toBe(500 * 5 + 500);
 		expect(await eventCount(test, "s-1")).toBe(s1Events);
+	});
+
+	it("an app write made while a long chat's history comes over is not held until that chat is done (#598)", async () => {
+		const longChatMaps: number[] = [];
+		const written: { maps: number }[] = [];
+		const writes: Promise<void>[] = [];
+		const test = await setUp(
+			{},
+			{
+				// Ten reads of 1,000 rows. At the third, the user sends a message in another chat.
+				longChat: 2000,
+				answer: (call) => {
+					if (call.method !== "mapConductorHistory") return undefined;
+					if (!String(call.params.historyId).endsWith(":s-3")) return undefined;
+					longChatMaps.push(longChatMaps.length);
+					if (longChatMaps.length === 3) {
+						const event = userMessageEvent("e-own", "turn-own", 1_700_000_000_000);
+						writes.push(
+							seedSessionEvent(running().container, "s-1" as SessionId, event, 1).then(() => {
+								written.push({ maps: longChatMaps.length });
+							}),
+						);
+					}
+					return undefined;
+				},
+			},
+		);
+		must(await test.container.services.conductorImport.preview());
+		longChatMaps.length = 0;
+		const outcome = must(await test.container.services.conductorImport.run());
+		await Promise.all(writes);
+
+		expect(outcome.history).toEqual({ chats: 2, changed: 0, failed: [] });
+		expect(await eventCount(test, "s-3")).toBe(2000 * 5 + 2000);
+		expect(longChatMaps.length).toBe(11);
+		// The write waited for one statement at most, never for the rest of the chat's reads.
+		expect(written).toEqual([{ maps: 3 }]);
+	});
+
+	it("no reader sees part of a chat's history, and a chat whose history fails part-way leaves none (#598)", async () => {
+		const seen: Promise<number>[] = [];
+		const watch = (fails: boolean) => {
+			let maps = 0;
+			return (call: SidecarCall) => {
+				if (call.method !== "mapConductorHistory") return undefined;
+				if (!String(call.params.historyId).endsWith(":s-3")) return undefined;
+				maps++;
+				// A reader looks at the chat at every read; the long chat fails at its fifth.
+				seen.push(eventCount(running(), "s-3"));
+				return fails && maps === 5 ? sidecarRefuses("The mapping stopped.") : undefined;
+			};
+		};
+		const failing = await setUp({}, { longChat: 2000, answer: watch(true) });
+		must(await failing.container.services.conductorImport.preview());
+		seen.length = 0;
+		const failed = must(await failing.container.services.conductorImport.run());
+
+		expect(failed.history.failed.map((chat) => chat.sessionId)).toEqual(["s-3"]);
+		expect(await Promise.all(seen.splice(0))).toEqual([0, 0, 0, 0, 0]);
+		expect(await eventCount(failing, "s-3")).toBe(0);
+		// Nothing of the failed chat is kept anywhere in the database, staged or not.
+		const schemas = await failing.database.select<{ name: string }>(
+			"SELECT name FROM pragma_database_list",
+		);
+		expect(schemas.map((schema) => schema.name).sort()).toEqual(["main", "temp"]);
+		await failing.container.stop();
+		failing.close();
+
+		const whole = await setUp({}, { longChat: 2000, answer: watch(false) });
+		must(await whole.container.services.conductorImport.preview());
+		seen.length = 0;
+		must(await whole.container.services.conductorImport.run());
+		const counts = await Promise.all(seen.splice(0));
+		expect(counts).toHaveLength(11);
+		expect(counts.filter((count) => count !== 0 && count !== 2000 * 5 + 2000)).toEqual([]);
 	});
 
 	it("a second import adds no history", async () => {

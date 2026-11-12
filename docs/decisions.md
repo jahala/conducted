@@ -950,6 +950,7 @@ Chosen:
 - **Times.** An event's `at` is Conductor's time. It is received at the import's time, so the data lifetime job, which ages events by when they were received and scans from a watermark, treats imported events as events received at import.
 
 Why: the owner's rule "Match Conductor. Nothing made up; gaps are reported." The history matches Conductor's chat by the spike's measure; a turn whose end the rows do not record shows nothing, as in Conductor, without inventing how it ended.
+Since D135: a chat's events are staged outside its transaction, and the transaction copies them into the chat in one statement.
 
 ## D131. File icons draw Conductor's tinted brand glyphs, from their own packages (2026-11-12)
 
@@ -984,6 +985,7 @@ Chosen:
 - **The measure script checks the estimate on real data.** It prints the dry run's figures beside the scratch database's file and journal, before and after the import. The Node stand-in clones Conductor's database as Rust does, so on APFS neither copy takes space.
 
 Why: the owner's disk must not fill. `raw` was most of the weight, and the original stays in Conductor's database. The dry run already promises to say what the import will do before it does it, and the space it takes is part of that.
+Since D135: the largest chat counts three times, once more for its staging.
 
 ## D133. Claude Code follows its newest compatible release between app updates (2026-11-12)
 
@@ -1011,3 +1013,20 @@ Context: Conductor titles its system folder pickers "Select project directory", 
 Chosen: a parity entry that is the title of a system dialog is mapped to D134. Its note names the screen that opens the dialog and the test that asserts the title the Platform receives. The test drives the real screen, so changing the title fails it. A dialog the app draws itself stays a catalogue match.
 
 Why: the words are on screen and must match Conductor's. Only a test can see them, so the decision names the test that holds them.
+
+## D135. A chat's history is read outside its transaction, so the import keeps the database queue free (2026-11-12)
+
+Proposed by the #598 PR; not yet ruled on by the owner.
+
+Context: the lead's measure on a copy of the owner's database (#598) showed each chat's history written in one transaction on the app's one database queue, which the longest chat held for 79 s, and the import's process at 2.4 GB. On a made-up chat of 200,900 rows and 608 million characters the measure showed 15.7 s and 1.7 GB. Sampling each stage apart showed where the memory went. The peak belonged to the measure's own last step: it opens the largest chat, and `sessions.open` loads every event of it. The import's own peak was about 540 MB, with its retained heap flat. The measure's relay of the sidecar's lines also joined and split its whole buffer again on every chunk, which allocated 79 GB during the import and lengthened the hold by a third. The Rust shell's framer has no such cost. The hold itself was mostly the chat's reads and mapping, which ran inside the transaction.
+
+Chosen:
+
+- **Stage, then copy in one statement.** A chat's reads and mapping run outside any transaction. Each read's events go into a staging in one statement, and the app's own writes take their turn between those statements. The staging is a temporary database (`ATTACH DATABASE '' AS conductor_history`), so no reader of `session_events` sees it, and SQLite deletes its file when the import detaches it after each chat, or when the connection closes. The chat's transaction then copies the staged events with one `INSERT ... SELECT`, counts them and reads the first back.
+- **All or nothing still holds per chat (rule 3).** A chat whose reads fail leaves only its staging, which is detached. A failed copy rolls back. A crash takes the temporary file with the connection. A reader sees none of a chat's history or all of it. The staging lives on the connection the queue uses. If the SQL plugin's pool, which nothing pins to one connection (platform/tauri.ts), replaced it mid-chat, the staging would be gone and the chat would fail as any chat fails.
+- **What still holds the queue.** The copy, because a reader must see the whole chat or none of it, and SQLite has one writer. On the made-up chat it held the queue 4.0 to 4.7 s, against 10.3 s with the reads inside and the relay fixed. Detaching the staging takes about 0.5 s as one statement. Each staging statement takes about 10 ms.
+- **A chat used meanwhile.** The chat is counted before its reads and again inside its transaction. A chat that gained an event in between is left as it is, as before.
+- **Disk.** While the largest chat is copied, its staging holds it once more, so the space check asks for the history, the largest chat twice more, and the margin. The staging holds the same rows without the chat's id and indexes, so it takes less than the chat does in the database. It sits in the system's temporary folder, which on a Mac is on the disk that holds the database.
+- **The measure tells its stages apart.** It prints peak memory for the dry run, the import, and the open of the largest chat; the longest statement outside a transaction beside the longest transaction; and its relay joins a line once. Its test runs a chat of 200,700 rows and 338 million characters and bounds how far each process's memory rises while the import runs.
+
+Why: rule 3 is kept per chat, and the app's own writes wait at most for SQLite's copy of one chat, never for its reads. On the made-up chat the peak memory the measure reported was its own open of the chat, which the import does not do; the lead's run on the copy shows whether that holds for the owner's chats.

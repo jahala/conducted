@@ -1,9 +1,11 @@
 // @vitest-environment node
 /**
  * @feature APP-18 Chat history from Conductor
- * Tests the one statement that writes an imported chat's history: many events after the chat's
- * last position, in order, with the time they were received.
- * Test first: three events appended after one already there read back in order, at idx 1 to 3.
+ * Tests the statements that write an imported chat's history: the staging the import writes a
+ * chat's events to, which no reader of the chat sees, and the one statement that copies them into
+ * the chat after its last position, in order, with the time they were received (D135).
+ * Test first: three staged events are not in the chat until they are published, then read back in
+ * order at idx 0 to 2.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openTestDatabase } from "../../test/sqlite.ts";
@@ -47,41 +49,63 @@ afterEach(() => {
 	store.close();
 });
 
-describe("APP-18 many events in one statement", () => {
-	it("appends after the last position, in order, and reads back the same events", async () => {
+describe("APP-18 a chat's history staged, then written in one statement (D135)", () => {
+	const staged = [
+		userMessageEvent("e1", "turn-1", 100),
+		agentEvent("e2", "turn-1", 110, [{ kind: "text", text: 'It\'s "quoted"\nand long' }]),
+		turnEndedEvent("e3", "turn-1", 120),
+	];
+	const attached = async (): Promise<string[]> =>
+		(await store.database.select<{ name: string }>("SELECT name FROM pragma_database_list"))
+			.map((row) => row.name)
+			.sort();
+
+	it("no reader of the chat sees staged events until they are published, in order", async () => {
 		const events = repositories.sessionEvents;
-		must(await events.append(sessionId, userMessageEvent("e0", "turn-0", 50), 50));
-		const batch = [
-			userMessageEvent("e1", "turn-1", 100),
-			agentEvent("e2", "turn-1", 110, [{ kind: "text", text: 'It\'s "quoted"\nand long' }]),
-			turnEndedEvent("e3", "turn-1", 120),
-		];
+		must(await events.openStaging());
+		expect(must(await events.stageMany(staged.slice(0, 2)))).toBe(2);
+		expect(must(await events.stageMany(staged.slice(2)))).toBe(1);
+		expect(must(await events.stageMany([]))).toBe(0);
+		expect(must(await events.count(sessionId))).toBe(0);
 
-		expect(must(await events.appendMany(sessionId, batch, 9000))).toBe(3);
-
+		expect(must(await events.publishStaged(sessionId, 9000))).toBe(3);
 		const stored = must(await events.listFrom(sessionId, 0, 10));
-		expect(stored.map((row) => [row.idx, row.eventId, row.turnId, row.receivedAt])).toEqual([
-			[0, "e0", "turn-0", 50],
-			[1, "e1", "turn-1", 9000],
-			[2, "e2", "turn-1", 9000],
-			[3, "e3", "turn-1", 9000],
+		expect(stored.map((row) => [row.idx, row.eventId, row.receivedAt])).toEqual([
+			[0, "e1", 9000],
+			[1, "e2", 9000],
+			[2, "e3", 9000],
 		]);
-		expect(stored.slice(1).map((row) => row.event)).toEqual(batch);
-		expect(must(await events.count(sessionId))).toBe(4);
+		expect(stored.map((row) => row.event)).toEqual(staged);
+		must(await events.closeStaging());
+		expect(await attached()).toEqual(["main", "temp"]);
 	});
 
-	it("drops an event id the chat holds, so the count it answers falls short", async () => {
+	it("a staging left open is dropped when the next opens, and closing twice is harmless", async () => {
+		const events = repositories.sessionEvents;
+		must(await events.openStaging());
+		must(await events.stageMany(staged));
+		must(await events.openStaging());
+
+		expect(must(await events.publishStaged(sessionId, 9000))).toBe(0);
+		must(await events.closeStaging());
+		must(await events.closeStaging());
+		expect(await attached()).toEqual(["main", "temp"]);
+		expect(must(await events.count(sessionId))).toBe(0);
+	});
+
+	it("publishes after the chat's last position and drops an id it holds, so the count falls short", async () => {
 		const events = repositories.sessionEvents;
 		must(await events.append(sessionId, userMessageEvent("e1", "turn-1", 100), 100));
-		const answered = must(
-			await events.appendMany(
-				sessionId,
-				[userMessageEvent("e1", "turn-1", 100), turnEndedEvent("e2", "turn-1", 120)],
-				9000,
-			),
-		);
-		expect(answered).toBe(1);
-		expect(must(await events.count(sessionId))).toBe(2);
-		expect(must(await events.appendMany(sessionId, [], 9000))).toBe(0);
+		must(await events.openStaging());
+		must(await events.stageMany(staged));
+
+		expect(must(await events.publishStaged(sessionId, 9000))).toBe(2);
+		const stored = must(await events.listFrom(sessionId, 0, 10));
+		expect(stored.map((row) => [row.idx, row.eventId, row.receivedAt])).toEqual([
+			[0, "e1", 100],
+			[2, "e2", 9000],
+			[3, "e3", 9000],
+		]);
+		must(await events.closeStaging());
 	});
 });
