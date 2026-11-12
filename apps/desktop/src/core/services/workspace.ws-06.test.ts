@@ -187,7 +187,7 @@ function harness(options: HarnessOptions = {}) {
 			return ok(undefined);
 		},
 		async exists(path: string) {
-			return existing.has(path);
+			return ok(existing.has(path));
 		},
 		async stat() {
 			return err(appError("fs_not_found", "missing"));

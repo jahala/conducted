@@ -1176,7 +1176,9 @@ export class RepoService {
 		if (!loaded.ok) return loaded;
 		const includePath = `${repo.rootPath}/.worktreeinclude`;
 		let fromFile: string[] = [];
-		if (await this.#deps.platform.fs.exists(includePath)) {
+		const hasInclude = await this.#deps.platform.fs.exists(includePath);
+		if (!hasInclude.ok) return hasInclude;
+		if (hasInclude.value) {
 			const text = await this.#deps.platform.fs.readText(includePath);
 			if (!text.ok) return text;
 			fromFile = parseWorktreeInclude(text.value);
@@ -1859,7 +1861,17 @@ export class RepoService {
 			}
 		}
 		const nestedGit = `${gstackPath}/.git`;
-		if (await this.#deps.platform.fs.exists(nestedGit)) {
+		const hasNestedGit = await this.#deps.platform.fs.exists(nestedGit);
+		if (!hasNestedGit.ok) {
+			return err(
+				appError(
+					"repo_template_failed",
+					`Couldn't finish the gstack template. ${hasNestedGit.error.message}`,
+					hasNestedGit.error,
+				),
+			);
+		}
+		if (hasNestedGit.value) {
 			const removed = await this.#deps.platform.fs.trash(nestedGit);
 			if (!removed.ok) {
 				return err(

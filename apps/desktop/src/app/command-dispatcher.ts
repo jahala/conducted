@@ -27,7 +27,10 @@
  * (Cmd+Enter in a dialog without a confirm action passes on, with no error); a menu pick for an id the registry does not
  * know (reported, not thrown); a modal's focus trap that takes Tab and Shift+Tab before the root
  * listener sees them (the modal runs its own scope's keys first through `useScopeKeyDown`); a bare
- * character or caret key in a focused text field, which is the field's typing (`fieldOwnsKey`).
+ * character or caret key in a focused text field, which is the field's typing (`fieldOwnsKey`); a
+ * key pressed while a dialog is open, which runs only the dialog's own keys and the global commands
+ * marked `overDialogs`, as Conductor's listener does (renderApp @680362), so fork or approve plan
+ * cannot act behind a dialog; a popover, which is not a dialog.
  * Our design choice: priorities are three named levels (`base`, `area`, `modal`), not numbers. A terminal
  * or diff area registers at `area`; a dialog registers at `modal`, so it wins while it is open.
  * Our design choice: a focus area marks itself with `data-command-scope="chat-input"` (or several scope
@@ -528,6 +531,33 @@ export function isTextEntry(element: Element): boolean {
 	return field.getAttribute("contenteditable") !== "false";
 }
 
+/**
+ * True while a dialog is open over the app: an overlay (the palette, quick open), or a modal dialog
+ * anywhere in the page, whether or not it has focus. Conductor's key listener asks its dialog store
+ * the same question (renderApp @681094). A popover's panel has the dialog role too, but Conductor
+ * does not count a popover as a dialog. Radix draws a popover inside its popper wrapper, which
+ * tells the two apart. A dialog that is closing (data-state "closed") no longer counts.
+ */
+function dialogOpen(root: ParentNode, openOverlay: OverlayId | null): boolean {
+	if (openOverlay !== null) return true;
+	for (const element of root.querySelectorAll("[role='dialog'], [role='alertdialog']")) {
+		if (element.getAttribute("data-state") === "closed") continue;
+		if (element.closest("[data-radix-popper-content-wrapper]") === null) return true;
+	}
+	return false;
+}
+
+/**
+ * True for a binding whose key still works while a dialog is open. Conductor runs a shortcut under
+ * an open dialog only when the dialog registered it or its command is marked global (renderApp
+ * @680362). Ours: the dialog's own scopes (dialog, palette, a menu in it) and the global commands
+ * marked `overDialogs`. Other global commands, such as fork (Cmd+Alt+Enter) and approve plan
+ * (Cmd+Shift+Enter), wait until the dialog closes.
+ */
+function worksOverDialogs(binding: KeyBinding): boolean {
+	return binding.scope !== "global" || getCommand(binding.commandId)?.overDialogs === true;
+}
+
 // ---------------------------------------------------------------- handlers
 
 interface HandlerRegistration {
@@ -742,6 +772,7 @@ export function useCommandDispatcher(
 	const { onDeepLink } = options;
 
 	const bindings = useMemo(() => keyBindings(overrides), [overrides]);
+	const bindingsOverDialogs = useMemo(() => bindings.filter(worksOverDialogs), [bindings]);
 	const accelerators = useMemo(
 		() => menuShortcuts(overrides, sendKeyMode),
 		[overrides, sendKeyMode],
@@ -765,11 +796,21 @@ export function useCommandDispatcher(
 		(event, onlyScope = null) => {
 			if (event.defaultPrevented) return false;
 			const press = keyPressOf(event);
-			const active = scopesForTarget(event.target, useOverlayStore.getState().open);
-			const scopes = onlyScope === null ? active : active.filter((scope) => scope === onlyScope);
+			const overlay = useOverlayStore.getState().open;
+			const underDialog = dialogOpen(document, overlay);
+			const active = scopesForTarget(event.target, overlay);
+			// Under a dialog, a text field in it is the dialog's field, not the chat's.
+			const reachable = underDialog ? active.filter((scope) => scope !== "chat-input") : active;
+			const scopes =
+				onlyScope === null ? reachable : reachable.filter((scope) => scope === onlyScope);
 			if (composerOwnsKey(press, scopes, sendKeyMode)) return false;
 			if (fieldOwnsKey(press, event.target instanceof Element ? event.target : null)) return false;
-			const commandId = commandForKeyPress(press, scopes, bindings, sendKeyMode);
+			const commandId = commandForKeyPress(
+				press,
+				scopes,
+				underDialog ? bindingsOverDialogs : bindings,
+				sendKeyMode,
+			);
 			if (commandId === null) return false;
 			if (!deps.isEnabled(commandId)) return false;
 			// A dialog command acts on the open dialog and has no app-wide handler, so a press no open
@@ -783,7 +824,7 @@ export function useCommandDispatcher(
 			dispatchCommand(commandId, deps);
 			return true;
 		},
-		[bindings, deps, sendKeyMode],
+		[bindings, bindingsOverDialogs, deps, sendKeyMode],
 	);
 
 	useEffect(() => {

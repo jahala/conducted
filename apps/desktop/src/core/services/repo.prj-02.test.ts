@@ -154,7 +154,7 @@ function makePlatform(
 			return ok({ path, isDirectory: true, isSymlink: false, size: 0, modifiedAt: 0 });
 		},
 		async exists() {
-			return false;
+			return ok(false);
 		},
 		async readText() {
 			return err(appError("fs_missing", "no file"));

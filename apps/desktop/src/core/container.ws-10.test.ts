@@ -55,9 +55,9 @@ describe("WS-10 delete a workspace through the container", () => {
 				container.services.workspace.store.getState().workspacesById[workspace.id],
 			).toBeUndefined();
 			expect(container.services.sessions.store.getState().sessions[chat.id]).toBeUndefined();
-			expect(await memory.platform.fs.exists(attachmentPath)).toBe(false);
-			expect(await memory.platform.fs.exists(viewed)).toBe(false);
-			expect(await memory.platform.fs.exists(setupLog)).toBe(false);
+			expect(await memory.platform.fs.exists(attachmentPath)).toEqual(ok(false));
+			expect(await memory.platform.fs.exists(viewed)).toEqual(ok(false));
+			expect(await memory.platform.fs.exists(setupLog)).toEqual(ok(false));
 
 			must(await container.services.workspace.start());
 			expect(container.services.workspace.store.getState().workspacesById).toEqual({});
@@ -91,8 +91,8 @@ describe("WS-10 delete a workspace through the container", () => {
 
 			expect((await container.actions.workspaces.remove(workspace.id)).ok).toBe(true);
 
-			expect(await memory.platform.fs.exists(store)).toBe(false);
-			expect(await memory.platform.fs.exists(`${otherStore}/runs.sqlite`)).toBe(true);
+			expect(await memory.platform.fs.exists(store)).toEqual(ok(false));
+			expect(await memory.platform.fs.exists(`${otherStore}/runs.sqlite`)).toEqual(ok(true));
 		} finally {
 			close();
 		}

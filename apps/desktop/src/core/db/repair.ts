@@ -11,7 +11,10 @@
  * message is already stored, and every chat that still has queued rows is paused so nothing is
  * sent without the user; local workspaces stuck in `initializing` become `failed`; local
  * workspaces in `archiving` are left as they are and reported with whether their worktree folder
- * still exists, so the archive flow (WS-05) can finish or roll back; open local terminals get an
+ * still exists, so the archive flow (WS-05) can finish or roll back (the folder is registered
+ * first, since repair runs before the workspace service registers folders, and a check that
+ * fails stops repair rather than reading as a missing folder, issue #601); open local terminals
+ * get an
  * end time; unread counts are not touched; running repair twice changes nothing the second time.
  * CLOUD-13: every step reads local rows only, so a cloud workspace's live state, open turn,
  * queue and terminal are left for its own host to settle.
@@ -252,7 +255,14 @@ export async function runStartupRepair(deps: RepairDeps): Promise<Result<RepairR
 		if (!archiving.ok) return err(archiving.error);
 		const archivingWorkspaces: ArchivingWorkspace[] = [];
 		for (const row of archiving.value) {
-			archivingWorkspaces.push(archivingWorkspaceFromRow(row, await fs.exists(row.path)));
+			// Repair runs before the workspace service registers the folders it loads, so a folder
+			// outside the default scope would be refused and read as gone, and its workspace
+			// marked archived with the folder still on disk (issue #601).
+			const reachable = await fs.registerRoot(row.path);
+			if (!reachable.ok) return err(reachable.error);
+			const found = await fs.exists(row.path);
+			if (!found.ok) return err(found.error);
+			archivingWorkspaces.push(archivingWorkspaceFromRow(row, found.value));
 		}
 
 		const terminalsEnded = await executeStatement(

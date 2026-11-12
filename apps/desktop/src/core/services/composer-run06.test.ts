@@ -31,7 +31,7 @@ describe("RUN-06 attach terminal text", () => {
 					resources: "/resources",
 				},
 				mkdirp: async () => ok(undefined),
-				exists: async () => false,
+				exists: async () => ok(false),
 				readText: async () => err(appError("fs_not_found", "missing")),
 				writeTextAtomic: async (path: string, text: string) => {
 					written.push({ path, text });

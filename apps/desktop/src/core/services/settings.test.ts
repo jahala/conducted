@@ -69,7 +69,7 @@ const fakeFs = (home = "/home/user"): FakeFs => {
 			return ok(undefined);
 		},
 		async exists(path) {
-			return files.has(path);
+			return ok(files.has(path));
 		},
 		async stat(path) {
 			return err(appError("fs_stat", `no stat for ${path}`));
@@ -806,6 +806,18 @@ describe("DATA-05 writing settings", () => {
 		expect(test.opened).toEqual([]);
 	});
 
+	// Conductor writes a repository value as given, whatever the default (tF in main @367762 deletes
+	// a key only for an empty text), and the repository's local layer wins over the user's.
+	it("keeps a repo value equal to the default over a user value that differs (issue #615)", async () => {
+		const test = harness();
+		expect(await test.service.set("worktree_push_auto_setup_remote", false)).toEqual(ok(undefined));
+		expect(await test.service.setForRepo("/repo", "worktree_push_auto_setup_remote", true)).toEqual(
+			ok(undefined),
+		);
+		const read = await test.service.getForRepo("worktree_push_auto_setup_remote", "/repo", null);
+		expect(read.ok && read.value).toMatchObject({ value: true, source: "repo-local" });
+	});
+
 	it("refuses a reset for a project that no longer exists", async () => {
 		const test = harness({ repoRoots: {} });
 		const reset = await test.service.resetForRepo("gone" as RepoId, "delete_branch_on_archive");
@@ -1332,7 +1344,7 @@ describe("DATA-05 saving on a fresh home (issue #600)", () => {
 			const settings = test.container.services.settings;
 			await settings.start();
 			const fs = test.memory.platform.fs;
-			expect(await fs.exists(`${fs.paths.home}/.conducted`)).toBe(false);
+			expect(await fs.exists(`${fs.paths.home}/.conducted`)).toEqual(ok(false));
 
 			expect(await settings.set("default_plan_mode", true)).toEqual(ok(undefined));
 			expect(settings.get("default_plan_mode")).toBe(true);

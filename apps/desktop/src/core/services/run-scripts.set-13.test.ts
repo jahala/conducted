@@ -117,7 +117,7 @@ function harness(options: { pathPrefixFor?: () => Promise<Result<string>> } = {}
 			return ok(undefined);
 		},
 		async exists() {
-			return true;
+			return ok(true);
 		},
 		paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" },
 	} as unknown as Pick<FileSystem, "writeTextAtomic" | "mkdirp" | "exists"> & {
