@@ -19,6 +19,7 @@
  */
 import { type ChildProcess, spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
+import { constants as fsConstants } from "node:fs";
 import {
 	copyFile,
 	lstat,
@@ -229,7 +230,7 @@ async function fileFacts(path: string): Promise<[number, number] | null> {
 
 const SIDE_FILES = ["", "-wal", "-journal"] as const;
 
-/** conductor_import.rs `copy_database`: bytes in, three tries, then the copy opened and settled. */
+/** conductor_import.rs `copy_database`: cloned in, three tries, then the copy opened and settled. */
 async function copyConductorDatabase(source: string, folder: string): Promise<unknown> {
 	const found = isAbsolute(source) ? await stat(source).catch(() => null) : null;
 	if (found?.isFile() !== true) {
@@ -240,7 +241,10 @@ async function copyConductorDatabase(source: string, folder: string): Promise<un
 		const destination = join(folder, `conductor-${Date.now()}-${process.pid}-${attempt}.db`);
 		const before = await Promise.all(SIDE_FILES.map((side) => fileFacts(`${source}${side}`)));
 		for (const [index, side] of SIDE_FILES.entries()) {
-			if (before[index] !== null) await copyFile(`${source}${side}`, `${destination}${side}`);
+			// As Rust's `std::fs::copy`: a clone on APFS, which takes no space; bytes elsewhere.
+			if (before[index] !== null) {
+				await copyFile(`${source}${side}`, `${destination}${side}`, fsConstants.COPYFILE_FICLONE);
+			}
 		}
 		const after = await Promise.all(SIDE_FILES.map((side) => fileFacts(`${source}${side}`)));
 		if (JSON.stringify(before) !== JSON.stringify(after)) {

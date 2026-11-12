@@ -3,7 +3,9 @@
  * Owns: `measureImport`, which runs the real import through the real container over
  * `createTauriPlatform` and the Node stand-in for the Rust shell (src/test/tauri-node-bindings.ts),
  * with the real sidecar process answering over its socket, into a scratch Conducted database, and
- * returns counts and timings only. measure.ts starts it in a Node child (measure-node.ts), because
+ * returns counts, timings and sizes only: the dry run's estimate of the disk space chat history
+ * takes, and the scratch database's file and journal when the dry run ended and after the import
+ * (D132). measure.ts starts it in a Node child (measure-node.ts), because
  * the stand-in reads SQLite with node:sqlite, which Bun does not have.
  * Behaviour: docs/plans/migrate-from-conductor.md ("Chat history"); issue #556.
  * Must handle: nothing outside the run's folder is written: a file the import writes into a
@@ -19,7 +21,7 @@
  * Test first: scripts/conductor-import/measure.test.ts, "prints only lines from the fixed list".
  */
 import { type ChildProcess, spawn } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { createConnection, type Socket } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -97,6 +99,8 @@ export interface Measured {
 		};
 		leftOut: number;
 		files: number;
+		/** The dry run's space check (D132), in bytes. */
+		space: { historyBytes: number; neededBytes: number; freeBytes: number; fits: boolean };
 	};
 	run: {
 		seconds: number;
@@ -116,6 +120,13 @@ export interface Measured {
 	largest: { events: number; turns: number; openSeconds: number; turnsSeconds: number } | null;
 	reads: { keyPages: number; rowReads: number };
 	outside: { kept: number; refusedWrites: number; refusedCommands: number };
+	/** The scratch database's file and its journal, in bytes, when the dry run ended and after the import. */
+	disk: { before: FileBytes; after: FileBytes };
+}
+
+export interface FileBytes {
+	database: number;
+	journal: number;
 }
 
 export interface MeasureInput {
@@ -265,13 +276,14 @@ function fenced(bindings: TauriBindings, folder: string, tally: Tally): TauriBin
 			tally.copySeconds = seconds(startedAt, performance.now());
 			return copied;
 		}
+		// The dry run reads the chats too, to measure them; only the import's reads are counted.
 		if (command === COMMANDS.conductorImportReadMessageKeys) {
 			const keys = await bindings.invoke<unknown[]>(command, args);
-			tally.keyPages++;
+			if (tally.importing) tally.keyPages++;
 			if (tally.chat !== null) tally.chat.rows += keys.length;
 			return keys as T;
 		}
-		if (command === COMMANDS.conductorImportReadMessages) tally.rowReads++;
+		if (command === COMMANDS.conductorImportReadMessages && tally.importing) tally.rowReads++;
 		return bindings.invoke<T>(command, args);
 	};
 	return { ...bindings, invoke };
@@ -295,6 +307,12 @@ function timedHolds(raw: SqlDatabase, tally: Tally): SqlDatabase {
 			return done;
 		},
 	};
+}
+
+/** The sizes of a database file and its write-ahead log, 0 for a file that is not there. */
+function fileBytes(path: string): FileBytes {
+	const size = (file: string): number => (existsSync(file) ? statSync(file).size : 0);
+	return { database: size(path), journal: size(`${path}-wal`) };
 }
 
 /** Opens the scratch Conducted database as the SQL plugin does: a file, every migration applied. */
@@ -422,6 +440,8 @@ function withRealSidecar(
 	};
 	const noteChat = (line: string): void => {
 		// A close request is a few dozen characters; a map request holds rows and is never parsed.
+		// The dry run's closes, which end its measure of each chat, are not the import's chats.
+		if (!tally.importing) return;
 		if (line.length > 1024 || !line.includes('"closeConductorHistory"')) return;
 		const historyId = String(
 			(JSON.parse(line) as { params?: { historyId?: unknown } }).params?.historyId,
@@ -588,8 +608,11 @@ export async function measureImport(input: MeasureInput): Promise<Measured> {
 			},
 			leftOut: preview.leftOut.length,
 			files: preview.files.length,
+			space: { ...preview.space },
 		};
 		input.onDryRun(dryRun);
+		const scratch = join(folder, "conducted.db");
+		const before = fileBytes(scratch);
 
 		const runStarted = performance.now();
 		tally.importing = true;
@@ -600,6 +623,7 @@ export async function measureImport(input: MeasureInput): Promise<Measured> {
 		});
 		const runEnded = performance.now();
 		tally.importing = false;
+		const after = fileBytes(scratch);
 		const firstChatAt = tally.firstChatAt ?? runEnded;
 
 		const largest = await stage("open the largest chat", async () => {
@@ -657,6 +681,7 @@ export async function measureImport(input: MeasureInput): Promise<Measured> {
 				refusedWrites: tally.refusedWrites,
 				refusedCommands: tally.refusedCommands,
 			},
+			disk: { before, after },
 		};
 	} finally {
 		await stage("stop", async () => {

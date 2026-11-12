@@ -5,8 +5,10 @@
  * in that folder (measure-import.ts, in a Node child started through measure-node.ts), samples
  * the resident memory of the import's process and of the sidecar every 250 ms, and prints counts
  * and timings only: the dry run's counts, the dry run's and the import's time, the five slowest
- * chats as rows and seconds, the longest hold of the database queue, peak memory, and the time to
- * open the largest imported chat and build its turns.
+ * chats as rows and seconds, the longest hold of the database queue, peak memory, the time to
+ * open the largest imported chat and build its turns, and the dry run's estimate of the disk space
+ * chat history takes beside the scratch database's file and journal after the import (D132). The
+ * Rust shell clones the copy on APFS, and so does the Node stand-in, so neither copy takes space.
  * Behaviour: docs/plans/migrate-from-conductor.md ("Chat history"); issue #556, "Done means".
  * Must handle: it never prints a value from either database: the child sends numbers and fixed
  * words only, and every printed number is checked to be one, so a string cannot reach a line; the
@@ -99,13 +101,15 @@ function dryRunLines(dryRun: Measured["dryRun"]): string[] {
 		`dry run, history staying behind with its chats: ${int(history.withChatsLeftOut.chats)} chats, ${int(history.withChatsLeftOut.rows)} rows`,
 		`dry run, items listed as left out: ${int(dryRun.leftOut)}`,
 		`dry run, settings files to write: ${int(dryRun.files)}`,
+		`dry run, disk space in bytes: chat history ${int(dryRun.space.historyBytes)}, needed free ${int(dryRun.space.neededBytes)}, free ${int(dryRun.space.freeBytes)}; ${dryRun.space.fits === true ? "it fits" : "it does not fit"}`,
 	);
 	return lines;
 }
 
 /** The lines the run prints, all fixed words around numbers. */
 export function reportLines(measured: Measured, memory: MemoryPeaks): string[] {
-	const { dryRun, run, chats, queue, largest, reads, outside } = measured;
+	const { dryRun, run, chats, queue, largest, reads, outside, disk } = measured;
+	const grew = num(disk.after.database) - num(disk.before.database);
 	const lines = [TITLE, ...dryRunLines(dryRun)];
 	lines.push(
 		`import: ${secs(run.seconds)} s, of which the rows ${secs(run.rowsSeconds)} s and chat history ${secs(run.historySeconds)} s`,
@@ -127,6 +131,9 @@ export function reportLines(measured: Measured, memory: MemoryPeaks): string[] {
 			? "largest chat: no chat has events"
 			: `largest chat: ${int(largest.events)} events, ${int(largest.turns)} turns; opened in ${secs(largest.openSeconds)} s, turns built in ${secs(largest.turnsSeconds)} s`,
 		`outside the run's folder: ${int(outside.kept)} files written by the import kept in the run's folder, ${int(outside.refusedWrites)} writes refused, ${int(outside.refusedCommands)} commands refused`,
+		`scratch database in bytes, when the dry run ended: file ${int(disk.before.database)}, journal ${int(disk.before.journal)}`,
+		`scratch database in bytes, after the import: file ${int(disk.after.database)}, journal ${int(disk.after.journal)}`,
+		`chat history on disk: the file grew by ${int(grew)} bytes against the dry run's ${int(dryRun.space.historyBytes)}, a ratio of ${grew > 0 ? secs(num(dryRun.space.historyBytes) / grew) : "none"}`,
 	);
 	return lines;
 }

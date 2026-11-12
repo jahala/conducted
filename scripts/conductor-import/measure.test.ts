@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { SPACE_MARGIN_BYTES } from "../../apps/desktop/src/core/conductor-import/plan.ts";
 import {
 	conductorChatRows,
 	KNOWN_CHAT,
@@ -53,6 +54,7 @@ const LINES = [
 	`dry run, history staying behind with its chats: ${N} chats, ${N} rows`,
 	`dry run, items listed as left out: ${N}`,
 	`dry run, settings files to write: ${N}`,
+	`dry run, disk space in bytes: chat history ${N}, needed free ${N}, free ${N}; it (fits|does not fit)`,
 	`import: ${S} s, of which the rows ${S} s and chat history ${S} s`,
 	`import, chat history: ${N} chats came, ${N} changed since the dry run, ${N} failed`,
 	`total, dry run and import: ${S} s`,
@@ -64,6 +66,9 @@ const LINES = [
 	`peak resident memory, sampled every 250 ms: import process ${N} MB \\(${N} MB as the dry run began\\), sidecar ${N} MB, both together ${N} MB \\(${N} samples\\)`,
 	`largest chat: (no chat has events|${N} events, ${N} turns; opened in ${S} s, turns built in ${S} s)`,
 	`outside the run's folder: ${N} files written by the import kept in the run's folder, ${N} writes refused, ${N} commands refused`,
+	`scratch database in bytes, when the dry run ended: file ${N}, journal ${N}`,
+	`scratch database in bytes, after the import: file ${N}, journal ${N}`,
+	`chat history on disk: the file grew by ${N} bytes against the dry run's ${N}, a ratio of (${S}|none)`,
 ].map((line) => new RegExp(`^${line}$`));
 
 const dirs: string[] = [];
@@ -217,6 +222,19 @@ describe("APP-18 the full-size import measurement", () => {
 		expect(lines).toContain(
 			"outside the run's folder: 1 files written by the import kept in the run's folder, 0 writes refused, 0 commands refused",
 		);
+		// The dry run's estimate is checked against the scratch database's real size (D132): the
+		// file grows by what chat history takes, within 5% above, and the journal holds the largest
+		// chat's transaction within the room the dry run asked for it.
+		const space = /chat history (\d+), needed free (\d+), free \d+; it fits$/m.exec(stdout);
+		const grew = /the file grew by (\d+) bytes against the dry run's (\d+)/.exec(stdout);
+		const after = /after the import: file \d+, journal (\d+)$/m.exec(stdout);
+		const history = Number(space?.[1]);
+		expect(Number(grew?.[2])).toBe(history);
+		expect(history).toBeGreaterThanOrEqual(Number(grew?.[1]));
+		expect(history).toBeLessThanOrEqual(Number(grew?.[1]) * 1.05);
+		const journalRoom = Number(space?.[2]) - history - SPACE_MARGIN_BYTES;
+		expect(Number(after?.[1])).toBeGreaterThan(0);
+		expect(Number(after?.[1])).toBeLessThanOrEqual(journalRoom);
 	});
 
 	test("a copy that is not a database fails with its stage only", () => {
