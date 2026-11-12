@@ -301,6 +301,24 @@ describe("CLOUD-11 the local mirror", () => {
 		expect(h.memory.controls.files.get(`${h.mirror}/src/a.ts`)).toBe("const a = 1;\n");
 	});
 
+	it("reports a mirror copy of an upload that cannot be written where the sync's state is shown (issue #614)", async () => {
+		const h = harness();
+		h.memory.controls.files.set("/tmp/a.ts", "const a = 1;\n");
+		// A file stands where the mirror's `src` folder must go, so the mirror copy cannot be made.
+		h.memory.controls.addFile(`${h.mirror}/src`, "");
+
+		const uploaded = await h.service.uploadFile(WORKSPACE_ID, "/tmp/a.ts", "src/a.ts");
+
+		// The sandbox has the file, so the upload itself succeeded.
+		expect(uploaded.ok).toBe(true);
+		expect(h.remote["/workspace/oslo/src/a.ts"]).toBe("const a = 1;\n");
+		expect(h.service.viewOf(WORKSPACE_ID, CLOUD)).toMatchObject({
+			state: "failed",
+			label: SYNC_FAILED_LABEL,
+			message: `${h.mirror}/src is a file, not a folder.`,
+		});
+	});
+
 	it("mirrors a binary file byte for byte", async () => {
 		const h = harness();
 		h.remoteBytes["/workspace/oslo/logo.png"] = new Uint8Array([0x89, 0x50, 0x00, 0xff]);
