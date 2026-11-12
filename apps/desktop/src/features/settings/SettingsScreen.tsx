@@ -173,11 +173,13 @@ export function SettingsScreen({ page, onNavigate, onBack }: SettingsScreenProps
 	};
 
 	const searchShortcut = useLiveShortcut("settings.search");
-	useCommandHandler("settings.search", "modal", () => {
+	// Plain screen handlers, as Conductor's Settings registers them (renderApp @11760561, @11780161), so they do
+	// not run behind a dialog that holds app shortcuts.
+	useCommandHandler("settings.search", "base", () => {
 		searchInput.current?.focus();
 		return true;
 	});
-	useCommandHandler("settings.close", "modal", () => {
+	useCommandHandler("settings.close", "base", () => {
 		leave();
 		return true;
 	});

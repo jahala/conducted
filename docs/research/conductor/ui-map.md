@@ -448,6 +448,8 @@ Which dialogs hold app shortcuts (VERIFIED, issue #610). Only a dialog opened th
 | Remove repository | `h0` with its own state, @11298444 |
 | Pause port forwarding? | `h0` @11144368, no store id |
 
+A handler registered inside a dialog is that dialog's own; ours register theirs at the `modal` priority, and under a dialog that holds app shortcuts only those run for a command not marked global. Settings' "Search settings" (`Cmd+F`) and "Close settings" are plain handlers on the Settings layout (VERIFIED @11760561, @11780161), so they wait while a store dialog is open over Settings and still run under the dialogs kept off the store.
+
 Our dialogs with no Conductor dialog keep holding app shortcuts: the review prompt editor (Conductor's "Edit before sending" puts the prompt in a new chat's composer, @2553500), the Claude and Codex config editors (Conductor shows them on the page, @10993932), Delete section? (Conductor deletes at once, @10477336), Remove variable?, Disconnect Linear?, the Conductor import and the wrong-CPU build (a full screen in Conductor, @12041474).
 
 **General**

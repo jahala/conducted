@@ -33,7 +33,9 @@
  * cannot act behind a dialog; a dialog Conductor keeps off its dialog store, under which app
  * shortcuts still run (ui/dialog-shortcuts.ts); a popover, which is not a dialog.
  * Our design choice: priorities are three named levels (`base`, `area`, `modal`), not numbers. A terminal
- * or diff area registers at `area`; a dialog registers at `modal`, so it wins while it is open.
+ * or diff area registers at `area`; a dialog registers at `modal`, so it wins while it is open. Under
+ * a dialog that holds app shortcuts, only `modal` handlers run for a command not marked
+ * `overDialogs`: the dialog's own keys, as Conductor binds a handler registered inside a dialog to it.
  * Our design choice: a focus area marks itself with `data-command-scope="chat-input"` (or several scope
  * names, space separated). Without a mark, editable fields count as `chat-input` and the shared
  * `.xterm` and `[data-diff]` wrappers count as their area. A field inside a diff area (marked, or
@@ -575,8 +577,11 @@ interface HandlerRegistration {
 export interface CommandRegistry {
 	/** Registers a handler and returns the function that removes it. */
 	register(commandId: string, priority: HandlerPriority, handler: CommandHandlerFn): () => void;
-	/** Runs the registered handlers, highest priority first. True means one took the command. */
-	run(commandId: string): boolean;
+	/**
+	 * Runs the registered handlers, highest priority first. True means one took the command. With
+	 * `from`, only handlers at that priority or above run: under a dialog, `modal` (the dialog's own).
+	 */
+	run(commandId: string, from?: HandlerPriority): boolean;
 	/** True while a screen has any handler registered for the command, whether or not it takes it. */
 	has(commandId: string): boolean;
 	/** Removes every registered handler. Test support, so one test cannot leak into the next. */
@@ -607,12 +612,12 @@ export function createCommandRegistry(): CommandRegistry {
 		has(commandId) {
 			return (registrations.get(commandId)?.length ?? 0) > 0;
 		},
-		run(commandId) {
+		run(commandId, from = "base") {
 			const list = registrations.get(commandId);
 			if (list === undefined) return false;
-			const ordered = [...list].sort(
-				(a, b) => PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority] || b.order - a.order,
-			);
+			const ordered = list
+				.filter((registration) => PRIORITY_RANK[registration.priority] >= PRIORITY_RANK[from])
+				.sort((a, b) => PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority] || b.order - a.order);
 			for (const registration of ordered) {
 				if (registration.handler() !== false) return true;
 			}
@@ -818,10 +823,15 @@ export function useCommandDispatcher(
 			);
 			if (commandId === null) return false;
 			if (!deps.isEnabled(commandId)) return false;
+			// Under a dialog that holds app shortcuts, a command Conductor does not keep over dialogs
+			// runs only the open dialog's own handler, as Conductor's listener runs only the handlers
+			// registered inside the active dialog (renderApp @680362). A dialog registers at `modal`;
+			// the Settings screen's Cmd+F, registered on the screen, does not run behind one.
+			const dialogsOwn = underDialog && getCommand(commandId)?.overDialogs !== true;
 			// A dialog command acts on the open dialog and has no app-wide handler, so a press no open
 			// dialog takes (Cmd+Enter in quick open, which has no confirm action) passes on unswallowed.
-			if (getCommand(commandId)?.scope === "dialog") {
-				if (!deps.registry.run(commandId)) return false;
+			if (dialogsOwn || getCommand(commandId)?.scope === "dialog") {
+				if (!deps.registry.run(commandId, dialogsOwn ? "modal" : "base")) return false;
 				event.preventDefault();
 				return true;
 			}

@@ -7,6 +7,7 @@ import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedRepo, type TestContainer } from "../../test/container.ts";
 import { renderWithRouter } from "../../test/render-with-router.tsx";
+import { Dialog, DialogContent } from "../../ui/Dialog.tsx";
 import { SettingsScreen } from "./SettingsScreen.tsx";
 
 let test: TestContainer | undefined;
@@ -116,6 +117,53 @@ describe("SET-02 SettingsScreen", () => {
 		fireEvent.keyDown(screen.getByTestId("settings-screen"), { key: "f", metaKey: true });
 
 		expect(document.activeElement).toBe(screen.getByRole("searchbox", { name: "Search settings" }));
+	});
+
+	// Conductor's Settings registers "Search settings" as a plain handler, outside any dialog
+	// (renderApp @11760561, `Kn("settings.search", ...)`), so its root listener skips it while a
+	// store dialog is open (@680362) and runs it under a dialog kept off the store. Issue #610.
+	it("does nothing on Cmd+F while a dialog that holds app shortcuts is open over Settings", async () => {
+		await mount(
+			<CommandDispatcher>
+				<SettingsScreen page="general" />
+				<Dialog open>
+					<DialogContent title="Sync agent configs">
+						<input aria-label="Filter" />
+					</DialogContent>
+				</Dialog>
+			</CommandDispatcher>,
+		);
+		// The open dialog hides the page from the accessibility tree, as a modal does.
+		await screen.findByRole("heading", { name: "General", hidden: true });
+		const field = screen.getByLabelText("Filter");
+		field.focus();
+
+		const passedOn = fireEvent.keyDown(field, { key: "f", metaKey: true });
+
+		expect(passedOn).toBe(true);
+		expect(document.activeElement).toBe(field);
+	});
+
+	it("still focuses the search box on Cmd+F under a dialog Conductor keeps off its store", async () => {
+		await mount(
+			<CommandDispatcher>
+				<SettingsScreen page="general" />
+				<Dialog open>
+					<DialogContent title="Add MCP server" letShortcutsThrough>
+						<input aria-label="Name" />
+					</DialogContent>
+				</Dialog>
+			</CommandDispatcher>,
+		);
+		// The open dialog hides the page from the accessibility tree, as a modal does.
+		await screen.findByRole("heading", { name: "General", hidden: true });
+		const field = screen.getByLabelText("Name");
+		field.focus();
+
+		const passedOn = fireEvent.keyDown(field, { key: "f", metaKey: true });
+
+		// The search command took the key. The dialog's focus trap keeps focus inside it.
+		expect(passedOn).toBe(false);
 	});
 
 	it("clears the search on the first Escape and leaves on the second", async () => {
