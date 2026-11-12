@@ -5,18 +5,21 @@
  * selects whose options are wording (themes, sounds, effort levels,
  * output styles, the send key, the follow-up behaviour, where pull requests open), each open; the
  * Git page with a custom branch prefix; the Advanced page asking before it changes the root
- * folder; the Agents page's MCP servers for the chat last open; the Environment page's documented
- * variables; atlas's Add action dialog and icon picker; the Agents page's provider forms (Anthropic,
+ * folder, and Home after it changed; the Agents page's MCP servers for the chat last open; the Environment page's documented
+ * variables; atlas's Add action dialog and icon picker (an emoji search with no match, the Favicon source); the Agents page's provider forms (Anthropic,
  * subscription, Vertex, both Bedrock modes, ChatGPT, Cursor, custom), its card badges and both
  * sign-in dialogs; a changed setting's actions menu; the Connect GitHub and disconnect dialogs; the
- * environment file picker, variable editor, import banner and local-override table; and the MCP
- * list loading, empty, filtered and failed.
+ * environment file picker, variable editor, import banner and local-override table; the MCP
+ * list loading, empty, filtered and failed; a subscription token saved and an Anthropic key taken
+ * from this Mac; a shortcut being recorded; Appearance with a custom code font; and a project's
+ * Actions page with no actions, and with
+ * a hidden shared action, a personal action and a shared one changed on this Mac.
  * Behaviour: ui-map.md 6 (settings pages).
  * Test first: not applicable; the screenshot run opens every state.
  */
 import { chatRoute, seedCast } from "../cast.ts";
 import { seedConductorDatabase } from "../conductor-database.ts";
-import { click, find, shows, typeInto } from "../dom.ts";
+import { click, fillIn, find, findFirst, has, shows, typeInto } from "../dom.ts";
 import { scriptGitHub } from "../github.ts";
 import { setSetting } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
@@ -239,6 +242,30 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		"Rendering style for markdown files.",
 	),
 	searchState(
+		"settings-search-theme",
+		"Settings search: the theme",
+		"color scheme",
+		"Switch between light, dark, and system appearance.",
+	),
+	searchState(
+		"settings-search-low-contrast",
+		"Settings search: low-contrast dark mode",
+		"contrast",
+		"Soften the app's colors when using the dark theme.",
+	),
+	searchState(
+		"settings-search-zoom",
+		"Settings search: the app zoom",
+		"zoom",
+		"Adjust the size of the Conducted interface.",
+	),
+	searchState(
+		"settings-search-default-model",
+		"Settings search: the default model",
+		"default model",
+		"Model for new chats",
+	),
+	searchState(
 		"settings-search-appearance",
 		"Settings search: Appearance settings",
 		"appearance typography",
@@ -439,6 +466,47 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		},
 	},
 	{
+		id: "settings-agents-codex-signed-in",
+		group: "Settings",
+		title: "Agents: Codex just signed in with ChatGPT, the toast naming the plan",
+		seed: async (world) => {
+			await seedCast(world);
+			let signedIn = false;
+			world.answerSidecar({
+				getAgentInstalls: () => ({
+					agents: [
+						{
+							agent: "codex",
+							installed: true,
+							path: "/Users/sam/Library/Application Support/Conducted/bin/codex",
+							source: "managed",
+							version: "0.98.0",
+							authenticated: signedIn,
+							...(signedIn ? { authMethod: "chatgpt" as const } : {}),
+						},
+					],
+				}),
+				startAgentLogin: () => ({
+					loginId: "catalogue-codex",
+					url: "https://auth.openai.com/codex/device",
+					userCode: "ABCD-1234",
+					verificationUrl: "https://auth.openai.com/codex/device",
+					instructions: "Enter the code on OpenAI's page.",
+				}),
+				// The user entered the code on OpenAI's page, so the login ends signed in.
+				finishAgentLogin: () => {
+					signedIn = true;
+					return { outcome: "signed_in" as const };
+				},
+			});
+			return {
+				route: "/settings/user/agents",
+				after: ({ document }) => click(document, "button", "Run codex login", { prefix: true }),
+				ready: (document) => shows(document, "Codex now uses your ChatGPT plan"),
+			};
+		},
+	},
+	{
 		id: "settings-agents-anthropic",
 		group: "Settings",
 		title: "Agents: Claude Code's Anthropic API key form",
@@ -448,6 +516,43 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				route: "/settings/user/agents",
 				after: ({ document }) => openProviders(document, null, "Anthropic API key"),
 				ready: (document) => shows(document, "Use the key from this Mac"),
+			};
+		},
+	},
+	{
+		id: "settings-agents-key-imported",
+		group: "Settings",
+		title: "Agents: Claude Code's Anthropic API key taken from this Mac",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/agents",
+				after: async ({ document }) => {
+					await openProviders(document, null, "Anthropic API key");
+					await click(document, "label", "Use the key from this Mac");
+					await click(document, "button", "Save", { prefix: true });
+				},
+				ready: (document) => shows(document, "API key imported from env"),
+			};
+		},
+	},
+	{
+		id: "settings-agents-subscription-saved",
+		group: "Settings",
+		title: "Agents: Claude Code's subscription token entered and saved",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/agents",
+				after: async ({ document }) => {
+					await openProviders(document, null);
+					const field = await findFirst(document, '[role=dialog] input[type="password"]');
+					if (!(field instanceof HTMLInputElement)) throw new Error("No token field.");
+					fillIn(field, "sk-ant-oat01-sample-token");
+					await click(document, "button", "Save", { prefix: true });
+				},
+				ready: (document) =>
+					shows(document, "Connected with a setup token.") && shows(document, "API key saved"),
 			};
 		},
 	},
@@ -744,7 +849,33 @@ export const SETTINGS_STATES: CatalogueState[] = [
 	},
 	page("settings-account", "Account", "account", "Account"),
 	page("settings-appearance", "Appearance", "appearance", "Appearance"),
+	{
+		id: "settings-appearance-custom-font",
+		group: "Settings",
+		title: "Appearance, with a custom code font",
+		seed: async (world) => {
+			await seedCast(world);
+			await setSetting(world, "mono_font", "Berkeley Mono");
+			return {
+				route: "/settings/user/appearance",
+				ready: (document) => shows(document, "Enter font name exactly as installed on your system"),
+			};
+		},
+	},
 	page("settings-key-bindings", "Keyboard shortcuts", "key-bindings", "Keyboard shortcuts"),
+	{
+		id: "settings-key-bindings-recording",
+		group: "Settings",
+		title: "Keyboard shortcuts, recording a new key for the command palette",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/key-bindings",
+				after: ({ document }) => click(document, "button", "Change shortcut for Command palette"),
+				ready: (document) => shows(document, "Type shortcut"),
+			};
+		},
+	},
 	page("settings-default-models", "Default models", "models", "Default models"),
 	page("settings-git", "Git", "git", "Branch name prefix"),
 	page("settings-connections", "Connections", "connections", "Connections"),
@@ -763,6 +894,12 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		"General, the completion sound menu open",
 		"general",
 		"Completion sound",
+	),
+	selectOpen(
+		"settings-appearance-theme-menu",
+		"Appearance, the theme menu open",
+		"appearance",
+		"Theme",
 	),
 	selectOpen(
 		"settings-appearance-code-theme-menu",
@@ -891,6 +1028,67 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		},
 	},
 	{
+		id: "settings-advanced-root-path-changed",
+		group: "Settings",
+		title: "Advanced, the root folder changed: Home with the toast",
+		seed: async (world) => {
+			await seedCast(world);
+			world.memory.controls.queueDialogAnswers({ folder: "/Users/sam/Projects/conducted" });
+			return {
+				route: "/settings/user/advanced",
+				after: async ({ document }) => {
+					await click(document, "button", "Browse");
+					await click(document, "button", "Change root path");
+				},
+				ready: (document) => shows(document, "Conducted root path changed successfully"),
+			};
+		},
+	},
+	{
+		id: "settings-repo-general-prompt",
+		group: "Settings",
+		title: "atlas: Actions, the general instructions for every agent opened",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/actions`,
+				after: ({ document }) => click(document, "button", "General preferences", { prefix: true }),
+				ready: (document) =>
+					document.querySelector(
+						'[placeholder="Add custom instructions for all agents working in this repo."]',
+					) !== null,
+			};
+		},
+	},
+	{
+		id: "settings-repo-preview-urls",
+		group: "Settings",
+		title: "atlas: Misc, two preview addresses that can be reordered",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			const repoId = cast.atlas.id;
+			return {
+				route: "/settings/user/general",
+				after: async ({ app }) => {
+					const { actions, services } = app.container;
+					const loaded = await services.repo.loadConfig(repoId);
+					if (!loaded.ok)
+						throw new Error(`Loading atlas's settings failed: ${loaded.error.message}`);
+					const saved = await actions.projects.updateConfig(repoId, {
+						...loaded.value,
+						previewUrls: [
+							{ name: "App", url: "http://localhost:$CONDUCTED_PORT" },
+							{ name: "Storybook", url: "http://localhost:6006" },
+						],
+					});
+					if (!saved.ok) throw new Error(`Saving atlas's settings failed: ${saved.error.message}`);
+					await app.router.navigate({ to: `/settings/repos/${repoId}/misc` });
+				},
+				ready: (document) => has(document, "button", "Move preview URL down"),
+			};
+		},
+	},
+	{
 		id: "settings-repo-add-action",
 		group: "Settings",
 		title: "atlas: Actions, the Add action dialog",
@@ -900,6 +1098,72 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				route: `/settings/repos/${cast.atlas.id}/actions`,
 				after: ({ document }) => click(document, "button", "Add"),
 				ready: (document) => document.querySelector('input[placeholder="My action"]') !== null,
+			};
+		},
+	},
+	{
+		id: "settings-repo-actions-empty",
+		group: "Settings",
+		title: "relay: Actions, with no actions yet",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			// relay shares no settings file, so it has no run actions.
+			world.memory.controls.files.delete(`${cast.relay.rootPath}/.conducted/settings.toml`);
+			return {
+				route: `/settings/repos/${cast.relay.id}/actions`,
+				ready: (document) => shows(document, "No custom actions yet. Add one to get started."),
+			};
+		},
+	},
+	{
+		id: "settings-repo-actions-own",
+		group: "Settings",
+		title: "atlas: Actions, one hidden, one personal and one changed on this Mac",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			const repoId = cast.atlas.id;
+			return {
+				route: `/settings/repos/${repoId}/actions`,
+				after: async ({ app, document }) => {
+					const { actions, services } = app.container;
+					const loaded = await services.repo.loadConfig(repoId);
+					if (!loaded.ok)
+						throw new Error(`Loading atlas's settings failed: ${loaded.error.message}`);
+					const shared = loaded.value.runScripts;
+					const dev = shared.find((action) => action.id === "dev");
+					if (dev === undefined) throw new Error("atlas has no dev action.");
+					const saved = await actions.projects.updateConfig(repoId, {
+						...loaded.value,
+						runScripts: [
+							// The origins the Edit and Add dialogs give: a shared action edited on this Mac,
+							// and an action of this Mac only.
+							...shared.map((action) =>
+								action.id === "dev"
+									? {
+											...action,
+											command: "pnpm dev --port 4000",
+											origin: "changed_locally" as const,
+										}
+									: action,
+							),
+							{
+								...dev,
+								id: "lint",
+								label: "Lint",
+								command: "pnpm lint",
+								isDefault: false,
+								origin: "local" as const,
+							},
+						],
+					});
+					if (!saved.ok) throw new Error(`Saving atlas's actions failed: ${saved.error.message}`);
+					// The user hides the first action from the list.
+					await click(document, "button", "Hide action");
+				},
+				ready: (document) =>
+					has(document, "button", "Show action") &&
+					has(document, "button", "Delete action") &&
+					document.querySelector(`[title="Reset to your repo's settings.toml"]`) !== null,
 			};
 		},
 	},
@@ -927,6 +1191,38 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				route: `/settings/repos/${cast.atlas.id}/misc`,
 				after: ({ document }) => click(document, "button", "Change repository icon"),
 				ready: (document) => document.querySelector('input[placeholder="Search emoji"]') !== null,
+			};
+		},
+	},
+	{
+		id: "settings-repo-icon-no-emoji",
+		group: "Settings",
+		title: "atlas: Misc, the icon picker searched for an emoji it lacks",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/misc`,
+				after: async ({ document }) => {
+					await click(document, "button", "Change repository icon");
+					await typeInto(document, "input", "Search emoji", "spaceship");
+				},
+				ready: (document) => shows(document, "No emoji found"),
+			};
+		},
+	},
+	{
+		id: "settings-repo-icon-favicon",
+		group: "Settings",
+		title: "atlas: Misc, the icon picker's Favicon source",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/misc`,
+				after: async ({ document }) => {
+					await click(document, "button", "Change repository icon");
+					await click(document, "[role=tab]", "Favicon");
+				},
+				ready: (document) => shows(document, "Use favicon"),
 			};
 		},
 	},

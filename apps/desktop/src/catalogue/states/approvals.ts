@@ -1,7 +1,8 @@
 /**
  * @feature catalogue States of the cards an agent waits on, one per kind of request
  * Owns: a chat in arbor waiting on an edit, a sub-agent, a web search, a web fetch and a read of a
- * file outside the workspace, each with the card's title and choices for that kind of tool; a Codex
+ * file outside the workspace, and a command to run on this Mac, each with the card's title and
+ * choices for that kind of tool; a Codex
  * chat asking for network access beyond its sandbox; a multi-select question's "Select other
  * response"; and a question card after an answer that could not be sent.
  * Behaviour: ui-map.md 3.3 (approval titles by tool, the 'Network access' card);
@@ -61,6 +62,19 @@ const waitingState = (waiting: Waiting): CatalogueState => ({
 const toolUse = (id: string) => `${id}-tool` as ToolUseId;
 
 export const APPROVAL_STATES: CatalogueState[] = [
+	waitingState({
+		id: "chat-approval-local-command",
+		title: "Approval for a command the agent wants to run on this Mac",
+		chat: "Open the simulator",
+		ask: "Build the iOS app and open it in the simulator on my Mac.",
+		interaction: {
+			kind: "tool_approval",
+			toolUseId: toolUse("local-command"),
+			toolName: "mcp__conducted__RunLocalCommand",
+			input: { command: "xcrun simctl boot 'iPhone 17'" },
+		},
+		ready: "Yes for this session",
+	}),
 	waitingState({
 		id: "chat-approval-edit",
 		title: "Approval for an edit, with the choice to allow every edit in this chat",

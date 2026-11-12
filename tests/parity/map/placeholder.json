@@ -41,19 +41,19 @@
 	},
 	"placeholder:R2623020": {
 		"status": "matched",
-		"state": "git-files",
+		"state": "git-file-row-menu",
 		"via": "aria-label",
 		"role": "textbox",
 		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(1) > input",
 		"by": "seed"
 	},
 	"placeholder:R2754036": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-01",
-		"item": "Diff scope: 'Target branch' with 'Select target branch...'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-target-branch",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R3015224": {
 		"status": "decided",
@@ -102,29 +102,28 @@
 		"by": "seed"
 	},
 	"placeholder:R5533685": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Workspaces",
-		"backlog": "PR-10",
-		"item": "'Link pull request' dialog with 'PR URL or number' (internal menu in Conductor)",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "link-pull-request",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div > label",
+		"by": "seed"
 	},
 	"placeholder:R5645838": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "REV-07",
-		"owner": "hand",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "quick-open",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R5652247": {
 		"status": "matched",
-		"state": "settings-key-bindings",
-		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div > div:nth-of-type(12) > article > div:nth-of-type(1) > p",
-		"by": "seed-unsure"
+		"state": "search-in-files",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R5664306": {
 		"status": "matched",
@@ -135,11 +134,12 @@
 		"by": "seed"
 	},
 	"placeholder:R5685793": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-07",
-		"owner": "hand"
+		"status": "matched",
+		"state": "command-palette-workspaces",
+		"via": "aria-label",
+		"role": "combobox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R5692826": {
 		"status": "gap",
@@ -173,13 +173,12 @@
 		"by": "hand"
 	},
 	"placeholder:R9234039": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "COMP-02",
-		"item": "Model picker 'Model' submenu with 'Search models' and 'No models found'",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "composer-model-picker",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > label > input",
+		"by": "seed"
 	},
 	"placeholder:R9369318": {
 		"status": "matched",
@@ -190,12 +189,12 @@
 		"by": "seed"
 	},
 	"placeholder:R9420608": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-17",
-		"item": "Chat search 'Find in messages and thinking'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-find",
+		"via": "aria-label",
+		"role": "search",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > search",
+		"by": "seed"
 	},
 	"placeholder:R9730040": {
 		"status": "gap",
@@ -246,11 +245,12 @@
 		"owner": "rule:quote"
 	},
 	"placeholder:R10669494": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "SET-06",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-appearance-custom-font",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(9) > input",
+		"by": "seed"
 	},
 	"placeholder:R10672939": {
 		"status": "matched",
@@ -269,13 +269,12 @@
 		"by": "seed"
 	},
 	"placeholder:R10696051": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-04",
-		"item": "Variable value editor's placeholder reads 'Use an empty value to set this variable to an empty string.'",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "settings-environment-edit-variable",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div > div:nth-of-type(2) > div:nth-of-type(2) > textarea",
+		"by": "seed"
 	},
 	"placeholder:R10770889": {
 		"status": "decided",
@@ -347,8 +346,7 @@
 		"screen": "inventory-controls Settings: General",
 		"backlog": "GIT-08",
 		"item": "Git settings: the remote picker's placeholder reads 'Select remote...'",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"placeholder:R11133626": {
 		"status": "matched",
@@ -387,11 +385,12 @@
 		"by": "hand"
 	},
 	"placeholder:R11267721": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "RUN-02",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "settings-repo-general-prompt",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(6) > div > textarea",
+		"by": "seed"
 	},
 	"placeholder:R11281056": {
 		"status": "matched",
@@ -402,12 +401,12 @@
 		"by": "seed"
 	},
 	"placeholder:R11319420": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "NAV-08",
-		"item": "Palette workspace action 'Move to section' with sub-page 'Search sections...' and 'Remove from section'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "command-palette-move-to-section",
+		"via": "aria-label",
+		"role": "combobox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R11338494": {
 		"status": "decided",
@@ -422,12 +421,12 @@
 		"by": "hand"
 	},
 	"placeholder:R11389948": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "NAV-09",
-		"item": "'Keyboard shortcuts' dialog with 'Search shortcuts...'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "keyboard-shortcuts",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R11503912": {
 		"status": "matched",

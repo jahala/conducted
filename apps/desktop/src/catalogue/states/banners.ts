@@ -3,7 +3,8 @@
  * Owns: a chat whose history was compacted, whose turn the user stopped, and whose next turn came
  * from another chat and ran into the session limit, with a notice's copy menu open; a chat whose
  * agent needs signing in and whose error had no words, with an error's copy menu open; a chat whose
- * API error shows its text and then Claude Code's error, and whose last turn hit the session limit; a working
+ * API error shows its text and then Claude Code's error, and whose last turn hit the session limit; a
+ * turn refused for an image over 5 MB; a working
  * turn that is compacting, one that waits on a subagent and one that waits on a background task;
  * a finished turn's More actions menu and the Reset chat? dialog it opens; and a long chat read
  * from its top, with Scroll to bottom.
@@ -115,6 +116,19 @@ function errorViewsChat(): Conversation {
 	const limited = chat.user("Then fix the failing one.");
 	const resetsAt = Math.floor((CATALOGUE_NOW + 3 * 60 * MINUTE) / 1000);
 	chat.end(limited, undefined, "error", `Claude AI usage limit reached|${resetsAt}`);
+	return chat;
+}
+
+/** A turn the API refused because a pasted screenshot is over Claude Code's 5 MB limit. */
+function imageTooLargeChat(): Conversation {
+	const chat = conversation("image-too-large", CATALOGUE_NOW - 12 * MINUTE);
+	const turn = chat.user("Here is the full-page screenshot of the broken layout.");
+	chat.end(
+		turn,
+		undefined,
+		"error",
+		"API Error: 400 messages.0.content.1.image.source.base64: image exceeds 5 MB maximum",
+	);
 	return chat;
 }
 
@@ -258,6 +272,12 @@ export const BANNER_STATES: CatalogueState[] = [
 		"Cursor API key is not configured",
 		"Add a Cursor API key in provider settings to use Cursor.",
 	),
+	{
+		id: "chat-error-image-too-large",
+		group: "Workspace chat",
+		title: "Error: an image over Claude Code's 5 MB limit",
+		seed: arborChat("Layout screenshot", () => imageTooLargeChat(), "Image too large"),
+	},
 	{
 		id: "chat-error-views",
 		group: "Workspace chat",

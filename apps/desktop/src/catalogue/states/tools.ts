@@ -5,16 +5,19 @@
  * slash command, Glob, List files and a plain Bash call with its raw input shown; and a design fix
  * that activates a skill, reads a mockup image, asks the user, retries an edit Claude Code refused
  * and opens the edit that worked; a turn that keeps a task list, runs JavaScript in a Node
- * REPL and generates an image; a reply with a Mermaid diagram; and a background helper whose work
+ * REPL and generates an image; a turn whose todo list is empty, started and done; a turn that
+ * enters plan mode and proposes a plan, with the plan's menu open; two HTML visualizations the chat
+ * cannot show; a reply with a
+ * Mermaid diagram; and a background helper whose work
  * arrives in the next turn, shown inside the card of the turn that started it (D129).
  * Behaviour: ui-map.md 3.3 (chat, tool cards); the cards are features/chat/tools/cards/.
  * Test first: not applicable; the screenshot run opens every state.
  */
 import { animateCast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, find, shows } from "../dom.ts";
+import { click, find, rightClick, shows } from "../dom.ts";
 import { deliverEvents, setLiveState } from "../live.ts";
-import { addChat, addEvents } from "../seeds.ts";
+import { addChat, addEvents, CLAUDE_CONFIG } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
 import type { World } from "../world.ts";
@@ -362,6 +365,125 @@ async function taskToolsChat(world: World): Promise<Scene> {
 	};
 }
 
+/** A turn that writes the agent's todo list three times: empty, one item started, all done. */
+async function todoToolsChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.grove, { title: "Plan the Node 24 upgrade" });
+	const talk = conversation("grove-todos", CATALOGUE_NOW - 9 * MINUTE);
+	const turn = talk.user("Plan the Node 24 upgrade as a todo list and work through it.");
+	const steps = [
+		[],
+		[
+			{ label: "Bump .node-version to 24", status: "in_progress" },
+			{ label: "Update the Dockerfile's base image", status: "pending" },
+		],
+		[
+			{ label: "Bump .node-version to 24", status: "done" },
+			{ label: "Update the Dockerfile's base image", status: "done" },
+		],
+	];
+	for (const items of steps) {
+		talk.tool(turn, {
+			tool: "todo",
+			rawName: "TodoWrite",
+			input: { items },
+			output: "Todos updated.",
+		});
+	}
+	talk.usage(turn, 18_000);
+	talk.text(
+		turn,
+		"Both steps are done: `.node-version` reads 24 and the Dockerfile uses node:24-slim.",
+	);
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	return {
+		route: chatRoute(cast.grove, chat),
+		after: async ({ app, document }) => {
+			await animateCast(world, cast, app);
+			await refreshGit(app, cast.grove);
+			// The turn's work is folded into one row; open it to show each todo card's title.
+			await click(document, "button", "Expand", { prefix: true });
+		},
+		ready: (document) =>
+			shows(document, "No todos") &&
+			shows(document, "Todo started") &&
+			shows(document, "Todo completed"),
+	};
+}
+
+/** A turn that enters plan mode and proposes a plan the user approved; the plan's menu open. */
+async function planModeChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.grove, { title: "Plan the cache change" });
+	const talk = conversation("grove-plan-mode", CATALOGUE_NOW - 7 * MINUTE);
+	const turn = talk.user("Plan how to invalidate the price cache before changing anything.");
+	talk.tool(turn, {
+		tool: "enter_plan_mode",
+		rawName: "EnterPlanMode",
+		input: {},
+		output: "Entered plan mode.",
+	});
+	talk.tool(turn, {
+		tool: "exit_plan_mode",
+		rawName: "ExitPlanMode",
+		input: {
+			plan: "1. Clear PriceCache on every price write.\n2. Add a test that writes, then reads.",
+		},
+		output: "The user approved the plan.",
+	});
+	talk.usage(turn, 9_000);
+	talk.text(turn, "The plan is approved; I will start with the cache.");
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	return {
+		route: chatRoute(cast.grove, chat),
+		after: async ({ app, document }) => {
+			await animateCast(world, cast, app);
+			await refreshGit(app, cast.grove);
+
+			await rightClick(document, "button", "Propose plan", { prefix: true });
+		},
+		ready: (document) => shows(document, "Enter plan mode") && shows(document, "Copy plan"),
+	};
+}
+
+/** A turn that writes two HTML visualizations the chat cannot show: one outside the workspace, one gone. */
+async function visualizationChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	// Visualizations are Codex's.
+	const config = { ...CLAUDE_CONFIG, agent: "codex" as const, model: "gpt-5.5" };
+	const chat = await addChat(world, cast.grove, { title: "Chart the cache hit rate", config });
+	const talk = conversation("grove-visualizations", CATALOGUE_NOW - 5 * MINUTE);
+	const turn = talk.user("Chart the cache hit rate for the last week as an HTML page.", { config });
+	talk.tool(turn, {
+		tool: "write",
+		rawName: "Write",
+		input: { file_path: "/tmp/hit-rate.html", content: "<h1>Hit rate</h1>\n" },
+		output: "Wrote /tmp/hit-rate.html",
+	});
+	talk.tool(turn, {
+		tool: "write",
+		rawName: "Write",
+		input: { file_path: "charts/hit-rate.html", content: "<h1>Hit rate</h1>\n" },
+		output: "Wrote charts/hit-rate.html",
+	});
+	talk.usage(turn, 11_000);
+	talk.text(turn, "The chart is in charts/hit-rate.html.");
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	return {
+		route: chatRoute(cast.grove, chat),
+		after: async ({ app }) => {
+			await animateCast(world, cast, app);
+			await refreshGit(app, cast.grove);
+		},
+		ready: (document) =>
+			shows(document, "Visualization is outside the workspace:") &&
+			shows(document, "Couldn’t load visualization"),
+	};
+}
+
 /** A reply in arbor that explains the sign-in redirect with a Mermaid sequence diagram. */
 async function mermaidChat(world: World): Promise<Scene> {
 	const cast = await seedCast(world);
@@ -513,6 +635,24 @@ export const TOOL_STATES: CatalogueState[] = [
 		group: "Workspace chat",
 		title: "A turn opened: a task created and read, a Node REPL and a generated image",
 		seed: taskToolsChat,
+	},
+	{
+		id: "chat-tool-cards-todos",
+		group: "Workspace chat",
+		title: "A turn's todo cards: an empty list, one item started, all done",
+		seed: todoToolsChat,
+	},
+	{
+		id: "chat-tool-cards-plan-mode",
+		group: "Workspace chat",
+		title: "A turn that entered plan mode and proposed a plan, the plan's right-click menu open",
+		seed: planModeChat,
+	},
+	{
+		id: "chat-visualizations-unavailable",
+		group: "Workspace chat",
+		title: "Two HTML visualizations the chat cannot show: outside the workspace, and missing",
+		seed: visualizationChat,
 	},
 	{
 		id: "chat-mermaid",

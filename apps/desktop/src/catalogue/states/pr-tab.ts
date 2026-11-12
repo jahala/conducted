@@ -2,8 +2,8 @@
  * @feature catalogue States of the pull request tab
  * Owns: arbor's open pull request in its center tab (title, number, description, activity,
  * checks, review and merge), the number's right-click menu, the Edit PR title dialog, a draft
- * pull request with no description, reviewers in every review state, and the merge button of a
- * repository that only allows rebasing.
+ * pull request with no description, reviewers in every review state, the merge button of a
+ * repository that only allows rebasing, and a closed pull request.
  * Behaviour: ui-map.md 3.2 ("Tab content: PR"), 5.2 (the "Edit PR title" dialog), 7.2 ("No
  * description"); features/pr/PrTab.tsx.
  * Test first: not applicable; the screenshot run opens every state.
@@ -24,6 +24,16 @@ export const PR_TAB_STATES: CatalogueState[] = [
 			git: prOf("open"),
 			search: PR_TAB,
 			ready: (document) => shows(document, "Accepts paths on this site only"),
+		}),
+	},
+	{
+		id: "pr-tab-closed",
+		group: "Pull request tab",
+		title: "Pull request tab: a pull request closed without merging",
+		seed: arborScene({
+			git: prOf("closed"),
+			search: PR_TAB,
+			ready: (document) => shows(document, "Closed"),
 		}),
 	},
 	{
