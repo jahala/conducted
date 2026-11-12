@@ -51,6 +51,16 @@ describe("SET-04 EnvVarTable", () => {
 		).toBeTruthy();
 	});
 
+	// Conductor's table draws its heading only from a title it is given (renderApp Cnr).
+	it("draws a heading only when it is given a title", () => {
+		render(<EnvVarTable {...props([row()])} />);
+		expect(screen.queryByRole("heading")).toBeNull();
+		cleanup();
+
+		render(<EnvVarTable {...props([row()])} title="Inherited from User" />);
+		expect(screen.getByRole("heading", { name: "Inherited from User" })).toBeTruthy();
+	});
+
 	it("dims an inherited row that this scope replaces", () => {
 		render(<EnvVarTable {...props([row({ editable: false, dimmed: true })])} />);
 
