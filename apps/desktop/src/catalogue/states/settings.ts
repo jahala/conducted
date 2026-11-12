@@ -5,7 +5,7 @@
  * selects whose options are wording (themes, sounds, effort levels,
  * output styles, the send key, the follow-up behaviour, where pull requests open), each open; the
  * Git page with a custom branch prefix; the Advanced page asking before it changes the root
- * folder; the Agents page's MCP servers for the chat last open; the Environment page's documented
+ * folder, and Home after it changed; the Agents page's MCP servers for the chat last open; the Environment page's documented
  * variables; atlas's Add action dialog and icon picker; the Agents page's provider forms (Anthropic,
  * subscription, Vertex, both Bedrock modes, ChatGPT, Cursor, custom), its card badges and both
  * sign-in dialogs; a changed setting's actions menu; the Connect GitHub and disconnect dialogs; the
@@ -954,6 +954,23 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				route: "/settings/user/advanced",
 				after: ({ document }) => click(document, "button", "Browse"),
 				ready: (document) => shows(document, "Change root path?"),
+			};
+		},
+	},
+	{
+		id: "settings-advanced-root-path-changed",
+		group: "Settings",
+		title: "Advanced, the root folder changed: Home with the toast",
+		seed: async (world) => {
+			await seedCast(world);
+			world.memory.controls.queueDialogAnswers({ folder: "/Users/sam/Projects/conducted" });
+			return {
+				route: "/settings/user/advanced",
+				after: async ({ document }) => {
+					await click(document, "button", "Browse");
+					await click(document, "button", "Change root path");
+				},
+				ready: (document) => shows(document, "Conducted root path changed successfully"),
 			};
 		},
 	},

@@ -4,7 +4,8 @@
  * files, the composer with the model picker open, the slash command menu after typing "/" (Claude,
  * Codex, and with a Skills group), a typed command that cannot run here, the "+" menu, the Create
  * snippet dialog, the snippet picker with no snippets yet, the Link issue dialog with atlas's
- * GitHub issues and Linear not connected, and the warning when fast mode cannot be paid for.
+ * GitHub issues and Linear not connected (and with no open issues), and the warning when fast mode
+ * cannot be paid for.
  * Behaviour: ui-map.md 3.5 (composer and its "+" menu), 3.10 (Link issue), 5.1 and 5.2 (snippets),
  * COMP-01 (drafts and attachments).
  * Test first: not applicable; the screenshot run opens every state.
@@ -278,6 +279,23 @@ export const COMPOSER_STATES: CatalogueState[] = [
 							updatedAt: CATALOGUE_NOW - 3 * DAY,
 						},
 					],
+				},
+			),
+	},
+	{
+		id: "composer-link-issue-empty",
+		group: "Composer",
+		title: "The Link issue dialog when atlas has no open GitHub issues",
+		seed: (world) =>
+			newChat(
+				world,
+				async ({ document }) => {
+					await click(document, "button", PLUS_MENU);
+					await click(document, "[role=menuitem]", "Link issue", { prefix: true });
+				},
+				(document) => shows(document, "No open issues found"),
+				{
+					issues: [],
 				},
 			),
 	},

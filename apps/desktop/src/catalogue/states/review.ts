@@ -4,14 +4,15 @@
  * the untracked-files note, a commit scope, a diff that cannot load or has nothing to show, a
  * whitespace-only diff, the review menu, dialog and tooltip, an SVG preview, an empty CSV preview,
  * the editor's find and replace bar, a video and a PDF that cannot load, and unsaved edits to a file
- * that changed on disk (the banner, and the save it refuses), and a file with a merge conflict.
+ * that changed on disk (the banner, and the save it refuses), a file with a merge conflict, and a
+ * new comment for the AI on a diff, and the question when it is cancelled with text.
  * Behaviour: ui-map.md 3.2, 3.6 and 5.2; REV-01, REV-02, REV-03, REV-05 and REV-08.
  * Test first: not applicable; the screenshot run opens every state.
  */
 
 import { fileQueryKey } from "../../core/hooks.ts";
 import { ARBOR_FILES, type Cast } from "../cast.ts";
-import { click, has, hover, pressUntilTaken, shows } from "../dom.ts";
+import { click, fillIn, findFirst, has, hover, pressUntilTaken, shows } from "../dom.ts";
 import type { ScriptedFile } from "../git-repo.ts";
 import { setSetting } from "../seeds.ts";
 import type { AfterContext, CatalogueState } from "../state.ts";
@@ -244,6 +245,46 @@ const previewFails = (id: string, title: string, path: string, text: string): Ca
 	}),
 });
 
+const SIGN_IN_DIFF = {
+	tab: "file",
+	path: "src/auth/sign-in.ts",
+	fileMode: "diff",
+	scope: "branch",
+};
+const NEW_COMMENT = 'textarea[placeholder="Add a comment for the AI"]';
+
+/** A new comment for the AI on the first line of sign-in.ts's diff, from the gutter's button. */
+const openNewComment = (document: Document): Promise<void> =>
+	click(document, "button", "Add a comment for the AI");
+
+const NEW_COMMENT_STATE: CatalogueState = {
+	id: "diff-comment-new",
+	group: "Git panel",
+	title: "A file's diff with a new comment for the AI being written",
+	seed: arborScene({
+		search: SIGN_IN_DIFF,
+		after: ({ document }) => openNewComment(document),
+		ready: (document) => document.querySelector(NEW_COMMENT) !== null,
+	}),
+};
+
+const DISCARD_COMMENT: CatalogueState = {
+	id: "diff-comment-discard",
+	group: "Git panel",
+	title: "Cancelling a comment with text asks before discarding it",
+	seed: arborScene({
+		search: SIGN_IN_DIFF,
+		after: async ({ document }) => {
+			await openNewComment(document);
+			const field = await findFirst(document, NEW_COMMENT);
+			if (!(field instanceof HTMLTextAreaElement)) throw new Error("No comment field.");
+			fillIn(field, "Keep the query string too.");
+			await click(document, "button", "Cancel");
+		},
+		ready: (document) => shows(document, "Discard comment?"),
+	}),
+};
+
 const NOTES = "notes.txt";
 
 /** The user has unsaved edits to notes.txt, and an agent then writes the file. */
@@ -360,6 +401,8 @@ export const REVIEW_STATES: CatalogueState[] = [
 		"guide.pdf",
 		"Failed to load PDF",
 	),
+	NEW_COMMENT_STATE,
+	DISCARD_COMMENT,
 	DISK_CHANGE,
 	SAVE_REFUSED,
 	{
