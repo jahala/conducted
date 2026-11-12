@@ -8,14 +8,29 @@ name: e2e
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    # What the test app is built from and what the run imports (scripts/e2e/trigger.test.ts holds
+    # the list to the run's imports). A later `!` pattern takes back test files the build never
+    # reads; the desktop's tests stay, because its build type-checks them.
     paths:
       - "apps/desktop/**"
+      - "!apps/desktop/src-tauri/tests/**"
       - "packages/**"
+      - "!packages/**/*.test.ts"
+      - "bin/**"
       - "scripts/e2e/**"
+      - "!scripts/e2e/**/*.test.ts"
       - "scripts/app-process.ts"
       - "scripts/with-run-dir.ts"
-      - "package.json"
+      - "scripts/check-runtime.ts"
+      - "scripts/catalogue/check-bundle.ts"
+      - "scripts/conductor-reference/world-disk.ts"
+      - "scripts/conductor-reference/sidecar-diff/seal.ts"
+      - "**/package.json"
       - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "tsconfig.base.json"
+      - ".node-version"
+      - ".bun-version"
       - ".github/workflows/e2e.yml"
   schedule:
     - cron: "17 3 * * *"
