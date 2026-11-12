@@ -40,7 +40,7 @@ async function mount(options: Parameters<typeof createTestContainer>[0] = {}) {
 		</ServicesProvider>,
 	);
 	await screen.findByRole("heading", { name: "Claude Code" });
-	return { container, fs: container.platform.fs };
+	return { container, fs: container.platform.fs, controls: test.memory.controls };
 }
 
 /** Radix tabs switch on mouse down. */
@@ -60,9 +60,9 @@ describe("SET-12 Agents page controls", () => {
 	});
 
 	it("shows Claude's settings file and saves an edit", async () => {
-		const { fs } = await mount();
+		const { fs, controls } = await mount();
 		const path = `${fs.paths.home}/.claude/settings.json`;
-		expect(await fs.writeTextAtomic(path, '{"model":"opus"}')).toEqual(ok(undefined));
+		controls.addFile(path, '{"model":"opus"}');
 
 		fireEvent.click(screen.getByRole("button", { name: "Claude settings" }));
 		const dialog = await screen.findByRole("dialog");
@@ -76,9 +76,9 @@ describe("SET-12 Agents page controls", () => {
 	});
 
 	it("shows Codex's config file and saves an edit", async () => {
-		const { fs } = await mount();
+		const { fs, controls } = await mount();
 		const path = `${fs.paths.home}/.codex/config.toml`;
-		expect(await fs.writeTextAtomic(path, 'model = "gpt-5"\n')).toEqual(ok(undefined));
+		controls.addFile(path, 'model = "gpt-5"\n');
 
 		// Each agent has its own tab, as in Conductor; Codex's config sits in the Codex tab.
 		selectTab("Codex");
@@ -110,9 +110,9 @@ describe("SET-12 Agents page controls", () => {
 	it("keeps the draft and says when the file changed on disk", async () => {
 		let now = 1_700_000_000_000;
 		const clock = { now: () => now };
-		const { fs } = await mount({ clock });
+		const { fs, controls } = await mount({ clock });
 		const path = `${fs.paths.home}/.claude/settings.json`;
-		expect(await fs.writeTextAtomic(path, '{"model":"opus"}')).toEqual(ok(undefined));
+		controls.addFile(path, '{"model":"opus"}');
 
 		fireEvent.click(screen.getByRole("button", { name: "Claude settings" }));
 		const dialog = await screen.findByRole("dialog");
@@ -120,7 +120,7 @@ describe("SET-12 Agents page controls", () => {
 		await waitFor(() => expect((editor as HTMLTextAreaElement).value).toBe('{"model":"opus"}'));
 
 		now += 1_000;
-		expect(await fs.writeTextAtomic(path, '{"model":"changed elsewhere"}')).toEqual(ok(undefined));
+		controls.addFile(path, '{"model":"changed elsewhere"}');
 		fireEvent.change(editor, { target: { value: '{"model":"mine"}' } });
 		fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 

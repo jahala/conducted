@@ -42,11 +42,11 @@ describe("WS-10 delete a workspace through the container", () => {
 					commentId: null,
 				}),
 			);
-			await memory.platform.fs.writeTextAtomic(attachmentPath, "hello");
+			memory.controls.addFile(attachmentPath, "hello");
 			const viewed = viewedFilesFile(memory.platform.fs.paths, workspace.id);
 			const setupLog = setupLogFile(memory.platform.fs.paths, workspace.id);
-			await memory.platform.fs.writeTextAtomic(viewed, "{}");
-			await memory.platform.fs.writeTextAtomic(setupLog, "log");
+			memory.controls.addFile(viewed, "{}");
+			memory.controls.addFile(setupLog, "log");
 
 			const removed = await container.actions.workspaces.remove(workspace.id);
 
@@ -86,8 +86,8 @@ describe("WS-10 delete a workspace through the container", () => {
 			const store = `${paths.appData}/cursor-sdk-store/7b65ddb1510ad78c`;
 			expect(await cursorStoreFolder(paths, workspace.path)).toBe(store);
 			const otherStore = await cursorStoreFolder(paths, other.path);
-			await memory.platform.fs.writeTextAtomic(`${store}/runs.sqlite`, "runs");
-			await memory.platform.fs.writeTextAtomic(`${otherStore}/runs.sqlite`, "runs");
+			memory.controls.addFile(`${store}/runs.sqlite`, "runs");
+			memory.controls.addFile(`${otherStore}/runs.sqlite`, "runs");
 
 			expect((await container.actions.workspaces.remove(workspace.id)).ok).toBe(true);
 

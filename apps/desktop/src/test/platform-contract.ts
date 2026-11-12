@@ -78,6 +78,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	),
 	c(
 		"fs",
+		"write-missing-folder",
+		"a write into a folder that does not exist is an Err",
+		"writeTextAtomic and writeBytes into a missing folder return Err with fs_not_found and create no folder, as files.rs does (issue #600). A caller that needs the folder makes it with mkdirp first.",
+	),
+	c(
+		"fs",
 		"missing-file",
 		"reading a missing file is an Err",
 		"readText on a path that does not exist returns Err, not an exception.",
@@ -779,6 +785,26 @@ const STEPS: Record<string, ContractStep> = {
 		ctx.assert(
 			entries.length === 1 && entries[0]?.path === target,
 			`a failed write left something behind: ${entries.map((entry) => entry.path).join(", ")}`,
+		);
+	},
+
+	"fs.write-missing-folder": async (ctx) => {
+		const folder = ctx.path("not-made-yet/inner");
+		const text = expectErr(
+			ctx,
+			await ctx.platform.fs.writeTextAtomic(joinPath(folder, "settings.toml"), "a = 1\n"),
+			"writeTextAtomic into a missing folder",
+		);
+		ctx.assert(text.code === "fs_not_found", `writeTextAtomic's error code was ${text.code}`);
+		const bytes = expectErr(
+			ctx,
+			await ctx.platform.fs.writeBytes(joinPath(folder, "data.bin"), Uint8Array.of(1, 2, 3)),
+			"writeBytes into a missing folder",
+		);
+		ctx.assert(bytes.code === "fs_not_found", `writeBytes's error code was ${bytes.code}`);
+		ctx.assert(
+			!(await ctx.platform.fs.exists(ctx.path("not-made-yet"))),
+			"a failed write made the missing folder",
 		);
 	},
 
@@ -2374,6 +2400,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"fs.write-read": ["fs.mkdirp", "fs.writeTextAtomic", "fs.readText"],
 	"fs.bytes-round-trip": ["fs.mkdirp", "fs.writeBytes", "fs.readBytes"],
 	"fs.atomic-no-partial": ["fs.writeTextAtomic", "fs.mkdirp", "fs.readText", "fs.readDir"],
+	"fs.write-missing-folder": ["fs.writeTextAtomic", "fs.writeBytes", "fs.exists"],
 	"fs.missing-file": ["fs.readText"],
 	"fs.exists-stat": ["fs.writeTextAtomic", "fs.mkdirp", "fs.exists", "fs.stat"],
 	"fs.mkdirp-idempotent": ["fs.mkdirp", "fs.exists"],

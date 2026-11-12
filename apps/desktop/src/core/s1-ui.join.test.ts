@@ -217,10 +217,7 @@ describe("s1-ui join", () => {
 		try {
 			await test.container.services.settings.start();
 			const workspace = await seedWorkspace(test.container, { path: "/join/rev-08" });
-			await test.container.platform.fs.writeTextAtomic(
-				`${workspace.path}/notes.md`,
-				"# Joined preview",
-			);
+			test.memory.controls.addFile(`${workspace.path}/notes.md`, "# Joined preview");
 			vi.spyOn(test.container.services.fileDiff, "load").mockResolvedValue(
 				ok({
 					path: "notes.md",
@@ -261,8 +258,8 @@ describe("s1-ui join", () => {
 		try {
 			await test.container.services.settings.start();
 			const workspace = await seedWorkspace(test.container, { path: "/join/rev-08-draft" });
-			await test.container.platform.fs.writeTextAtomic(`${workspace.path}/notes.md`, "draft me");
-			await test.container.platform.fs.writeTextAtomic(`${workspace.path}/other.md`, "other");
+			test.memory.controls.addFile(`${workspace.path}/notes.md`, "draft me");
+			test.memory.controls.addFile(`${workspace.path}/other.md`, "other");
 			vi.spyOn(test.container.services.fileDiff, "load").mockResolvedValue(
 				ok({
 					path: "other.md",

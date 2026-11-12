@@ -383,10 +383,10 @@ describe("DATA-02 data lifetime", () => {
 
 		const fs = h.deps.fs;
 		h.setNow(NOW - 31 * DAY);
-		await fs.writeTextAtomic(`${draftsDir(fs.paths)}/live.json`, "{}");
+		h.memory.controls.addFile(`${draftsDir(fs.paths)}/live.json`, "{}");
 		h.setNow(NOW - DAY);
-		await fs.writeTextAtomic(`${draftsDir(fs.paths)}/recent.json`, "{}");
-		await fs.writeTextAtomic(`${draftsDir(fs.paths)}/gone.json`, "{}");
+		h.memory.controls.addFile(`${draftsDir(fs.paths)}/recent.json`, "{}");
+		h.memory.controls.addFile(`${draftsDir(fs.paths)}/gone.json`, "{}");
 		h.setNow(NOW);
 
 		const report = must(await runStep(h, "remove-draft-files"));
@@ -401,7 +401,7 @@ describe("DATA-02 data lifetime", () => {
 		const fs = h.deps.fs;
 		h.setNow(NOW - DAY);
 		const path = `${draftsDir(fs.paths)}/${NEW_WORKSPACE_DRAFT_ID}.json`;
-		await fs.writeTextAtomic(path, "{}");
+		h.memory.controls.addFile(path, "{}");
 		h.setNow(NOW);
 
 		const kept = must(await runStep(h, "remove-draft-files"));
@@ -424,8 +424,8 @@ describe("DATA-02 data lifetime", () => {
 		h.setNow(NOW - 8 * DAY);
 		const oldPath = `${draftAttachmentsDir(fs.paths, "s1")}/old.txt`;
 		const orphanPath = `${draftAttachmentsRoot(fs.paths)}/orphan/shot.png`;
-		await fs.writeTextAtomic(oldPath, "old");
-		await fs.writeTextAtomic(orphanPath, "orphan");
+		h.memory.controls.addFile(oldPath, "old");
+		h.memory.controls.addFile(orphanPath, "orphan");
 		await h.deps.db.execute(
 			`INSERT INTO attachments (id, session_id, kind, original_name, path, is_draft, created_at)
 			VALUES ($1, $2, 'text', 'old.txt', $3, 1, $4)`,
@@ -434,7 +434,7 @@ describe("DATA-02 data lifetime", () => {
 
 		h.setNow(NOW - DAY);
 		const recentPath = `${draftAttachmentsDir(fs.paths, "s1")}/recent.txt`;
-		await fs.writeTextAtomic(recentPath, "recent");
+		h.memory.controls.addFile(recentPath, "recent");
 		await h.deps.db.execute(
 			`INSERT INTO attachments (id, session_id, kind, original_name, path, is_draft, created_at)
 			VALUES ($1, $2, 'text', 'recent.txt', $3, 1, $4)`,
@@ -463,8 +463,8 @@ describe("DATA-02 data lifetime", () => {
 		// staging folder by its spelling. Neither is the app's to trash.
 		const userFile = "/code/user-files/report.pdf";
 		const climbing = `${draftAttachmentsDir(fs.paths, "s1")}/../../notes.txt`;
-		await fs.writeTextAtomic(userFile, "mine");
-		await fs.writeTextAtomic(climbing, "also mine");
+		h.memory.controls.addFile(userFile, "mine");
+		h.memory.controls.addFile(climbing, "also mine");
 		for (const [id, path] of [
 			["a-user", userFile],
 			["a-climbing", climbing],
@@ -504,7 +504,7 @@ describe("DATA-02 data lifetime", () => {
 				VALUES ($1, 'w1', 'terminal', $2, '/code', $3, $4)`,
 				[id, `terminal-${id}`, NOW - 20 * DAY, endedAt],
 			);
-			await fs.writeTextAtomic(terminalHistoryFile(fs.paths, id), "scrollback");
+			h.memory.controls.addFile(terminalHistoryFile(fs.paths, id), "scrollback");
 		}
 
 		const report = must(await runStep(h, "remove-ended-terminals"));
@@ -707,7 +707,7 @@ describe("DATA-02 data lifetime", () => {
 		expect(first.kind).toBe("ran");
 
 		h.setNow(NOW - 31 * DAY);
-		await h.deps.fs.writeTextAtomic(`${draftsDir(h.deps.fs.paths)}/old.json`, "{}");
+		h.memory.controls.addFile(`${draftsDir(h.deps.fs.paths)}/old.json`, "{}");
 		h.setNow(NOW);
 
 		const second = must(await runDataLifetimeJob(h.deps));
@@ -746,7 +746,7 @@ describe("DATA-02 data lifetime", () => {
 		});
 		h.setNow(NOW - 31 * DAY);
 		const draftPath = `${draftsDir(h.deps.fs.paths)}/orphan.json`;
-		await h.deps.fs.writeTextAtomic(draftPath, "{}");
+		h.memory.controls.addFile(draftPath, "{}");
 		h.setNow(NOW);
 
 		const report = must(await runDataLifetimeJob(h.deps));

@@ -191,7 +191,7 @@ describe("s1-core-1 join", () => {
 			const fs = test.memory.platform.fs;
 			const file = draftFile(fs.paths, "old-chat");
 			now = START - 31 * DAY;
-			must(await fs.writeTextAtomic(file, "{}"));
+			test.memory.controls.addFile(file, "{}");
 			now = START;
 
 			startForLifetime(test);

@@ -25,7 +25,7 @@ async function setup(path: string) {
 	const workspace = await seedWorkspace(test.container, { path });
 	const writeDisk = async (text: string): Promise<void> => {
 		now += 1_000;
-		await test.container.platform.fs.writeTextAtomic(`${workspace.path}/a.ts`, text);
+		test.memory.controls.addFile(`${workspace.path}/a.ts`, text);
 	};
 	await writeDisk("one");
 	const wrapper = ({ children }: { children: ReactNode }) => (
