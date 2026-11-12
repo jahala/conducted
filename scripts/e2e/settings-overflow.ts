@@ -10,14 +10,19 @@
  * its results open; a text field, whose own text may scroll inside it by design (not counted).
  * The instrument is proved on a known case first: a box wider than the settings sidebar, put in
  * it for one reading, must be reported.
+ * Our design choice: the window is set to the app's default size (tauri.conf.json) before anything is
+ * measured, so a runner whose screen gives a smaller window cannot report a narrow window's overflow
+ * as a fault; a screen that cannot hold the default size fails the check and says so.
  * Our design choice: a box "can scroll" when its computed `overflow-x` is `auto` or `scroll`. CSS
  * computes `visible` to `auto` when the other axis scrolls, so a sidebar that scrolls up and down
  * counts, as the one #488 found did. An element hidden by a clipping parent is not past the edge.
  */
+
 import {
 	REPO_SETTINGS_PAGES,
 	USER_SETTINGS_PAGES,
 } from "../../apps/desktop/src/features/settings/settings-pages.ts";
+import appConfig from "../../apps/desktop/src-tauri/tauri.conf.json" with { type: "json" };
 import { type Browser, type Check, HANG_MS, until } from "./harness.ts";
 import { openRepoSettings, openUserSettings } from "./screens.ts";
 import { startInWorld } from "./world.ts";
@@ -89,6 +94,16 @@ export const settingsOverflow: Check = {
 	async run(context) {
 		const { app, world } = await startInWorld(context);
 		const browser = app.browser;
+		// The app's default window: what a new install opens with.
+		const size = appConfig.app.windows[0];
+		if (size === undefined) return ["tauri.conf.json names no window"];
+		await browser.setWindowRect(0, 0, size.width, size.height);
+		const width = await browser.execute(() => window.innerWidth);
+		if (width < size.width) {
+			return [
+				`the screen holds a window only ${width}px wide; this check measures at the app's default ${size.width}px`,
+			];
+		}
 		const failures: string[] = [];
 		const report = async (where: string): Promise<void> => {
 			for (const line of await sidewaysOverflow(browser)) failures.push(`${where}: ${line}`);
