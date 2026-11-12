@@ -360,6 +360,7 @@ export const COMMANDS = {
 	fsTrash: "fs_trash",
 	fsPaths: "fs_paths",
 	fsRegisterRoot: "fs_register_root",
+	fsIncludeSshConfig: "fs_include_ssh_config", // CLOUD-12
 	deepLinkLaunch: "deep_link_launch",
 	searchListTree: "search_list_tree",
 	searchFuzzy: "search_fuzzy",
@@ -816,7 +817,7 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 	};
 }
 
-/** `fs_read_text { path }`, `fs_read_bytes { path }`, `fs_write_text_atomic { path, text }`, `fs_write_bytes_atomic { path, data }`, `fs_stat { path }`, `fs_mkdirp`, `fs_read_dir`, `fs_trash`, `fs_register_root { path }`, `fs_paths`; `assetUrl` is Tauri's `convertFileSrc`. */
+/** `fs_read_text { path }`, `fs_read_bytes { path }`, `fs_write_text_atomic { path, text }`, `fs_write_bytes_atomic { path, data }`, `fs_stat { path }`, `fs_mkdirp`, `fs_read_dir`, `fs_trash`, `fs_register_root { path }`, `fs_include_ssh_config`, `fs_paths`; `assetUrl` is Tauri's `convertFileSrc`. */
 export function createTauriFileSystem(
 	bindings: TauriBindings,
 	paths: FileSystem["paths"],
@@ -850,6 +851,7 @@ export function createTauriFileSystem(
 		readDir: (path) => invokeResult<FileStat[]>(bindings, COMMANDS.fsReadDir, { path }),
 		trash: (path) => invokeResult<void>(bindings, COMMANDS.fsTrash, { path }),
 		registerRoot: (path) => invokeResult<void>(bindings, COMMANDS.fsRegisterRoot, { path }),
+		includeSshConfig: () => invokeResult<boolean>(bindings, COMMANDS.fsIncludeSshConfig),
 		assetUrl: (path) => requireBinding(bindings.assetUrl, "asset URL")(path),
 		paths,
 	};

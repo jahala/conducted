@@ -4,8 +4,9 @@
  * Tests the real composition root: a cloud workspace's Open in generates the Mac's key, installs
  * its public half through the Worker, starts the local SSH listener, writes the `conducted`
  * config and runs Cursor with `--remote ssh-remote+<host>`. "Copy SSH command" returns the text
- * Conductor copies. Nothing of it touches the Mac's own SSH files: the Platform's home is the
- * in-memory one.
+ * Conductor copies. The file scope is enforced, as files.rs enforces it, so the door reaches only
+ * the files it owns under `~/.ssh` and the one include line (issue #611). Nothing of it touches the
+ * Mac's own SSH files: the Platform's home is the in-memory one.
  * Test first: the Worker receives the public key and the config names 127.0.0.1.
  */
 import { ok } from "@conducted/shared";
@@ -32,6 +33,9 @@ function configPaths(test: TestContainer) {
 		user: `${ssh}/config`,
 	};
 }
+
+/** A container whose file commands refuse what files.rs refuses. */
+const scopedContainer = () => createTestContainer({ enforceFileScope: true });
 
 async function cloudWorkspaceWithKey(test: TestContainer) {
 	const workspace = await seedWorkspace(test.container, {
@@ -67,7 +71,7 @@ async function cloudWorkspaceWithKey(test: TestContainer) {
 
 describe("CLOUD-12 a cloud workspace's SSH door", () => {
 	it("installs the Mac's public key, starts the listener and opens Cursor over SSH", async () => {
-		const test = createTestContainer();
+		const test = scopedContainer();
 		try {
 			const { workspace, paths } = await cloudWorkspaceWithKey(test);
 			const opened = await test.container.services.workspace.openIn(workspace.id, "Cursor");
@@ -103,7 +107,7 @@ describe("CLOUD-12 a cloud workspace's SSH door", () => {
 	});
 
 	it("uses the key named by ssh_key_path and names it in the config", async () => {
-		const test = createTestContainer();
+		const test = scopedContainer();
 		try {
 			const { workspace, paths } = await cloudWorkspaceWithKey(test);
 			const home = test.memory.platform.fs.paths.home;
@@ -139,7 +143,7 @@ describe("CLOUD-12 a cloud workspace's SSH door", () => {
 	});
 
 	it("refuses a custom key with no .pub file in Conductor's words", async () => {
-		const test = createTestContainer();
+		const test = scopedContainer();
 		try {
 			const { workspace } = await cloudWorkspaceWithKey(test);
 			const home = test.memory.platform.fs.paths.home;
@@ -167,23 +171,90 @@ describe("CLOUD-12 a cloud workspace's SSH door", () => {
 		}
 	});
 
-	it("adds the include to an existing config without replacing it", async () => {
-		const test = createTestContainer();
+	it("adds the include to an existing config once and keeps the rest byte for byte", async () => {
+		const test = scopedContainer();
 		try {
 			const { workspace, paths } = await cloudWorkspaceWithKey(test);
-			const existing = "Host github.com\n    User git\n";
+			const existing = "Host github.com\n    User git\r\n\n# no newline at the end";
 			test.memory.controls.files.set(paths.user, existing);
 			must(await test.container.services.workspace.copySshCommand(workspace.id));
-			const after = test.memory.controls.files.get(paths.user) ?? "";
-			expect(after).toContain(existing);
-			expect(after.startsWith(`Include ${paths.main}`)).toBe(true);
+			must(await test.container.services.workspace.copySshCommand(workspace.id));
+			expect(test.memory.controls.files.get(paths.user)).toBe(
+				`Include ${paths.main}\n\n${existing}`,
+			);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("makes ~/.ssh and the config when neither exists", async () => {
+		const test = scopedContainer();
+		try {
+			const { workspace, paths } = await cloudWorkspaceWithKey(test);
+			must(await test.container.services.workspace.copySshCommand(workspace.id));
+			expect(test.memory.controls.files.get(paths.user)).toBe(`Include ${paths.main}\n\n`);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("writes only its own files under ~/.ssh and the one include line (issue #611)", async () => {
+		const test = scopedContainer();
+		try {
+			const { workspace, paths } = await cloudWorkspaceWithKey(test);
+			const ssh = `${test.memory.platform.fs.paths.home}/.ssh`;
+			const others = {
+				[`${ssh}/id_ed25519`]: "PRIVATE KEY",
+				[`${ssh}/known_hosts`]: "github.com ssh-ed25519 AAAA\n",
+				[`${ssh}/conducted_config.bak`]: "an old copy\n",
+			};
+			for (const [path, text] of Object.entries(others)) {
+				test.memory.controls.files.set(path, text);
+			}
+
+			const command = must(await test.container.services.workspace.copySshCommand(workspace.id));
+			expect(command).toBe("ssh oslo.conducted");
+
+			const underSsh = [...test.memory.controls.files.keys()]
+				.filter((path) => path.startsWith(`${ssh}/`))
+				.sort();
+			expect(underSsh).toEqual([paths.user, paths.main, paths.app, ...Object.keys(others)].sort());
+			for (const [path, text] of Object.entries(others)) {
+				expect(test.memory.controls.files.get(path)).toBe(text);
+			}
+		} finally {
+			test.close();
+		}
+	});
+
+	it("refuses every other ~/.ssh path to the file commands", async () => {
+		const test = scopedContainer();
+		try {
+			const { fs } = test.memory.platform;
+			const ssh = `${fs.paths.home}/.ssh`;
+			test.memory.controls.files.set(`${ssh}/config`, "Host github.com\n");
+			const refused = [
+				`${ssh}/config`,
+				`${ssh}/known_hosts`,
+				`${ssh}/id_ed25519`,
+				`${ssh}/conducted_config.bak`,
+				`${ssh}/conducted_config.d/../id_ed25519`,
+			];
+			for (const path of refused) {
+				expect((await fs.writeTextAtomic(path, "x")).ok, path).toBe(false);
+				const read = await fs.readText(path);
+				expect(read.ok ? "read" : read.error.code, path).toBe("fs_out_of_scope");
+			}
+			const listed = await fs.readDir(ssh);
+			expect(listed.ok ? "listed" : listed.error.code).toBe("fs_out_of_scope");
+			expect(test.memory.controls.files.get(`${ssh}/config`)).toBe("Host github.com\n");
 		} finally {
 			test.close();
 		}
 	});
 
 	it("returns the text Copy SSH command puts on the clipboard", async () => {
-		const test = createTestContainer();
+		const test = scopedContainer();
 		try {
 			const { workspace } = await cloudWorkspaceWithKey(test);
 			const command = must(await test.container.services.workspace.copySshCommand(workspace.id));
@@ -194,7 +265,7 @@ describe("CLOUD-12 a cloud workspace's SSH door", () => {
 	});
 
 	it("refuses an app that cannot open a remote folder, with Conductor's words", async () => {
-		const test = createTestContainer();
+		const test = scopedContainer();
 		try {
 			const { workspace } = await cloudWorkspaceWithKey(test);
 			const opened = await test.container.services.workspace.openIn(workspace.id, "Finder");

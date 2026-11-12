@@ -32,6 +32,8 @@ import {
 	type Platform,
 	type ProgramStatus,
 	type SpeechEvent,
+	SSH_CONFIG_DIR_NAME,
+	SSH_CONFIG_NAME,
 	type Unsubscribe,
 	VISUALIZATION_MAX_STORE_BYTES,
 } from "../platform/platform.ts";
@@ -123,6 +125,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"register-root",
 		"a registered folder outside the default scope becomes reachable",
 		"A write outside the default roots is an Err with fs_out_of_scope; after registerRoot of its folder the same write and a read succeed. Registering a relative path is an Err with fs_relative_path.",
+	),
+	c(
+		"fs",
+		"include-ssh-config",
+		"the app reaches only its own SSH files and adds its include line once",
+		"includeSshConfig before ~/.ssh exists is an Err with fs_not_found. The app's own conducted_config.d folder and conducted_config file are writable and readable; ~/.ssh/config and ~/.ssh/known_hosts are refused to writeTextAtomic and readText with fs_out_of_scope. includeSshConfig then answers Ok(true) once and Ok(false) after (issue #611).",
 	),
 	c(
 		"fs",
@@ -932,6 +940,36 @@ const STEPS: Record<string, ContractStep> = {
 		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(file, "after"), "writeTextAtomic");
 		const read = expectOk(ctx, await ctx.platform.fs.readText(file), "readText");
 		ctx.assert(read === "after", `readText returned ${JSON.stringify(read)}`);
+	},
+
+	"fs.include-ssh-config": async (ctx) => {
+		const ssh = joinPath(ctx.platform.fs.paths.home, ".ssh");
+		const early = expectErr(
+			ctx,
+			await ctx.platform.fs.includeSshConfig(),
+			"including before ~/.ssh exists",
+		);
+		ctx.assert(early.code === "fs_not_found", `the error code was ${early.code}`);
+		expectOk(ctx, await ctx.platform.fs.mkdirp(joinPath(ssh, SSH_CONFIG_DIR_NAME)), "mkdirp");
+		const own = joinPath(ssh, SSH_CONFIG_NAME);
+		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(own, "# ours\n"), "writeTextAtomic");
+		const read = expectOk(ctx, await ctx.platform.fs.readText(own), "readText");
+		ctx.assert(read === "# ours\n", `readText returned ${JSON.stringify(read)}`);
+		for (const name of ["config", "known_hosts"]) {
+			const path = joinPath(ssh, name);
+			const written = expectErr(
+				ctx,
+				await ctx.platform.fs.writeTextAtomic(path, "x"),
+				`a write to ~/.ssh/${name}`,
+			);
+			ctx.assert(written.code === "fs_out_of_scope", `the write's code was ${written.code}`);
+			const opened = expectErr(ctx, await ctx.platform.fs.readText(path), `a read of ${name}`);
+			ctx.assert(opened.code === "fs_out_of_scope", `the read's code was ${opened.code}`);
+		}
+		const added = expectOk(ctx, await ctx.platform.fs.includeSshConfig(), "includeSshConfig");
+		ctx.assert(added, "the first include did not change the config");
+		const again = expectOk(ctx, await ctx.platform.fs.includeSshConfig(), "includeSshConfig");
+		ctx.assert(!again, "the second include changed the config");
 	},
 
 	"fs.asset-url": async (ctx) => {
@@ -2472,6 +2510,12 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"fs.read-dir": ["fs.mkdirp", "fs.writeTextAtomic", "fs.readDir"],
 	"fs.dot-segments": ["fs.mkdirp", "fs.writeTextAtomic", "fs.exists", "fs.readText"],
 	"fs.register-root": ["fs.writeTextAtomic", "fs.registerRoot", "fs.mkdirp", "fs.readText"],
+	"fs.include-ssh-config": [
+		"fs.includeSshConfig",
+		"fs.mkdirp",
+		"fs.writeTextAtomic",
+		"fs.readText",
+	],
 	"fs.asset-url": ["fs.assetUrl"],
 	"fs.trash": ["fs.mkdirp", "fs.writeTextAtomic", "fs.trash", "fs.exists"],
 	"db.roundtrip": ["db.execute", "db.select"],

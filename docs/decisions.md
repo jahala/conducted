@@ -1126,6 +1126,24 @@ Chosen: an Ubuntu job, `macos-changes`, compares the pull request with main (`sc
 
 Why not skip the job's steps inside the job: the job would still wait for a macOS runner, which is the shortage. Why not a `paths` filter on the workflow: a required check whose workflow never starts holds the pull request forever.
 
+## D140. The app writes its own SSH files under `~/.ssh` and reaches the user's config through one command (2026-11-12)
+
+Decided by the agent fixing issue #611, which the owner filed. The owner's rule for it: the smallest reach that does the job, and the user's other SSH files are never read or changed.
+
+Context: Copy SSH command and Open in for a cloud workspace failed in the real app with `fs_out_of_scope`. `core/cloud/ssh.ts` wrote `~/.ssh/conducted_config.d/ssh.config`, `~/.ssh/conducted_config` and `~/.ssh/config` through the file commands, and `~/.ssh` is outside their scope (PLAT-29). The tests ran the in-memory Platform without the scope, so they passed. Conductor reaches the same files without a scope: `main-BE1h_1MP.js` `SH` @3850539 makes both folders with `mkdir -p` through its shell, writes its per-app file and its `conductor_config` with `write_file_async`, and `Nrn` @3851271 reads `~/.ssh/config` with `cat`, returns when the text already holds the include line anywhere (`includes`), and otherwise writes the line, a blank line and the old text with `write_file_async`.
+
+Chosen:
+
+- **Two default roots, for the entries the app owns.** `home_roots` in files.rs and `defaultFileRoots` in memory.ts add `~/.ssh/conducted_config` (one file) and `~/.ssh/conducted_config.d` (one folder). `~/.ssh` itself, `~/.ssh/config`, keys, `known_hosts` and a sibling such as `conducted_config.bak` stay out of scope.
+- **One command for the include line.** `fs_include_ssh_config` (`Platform.fs.includeSshConfig`) takes no path and no text. Rust builds `Include <home>/.ssh/conducted_config`, reads `~/.ssh/config` as bytes and, when the line's text is not anywhere in it, writes the line, a blank line and every old byte through the atomic write, which keeps the mode and writes through a link to its target. It answers whether the file changed. The web view never reads the file and can put nothing else in it.
+- **Conductor's check, Conductor's layout.** The line counts as present when its text appears anywhere, so a commented-out line is left as the user left it. The cases both runtimes answer are `packages/shared/fixtures/ssh-include.json`; files.rs and the TypeScript stand-ins read the same fixture.
+- **A config that cannot be read is an error.** Conductor treats a failed `cat` as an empty file and would then replace the config with the line alone. Here only a missing file counts as empty; any other read failure is returned and the file is left alone.
+- **A root under a linked folder matches before it exists.** `root_for_compare` now resolves a root the way a path is resolved, from its deepest existing folder, so a `~/.ssh` that links into a dotfiles folder reaches `conducted_config.d` on the first write.
+
+Why not register `~/.ssh` as a root: the web view could then read and write every key and `known_hosts`. Why not write the line through the shell, as Conductor does: the shell can reach anything, so it would not narrow the reach at all. Why not one command for all three files: the config text and the host rules are core logic with their tests in TypeScript, and the two files the app owns need no more than a root.
+
+The tests: `workspace.cloud-12.test.ts` runs the door with the file scope on, files.rs's `cloud_12_*` tests hold the roots and the command, and the contract case `fs.include-ssh-config` runs on the stand-in and the Node-backed bindings.
+
 ## D141. The UI's programs are checked against the Rust allowlist by a guard, not a Rust test (2026-11-12)
 
 Decided by the agent fixing issue #647, which the owner filed.

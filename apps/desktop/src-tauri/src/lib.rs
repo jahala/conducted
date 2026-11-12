@@ -828,6 +828,7 @@ pub fn run() {
             files::fs_trash,
             files::fs_paths,
             files::fs_register_root,
+            files::fs_include_ssh_config,
             deep_link::deep_link_launch,
             http::http_fetch,
             http::http_download,

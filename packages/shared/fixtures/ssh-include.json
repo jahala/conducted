@@ -1,0 +1,36 @@
+{
+	"description": "What ~/.ssh/config becomes when the app adds its one include line (CLOUD-12, issue #611). null means the file is left as it is. Rust's files.rs and the TypeScript stand-ins (platform/memory.ts) both answer these cases.",
+	"line": "Include /Users/example/.ssh/conducted_config",
+	"cases": [
+		{
+			"name": "an empty file gets the line and a blank line",
+			"existing": "",
+			"next": "Include /Users/example/.ssh/conducted_config\n\n"
+		},
+		{
+			"name": "an existing file keeps every byte after the line",
+			"existing": "Host github.com\n    User git\n",
+			"next": "Include /Users/example/.ssh/conducted_config\n\nHost github.com\n    User git\n"
+		},
+		{
+			"name": "Windows line ends and a missing final newline are kept",
+			"existing": "Host a\r\n    User b",
+			"next": "Include /Users/example/.ssh/conducted_config\n\nHost a\r\n    User b"
+		},
+		{
+			"name": "the line already there is not added again",
+			"existing": "Host a\n\nInclude /Users/example/.ssh/conducted_config\n",
+			"next": null
+		},
+		{
+			"name": "a commented-out line counts as there, as Conductor's check counts it",
+			"existing": "# Include /Users/example/.ssh/conducted_config\n",
+			"next": null
+		},
+		{
+			"name": "an include of another file is not this app's line",
+			"existing": "Include /Users/example/.ssh/other_config\n",
+			"next": "Include /Users/example/.ssh/conducted_config\n\nInclude /Users/example/.ssh/other_config\n"
+		}
+	]
+}

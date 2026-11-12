@@ -24,7 +24,9 @@
  * a file a test puts on the disk (`controls.files`, `controls.addFile`) brings its folders; with
  * `enforceFileScope` the file commands refuse a path outside the default roots and the registered
  * ones with `fs_out_of_scope`, as files.rs does (the contract case "fs.register-root" holds it),
- * and without it every path is reachable, so a service test can seed files anywhere.
+ * and without it every path is reachable, so a service test can seed files anywhere;
+ * `includeSshConfig` answers as files.rs does over the same fixture
+ * (packages/shared/fixtures/ssh-include.json).
  * A Conductor database is a map of table rows (`controls.conductorDatabases`); a copy is one more
  * entry under the import's folder, and the read and the secret moves answer as conductor_import.rs
  * does (APP-17).
@@ -95,6 +97,8 @@ import {
 	CONDUCTOR_COUNTED_TABLES,
 	CONDUCTOR_READ_TABLES,
 	platformError,
+	SSH_CONFIG_DIR_NAME,
+	SSH_CONFIG_NAME,
 	VISUALIZATION_MAX_PAGES,
 	VISUALIZATION_MAX_STORE_BYTES,
 } from "./platform.ts";
@@ -423,7 +427,8 @@ const fuzzyScore = (path: string, query: string): number => {
 
 /**
  * The folders the file commands reach without a registration, as files.rs `allowed_roots` lists
- * them: the app's own folders, the Claude configuration and the default workspaces folder.
+ * them: the app's own folders, the Claude configuration, the default workspaces folder and the
+ * two SSH config entries the app owns under `~/.ssh` (CLOUD-12).
  */
 export const defaultFileRoots = (paths: FileSystem["paths"]): string[] => [
 	paths.appData,
@@ -434,7 +439,31 @@ export const defaultFileRoots = (paths: FileSystem["paths"]): string[] => [
 	`${paths.home}/.conducted`,
 	`${paths.home}/Library/Application Support/Claude/claude_desktop_config.json`,
 	`${paths.home}/conducted`,
+	`${paths.home}/.ssh/${SSH_CONFIG_NAME}`,
+	`${paths.home}/.ssh/${SSH_CONFIG_DIR_NAME}`,
 ];
+
+/** The line `includeSshConfig` adds to `<home>/.ssh/config`, as files.rs writes it. */
+export const sshIncludeLine = (home: string): string => `Include ${home}/.ssh/${SSH_CONFIG_NAME}`;
+
+/**
+ * files.rs `with_ssh_include`: `existing` with `line` and a blank line in front, or null when
+ * `existing` already holds the line's bytes anywhere. Every byte of `existing` is kept. The cases
+ * both runtimes answer are packages/shared/fixtures/ssh-include.json.
+ */
+export const withSshInclude = (existing: Uint8Array, line: string): Uint8Array | null => {
+	const head = new TextEncoder().encode(`${line}\n\n`);
+	const needle = head.subarray(0, head.length - 2);
+	for (let start = 0; start + needle.length <= existing.length; start++) {
+		let index = 0;
+		while (index < needle.length && existing[start + index] === needle[index]) index++;
+		if (index === needle.length) return null;
+	}
+	const next = new Uint8Array(head.length + existing.length);
+	next.set(head);
+	next.set(existing, head.length);
+	return next;
+};
 
 /**
  * The URL Tauri's `convertFileSrc` gives on macOS: the asset protocol with the whole path
@@ -613,6 +642,23 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		const root = normalizePath(path);
 		if (!registeredRoots.includes(root)) registeredRoots.push(root);
 		return ok(undefined);
+	};
+
+	/** files.rs `fs_include_ssh_config`: the one line, in front of the user's config, once. */
+	const includeSshConfig = async (): Promise<Result<boolean>> => {
+		const folder = `${paths.home}/.ssh`;
+		const config = `${folder}/config`;
+		if (!directories.has(folder)) {
+			return err(platformError("fs_not_found", `${folder} does not exist.`));
+		}
+		const text = files.get(config);
+		const existing = blobs.get(config) ?? new TextEncoder().encode(text ?? "");
+		const next = withSshInclude(existing, sshIncludeLine(paths.home));
+		if (next === null) return ok(false);
+		if (blobs.has(config)) blobs.set(config, next);
+		else files.set(config, new TextDecoder().decode(next));
+		modified.set(config, clock.now());
+		return ok(true);
 	};
 
 	const writeTextAtomic = async (path: string, text: string): Promise<Result<void>> => {
@@ -897,6 +943,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		readDir,
 		trash,
 		registerRoot,
+		includeSshConfig,
 		assetUrl: assetUrlOf,
 		paths,
 	};
