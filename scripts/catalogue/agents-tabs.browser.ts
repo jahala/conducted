@@ -189,7 +189,7 @@ async function main(): Promise<number> {
 				return { inside, shown, reach };
 			});
 			check(
-				outline !== null && outline.shown && outline.inside,
+				outline?.shown === true && outline.inside,
 				`a focused tab's outline shows inside the tab list (reaches ${outline?.reach ?? "?"}px past the tab)`,
 			);
 
