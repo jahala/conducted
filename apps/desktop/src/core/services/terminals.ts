@@ -935,7 +935,9 @@ export class TerminalsService {
 
 	/** A terminal needs its folder. Without this check the shell would fail to start with no reason. */
 	async #requireFolder(path: string): Promise<Result<void>> {
-		if (await this.#deps.platform.fs.exists(path)) return ok(undefined);
+		const found = await this.#deps.platform.fs.exists(path);
+		if (!found.ok) return found;
+		if (found.value) return ok(undefined);
 		return err(appError("terminal_folder_missing", `The folder ${path} no longer exists.`));
 	}
 

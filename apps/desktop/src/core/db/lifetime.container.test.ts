@@ -67,7 +67,7 @@ describe("DATA-02 data lifetime from the composition root", () => {
 
 		await startContainer(test);
 
-		expect(await fs.exists(file)).toBe(false);
+		expect(await fs.exists(file)).toEqual(ok(false));
 	});
 
 	it("turns a failed lifetime step into a start warning and leaves the user's file alone", async () => {
@@ -94,7 +94,7 @@ describe("DATA-02 data lifetime from the composition root", () => {
 		const warning = report.warnings.find((entry) => entry.step === "data lifetime");
 		expect(warning?.message).toContain("remove-draft-attachments");
 		expect(warning?.message).toContain(userFile);
-		expect(await fs.exists(userFile)).toBe(true);
+		expect(await fs.exists(userFile)).toEqual(ok(true));
 	});
 
 	it("keeps an open interaction in the live-state store and loads it on start", async () => {

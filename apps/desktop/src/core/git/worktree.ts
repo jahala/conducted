@@ -422,7 +422,9 @@ export async function discardGitOperationState(
 		if (!gitPath.ok) return gitPath;
 		if (gitPath.value === "") continue;
 		const path = absoluteGitPath(worktreePath, gitPath.value);
-		if (!(await fs.exists(path))) continue;
+		const found = await fs.exists(path);
+		if (!found.ok) return found;
+		if (!found.value) continue;
 		const removed = await fs.trash(path);
 		if (!removed.ok) return removed;
 	}
@@ -600,7 +602,9 @@ export function removeWorktree(
 		// to the Trash and prune path below.
 		if (!removed.ok) return removed;
 		if (removed.value.exitCode === 0) return ok(undefined);
-		if (await fs.exists(input.worktreePath)) {
+		const folder = await fs.exists(input.worktreePath);
+		if (!folder.ok) return folder;
+		if (folder.value) {
 			const trashed = await fs.trash(input.worktreePath);
 			if (!trashed.ok) return trashed;
 		}

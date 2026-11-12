@@ -175,7 +175,7 @@ function harness(runSetup: () => Promise<Result<SetupRunResult>>, options: Harne
 					return ok(undefined);
 				},
 				async exists(path: string) {
-					return options.logExists?.(path) ?? false;
+					return ok(options.logExists?.(path) ?? false);
 				},
 				async stat() {
 					return err(appError("fs_not_found", "missing"));

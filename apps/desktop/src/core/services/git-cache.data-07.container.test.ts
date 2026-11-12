@@ -114,7 +114,7 @@ describe("DATA-07 the cache uses the app data platform the container builds", ()
 				await test.container.platform.fs.exists(
 					changesCacheFile(test.container.platform.fs.paths, "w1"),
 				),
-			).toBe(true);
+			).toEqual(ok(true));
 		} finally {
 			await test.container.stop();
 			test.close();
@@ -134,7 +134,7 @@ describe("DATA-07 the cache uses the app data platform the container builds", ()
 			const polled = test.container.services.git.store.getState().byWorkspace[workspace.id];
 			expect(polled?.snapshot?.depth).toBe("full");
 			await vi.waitFor(async () =>
-				expect(await fs.exists(changesCacheFile(fs.paths, workspace.id))).toBe(true),
+				expect(await fs.exists(changesCacheFile(fs.paths, workspace.id))).toEqual(ok(true)),
 			);
 			const saved = must(
 				await test.container.services.gitCache.loadChanges(workspace.id, "feature"),
@@ -165,7 +165,7 @@ describe("DATA-07 the cache uses the app data platform the container builds", ()
 
 			test.container.services.github.paintCached(workspace.id, prInfo);
 			await vi.waitFor(async () =>
-				expect(await fs.exists(prInfoCacheFile(fs.paths, workspace.id))).toBe(true),
+				expect(await fs.exists(prInfoCacheFile(fs.paths, workspace.id))).toEqual(ok(true)),
 			);
 			const saved = must(
 				await test.container.services.gitCache.loadPrInfo(workspace.id, "feature"),
@@ -202,12 +202,12 @@ describe("DATA-07 the cache uses the app data platform the container builds", ()
 			});
 			must(await gitCache.savePrInfo(entry(prInfo)));
 			must(await gitCache.saveChanges(entry(snapshot)));
-			expect(await fs.exists(prInfoCacheFile(fs.paths, workspace.id))).toBe(true);
+			expect(await fs.exists(prInfoCacheFile(fs.paths, workspace.id))).toEqual(ok(true));
 
 			must(await test.container.actions.workspaces.remove(workspace.id));
 
-			expect(await fs.exists(changesCacheFile(fs.paths, workspace.id))).toBe(false);
-			expect(await fs.exists(prInfoCacheFile(fs.paths, workspace.id))).toBe(false);
+			expect(await fs.exists(changesCacheFile(fs.paths, workspace.id))).toEqual(ok(false));
+			expect(await fs.exists(prInfoCacheFile(fs.paths, workspace.id))).toEqual(ok(false));
 		} finally {
 			await test.container.stop();
 			test.close();

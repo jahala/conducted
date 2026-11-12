@@ -680,10 +680,11 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			: ok(new TextEncoder().encode(text));
 	};
 
-	const exists = async (path: string): Promise<boolean> => {
-		if (outOfScope(path) !== null) return false;
+	const exists = async (path: string): Promise<Result<boolean>> => {
+		const refused = outOfScope(path);
+		if (refused !== null) return err(refused);
 		const target = normalizePath(path);
-		return files.has(target) || blobs.has(target) || directories.has(target);
+		return ok(files.has(target) || blobs.has(target) || directories.has(target));
 	};
 
 	const stat = async (path: string): Promise<Result<FileStat>> => {

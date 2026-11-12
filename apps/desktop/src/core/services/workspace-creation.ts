@@ -295,7 +295,10 @@ export async function copyIncludedFiles(
 
 	const includePath = `${repo.rootPath}/.worktreeinclude`;
 	let fromFile: string[] = [];
-	if (await deps.fs.exists(includePath)) {
+	const hasInclude = await deps.fs.exists(includePath);
+	if (!hasInclude.ok) {
+		warnings.push(`Couldn't read .worktreeinclude: ${hasInclude.error.message}`);
+	} else if (hasInclude.value) {
 		const include = await deps.fs.readText(includePath);
 		if (include.ok) fromFile = parseWorktreeInclude(include.value);
 		else warnings.push(`Couldn't read .worktreeinclude: ${include.error.message}`);
@@ -339,7 +342,9 @@ async function copyFile(
 		return ok(undefined);
 	}
 	// A file already in the worktree may hold the user's edits (a retry runs this copy again).
-	if (await deps.fs.exists(target)) return ok(undefined);
+	const already = await deps.fs.exists(target);
+	if (!already.ok) return already;
+	if (already.value) return ok(undefined);
 	const parent = target.slice(0, target.lastIndexOf("/"));
 	const made = await deps.fs.mkdirp(parent);
 	if (!made.ok) return made;
@@ -547,7 +552,7 @@ export class WorkspaceCreation {
 		const picked = this.#deps.placeNames.pick(taken);
 		const folder = await nextFreeName(picked, async (candidate) => {
 			if (taken.has(candidate)) return ok(true);
-			return ok(await this.#deps.platform.fs.exists(worktreeFolderFor(root, repo.name, candidate)));
+			return this.#deps.platform.fs.exists(worktreeFolderFor(root, repo.name, candidate));
 		});
 		if (!folder.ok) return folder;
 
@@ -673,7 +678,8 @@ export class WorkspaceCreation {
 	): Promise<Result<string[]>> {
 		const warnings: string[] = [];
 		const exists = await this.#deps.platform.fs.exists(workspace.path);
-		if (!exists) {
+		if (!exists.ok) return exists;
+		if (!exists.value) {
 			const baseSha = this.#host.baseShas.get(workspace.id);
 			const created = await createWorktree(this.#deps.git, {
 				repoRootPath: repo.rootPath,
@@ -736,7 +742,9 @@ export class WorkspaceCreation {
 			fetch: null,
 			startPoint: `origin/${workspace.targetBranch}`,
 		};
-		if (!(await fs.exists(cwd))) {
+		const present = await fs.exists(cwd);
+		if (!present.ok) return present;
+		if (!present.value) {
 			const source = cloudRepositories([repo])[0];
 			if (source === undefined) return err(cloudRepoNotGithub());
 			const made = await fs.mkdirp(cwd);

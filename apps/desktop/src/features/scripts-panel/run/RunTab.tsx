@@ -107,9 +107,16 @@ function RunPreview({
 	const cloudFileSync = useServices().services.cloudFileSync;
 	const openPreview = (url: string): void => {
 		void (async () => {
-			if (localVariant && !(await cloudFileSync.mirrorReady(workspaceId))) {
-				toast(PREVIEW_MIRROR_UNAVAILABLE_MESSAGE);
-				return;
+			if (localVariant) {
+				const ready = await cloudFileSync.mirrorReady(workspaceId);
+				if (!ready.ok) {
+					toastError(PREVIEW_MIRROR_UNAVAILABLE_MESSAGE, ready.error);
+					return;
+				}
+				if (!ready.value) {
+					toast(PREVIEW_MIRROR_UNAVAILABLE_MESSAGE);
+					return;
+				}
 			}
 			open.preview(url);
 		})();

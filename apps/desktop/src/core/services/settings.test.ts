@@ -69,7 +69,7 @@ const fakeFs = (home = "/home/user"): FakeFs => {
 			return ok(undefined);
 		},
 		async exists(path) {
-			return files.has(path);
+			return ok(files.has(path));
 		},
 		async stat(path) {
 			return err(appError("fs_stat", `no stat for ${path}`));
@@ -1332,7 +1332,7 @@ describe("DATA-05 saving on a fresh home (issue #600)", () => {
 			const settings = test.container.services.settings;
 			await settings.start();
 			const fs = test.memory.platform.fs;
-			expect(await fs.exists(`${fs.paths.home}/.conducted`)).toBe(false);
+			expect(await fs.exists(`${fs.paths.home}/.conducted`)).toEqual(ok(false));
 
 			expect(await settings.set("default_plan_mode", true)).toEqual(ok(undefined));
 			expect(settings.get("default_plan_mode")).toBe(true);
