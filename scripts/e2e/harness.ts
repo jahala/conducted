@@ -333,14 +333,25 @@ export async function launch(folder: FreshFolder, tracker: Tracker): Promise<Run
 		connectionRetryTimeout: HANG_MS,
 		connectionRetryCount: 0,
 	});
-	await until("the app's first screen", async () =>
-		(await browser.execute(
-			(selector: string) => document.querySelector(selector) !== null,
-			FIRST_SCREEN,
-		))
-			? true
-			: undefined,
-	);
+	try {
+		await until("the app's first screen", async () =>
+			(await browser.execute(
+				(selector: string) => document.querySelector(selector) !== null,
+				FIRST_SCREEN,
+			))
+				? true
+				: undefined,
+		);
+	} catch (cause) {
+		// Say what the window showed instead, and what the app printed, so the failure names its cause.
+		const shown = await browser
+			.execute(() => (document.body?.innerText ?? "").replace(/\s+/g, " ").trim().slice(0, 400))
+			.catch((error: unknown) => `(the page could not be read: ${String(error)})`);
+		const printed = output.join("").trim().slice(-400);
+		throw new Error(
+			`${cause instanceof Error ? cause.message : String(cause)}; the window showed "${shown}"; the app printed "${printed}"`,
+		);
+	}
 	for (const id of descendants(pid)) tracker.seen.add(id);
 	return { folder, child, pid, port, browser, output };
 }
