@@ -1544,7 +1544,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		uninstall: async (input = {}) => {
 			cloudUninstalls.push(input);
-			return ok(undefined);
+			return ok({ worker: true, container: true, images: 1, bucket: true, objects: 0 });
 		},
 		onDeployEvent: (listener) => {
 			cloudDeployListeners.add(listener);

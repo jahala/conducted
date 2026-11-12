@@ -43,6 +43,11 @@
 //!   Worker and sets the secret, so the shell names those three as one step rather than guessing.
 //! - The uninstall deletes the Worker, then its container application and images, then the bucket,
 //!   and unpairs. A resource the account does not have is skipped, so a second uninstall succeeds.
+//!   Cloudflare refuses to delete a bucket that holds anything (code 10008, issue #635), and
+//!   wrangler cannot list a bucket's objects, so the uninstall empties the bucket through
+//!   Cloudflare's API with wrangler's own login: only the bucket named exactly as the Worker, in
+//!   the one account that holds it, page by page, skipping an object already gone. It says what it
+//!   removed. The login stays in a request header and is never logged or returned.
 //! - The SSH tunnel URL (CLOUD-12) is `wss://<worker>/w/<name>/ssh`, with no port query: the route
 //!   reaches only the sandbox's loopback port 22.
 //!
@@ -51,7 +56,8 @@
 //!
 //! Test first: a request path that names another host or climbs with `..` is refused, a relay
 //! line with a newline is refused before anything is sent, a pairing answer with another
-//! service name is refused, and a deploy leaves no secret file behind.
+//! service name is refused, a deploy leaves no secret file behind, and an uninstall removes a
+//! bucket that holds objects and leaves every other bucket alone.
 
 use std::collections::HashMap;
 use std::io::{Read as _, Write as _};
@@ -948,6 +954,463 @@ fn run_checked(
     ))
 }
 
+/// Cloudflare's API. The uninstall empties and deletes the bucket through it, because wrangler can
+/// delete one object by its key but cannot list the objects a bucket holds (issue #635).
+pub const CLOUDFLARE_API: &str = "https://api.cloudflare.com/client/v4";
+/// The most objects Cloudflare lists in one page.
+const OBJECTS_PER_PAGE: u32 = 1000;
+/// How many accounts the uninstall asks for per page while it looks for the bucket's account.
+const ACCOUNTS_PER_PAGE: u32 = 50;
+/// How many times the uninstall empties the bucket and tries to delete it. A second round catches
+/// an object written while the first round ran.
+const EMPTY_ROUNDS: usize = 3;
+/// Cloudflare's error code for deleting a bucket that still holds objects.
+const BUCKET_NOT_EMPTY: i64 = 10008;
+/// How long one call to Cloudflare's API may take.
+const API_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Where the uninstall reaches Cloudflare's API, and the account it was told to use. The tests
+/// point `base` at a stand-in on this Mac.
+#[derive(Debug, Clone)]
+pub struct CloudflareApi {
+    pub base: String,
+    /// The account `CLOUDFLARE_ACCOUNT_ID` names, which wrangler also obeys. None looks for the
+    /// account that holds the bucket.
+    pub account: Option<String>,
+}
+
+impl CloudflareApi {
+    /// Cloudflare's own API, for the account `CLOUDFLARE_ACCOUNT_ID` names when it is set.
+    /// wrangler obeys the same variable, so the API calls reach the account its commands did.
+    pub fn from_env() -> Self {
+        Self {
+            base: String::from(CLOUDFLARE_API),
+            account: std::env::var("CLOUDFLARE_ACCOUNT_ID")
+                .ok()
+                .filter(|id| !id.is_empty()),
+        }
+    }
+}
+
+/// What an uninstall removed from the user's account. Mirrors `CloudUninstallResult` in
+/// platform.ts.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CloudUninstallPayload {
+    /// The Worker was deleted.
+    pub worker: bool,
+    /// The container application was deleted.
+    pub container: bool,
+    /// How many container images were deleted.
+    pub images: usize,
+    /// The R2 bucket was deleted.
+    pub bucket: bool,
+    /// How many objects (the settings object and backups) were deleted from the bucket first.
+    pub objects: usize,
+}
+
+/// The login wrangler holds, as `wrangler auth token --json` gives it. It has no `Debug`, so it
+/// cannot be printed or logged by accident.
+enum ApiLogin {
+    /// An OAuth token from `wrangler login`, or `CLOUDFLARE_API_TOKEN`.
+    Token(String),
+    /// `CLOUDFLARE_API_KEY` with `CLOUDFLARE_EMAIL`.
+    Key { email: String, key: String },
+}
+
+/// The login in `wrangler auth token --json`'s output: one JSON object, which may follow a line
+/// of warnings.
+fn parse_login(stdout: &str) -> Option<ApiLogin> {
+    let start = stdout.find('{')?;
+    let value: serde_json::Value = serde_json::Deserializer::from_str(&stdout[start..])
+        .into_iter()
+        .next()?
+        .ok()?;
+    let text = |field: &str| {
+        value
+            .get(field)
+            .and_then(|item| item.as_str())
+            .filter(|item| !item.is_empty())
+            .map(str::to_string)
+    };
+    match value.get("type")?.as_str()? {
+        "oauth" | "api_token" => Some(ApiLogin::Token(text("token")?)),
+        "api_key" => Some(ApiLogin::Key {
+            email: text("email")?,
+            key: text("key")?,
+        }),
+        _ => None,
+    }
+}
+
+/// Asks wrangler for the login it uses, so the API calls run as the same user as its commands.
+/// wrangler refreshes an expired OAuth token first.
+fn wrangler_login(wrangler: &Wrangler, cwd: &Path) -> CommandResult<ApiLogin> {
+    let output = wrangler.run(
+        &[
+            String::from("auth"),
+            String::from("token"),
+            String::from("--json"),
+        ],
+        cwd,
+        None,
+        WRANGLER_TIMEOUT,
+    )?;
+    if !output.success {
+        return Err(refused(
+            "cloud_wrangler_failed",
+            format!(
+                "wrangler could not give its login to empty the bucket: {} Run `wrangler login` and remove the deployment again.",
+                output.stderr.trim()
+            ),
+        ));
+    }
+    parse_login(&output.stdout).ok_or_else(|| {
+        refused(
+            "cloud_wrangler_failed",
+            "wrangler did not give its login in a form the app reads. Run `npm install -g wrangler@latest` and remove the deployment again.",
+        )
+    })
+}
+
+/// A Cloudflare account id names a path segment, so it is letters and digits only.
+fn checked_account_id(id: &str) -> CommandResult<()> {
+    if !id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Ok(());
+    }
+    Err(refused(
+        "cloud_account_invalid",
+        format!("The Cloudflare account id \"{id}\" is not one Cloudflare gives."),
+    ))
+}
+
+/// An object key as a URL path, with every byte outside the unreserved set percent-encoded and
+/// its `/` kept. A key with a `.` or `..` segment is refused: a URL parser folds those away, so
+/// the call would name another object.
+fn object_path(key: &str) -> Option<String> {
+    if key.is_empty()
+        || key
+            .split('/')
+            .any(|segment| segment == "." || segment == "..")
+    {
+        return None;
+    }
+    let mut path = String::with_capacity(key.len());
+    for byte in key.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~' | b'/') {
+            path.push(char::from(byte));
+        } else {
+            path.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    Some(path)
+}
+
+/// One answer from Cloudflare's API: the status and its JSON envelope.
+struct ApiAnswer {
+    status: u16,
+    body: serde_json::Value,
+}
+
+impl ApiAnswer {
+    fn succeeded(&self) -> bool {
+        (200..300).contains(&self.status)
+            && self.body.get("success").and_then(|value| value.as_bool()) != Some(false)
+    }
+
+    fn has_code(&self, code: i64) -> bool {
+        self.body
+            .get("errors")
+            .and_then(|errors| errors.as_array())
+            .is_some_and(|errors| {
+                errors
+                    .iter()
+                    .any(|error| error.get("code").and_then(|item| item.as_i64()) == Some(code))
+            })
+    }
+
+    /// The user's message for a call that failed, with Cloudflare's own words and codes.
+    fn failure(&self, doing: &str) -> CommandError {
+        let said: Vec<String> = self
+            .body
+            .get("errors")
+            .and_then(|errors| errors.as_array())
+            .map(|errors| {
+                errors
+                    .iter()
+                    .map(|error| {
+                        let message = error
+                            .get("message")
+                            .and_then(|item| item.as_str())
+                            .unwrap_or("no message");
+                        match error.get("code").and_then(|item| item.as_i64()) {
+                            Some(code) => format!("{message} (code {code})"),
+                            None => message.to_string(),
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let said = if said.is_empty() {
+            String::from("no reason given")
+        } else {
+            said.join("; ")
+        };
+        refused(
+            "cloud_api_failed",
+            format!(
+                "Cloudflare refused to {doing}: HTTP {}, {said}.",
+                self.status
+            ),
+        )
+    }
+}
+
+/// One call to Cloudflare's API with wrangler's login. The login goes in a header only.
+async fn api_call(
+    client: &reqwest::Client,
+    login: &ApiLogin,
+    method: reqwest::Method,
+    url: reqwest::Url,
+) -> CommandResult<ApiAnswer> {
+    let request = client.request(method, url);
+    let request = match login {
+        ApiLogin::Token(token) => request.bearer_auth(token),
+        ApiLogin::Key { email, key } => request
+            .header("X-Auth-Email", email)
+            .header("X-Auth-Key", key),
+    };
+    let response = request.send().await.map_err(|error| {
+        refused(
+            "cloud_api_failed",
+            format!("Cloudflare's API could not be reached: {error}"),
+        )
+    })?;
+    let status = response.status().as_u16();
+    let text = response.text().await.map_err(|error| {
+        refused(
+            "cloud_api_failed",
+            format!("Cloudflare's answer could not be read: {error}"),
+        )
+    })?;
+    let body = serde_json::from_str(&text).unwrap_or(serde_json::Value::Null);
+    Ok(ApiAnswer { status, body })
+}
+
+/// The API URL for `path`, which starts with `/`.
+fn api_url(api: &CloudflareApi, path: &str) -> CommandResult<reqwest::Url> {
+    let raw = format!("{}{path}", api.base.trim_end_matches('/'));
+    reqwest::Url::parse(&raw).map_err(|error| {
+        refused(
+            "cloud_api_failed",
+            format!("The Cloudflare API address is not valid: {error}"),
+        )
+    })
+}
+
+/// Every account the login reaches, page by page.
+async fn api_accounts(
+    client: &reqwest::Client,
+    api: &CloudflareApi,
+    login: &ApiLogin,
+) -> CommandResult<Vec<String>> {
+    let mut ids = Vec::new();
+    let mut page = 1u64;
+    loop {
+        let mut url = api_url(api, "/accounts")?;
+        url.query_pairs_mut()
+            .append_pair("page", &page.to_string())
+            .append_pair("per_page", &ACCOUNTS_PER_PAGE.to_string());
+        let answer = api_call(client, login, reqwest::Method::GET, url).await?;
+        if !answer.succeeded() {
+            return Err(answer.failure("list your accounts"));
+        }
+        let listed: Vec<String> = answer
+            .body
+            .get("result")
+            .and_then(|result| result.as_array())
+            .map(|accounts| {
+                accounts
+                    .iter()
+                    .filter_map(|account| account.get("id").and_then(|id| id.as_str()))
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let pages = answer
+            .body
+            .pointer("/result_info/total_pages")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(page);
+        if listed.is_empty() || page >= pages {
+            ids.extend(listed);
+            return Ok(ids);
+        }
+        ids.extend(listed);
+        page += 1;
+    }
+}
+
+/// The account that holds a bucket with exactly this name, or None when no account does. Two
+/// accounts with the same bucket name are refused, so the uninstall never empties a bucket of
+/// the wrong account.
+async fn bucket_account(
+    client: &reqwest::Client,
+    api: &CloudflareApi,
+    login: &ApiLogin,
+    bucket: &str,
+) -> CommandResult<Option<String>> {
+    let accounts = match &api.account {
+        Some(account) => vec![account.clone()],
+        None => api_accounts(client, api, login).await?,
+    };
+    let mut holders = Vec::new();
+    let mut unreadable = 0usize;
+    for account in accounts {
+        checked_account_id(&account)?;
+        let url = api_url(api, &format!("/accounts/{account}/r2/buckets/{bucket}"))?;
+        let answer = api_call(client, login, reqwest::Method::GET, url).await?;
+        match answer.status {
+            _ if answer.succeeded() => holders.push(account),
+            404 => {}
+            401 | 403 => unreadable += 1,
+            _ => return Err(answer.failure(&format!("look up the bucket {bucket}"))),
+        }
+    }
+    match holders.len() {
+        0 if unreadable == 0 => Ok(None),
+        0 => Err(refused(
+            "cloud_bucket_unreadable",
+            format!(
+                "Your login could not read the buckets of {unreadable} account(s), so the app cannot tell whether the bucket {bucket} is gone. Set CLOUDFLARE_ACCOUNT_ID to the account you deployed to and remove the deployment again."
+            ),
+        )),
+        1 => Ok(holders.pop()),
+        several => Err(refused(
+            "cloud_bucket_account_unclear",
+            format!(
+                "{several} of your Cloudflare accounts hold a bucket named {bucket}. Set CLOUDFLARE_ACCOUNT_ID to the account you deployed to and remove the deployment again."
+            ),
+        )),
+    }
+}
+
+/// Deletes every object in the bucket, page by page, and counts the ones it deleted. An object
+/// that is gone by the time its delete arrives is skipped.
+async fn empty_bucket(
+    client: &reqwest::Client,
+    api: &CloudflareApi,
+    login: &ApiLogin,
+    account: &str,
+    bucket: &str,
+) -> CommandResult<usize> {
+    let objects = format!("/accounts/{account}/r2/buckets/{bucket}/objects");
+    let mut deleted = 0usize;
+    let mut cursor: Option<String> = None;
+    loop {
+        let mut url = api_url(api, &objects)?;
+        {
+            let mut query = url.query_pairs_mut();
+            query.append_pair("per_page", &OBJECTS_PER_PAGE.to_string());
+            if let Some(after) = &cursor {
+                query.append_pair("cursor", after);
+            }
+        }
+        let answer = api_call(client, login, reqwest::Method::GET, url).await?;
+        if answer.status == 404 {
+            return Ok(deleted);
+        }
+        if !answer.succeeded() {
+            return Err(answer.failure(&format!("list the objects in the bucket {bucket}")));
+        }
+        let keys: Vec<String> = answer
+            .body
+            .get("result")
+            .and_then(|result| result.as_array())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| item.get("key").and_then(|key| key.as_str()))
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        for key in &keys {
+            let path = object_path(key).ok_or_else(|| {
+                refused(
+                    "cloud_bucket_key_unaddressable",
+                    format!(
+                        "The bucket {bucket} holds an object named \"{key}\", which Cloudflare's API cannot address. Delete it in the Cloudflare dashboard and remove the deployment again."
+                    ),
+                )
+            })?;
+            let url = api_url(api, &format!("{objects}/{path}"))?;
+            let answer = api_call(client, login, reqwest::Method::DELETE, url).await?;
+            match answer.status {
+                _ if answer.succeeded() => deleted += 1,
+                404 => {}
+                _ => {
+                    return Err(answer.failure(&format!(
+                        "delete the object \"{key}\" in the bucket {bucket}"
+                    )));
+                }
+            }
+        }
+        let truncated = answer
+            .body
+            .pointer("/result_info/is_truncated")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false);
+        let next = answer
+            .body
+            .pointer("/result_info/cursor")
+            .and_then(|value| value.as_str())
+            .filter(|value| !value.is_empty())
+            .map(str::to_string);
+        match next {
+            Some(next) if truncated && !keys.is_empty() && cursor.as_ref() != Some(&next) => {
+                cursor = Some(next);
+            }
+            _ => return Ok(deleted),
+        }
+    }
+}
+
+/// Empties the bucket with exactly this name and deletes it. Returns whether a bucket was deleted
+/// and how many objects were. A bucket no account holds is skipped, so a second uninstall
+/// succeeds.
+async fn remove_bucket(
+    client: &reqwest::Client,
+    api: &CloudflareApi,
+    login: &ApiLogin,
+    bucket: &str,
+) -> CommandResult<(bool, usize)> {
+    let Some(account) = bucket_account(client, api, login, bucket).await? else {
+        return Ok((false, 0));
+    };
+    let url = api_url(api, &format!("/accounts/{account}/r2/buckets/{bucket}"))?;
+    let mut objects = 0usize;
+    for _ in 0..EMPTY_ROUNDS {
+        objects += empty_bucket(client, api, login, &account, bucket).await?;
+        let answer = api_call(client, login, reqwest::Method::DELETE, url.clone()).await?;
+        if answer.succeeded() {
+            return Ok((true, objects));
+        }
+        if answer.status == 404 {
+            return Ok((false, objects));
+        }
+        if !answer.has_code(BUCKET_NOT_EMPTY) {
+            return Err(answer.failure(&format!("delete the bucket {bucket}")));
+        }
+    }
+    Err(refused(
+        "cloud_bucket_not_empty",
+        format!(
+            "The bucket {bucket} still held objects after it was emptied {EMPTY_ROUNDS} times, so something is still writing to it. {objects} objects were deleted. Remove the deployment again."
+        ),
+    ))
+}
+
 /// Creates the R2 bucket a Worker's backups need, unless the user's account already has it.
 fn ensure_bucket(wrangler: &Wrangler, source: &Path, bucket: &str) -> CommandResult<()> {
     let listed = run_checked(
@@ -1175,10 +1638,19 @@ pub async fn cloud_deploy(
 }
 
 /// The steps of an uninstall: the Worker, then its container application and images, then the
-/// bucket. A resource the account does not have is skipped, so a second uninstall succeeds.
-pub fn uninstall_worker(wrangler: &Wrangler, resources: &Path, worker: &str) -> CommandResult<()> {
+/// bucket, which is emptied first because Cloudflare refuses to delete a bucket that holds
+/// anything (code 10008, issue #635). Only the bucket with exactly the Worker's name is touched.
+/// A resource the account does not have is skipped, so a second uninstall succeeds.
+pub fn uninstall_worker(
+    wrangler: &Wrangler,
+    api: &CloudflareApi,
+    resources: &Path,
+    worker: &str,
+) -> CommandResult<CloudUninstallPayload> {
     checked_resource_name("cloud_worker_name_invalid", "Worker", worker)?;
-    let removed = wrangler.run(
+    checked_resource_name("cloud_bucket_name_invalid", "bucket", worker)?;
+    let mut removed = CloudUninstallPayload::default();
+    let deleted = wrangler.run(
         &[
             String::from("delete"),
             String::from("--name"),
@@ -1189,13 +1661,15 @@ pub fn uninstall_worker(wrangler: &Wrangler, resources: &Path, worker: &str) -> 
         None,
         WRANGLER_TIMEOUT,
     )?;
-    if !removed.success {
-        let said = removed.stderr.to_ascii_lowercase();
+    if deleted.success {
+        removed.worker = true;
+    } else {
+        let said = deleted.stderr.to_ascii_lowercase();
         let already_gone = said.contains("does not exist") || said.contains("not found");
         if !already_gone {
             return Err(refused(
                 "cloud_wrangler_failed",
-                format!("wrangler delete failed: {}", removed.stderr.trim()),
+                format!("wrangler delete failed: {}", deleted.stderr.trim()),
             ));
         }
     }
@@ -1222,6 +1696,7 @@ pub fn uninstall_worker(wrangler: &Wrangler, resources: &Path, worker: &str) -> 
             None,
             WRANGLER_TIMEOUT,
         )?;
+        removed.container = true;
     }
 
     let images = wrangler.run(
@@ -1244,42 +1719,36 @@ pub fn uninstall_worker(wrangler: &Wrangler, resources: &Path, worker: &str) -> 
                 None,
                 WRANGLER_TIMEOUT,
             )?;
+            removed.images += 1;
         }
     }
 
-    let buckets = wrangler.run(
-        &[
-            String::from("r2"),
-            String::from("bucket"),
-            String::from("list"),
-        ],
-        resources,
-        None,
-        WRANGLER_TIMEOUT,
-    )?;
-    if buckets.success
-        && bucket_names(&buckets.stdout)
-            .iter()
-            .any(|name| name == worker)
-    {
-        run_checked(
-            wrangler,
-            &["r2", "bucket", "delete", worker],
-            resources,
-            None,
-            WRANGLER_TIMEOUT,
-        )?;
-    }
-    Ok(())
+    // The Worker is gone by now, so nothing writes to the bucket while it is emptied.
+    let login = wrangler_login(wrangler, resources)?;
+    let client = reqwest::Client::builder()
+        .timeout(API_TIMEOUT)
+        .build()
+        .map_err(|error| {
+            refused(
+                "cloud_api_failed",
+                format!("The HTTP client did not start: {error}"),
+            )
+        })?;
+    let (bucket, objects) =
+        tauri::async_runtime::block_on(remove_bucket(&client, api, &login, worker))?;
+    removed.bucket = bucket;
+    removed.objects = objects;
+    Ok(removed)
 }
 
 /// Deletes what a deploy made, in the order that stops billing: the Worker, its container
-/// application and images, then the R2 bucket. It also removes this Mac's pairing.
+/// application and images, then the R2 bucket with everything in it. It also removes this Mac's
+/// pairing, and says what it removed.
 #[tauri::command]
 pub async fn cloud_uninstall(
     app: AppHandle,
     input: Option<CloudUninstallInput>,
-) -> CommandResult<()> {
+) -> CommandResult<CloudUninstallPayload> {
     let resources = app_deploy_resources(&app)?;
     let facts = read_deploy_facts(&resources)?;
     let worker = input
@@ -1288,11 +1757,13 @@ pub async fn cloud_uninstall(
         .filter(|name| !name.is_empty())
         .unwrap_or(facts.name);
     let wrangler = Wrangler::new();
-    blocking("cloud_uninstall_failed", move || {
-        uninstall_worker(&wrangler, &resources, &worker)
+    let api = CloudflareApi::from_env();
+    let removed = blocking("cloud_uninstall_failed", move || {
+        uninstall_worker(&wrangler, &api, &resources, &worker)
     })
     .await?;
-    cloud_unpair().await
+    cloud_unpair().await?;
+    Ok(removed)
 }
 
 /// One HTTPS request to the Worker. `status` and `body` are returned for every answer, including a
@@ -1919,21 +2390,369 @@ mod tests {
         );
     }
 
+    /// A stand-in `wrangler` for the uninstall: it records each call, lists one container and one
+    /// image, and gives its login as `wrangler auth token --json` prints it, after a warning line.
+    const UNINSTALL_WRANGLER: &str = "#!/bin/sh\n\
+         echo \"$*\" >> RECORD\n\
+         if [ \"$1\" = \"containers\" ] && [ \"$2\" = \"list\" ]; then\n\
+           echo '[{\"id\":\"abc\",\"name\":\"conducted-cloud-sandbox\"}]'; exit 0; fi\n\
+         if [ \"$1\" = \"containers\" ] && [ \"$2\" = \"images\" ] && [ \"$3\" = \"list\" ]; then\n\
+           echo '[{\"name\":\"conducted-cloud-workspace-sandbox\",\"tags\":[\"wrangler-a\"]}]'; exit 0; fi\n\
+         if [ \"$1\" = \"auth\" ] && [ \"$2\" = \"token\" ]; then\n\
+           echo 'A newer version of wrangler is available.'\n\
+           printf '{\\n    \"type\": \"oauth\",\\n    \"token\": \"the-login\"\\n}\\n'; exit 0; fi\n\
+         exit 0\n";
+
+    /// What the stand-in Cloudflare holds: accounts, their buckets and the keys in each, and every
+    /// request it was sent.
+    #[derive(Default)]
+    struct StandInState {
+        accounts: Vec<String>,
+        buckets: std::collections::BTreeMap<(String, String), std::collections::BTreeSet<String>>,
+        requests: Vec<String>,
+        /// A key another writer deletes just after a listing first returns it.
+        vanishes: Option<String>,
+    }
+
+    /// A stand-in for Cloudflare's API on this Mac. It answers the calls the uninstall makes as
+    /// Cloudflare's API reference documents them (list accounts, get a bucket, list a bucket's
+    /// objects with `per_page` up to 1000 and a cursor, delete an object, delete a bucket), and,
+    /// as the CLOUD-17 live run saw, refuses to delete a bucket that holds anything with code
+    /// 10008. A request without the login wrangler gave is answered 401.
+    struct CloudflareStandIn {
+        base: String,
+        port: u16,
+        state: std::sync::Arc<Mutex<StandInState>>,
+        stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        server: Option<std::thread::JoinHandle<()>>,
+    }
+
+    fn percent_decode(text: &str, plus_is_space: bool) -> String {
+        let bytes = text.as_bytes();
+        let mut out = Vec::with_capacity(bytes.len());
+        let mut index = 0;
+        while index < bytes.len() {
+            match bytes[index] {
+                b'%' if index + 2 < bytes.len() => {
+                    let hex = std::str::from_utf8(&bytes[index + 1..index + 3]).unwrap_or("");
+                    out.push(u8::from_str_radix(hex, 16).expect("a percent escape"));
+                    index += 3;
+                }
+                b'+' if plus_is_space => {
+                    out.push(b' ');
+                    index += 1;
+                }
+                byte => {
+                    out.push(byte);
+                    index += 1;
+                }
+            }
+        }
+        String::from_utf8(out).expect("UTF-8")
+    }
+
+    impl CloudflareStandIn {
+        fn start(accounts: &[&str], buckets: &[(&str, &str, Vec<String>)]) -> Self {
+            use std::net::TcpListener;
+            let mut state = StandInState {
+                accounts: accounts.iter().map(|id| id.to_string()).collect(),
+                ..StandInState::default()
+            };
+            for (account, bucket, keys) in buckets {
+                state.buckets.insert(
+                    (account.to_string(), bucket.to_string()),
+                    keys.iter().cloned().collect(),
+                );
+            }
+            let state = std::sync::Arc::new(Mutex::new(state));
+            let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let listener = TcpListener::bind("127.0.0.1:0").expect("a free port");
+            let port = listener.local_addr().expect("the bound address").port();
+            let server_state = state.clone();
+            let server_stop = stop.clone();
+            let server = std::thread::spawn(move || {
+                for stream in listener.incoming() {
+                    if server_stop.load(Ordering::SeqCst) {
+                        break;
+                    }
+                    if let Ok(stream) = stream {
+                        Self::answer(stream, &server_state);
+                    }
+                }
+            });
+            Self {
+                base: format!("http://127.0.0.1:{port}/client/v4"),
+                port,
+                state,
+                stop,
+                server: Some(server),
+            }
+        }
+
+        fn answer(stream: std::net::TcpStream, state: &Mutex<StandInState>) {
+            use std::io::{BufRead, BufReader, Write};
+            let mut reader = BufReader::new(stream.try_clone().expect("the stream"));
+            let mut request_line = String::new();
+            if reader.read_line(&mut request_line).is_err() || request_line.is_empty() {
+                return;
+            }
+            let mut authorization = String::new();
+            loop {
+                let mut line = String::new();
+                if reader.read_line(&mut line).is_err() || line == "\r\n" || line.is_empty() {
+                    break;
+                }
+                if let Some(value) = line.to_ascii_lowercase().strip_prefix("authorization:") {
+                    authorization = value.trim().to_string();
+                }
+            }
+            let mut parts = request_line.split_whitespace();
+            let method = parts.next().unwrap_or("").to_string();
+            let target = parts.next().unwrap_or("").to_string();
+            let (status, body) = if authorization != "bearer the-login" {
+                (401, Self::failed(10000, "Authentication error"))
+            } else {
+                let mut state = lock(state);
+                state.requests.push(format!("{method} {target}"));
+                Self::route(&mut state, &method, &target)
+            };
+            let text = body.to_string();
+            let response = format!(
+                "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{text}",
+                text.len()
+            );
+            let mut stream = stream;
+            let _ = stream.write_all(response.as_bytes());
+        }
+
+        fn failed(code: i64, message: &str) -> serde_json::Value {
+            serde_json::json!({
+                "success": false,
+                "errors": [{ "code": code, "message": message }],
+                "messages": [],
+                "result": null
+            })
+        }
+
+        fn route(state: &mut StandInState, method: &str, target: &str) -> (u16, serde_json::Value) {
+            let (path, query) = target.split_once('?').unwrap_or((target, ""));
+            let query: HashMap<String, String> = query
+                .split('&')
+                .filter_map(|pair| pair.split_once('='))
+                .map(|(name, value)| (name.to_string(), percent_decode(value, true)))
+                .collect();
+            let Some(path) = path.strip_prefix("/client/v4/accounts") else {
+                return (404, Self::failed(7000, "No route for that URI"));
+            };
+            if path.is_empty() && method == "GET" {
+                let accounts: Vec<serde_json::Value> = state
+                    .accounts
+                    .iter()
+                    .map(|id| serde_json::json!({ "id": id, "name": "Account" }))
+                    .collect();
+                let count = accounts.len();
+                return (
+                    200,
+                    serde_json::json!({
+                        "success": true, "errors": [], "messages": [], "result": accounts,
+                        "result_info": { "page": 1, "per_page": 50, "count": count, "total_count": count, "total_pages": 1 }
+                    }),
+                );
+            }
+            let rest = path.trim_start_matches('/');
+            let mut segments = rest.splitn(6, '/');
+            let account = segments.next().unwrap_or("").to_string();
+            let r2 = segments.next().unwrap_or("");
+            let buckets = segments.next().unwrap_or("");
+            let bucket = segments.next().unwrap_or("").to_string();
+            let objects = segments.next();
+            let key = segments.next().map(|raw| percent_decode(raw, false));
+            if r2 != "r2" || buckets != "buckets" || !state.accounts.contains(&account) {
+                return (404, Self::failed(7003, "Could not route to that account"));
+            }
+            let id = (account, bucket);
+            if !state.buckets.contains_key(&id) {
+                return (
+                    404,
+                    Self::failed(10006, "The specified bucket does not exist."),
+                );
+            }
+            match (method, objects, key) {
+                ("GET", None, None) => (
+                    200,
+                    serde_json::json!({ "success": true, "errors": [], "messages": [], "result": { "name": id.1 } }),
+                ),
+                ("DELETE", None, None) => {
+                    if state.buckets[&id].is_empty() {
+                        state.buckets.remove(&id);
+                        (
+                            200,
+                            serde_json::json!({ "success": true, "errors": [], "messages": [], "result": {} }),
+                        )
+                    } else {
+                        (
+                            409,
+                            Self::failed(10008, "The bucket you tried to delete is not empty."),
+                        )
+                    }
+                }
+                ("GET", Some("objects"), None) => {
+                    let per_page = query
+                        .get("per_page")
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .unwrap_or(1000)
+                        .clamp(1, 1000);
+                    let keys = &state.buckets[&id];
+                    let after = query.get("cursor").cloned();
+                    let page: Vec<String> = keys
+                        .iter()
+                        .filter(|key| after.as_ref().is_none_or(|after| *key > after))
+                        .take(per_page + 1)
+                        .cloned()
+                        .collect();
+                    let truncated = page.len() > per_page;
+                    let page: Vec<String> = page.into_iter().take(per_page).collect();
+                    let cursor = page.last().cloned().unwrap_or_default();
+                    if let Some(gone) = state.vanishes.clone()
+                        && page.contains(&gone)
+                    {
+                        state.buckets.get_mut(&id).map(|keys| keys.remove(&gone));
+                        state.vanishes = None;
+                    }
+                    let result: Vec<serde_json::Value> = page
+                        .iter()
+                        .map(|key| serde_json::json!({ "key": key, "size": 1 }))
+                        .collect();
+                    (
+                        200,
+                        serde_json::json!({
+                            "success": true, "errors": [], "messages": [], "result": result,
+                            "result_info": { "cursor": cursor, "is_truncated": truncated, "per_page": per_page }
+                        }),
+                    )
+                }
+                ("DELETE", Some("objects"), Some(key)) => {
+                    let keys = state.buckets.get_mut(&id).expect("the bucket");
+                    if keys.remove(&key) {
+                        (
+                            200,
+                            serde_json::json!({ "success": true, "errors": [], "messages": [], "result": {} }),
+                        )
+                    } else {
+                        (
+                            404,
+                            Self::failed(10007, "The specified key does not exist."),
+                        )
+                    }
+                }
+                _ => (405, Self::failed(10000, "Method not allowed")),
+            }
+        }
+
+        fn api(&self, account: Option<&str>) -> CloudflareApi {
+            CloudflareApi {
+                base: self.base.clone(),
+                account: account.map(str::to_string),
+            }
+        }
+
+        fn keys(&self, account: &str, bucket: &str) -> Option<usize> {
+            lock(&self.state)
+                .buckets
+                .get(&(account.to_string(), bucket.to_string()))
+                .map(|keys| keys.len())
+        }
+
+        fn requests(&self) -> Vec<String> {
+            lock(&self.state).requests.clone()
+        }
+    }
+
+    impl Drop for CloudflareStandIn {
+        fn drop(&mut self) {
+            self.stop.store(true, Ordering::SeqCst);
+            // Wakes the accept loop so it sees the stop and ends.
+            let _ = std::net::TcpStream::connect(("127.0.0.1", self.port));
+            if let Some(server) = self.server.take() {
+                let _ = server.join();
+            }
+        }
+    }
+
+    /// 1,207 objects named as the Worker names them (docs/data-model.md): more than one page of
+    /// backups, one key that needs escaping, and the settings object.
+    fn filled_bucket() -> Vec<String> {
+        let mut keys: Vec<String> = (0..1205)
+            .map(|index| {
+                format!("workspace-backups/{index:08}-0000-4000-8000-000000000000.tar.zst")
+            })
+            .collect();
+        keys.push(String::from("workspace-backups/a name+plus%.tar.zst"));
+        keys.push(String::from("settings/user.json"));
+        keys
+    }
+
     #[test]
-    fn an_uninstall_deletes_the_worker_its_container_its_images_and_the_bucket() {
-        let (folder, wrangler, record) = fake_wrangler(
-            "#!/bin/sh\n\
-             echo \"$*\" >> RECORD\n\
-             if [ \"$1\" = \"containers\" ] && [ \"$2\" = \"list\" ]; then\n\
-               echo '[{\"id\":\"abc\",\"name\":\"conducted-cloud-sandbox\"}]'; exit 0; fi\n\
-             if [ \"$1\" = \"containers\" ] && [ \"$2\" = \"images\" ] && [ \"$3\" = \"list\" ]; then\n\
-               echo '[{\"name\":\"conducted-cloud-workspace-sandbox\",\"tags\":[\"wrangler-a\"]}]'; exit 0; fi\n\
-             if [ \"$1\" = \"r2\" ] && [ \"$3\" = \"list\" ]; then\n\
-               echo 'name:           conducted-cloud'; exit 0; fi\n\
-             exit 0\n",
-        );
+    fn an_uninstall_empties_the_bucket_and_deletes_it() {
+        let (folder, wrangler, record) = fake_wrangler(UNINSTALL_WRANGLER);
         let resources = resources_folder(&folder);
-        uninstall_worker(&wrangler, &resources, "conducted-cloud").expect("an uninstall");
+        let cloudflare = CloudflareStandIn::start(
+            &["acc1"],
+            &[
+                ("acc1", "conducted-cloud", filled_bucket()),
+                (
+                    "acc1",
+                    "conducted-cloud-old",
+                    vec![String::from("keep.json")],
+                ),
+                ("acc1", "other", vec![String::from("settings/user.json")]),
+            ],
+        );
+        // Another writer deletes one backup between the listing and the uninstall's delete.
+        lock(&cloudflare.state).vanishes = Some(String::from(
+            "workspace-backups/00000003-0000-4000-8000-000000000000.tar.zst",
+        ));
+        let removed = uninstall_worker(
+            &wrangler,
+            &cloudflare.api(None),
+            &resources,
+            "conducted-cloud",
+        )
+        .expect("an uninstall");
+        assert_eq!(
+            removed,
+            CloudUninstallPayload {
+                worker: true,
+                container: true,
+                images: 1,
+                bucket: true,
+                objects: 1206,
+            }
+        );
+        assert_eq!(cloudflare.keys("acc1", "conducted-cloud"), None);
+        // Buckets with another name, even one that starts with the Worker's name, keep everything.
+        assert_eq!(cloudflare.keys("acc1", "conducted-cloud-old"), Some(1));
+        assert_eq!(cloudflare.keys("acc1", "other"), Some(1));
+        let requests = cloudflare.requests();
+        assert!(
+            requests.iter().all(|request| {
+                request.starts_with("GET /client/v4/accounts?")
+                    || request.contains("/accounts/acc1/r2/buckets/conducted-cloud/")
+                    || request.ends_with("/accounts/acc1/r2/buckets/conducted-cloud")
+            }),
+            "{requests:?}"
+        );
+        let listings = requests
+            .iter()
+            .filter(|request| {
+                request
+                    .starts_with("GET /client/v4/accounts/acc1/r2/buckets/conducted-cloud/objects?")
+            })
+            .count();
+        assert!(listings >= 2, "{listings} listings");
+        assert!(requests.contains(&String::from(
+            "DELETE /client/v4/accounts/acc1/r2/buckets/conducted-cloud/objects/workspace-backups/a%20name%2Bplus%25.tar.zst"
+        )));
         let calls = std::fs::read_to_string(&record).expect("the record");
         let lines: Vec<&str> = calls.lines().collect();
         assert_eq!(lines[0], "delete --name conducted-cloud --force");
@@ -1943,7 +2762,97 @@ mod tests {
                 &"containers images delete conducted-cloud-workspace-sandbox:wrangler-a -y"
             )
         );
-        assert!(lines.contains(&"r2 bucket delete conducted-cloud"));
+        // The bucket goes through the API only; wrangler is never asked to delete it.
+        assert!(!calls.contains("r2 bucket delete"));
+    }
+
+    #[test]
+    fn a_second_uninstall_finds_no_bucket_and_succeeds() {
+        let (folder, wrangler, _record) = fake_wrangler(UNINSTALL_WRANGLER);
+        let resources = resources_folder(&folder);
+        let cloudflare = CloudflareStandIn::start(
+            &["acc1"],
+            &[("acc1", "other", vec![String::from("keep.json")])],
+        );
+        let removed = uninstall_worker(
+            &wrangler,
+            &cloudflare.api(None),
+            &resources,
+            "conducted-cloud",
+        )
+        .expect("an uninstall");
+        assert!(!removed.bucket);
+        assert_eq!(removed.objects, 0);
+        assert_eq!(cloudflare.keys("acc1", "other"), Some(1));
+        assert!(
+            !cloudflare
+                .requests()
+                .iter()
+                .any(|request| request.starts_with("DELETE"))
+        );
+    }
+
+    #[test]
+    fn a_bucket_name_two_accounts_hold_is_refused_unless_the_account_is_named() {
+        let (folder, wrangler, _record) = fake_wrangler(UNINSTALL_WRANGLER);
+        let resources = resources_folder(&folder);
+        let cloudflare = CloudflareStandIn::start(
+            &["acc1", "acc2"],
+            &[
+                (
+                    "acc1",
+                    "conducted-cloud",
+                    vec![String::from("settings/user.json")],
+                ),
+                (
+                    "acc2",
+                    "conducted-cloud",
+                    vec![String::from("settings/user.json")],
+                ),
+            ],
+        );
+        let error = uninstall_worker(
+            &wrangler,
+            &cloudflare.api(None),
+            &resources,
+            "conducted-cloud",
+        )
+        .expect_err("an unclear account");
+        assert_eq!(error.code(), "cloud_bucket_account_unclear");
+        assert!(
+            !cloudflare
+                .requests()
+                .iter()
+                .any(|request| request.starts_with("DELETE"))
+        );
+        let removed = uninstall_worker(
+            &wrangler,
+            &cloudflare.api(Some("acc2")),
+            &resources,
+            "conducted-cloud",
+        )
+        .expect("an uninstall of the named account");
+        assert_eq!((removed.bucket, removed.objects), (true, 1));
+        assert_eq!(cloudflare.keys("acc1", "conducted-cloud"), Some(1));
+        assert_eq!(cloudflare.keys("acc2", "conducted-cloud"), None);
+    }
+
+    #[test]
+    fn wranglers_login_is_read_and_an_object_key_becomes_a_path() {
+        let login =
+            parse_login("A warning\n{\n    \"type\": \"oauth\",\n    \"token\": \"abc\"\n}\n");
+        assert!(matches!(login, Some(ApiLogin::Token(token)) if token == "abc"));
+        let key = parse_login("{\"type\":\"api_key\",\"key\":\"k\",\"email\":\"e\"}");
+        assert!(matches!(key, Some(ApiLogin::Key { email, key }) if email == "e" && key == "k"));
+        assert!(parse_login("Not logged in").is_none());
+        assert!(parse_login("{\"type\":\"oauth\",\"token\":\"\"}").is_none());
+        assert_eq!(
+            object_path("backups/a b+c%/x.json").as_deref(),
+            Some("backups/a%20b%2Bc%25/x.json")
+        );
+        assert_eq!(object_path("a/../settings/user.json"), None);
+        assert_eq!(object_path("./x"), None);
+        assert!(checked_account_id("acc/../x").is_err());
     }
 
     #[test]

@@ -20,8 +20,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use conducted_lib::cloud::{
-    WRANGLER_TIMEOUT, Wrangler, bucket_names, container_id, deploy_worker, image_refs,
-    make_pairing_token, uninstall_worker,
+    CloudflareApi, WRANGLER_TIMEOUT, Wrangler, bucket_names, container_id, deploy_worker,
+    image_refs, make_pairing_token, uninstall_worker,
 };
 
 /// A name no other run uses, and one the brief allows: `conducted-dev-c08-<hhmmss>`.
@@ -112,7 +112,7 @@ fn deploy_and_uninstall_through_the_flow() {
         .unwrap_or(false);
 
     let uninstall_began = Instant::now();
-    let removed = uninstall_worker(&wrangler, &resources, &name);
+    let removed = uninstall_worker(&wrangler, &CloudflareApi::from_env(), &resources, &name);
     let uninstall_ms = uninstall_began.elapsed().as_millis();
 
     // Every list must be clear of this run's resources.

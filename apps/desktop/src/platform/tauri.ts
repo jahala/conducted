@@ -74,6 +74,7 @@ import type {
 	CloudRelay,
 	CloudRequest,
 	CloudResponse,
+	CloudUninstallResult,
 	ConductorCopy,
 	ConductorImport,
 	ConductorSnapshot,
@@ -1409,7 +1410,7 @@ export function createTauriCloud(bindings: TauriBindings): Cloud {
 		onDeployEvent: (listener) =>
 			onEvent<CloudDeployEvent>(bindings, EVENTS.cloudDeployStep, listener),
 		uninstall: (input) =>
-			invokeResult<void>(bindings, COMMANDS.cloudUninstall, { input: input ?? {} }),
+			invokeResult<CloudUninstallResult>(bindings, COMMANDS.cloudUninstall, { input: input ?? {} }),
 		request: (request: CloudRequest) =>
 			invokeResult<CloudResponse>(bindings, COMMANDS.cloudRequest, { input: request }),
 		openRelay: async (input) => {

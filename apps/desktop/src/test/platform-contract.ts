@@ -2672,7 +2672,7 @@ export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
 	"cloud.onDeployEvent":
 		"Only fires while cloud.deploy runs in the shell; cloud.rs's tests prove each step and the deploy service test proves the store.",
 	"cloud.uninstall":
-		"Runs wrangler against the user's own Cloudflare account; cloud.rs's tests drive the real command path with a stand-in program.",
+		"Runs wrangler and Cloudflare's API against the user's own account; cloud.rs's tests drive the real command path with a stand-in program and a stand-in API.",
 };
 
 /** Methods that are neither covered by a case nor listed with a reason. */

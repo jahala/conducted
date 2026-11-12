@@ -35,7 +35,12 @@ import type {
 	TurnId,
 	WorkspaceId,
 } from "@conducted/shared";
-import type { CloudDeployResult, CloudPairInput, CloudPairing } from "../platform/platform.ts";
+import type {
+	CloudDeployResult,
+	CloudPairInput,
+	CloudPairing,
+	CloudUninstallResult,
+} from "../platform/platform.ts";
 import type { CloudDeployState } from "./cloud/deploy.ts";
 import type { LocalMcpScan } from "./cloud/mcp-import.ts";
 import type { CloudGitIdentity, CloudSettings } from "./cloud/settings.ts";
@@ -850,7 +855,7 @@ export interface Actions {
 		/** Deploys the app's bundled Worker to the user's account and pairs this Mac (CLOUD-08). */
 		deploy: Act<[], CloudDeployResult>;
 		/** Deletes the Worker, its container application and its bucket, and unpairs (CLOUD-08). */
-		uninstall: Act<[], void>;
+		uninstall: Act<[], CloudUninstallResult>;
 		/** Saves the commit identity cloud workspaces use, or clears it with null (CLOUD-17). */
 		saveGitIdentity: Act<[identity: CloudGitIdentity | null], CloudSettings>;
 		/** Adds or replaces one personal cloud variable (CLOUD-17). */

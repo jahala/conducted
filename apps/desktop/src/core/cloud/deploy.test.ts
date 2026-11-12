@@ -17,7 +17,8 @@ function deployDoor(deploy: () => Promise<Result<CloudDeployResult>>) {
 	return {
 		door: {
 			deploy,
-			uninstall: async () => ok(undefined),
+			uninstall: async () =>
+				ok({ worker: true, container: true, images: 1, bucket: true, objects: 0 }),
 			onDeployEvent: (listener: (event: CloudDeployEvent) => void) => {
 				listeners.add(listener);
 				return () => listeners.delete(listener);
