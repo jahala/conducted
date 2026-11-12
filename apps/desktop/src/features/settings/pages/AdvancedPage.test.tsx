@@ -412,7 +412,9 @@ describe("SET-02 AdvancedPage", () => {
 
 	it("asks before changing the root folder and saves the new path", async () => {
 		const mounted = await mountPage();
-		vi.spyOn(mounted.container.actions.app, "pickFolder").mockResolvedValue(ok("/tmp/new-root"));
+		const pickFolder = vi
+			.spyOn(mounted.container.actions.app, "pickFolder")
+			.mockResolvedValue(ok("/tmp/new-root"));
 
 		// Conductor's button is "Browse", under the description with the path field beside it.
 		fireEvent.click(screen.getByRole("button", { name: "Browse" }));
@@ -424,6 +426,8 @@ describe("SET-02 AdvancedPage", () => {
 				"/tmp/new-root",
 			),
 		);
+		// The system folder picker's title: Conductor's, with our product name (renderApp @10967435, D132).
+		expect(pickFolder).toHaveBeenCalledWith("Select Conducted root directory");
 	});
 });
 

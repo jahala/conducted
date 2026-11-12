@@ -65,10 +65,15 @@ describe("WS-07 Link workspaces and directories dialog", () => {
 	it("saves a folder chosen from the system picker", async () => {
 		const { test, workspace } = await setup();
 		test.memory.controls.queueDialogAnswers({ folder: "/code/shared" });
+		const pickFolder = vi.spyOn(test.memory.platform.dialogs, "pickFolder");
 		const onOpenChange = renderDialog(test, workspace.id);
 
 		fireEvent.click(screen.getByRole("button", { name: "Select working directories" }));
 		expect(await screen.findByText("/code/shared")).toBeTruthy();
+		// The system folder picker's title, as Conductor's (renderApp @5685048, D132).
+		expect(pickFolder).toHaveBeenCalledWith(
+			expect.objectContaining({ title: "Select directory to link" }),
+		);
 		fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));

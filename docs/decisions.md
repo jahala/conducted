@@ -965,3 +965,13 @@ Chosen:
 - **Left out.** Conductor's first rule draws a `[LINEAR]-` or `[GITHUB]-` attachment with its own Linear and GitHub images; we have neither image. Folders keep our own glyph; Conductor draws codicons' folder in the muted colour.
 
 Why: the owner's rule. Every glyph comes from its published package, never from Conductor's bundle (D002), and is checked against Conductor's at the same version.
+
+## D132. A system dialog's title is checked by a test, not a catalogue state (2026-11-12)
+
+Decided in the parity work under the owner's rule "Match Conductor. Nothing made up; gaps are reported."
+
+Context: Conductor titles its system folder pickers "Select project directory", "Select directory to link" and "Select Conductor root directory" (renderApp @1717947, @5685048, @10967435). macOS draws those windows outside the page, so no catalogue state can show them, and the parity harness's check b never sees them. Ours passes the same titles to `Platform.dialogs.pickFolder`, with our product name in the third (D012).
+
+Chosen: a parity entry that is the title of a system dialog is mapped to D132. Its note names the screen that opens the dialog and the test that asserts the title the Platform receives. The test drives the real screen, so changing the title fails it. A dialog the app draws itself stays a catalogue match.
+
+Why: the words are on screen and must match Conductor's. Only a test can see them, so the decision names the test that holds them.

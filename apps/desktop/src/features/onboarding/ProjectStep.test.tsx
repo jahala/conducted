@@ -43,10 +43,15 @@ describe("APP-02 onboarding project step", () => {
 			.spyOn(test.container.services.repo, "addLocal")
 			.mockResolvedValue(ok(project("/code/my-app")));
 		test.memory.controls.queueDialogAnswers({ folder: "/code/my-app" });
+		const pickFolder = vi.spyOn(test.memory.platform.dialogs, "pickFolder");
 		try {
 			fireEvent.click(screen.getByRole("button", { name: "Add a project" }));
 			await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
 			expect(addLocal).toHaveBeenCalledWith("/code/my-app");
+			// The system folder picker's title, as Conductor's (renderApp @1717947, D132).
+			expect(pickFolder).toHaveBeenCalledWith(
+				expect.objectContaining({ title: "Select project directory" }),
+			);
 		} finally {
 			close(test);
 		}
