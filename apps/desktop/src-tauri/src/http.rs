@@ -305,7 +305,7 @@ fn response_headers(
     Ok(collected)
 }
 
-async fn fetch_request(
+pub(crate) async fn fetch_request(
     allowed_hosts: &[&str],
     request: HttpRequestInput,
 ) -> CommandResult<HttpResponsePayload> {
@@ -420,6 +420,13 @@ impl Drop for TempFile {
     }
 }
 
+fn size_mismatch(message: &str) -> CommandError {
+    CommandError::Failed {
+        code: "http_size_mismatch",
+        message: message.to_string(),
+    }
+}
+
 fn cancelled_error() -> CommandError {
     CommandError::Failed {
         code: "http_cancelled",
@@ -427,16 +434,28 @@ fn cancelled_error() -> CommandError {
     }
 }
 
+/// What a download must be, each part when it is known: the SHA-256 and the size in bytes its
+/// publisher states.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct Expected<'a> {
+    pub sha256: Option<&'a str>,
+    pub size: Option<u64>,
+}
+
+/// Downloads `url_text` to `destination` through a temporary file that is renamed into place only
+/// after the whole file arrived and matched what is `expected`. A failed, cut-off or refused
+/// download leaves nothing at `destination` and no temporary file.
 pub(crate) async fn download_request(
     allowed_hosts: &[&str],
     url_text: &str,
     destination: &Path,
-    expected_sha256: Option<&str>,
+    expected: Expected<'_>,
     stall_timeout: Duration,
     cancel: CancellationToken,
     mut progress: impl FnMut(u64, Option<u64>) -> CommandResult<()>,
 ) -> CommandResult<DownloadOutcome> {
-    let expected = match expected_sha256 {
+    let expected_size = expected.size;
+    let expected = match expected.sha256 {
         Some(text) => Some(parse_sha256(text)?),
         None => None,
     };
@@ -511,6 +530,13 @@ pub(crate) async fn download_request(
             })?;
         hasher.update(&chunk);
         received += chunk.len() as u64;
+        if let Some(size) = expected_size
+            && received > size
+        {
+            return Err(size_mismatch(&format!(
+                "The download is larger than the {size} bytes its release states."
+            )));
+        }
         progress(received, total)?;
     }
     file.flush().await.map_err(|error| CommandError::Failed {
@@ -530,6 +556,13 @@ pub(crate) async fn download_request(
             ),
         })?;
     drop(file);
+    if let Some(size) = expected_size
+        && received != size
+    {
+        return Err(size_mismatch(&format!(
+            "The download has {received} bytes, not the {size} bytes its release states."
+        )));
+    }
     let sha256 = digest_hex(hasher.finalize());
     if let Some(expected) = expected
         && sha256 != expected
@@ -614,7 +647,10 @@ async fn registered_download(
         allowed_hosts,
         url,
         destination,
-        expected_sha256,
+        Expected {
+            sha256: expected_sha256,
+            size: None,
+        },
         Duration::from_millis(DOWNLOAD_STALL_TIMEOUT_MS),
         token,
         progress,
@@ -870,7 +906,10 @@ mod tests {
             &["127.0.0.1"],
             &url,
             &destination,
-            Some(expected.as_str()),
+            Expected {
+                sha256: Some(expected.as_str()),
+                size: None,
+            },
             TEST_STALL,
             CancellationToken::new(),
             move |received, total| {
@@ -910,7 +949,10 @@ mod tests {
             &["127.0.0.1"],
             &url,
             &destination,
-            Some(wrong.as_str()),
+            Expected {
+                sha256: Some(wrong.as_str()),
+                size: None,
+            },
             TEST_STALL,
             CancellationToken::new(),
             |_, _| Ok(()),
@@ -926,6 +968,46 @@ mod tests {
                 .is_none(),
             "a temporary file was left behind"
         );
+    }
+
+    #[test]
+    fn plat_28_a_download_of_another_size_than_its_release_states_is_refused_and_leaves_no_file() {
+        let payload = b"the real bytes".to_vec();
+        let checksum = digest_hex(Sha256::digest(&payload));
+        // One size below the file and one above it: the first is caught while the bytes arrive,
+        // the second once the server has sent them all. The checksum matches in both.
+        for stated in [payload.len() as u64 - 1, payload.len() as u64 + 1] {
+            let outgoing = payload.clone();
+            let (url, server) = respond_once(move |stream| {
+                read_request(stream);
+                send_response(stream, "200 OK", "", &outgoing);
+            });
+            let folder = temp_dir("size");
+            let destination = folder.path.join("agent.bin");
+            let error = tauri::async_runtime::block_on(download_request(
+                &["127.0.0.1"],
+                &url,
+                &destination,
+                Expected {
+                    sha256: Some(checksum.as_str()),
+                    size: Some(stated),
+                },
+                TEST_STALL,
+                CancellationToken::new(),
+                |_, _| Ok(()),
+            ))
+            .expect_err("the size does not match");
+            server.join().expect("the test server ends");
+            assert_eq!(error_code(&error), "http_size_mismatch", "stated {stated}");
+            assert!(!destination.exists(), "the destination must not exist");
+            assert!(
+                std::fs::read_dir(&folder.path)
+                    .expect("read the test folder")
+                    .next()
+                    .is_none(),
+                "a temporary file was left behind"
+            );
+        }
     }
 
     #[test]
@@ -955,7 +1037,7 @@ mod tests {
             &["127.0.0.1"],
             &url,
             &destination,
-            None,
+            Expected::default(),
             TEST_STALL,
             cancel,
             move |received, _| {
@@ -991,7 +1073,7 @@ mod tests {
             &["127.0.0.1"],
             &url,
             &destination,
-            None,
+            Expected::default(),
             TEST_STALL,
             CancellationToken::new(),
             |_, _| Ok(()),
@@ -1012,7 +1094,7 @@ mod tests {
             ALLOWED_HOSTS,
             "https://api.linear.app/file",
             &destination,
-            None,
+            Expected::default(),
             TEST_STALL,
             CancellationToken::new(),
             |_, _| Ok(()),
@@ -1029,7 +1111,10 @@ mod tests {
             &["127.0.0.1"],
             "http://127.0.0.1:1/file",
             &destination,
-            Some("abc"),
+            Expected {
+                sha256: Some("abc"),
+                size: None,
+            },
             TEST_STALL,
             CancellationToken::new(),
             |_, _| Ok(()),
@@ -1078,7 +1163,7 @@ mod tests {
             &["127.0.0.1"],
             &url,
             &destination,
-            None,
+            Expected::default(),
             TEST_STALL,
             cancel,
             |_, _| Ok(()),
@@ -1101,7 +1186,7 @@ mod tests {
             &["127.0.0.1"],
             &url,
             &destination,
-            None,
+            Expected::default(),
             Duration::from_millis(200),
             CancellationToken::new(),
             |_, _| Ok(()),
@@ -1128,7 +1213,7 @@ mod tests {
             &["127.0.0.1"],
             &url,
             &destination,
-            None,
+            Expected::default(),
             Duration::from_millis(200),
             CancellationToken::new(),
             |_, _| Ok(()),
