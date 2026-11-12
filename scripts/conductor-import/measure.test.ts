@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import {
 	mkdirSync,
 	mkdtempSync,
@@ -23,9 +23,23 @@ import { SOCKET_BASE } from "./measure.ts";
 
 const MEASURE = join(import.meta.dir, "measure.ts");
 
-/** The large made-up chat: 10,000 turns of five rows each. */
-const BIG_TURNS = 10_000;
-const BIG_ROWS = BIG_TURNS * 5;
+/**
+ * The large made-up chat, at the size of the owner's long chats (#598): 200,700 rows in 22,300
+ * turns of nine rows, with 4,500 characters of output per tool call, about 338 million characters
+ * in all. Holding it would take the import process past its memory bound.
+ */
+const BIG_TURNS = 22_300;
+const BIG_CHAT = manyTurns(BIG_TURNS, 10, 4_500);
+const BIG_ROWS = BIG_CHAT.reduce((sum, turn) => sum + turn.rows.length, 0);
+/**
+ * How far above where it began each process's memory may rise while the import runs, in MB, set
+ * from the measurement (#598): on this chat the import process rose about 270 MB and the sidecar
+ * about 330 to 390 MB, most of it text their collectors had not yet freed. An import that kept the
+ * chat's events took the import process about 620 MB up.
+ */
+const IMPORT_RISE_MB = { app: 400, sidecar: 512 };
+/** Catches a hang only; a run on the large chat takes about 20 seconds on a loaded Mac. */
+setDefaultTimeout(300_000);
 const KNOWN_ROWS = KNOWN_CHAT.reduce((sum, turn) => sum + turn.rows.length, 0);
 
 /** Values seeded into the database and the project's folder that must never reach the output. */
@@ -63,9 +77,10 @@ const LINES = [
 	`chats timed: ${N}`,
 	String.raw`slowest chats \(rows, seconds\):`,
 	`  [1-5]: ${N} ${S}`,
-	`database queue: held ${N} times, longest ${S} s \\((a chat of ${N} rows|the rows' write)\\); the rows' write held it ${S} s`,
+	`database queue: held ${N} times, longest ${S} s \\((a chat of ${N} rows|the rows' write)\\); the rows' write held it ${S} s; the longest statement outside a transaction ${S} s`,
 	`reads of the copy: ${N} pages of keys, ${N} reads of rows`,
-	`peak resident memory, sampled every 250 ms: import process ${N} MB \\(${N} MB as the dry run began\\), sidecar ${N} MB, both together ${N} MB \\(${N} samples\\)`,
+	`peak resident memory in MB, import process and sidecar, sampled every 250 ms \\(${N} samples\\):`,
+	`  (as the dry run began|dry run|import|opening the largest chat): ${N}, ${N}`,
 	`largest chat: (no chat has events|${N} events, ${N} turns; opened in ${S} s, turns built in ${S} s)`,
 	`outside the run's folder: ${N} files written by the import kept in the run's folder, ${N} writes refused, ${N} commands refused`,
 	`scratch database in bytes, when the dry run ended: file ${N}, journal ${N}`,
@@ -147,7 +162,7 @@ function fixture(): { dir: string; copy: string; project: string } {
 	chat("s-codex", "w-1", "codex");
 	chat("s-behind", "w-2", "claude");
 	db.exec("BEGIN");
-	for (const row of conductorChatRows("s-secret-id-4", manyTurns(BIG_TURNS, 5, 200))) {
+	for (const row of conductorChatRows("s-secret-id-4", BIG_CHAT)) {
 		insert("session_messages", row);
 	}
 	for (const id of ["s-known", "s-codex", "s-behind"]) {
@@ -219,13 +234,21 @@ describe("APP-18 the full-size import measurement", () => {
 		expect(lines.find((line) => line.startsWith("largest chat:"))).toStartWith(
 			`largest chat: ${BIG_ROWS + BIG_TURNS} events, ${BIG_TURNS} turns;`,
 		);
-		// The sampler found both processes: the instrument reads something real.
-		const memory =
-			/import process (\d+) MB \((\d+) MB as the dry run began\), sidecar (\d+) MB/.exec(stdout);
-		expect(Number(memory?.[1])).toBeGreaterThan(0);
-		expect(Number(memory?.[2])).toBeGreaterThan(0);
-		expect(Number(memory?.[2])).toBeLessThanOrEqual(Number(memory?.[1]));
-		expect(Number(memory?.[3])).toBeGreaterThan(0);
+		// Memory by stage (#598). The sampler found both processes, so the instrument reads
+		// something real. The import holds one read at a time, so its memory stays within the
+		// bound. Opening the chat loads every event of it, and is counted apart from the import.
+		const memory = (stage: string): { app: number; sidecar: number } => {
+			const found = new RegExp(`^  ${stage}: (\\d+), (\\d+)$`, "m").exec(stdout);
+			return { app: Number(found?.[1]), sidecar: Number(found?.[2]) };
+		};
+		const began = memory("as the dry run began");
+		const imported = memory("import");
+		const opened = memory("opening the largest chat");
+		expect(began.app).toBeGreaterThan(0);
+		expect(began.sidecar).toBeGreaterThan(0);
+		expect(imported.app - began.app).toBeLessThan(IMPORT_RISE_MB.app);
+		expect(imported.sidecar - began.sidecar).toBeLessThan(IMPORT_RISE_MB.sidecar);
+		expect(opened.app).toBeGreaterThan(imported.app);
 		expect(lines).toContain(
 			"outside the run's folder: 1 files written by the import kept in the run's folder, 0 writes refused, 0 commands refused",
 		);
@@ -245,7 +268,8 @@ describe("APP-18 the full-size import measurement", () => {
 	});
 
 	test("a copy that is not a database fails with its stage only", () => {
-		const { dir } = fixture();
+		const dir = mkdtempSync(join(tmpdir(), "conducted-measure-test-"));
+		dirs.push(dir);
 		const broken = join(dir, "broken.db");
 		writeFileSync(broken, `not a database ${SEEDED.join(" ")}`);
 		const foldersBefore = runFolders();

@@ -54,6 +54,7 @@ The generated rows quote each migration's comment. Some comments in earlier migr
 
 | Store | Where | Lifetime | Enforced by |
 |---|---|---|---|
+| Imported chat's staging | a temporary SQLite database attached to the app's connection as `conductor_history`, in the system's temporary folder | One chat's history while the Conductor import reads it, before one statement copies it into `session_events` (APP-18, D136). The import detaches it after each chat, and SQLite deletes its file then, or when the app closes. | APP-18 |
 | Sidecar write-ahead event log | `$CONDUCTED_OUTBOX_ROOT/<session>` | An entry is removed when the UI confirms it. At most 20,000 pending entries per chat. A chat's file with nothing pending and no activity for 30 days moves to the Trash. | SIDE-06 |
 | App logs | app data `logs/` | 14 days; files roll over at 20 MB. Exports are removed after 7 days. | PLAT-18 |
 | Slash command cache | app data `sidecar-v2-completions/slash-command-snapshots.json` | An entry expires 30 days after its last refresh. At most 500 entries and 5 MiB; the oldest go first. | SIDE-22 |

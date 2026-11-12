@@ -5,7 +5,8 @@
  * in that folder (measure-import.ts, in a Node child started through measure-node.ts), samples
  * the resident memory of the import's process and of the sidecar every 250 ms, and prints counts
  * and timings only: the dry run's counts, the dry run's and the import's time, the five slowest
- * chats as rows and seconds, the longest hold of the database queue, peak memory, the time to
+ * chats as rows and seconds, the longest hold of the database queue, peak memory in each stage
+ * (the dry run, the import, and opening the largest chat, which loads all of it), the time to
  * open the largest imported chat and build its turns, and the dry run's estimate of the disk space
  * chat history takes beside the scratch database's file and journal after the import (D132). The
  * Rust shell clones the copy on APFS, and so does the Node stand-in, so neither copy takes space.
@@ -127,9 +128,13 @@ export function reportLines(measured: Measured, memory: MemoryPeaks): string[] {
 	const longestBy =
 		queue.longestRows === null ? "the rows' write" : `a chat of ${int(queue.longestRows)} rows`;
 	lines.push(
-		`database queue: held ${int(queue.holds)} times, longest ${secs(queue.longestSeconds)} s (${longestBy}); the rows' write held it ${secs(queue.rowsWriteSeconds)} s`,
+		`database queue: held ${int(queue.holds)} times, longest ${secs(queue.longestSeconds)} s (${longestBy}); the rows' write held it ${secs(queue.rowsWriteSeconds)} s; the longest statement outside a transaction ${secs(queue.longestStatementSeconds)} s`,
 		`reads of the copy: ${int(reads.keyPages)} pages of keys, ${int(reads.rowReads)} reads of rows`,
-		`peak resident memory, sampled every ${SAMPLE_MS} ms: import process ${mb(memory.app)} MB (${mb(memory.baseline)} MB as the dry run began), sidecar ${mb(memory.sidecar)} MB, both together ${mb(memory.both)} MB (${int(memory.samples)} samples)`,
+		`peak resident memory in MB, import process and sidecar, sampled every ${SAMPLE_MS} ms (${int(memory.samples)} samples):`,
+		`  as the dry run began: ${mb(memory.baseline.app)}, ${mb(memory.baseline.sidecar)}`,
+		...MEMORY_STAGES.map(
+			(stage) => `  ${stage}: ${mb(memory.stages[stage].app)}, ${mb(memory.stages[stage].sidecar)}`,
+		),
 		largest === null
 			? "largest chat: no chat has events"
 			: `largest chat: ${int(largest.events)} events, ${int(largest.turns)} turns; opened in ${secs(largest.openSeconds)} s, turns built in ${secs(largest.turnsSeconds)} s`,
@@ -141,24 +146,47 @@ export function reportLines(measured: Measured, memory: MemoryPeaks): string[] {
 	return lines;
 }
 
-/** Peak resident set sizes in KiB. */
-export interface MemoryPeaks {
-	/** The import process when the app had started and the dry run began. */
-	baseline: number;
+/**
+ * The stages memory is told apart by: the dry run, the import, and the measure's own open of the
+ * largest chat, which loads every event of it and so must not be counted as the import's.
+ */
+const MEMORY_STAGES = ["dry run", "import", "opening the largest chat"] as const;
+type MemoryStage = (typeof MEMORY_STAGES)[number];
+
+/** Resident set sizes in KiB: the import's process and the sidecar. */
+interface ProcessMemory {
 	app: number;
 	sidecar: number;
-	both: number;
+}
+
+/** Peak resident set sizes in KiB, per stage. */
+export interface MemoryPeaks {
+	/** When the app had started and the dry run began. */
+	baseline: ProcessMemory;
+	stages: Record<MemoryStage, ProcessMemory>;
 	samples: number;
 }
 
-/** Samples the two processes' resident memory with `ps`, by pid, every SAMPLE_MS. */
+/**
+ * Samples the two processes' resident memory with `ps`, by pid, every SAMPLE_MS, and keeps each
+ * stage's peaks. Entering a stage samples once first, so the stage before keeps its last value.
+ */
 function startSampler(pids: { app: number; sidecar: () => number | null }): {
 	markBaseline: () => void;
+	enter: (stage: MemoryStage) => void;
 	stop: () => MemoryPeaks;
 } {
-	const peaks: MemoryPeaks = { baseline: 0, app: 0, sidecar: 0, both: 0, samples: 0 };
-	let latestApp = 0;
-	const sample = (): void => {
+	const peaks: MemoryPeaks = {
+		baseline: { app: 0, sidecar: 0 },
+		stages: {
+			"dry run": { app: 0, sidecar: 0 },
+			import: { app: 0, sidecar: 0 },
+			"opening the largest chat": { app: 0, sidecar: 0 },
+		},
+		samples: 0,
+	};
+	let current: MemoryStage | null = null;
+	const sample = (): ProcessMemory => {
 		const sidecar = pids.sidecar();
 		const list = sidecar === null ? `${pids.app}` : `${pids.app},${sidecar}`;
 		const ran = Bun.spawnSync(["ps", "-o", "pid=,rss=", "-p", list], { stdout: "pipe" });
@@ -167,22 +195,33 @@ function startSampler(pids: { app: number; sidecar: () => number | null }): {
 			const [pid, kb] = line.trim().split(/\s+/).map(Number);
 			if (pid !== undefined && kb !== undefined && Number.isFinite(kb)) rss.set(pid, kb);
 		}
-		const app = rss.get(pids.app) ?? 0;
-		latestApp = app;
-		const side = sidecar === null ? 0 : (rss.get(sidecar) ?? 0);
-		peaks.app = Math.max(peaks.app, app);
-		peaks.sidecar = Math.max(peaks.sidecar, side);
-		peaks.both = Math.max(peaks.both, app + side);
+		const now = {
+			app: rss.get(pids.app) ?? 0,
+			sidecar: sidecar === null ? 0 : (rss.get(sidecar) ?? 0),
+		};
+		if (current !== null) {
+			const peak = peaks.stages[current];
+			peak.app = Math.max(peak.app, now.app);
+			peak.sidecar = Math.max(peak.sidecar, now.sidecar);
+		}
 		peaks.samples++;
+		return now;
 	};
 	const timer = setInterval(sample, SAMPLE_MS);
+	const enter = (stage: MemoryStage): void => {
+		sample();
+		current = stage;
+		sample();
+	};
 	return {
 		markBaseline: () => {
-			sample();
-			peaks.baseline = latestApp;
+			peaks.baseline = sample();
+			enter("dry run");
 		},
+		enter,
 		stop: () => {
 			clearInterval(timer);
+			sample();
 			return peaks;
 		},
 	};
@@ -268,7 +307,10 @@ export async function runMeasure(source: string): Promise<Outcome> {
 			const message = JSON.parse(line) as ChildMessage;
 			if (message.kind === "sidecar") sidecarPid = num(message.pid);
 			else if (message.kind === "started") sampler.markBaseline();
-			else if (message.kind === "dryRun") dryRun = message.dryRun;
+			else if (message.kind === "dryRun") {
+				dryRun = message.dryRun;
+				sampler.enter("import");
+			} else if (message.kind === "imported") sampler.enter("opening the largest chat");
 			else if (message.kind === "measured") measured = message.measured;
 			else failed = STAGES.has(message.stage) ? message.stage : "unknown";
 		}

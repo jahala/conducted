@@ -147,11 +147,25 @@ function append(event: Parameters<typeof sessionEventToParams>[1], receivedAt = 
 	);
 }
 
+/**
+ * The statements that use the Conductor import's staging (D136), which the import attaches, and
+ * whose table it makes, before it runs them.
+ */
+const ON_STAGING: ReadonlySet<string> = new Set([
+	SESSION_EVENTS_SQL.createStaging,
+	SESSION_EVENTS_SQL.stageMany,
+	SESSION_EVENTS_SQL.publishStaged,
+]);
+
 describe("every statement is valid SQLite against migration 0001", () => {
 	for (const [name, statements] of Object.entries(ALL_SQL)) {
 		for (const [key, sql] of Object.entries(statements)) {
 			it(`${name}.${key} prepares`, () => {
 				expect(typeof sql).toBe("string");
+				if (ON_STAGING.has(sql)) {
+					db.exec(SESSION_EVENTS_SQL.attachStaging);
+					if (sql !== SESSION_EVENTS_SQL.createStaging) db.exec(SESSION_EVENTS_SQL.createStaging);
+				}
 				expect(() => db.prepare(sql)).not.toThrow();
 			});
 		}
