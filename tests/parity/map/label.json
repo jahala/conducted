@@ -235,8 +235,7 @@
 		"screen": "inventory-controls Agents",
 		"backlog": "SIDE-14",
 		"item": "Each agent has a static model table with picker, gated and deprecated flags; ours has each runner report its own list",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"label:M322496": {
 		"status": "decided",
@@ -322,8 +321,7 @@
 		"screen": "inventory-controls Settings: Agents",
 		"backlog": "SET-10",
 		"item": "OpenCode provider catalogue: about 90 providers, each with the environment variable for its key",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"label:M335844": {
 		"status": "matched",
@@ -663,8 +661,7 @@
 		"screen": "inventory-controls Settings: Agents",
 		"backlog": "SET-10",
 		"item": "OpenCode provider catalogue: about 90 providers, each with the environment variable for its key",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"label:M340155": {
 		"status": "decided",
@@ -1328,8 +1325,7 @@
 		"screen": "Unplaced",
 		"backlog": "GIT-04",
 		"item": "Header 'Loading PR info...' and 'Checking mergeability...'",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"label:R2139834": {
 		"status": "matched",
@@ -2018,8 +2014,7 @@
 		"screen": "Unplaced",
 		"backlog": "SET-02",
 		"item": "Scopes user and workspace with 'reset to repo settings.toml' actions",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"label:R8822100": {
 		"status": "matched",
@@ -2217,8 +2212,7 @@
 		"screen": "Unplaced",
 		"backlog": "COMP-02",
 		"item": "'Fast' toggle in the model picker",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"label:R9240756": {
 		"status": "gap",
@@ -2234,8 +2228,7 @@
 		"screen": "Unplaced",
 		"backlog": "COMP-02",
 		"item": "Model picker 'Agent' submenu: Claude Code, Codex, Cursor",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"label:R9278910": {
 		"status": "gap",

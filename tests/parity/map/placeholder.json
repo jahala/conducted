@@ -178,8 +178,7 @@
 		"screen": "Unplaced",
 		"backlog": "COMP-02",
 		"item": "Model picker 'Model' submenu with 'Search models' and 'No models found'",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"placeholder:R9369318": {
 		"status": "matched",
@@ -274,8 +273,7 @@
 		"screen": "inventory-controls Settings",
 		"backlog": "SET-04",
 		"item": "Variable value editor's placeholder reads 'Use an empty value to set this variable to an empty string.'",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"placeholder:R10770889": {
 		"status": "decided",
@@ -347,8 +345,7 @@
 		"screen": "inventory-controls Settings: General",
 		"backlog": "GIT-08",
 		"item": "Git settings: the remote picker's placeholder reads 'Select remote...'",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"placeholder:R11133626": {
 		"status": "matched",

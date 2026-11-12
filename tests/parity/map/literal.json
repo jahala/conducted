@@ -409,8 +409,7 @@
 		"screen": "inventory-controls Agents",
 		"backlog": "COMP-02",
 		"item": "Model picker effort levels include 'Ultracode' (Claude)",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"literal:M321953": {
 		"status": "matched",
@@ -488,8 +487,7 @@
 		"screen": "Unplaced",
 		"backlog": "GIT-04",
 		"item": "Header 'Ready to merge' with 'Merge' (Cmd+Shift+M) named by merge method, and 'Merge stack'",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"literal:M643972": {
 		"status": "matched",
@@ -541,8 +539,7 @@
 		"screen": "Unplaced",
 		"backlog": "WS-01",
 		"item": "Before creating a workspace, rev-parse HEAD checks the repository is not empty; if it is, an empty initial commit is made.",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"literal:M1373821": {
 		"status": "gap",
@@ -550,8 +547,7 @@
 		"screen": "Unplaced",
 		"backlog": "AGENT-18",
 		"item": "A bundled skill folder holds SKILL.md, a 174-line guide for agents.",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"literal:M1419600": {
 		"status": "matched",
@@ -1665,8 +1661,7 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "NAV-04",
 		"item": "'New section...' (sidebar background menu and workspace menu)",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"literal:R5545591": {
 		"status": "gap",
@@ -1968,8 +1963,7 @@
 		"screen": "inventory-controls Composer",
 		"backlog": "SET-09",
 		"item": "Agents: Vertex project and provider choice",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"literal:R8877958": {
 		"status": "matched",
@@ -2001,8 +1995,7 @@
 		"screen": "Unplaced",
 		"backlog": "COMP-03",
 		"item": "'+' menu: 'Plan mode' and 'Exit plan mode' (Shift+Tab)",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"literal:R8909467": {
 		"status": "gap",
@@ -2066,8 +2059,7 @@
 		"screen": "Unplaced",
 		"backlog": "COMP-02",
 		"item": "Model picker footer names the effort shortcut 'Cycle effort'",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"literal:R9260202": {
 		"status": "gap",
@@ -2329,8 +2321,7 @@
 		"screen": "Unplaced",
 		"backlog": "PR-07",
 		"item": "Add or remove reviewers on a PR.",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"literal:R10076553": {
 		"status": "matched",
@@ -2493,8 +2484,7 @@
 		"screen": "Unplaced",
 		"backlog": "NAV-11",
 		"item": "Unread dot on the row",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"literal:R10361135": {
 		"status": "matched",

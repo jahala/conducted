@@ -2984,8 +2984,7 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "COMP-02",
 		"item": "Default models: 'Default model'",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"title:R11263302": {
 		"status": "matched",

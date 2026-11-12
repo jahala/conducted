@@ -53,8 +53,7 @@
 		"screen": "Unplaced",
 		"backlog": "REV-01",
 		"item": "Popover: PR status details (aria 'PR status details')",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"aria_label:R2269190": {
 		"status": "matched",
@@ -299,8 +298,7 @@
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CLOUD-15",
 		"item": "Cloud workspace header's rename control is named 'Rename workspace'",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"aria_label:R5627430": {
 		"status": "matched",
@@ -396,8 +394,7 @@
 		"screen": "inventory-controls Composer",
 		"backlog": "REV-03",
 		"item": "Draft comment attachment offers 'Edit in diff viewer' (aria), which opens the comment in the diff",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"aria_label:R8874837": {
 		"status": "matched",
@@ -469,8 +466,7 @@
 		"screen": "Unplaced",
 		"backlog": "COMP-02",
 		"item": "Model picker 'Model' submenu with 'Search models' and 'No models found'",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"aria_label:R9246234": {
 		"status": "matched",
