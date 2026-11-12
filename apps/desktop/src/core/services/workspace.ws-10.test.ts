@@ -169,7 +169,7 @@ async function harness(
 }
 
 const seedFolder = async (memory: ReturnType<typeof createMemoryPlatform>, path: string) => {
-	await memory.platform.fs.writeTextAtomic(`${path}/README.md`, "hello");
+	memory.controls.addFile(`${path}/README.md`, "hello");
 };
 
 describe("WS-10 delete a workspace", () => {
@@ -180,8 +180,8 @@ describe("WS-10 delete a workspace", () => {
 		await seedFolder(h.memory, h.repo.rootPath);
 		const setupLog = setupLogFile(h.memory.platform.fs.paths, workspace.id);
 		const viewed = viewedFilesFile(h.memory.platform.fs.paths, workspace.id);
-		await h.memory.platform.fs.writeTextAtomic(setupLog, "{}");
-		await h.memory.platform.fs.writeTextAtomic(viewed, "{}");
+		h.memory.controls.addFile(setupLog, "{}");
+		h.memory.controls.addFile(viewed, "{}");
 
 		const removed = await h.service.remove(workspace.id);
 

@@ -11,7 +11,8 @@
  * Must handle: a command answers as Rust does where the contract looks (an absent path stats as
  * null, a timeout is `shell_timeout`, a cancel is `shell_cancelled`, a send before the sidecar
  * started is `sidecar_not_started`, a file path outside the default roots and the registered ones is
- * `fs_out_of_scope`); a command Rust owns and Node cannot do honestly (Trash,
+ * `fs_out_of_scope`, a write into a missing folder is `fs_not_found`); a command Rust owns and Node
+ * cannot do honestly (Trash,
  * pty, keychain, the ignore and regex crates, macOS facts) is not answered, and the contract run
  * skips those cases by name. `dispose` stops every process, closes every database and drops
  * every listener, even when a case failed.
@@ -449,6 +450,10 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 			await rename(temp, path);
 		} catch (error) {
 			await rm(temp, { force: true });
+			// files.rs: a missing folder is fs_not_found, and the write never makes it (issue #600).
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+				throw new CommandFailure("fs_not_found", `${dirname(path)} does not exist.`);
+			}
 			throw new CommandFailure("fs_io", (error as Error).message);
 		}
 	};
@@ -532,6 +537,8 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 			case COMMANDS.attachmentWriteBytes: {
 				const destination = String(args.destinationPath);
 				const bytes = Buffer.from(String(args.data), "base64");
+				// attachments.rs makes the destination's folder, unlike the plain file write.
+				await mkdir(dirname(destination), { recursive: true });
 				await writeAtomic(destination, bytes.toString("utf8"));
 				return {
 					path: destination,
@@ -553,6 +560,7 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				const text = await readFile(source, "utf8").catch((error: Error) =>
 					fail("attachment_missing", error.message),
 				);
+				await mkdir(dirname(destination), { recursive: true });
 				await writeAtomic(destination, text);
 				return {
 					path: destination,

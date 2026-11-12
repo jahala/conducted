@@ -91,7 +91,7 @@ describe("SET-02 AdvancedPage", () => {
 					? ok({ exitCode: 1, stdout: "", stderr: "" })
 					: null,
 		);
-		expect((await test.container.platform.fs.writeTextAtomic(found, "")).ok).toBe(true);
+		test.memory.controls.addFile(found, "");
 		await test.container.services.settings.start();
 		render(
 			<ServicesProvider container={test.container}>
@@ -125,9 +125,7 @@ describe("SET-02 AdvancedPage", () => {
 			.spyOn(mounted.container.actions.app, "pickFile")
 			.mockResolvedValue(ok("/opt/tools/claude"));
 		// The picked program exists on the in-memory disk, so the path check lets it through.
-		expect((await mounted.container.platform.fs.writeTextAtomic("/opt/tools/claude", "")).ok).toBe(
-			true,
-		);
+		mounted.memory.controls.addFile("/opt/tools/claude", "");
 		const set = vi.spyOn(mounted.container.actions.settings, "set");
 
 		const input = screen.getByLabelText("Claude Code executable path");
@@ -447,17 +445,8 @@ describe("SET-02 AdvancedPage", () => {
 
 		it("browses with Conductor's titles and saves an existing key pair", async () => {
 			const mounted = await mountPage();
-			expect((await mounted.container.platform.fs.writeTextAtomic("/keys/custom", "")).ok).toBe(
-				true,
-			);
-			expect(
-				(
-					await mounted.container.platform.fs.writeTextAtomic(
-						"/keys/custom.pub",
-						"ssh-ed25519 AAAACUSTOM conducted\n",
-					)
-				).ok,
-			).toBe(true);
+			mounted.memory.controls.addFile("/keys/custom", "");
+			mounted.memory.controls.addFile("/keys/custom.pub", "ssh-ed25519 AAAACUSTOM conducted\n");
 			const pickFile = vi
 				.spyOn(mounted.container.actions.app, "pickFile")
 				.mockResolvedValue(ok("/keys/custom"));
