@@ -6,9 +6,11 @@ import { parseSettingsDocument } from "../services/settings.ts";
 import { tomlCodec } from "../services/toml-codec.ts";
 import {
 	type ConductedState,
+	importSpace,
 	type PlanInput,
 	planConductorImport,
 	type RepoFolder,
+	SPACE_MARGIN_BYTES,
 } from "./plan.ts";
 
 const ROOT = "/Users/me/conductor/repos/alpha";
@@ -267,5 +269,20 @@ describe("APP-17 the import's plan", () => {
 			settings: [{ key: "repo_conductor_config_file_migration_v2_complete", value: "true" }],
 		});
 		expect(migrated.files).toEqual([]);
+	});
+});
+
+describe("D132 the space the import needs", () => {
+	it("asks for the history, the largest chat twice more and the margin (D136)", () => {
+		// The journal holds the largest chat's transaction, and its staging holds it once more.
+		const space = importSpace({ diskBytes: 5e9, largestChatDiskBytes: 1e9 }, 10e9);
+		expect(space).toEqual({
+			historyBytes: 5e9,
+			neededBytes: 5e9 + 2 * 1e9 + SPACE_MARGIN_BYTES,
+			freeBytes: 10e9,
+			fits: true,
+		});
+		expect(importSpace({ diskBytes: 5e9, largestChatDiskBytes: 1e9 }, 9e9).fits).toBe(false);
+		expect(importSpace({ diskBytes: 0, largestChatDiskBytes: 0 }, 0).neededBytes).toBe(0);
 	});
 });

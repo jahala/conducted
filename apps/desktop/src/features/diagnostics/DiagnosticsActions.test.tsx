@@ -5,6 +5,8 @@ import { type DiagnosticsAction, DiagnosticsActions } from "./DiagnosticsActions
 afterEach(cleanup);
 
 describe("APP-03 diagnostics actions", () => {
+	// The labels are Conductor's: "Copy report" and "Ask agent to analyze redacted report"
+	// (renderApp @10610669 and @10611428, byte offsets).
 	it("calls onAction with the id of the button that was pressed", () => {
 		const actions: DiagnosticsAction[] = [];
 		render(
@@ -18,8 +20,8 @@ describe("APP-03 diagnostics actions", () => {
 
 		for (const name of [
 			"Copy redacted report",
-			"Copy full report",
-			"Create a new session with the redacted report attached",
+			"Copy report",
+			"Ask agent to analyze redacted report",
 			"Copy logs (may include personal data)",
 			"Restart",
 		]) {
@@ -40,7 +42,7 @@ describe("APP-03 diagnostics actions", () => {
 				}) as HTMLButtonElement
 			).disabled,
 		).toBe(true);
-		for (const name of ["Copy redacted report", "Copy full report", "Restart"]) {
+		for (const name of ["Copy redacted report", "Copy report", "Restart"]) {
 			expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
 		}
 	});
@@ -58,7 +60,7 @@ describe("APP-03 diagnostics actions", () => {
 		expect(
 			(
 				screen.getByRole("button", {
-					name: "Create a new session with the redacted report attached",
+					name: "Ask agent to analyze redacted report",
 				}) as HTMLButtonElement
 			).disabled,
 		).toBe(true);

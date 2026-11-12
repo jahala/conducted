@@ -13,7 +13,8 @@
  * no longer has is removed from the mirror at the next sync; a file over the shared cloud read
  * limit (D120) is skipped, named in the baseline with its size, and never read again while its
  * listed size stays over it; a mirror larger than the Worker's list cap is reported as
- * truncated rather than exhausting the app; a reveal that fails says "Could not open Downloads.
+ * truncated rather than exhausting the app; an upload whose mirror copy cannot be written stands,
+ * and the sync's state says the mirror failed, with the reason; a reveal that fails says "Could not open Downloads.
  * Try again."; a preview of a Local variant with no mirror says "Couldn't open preview: local
  * workspace mirror is unavailable.".
  * The workspace's "Sync files" switch is saved on its row (`remoteFileSyncEnabled`, migration
@@ -359,13 +360,38 @@ export class FileSyncService {
 		if (!answer.ok) return answer;
 		const mirror = this.mirrorPathOf(workspaceId);
 		if (mirror.ok) {
-			const local = `${mirror.value}/${guarded.value}`;
-			const parent = local.slice(0, local.lastIndexOf("/"));
-			if (parent.length > 0) await this.#deps.fs.mkdirp(parent);
-			if (text === null) await this.#deps.fs.writeBytes(local, read.value);
-			else await this.#deps.fs.writeTextAtomic(local, text);
+			const copied = await this.#copyToMirror(mirror.value, guarded.value, read.value, text);
+			// The sandbox has the file, so the upload stands. The mirror lacks it until the next sync,
+			// and the sync's state says why, where the user reads the mirror's state.
+			if (!copied.ok) {
+				const status = this.store.getState().byWorkspace[workspaceId] ?? emptyStatus(mirror.value);
+				this.#setStatus(workspaceId, {
+					...status,
+					state: "failed",
+					error: copied.error.message,
+					mirrorPath: mirror.value,
+				});
+			}
 		}
 		return ok(destination);
+	}
+
+	/** Writes an uploaded file's copy into the mirror, making its folder first. */
+	async #copyToMirror(
+		mirrorPath: string,
+		relativePath: string,
+		bytes: Uint8Array,
+		text: string | null,
+	): Promise<Result<void>> {
+		const local = `${mirrorPath}/${relativePath}`;
+		const parent = local.slice(0, local.lastIndexOf("/"));
+		if (parent.length > 0) {
+			const made = await this.#deps.fs.mkdirp(parent);
+			if (!made.ok) return made;
+		}
+		return text === null
+			? this.#deps.fs.writeBytes(local, bytes)
+			: this.#deps.fs.writeTextAtomic(local, text);
 	}
 
 	/**

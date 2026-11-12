@@ -18,7 +18,9 @@ import { CommandDispatcher } from "../../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { Session } from "../../../core/model.ts";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../../test/container.ts";
+import { answerSidecar, sidecarRefuses } from "../../../test/sidecar-answers.ts";
 import { Composer } from "../../composer/Composer.tsx";
+import { PlanAdjustmentsProvider } from "../../composer/plan-adjustments.tsx";
 import { InteractionDock } from "./InteractionDock.tsx";
 import { PlanReviewBar } from "./PlanReviewBar.tsx";
 
@@ -52,11 +54,11 @@ interface Setup {
 
 let open: TestContainer | null = null;
 
-async function setup(): Promise<Setup> {
+async function setup(over: Partial<SessionConfig> = {}): Promise<Setup> {
 	const test = createTestContainer();
 	open = test;
 	const workspace = await seedWorkspace(test.container);
-	const created = await test.container.services.sessions.create(workspace.id, config());
+	const created = await test.container.services.sessions.create(workspace.id, config(over));
 	if (!created.ok) throw new Error(JSON.stringify(created.error));
 	await test.container.services.sessions.start();
 	await test.container.services.sessions.open(created.value.id);
@@ -111,6 +113,17 @@ async function renderBarInRouter(
 
 const group = () => screen.getByRole("group", { name: "Plan review" });
 
+/** Starts the sidecar and lets it take config changes, so plan mode really changes in the store. */
+async function acceptConfigChanges(test: TestContainer): Promise<void> {
+	const started = await test.container.sidecar.start();
+	expect(started.ok).toBe(true);
+	answerSidecar(test, (call) =>
+		call.method === "updateConfig"
+			? { applied: "live" }
+			: sidecarRefuses(`Unexpected ${call.method}`),
+	);
+}
+
 /**
  * Cmd+Shift+Enter as a browser sends it. The key code matters: ProseMirror takes every keydown with
  * code 13 and prevents its default, as Chromium showed on the catalogue (issue #586).
@@ -128,14 +141,17 @@ async function renderBarAndComposer(test: TestContainer, session: Session): Prom
 	render(
 		<ServicesProvider container={test.container}>
 			<CommandDispatcher>
-				<PlanReviewBar sessionId={session.id} interactionId={interactionId} request={request()} />
-				<Composer
-					workspaceId={session.workspaceId}
-					sessionId={session.id}
-					onEditorReady={(ready: Editor | null) => {
-						editor = ready;
-					}}
-				/>
+				{/* The chat pane links its plan bar to its composer. */}
+				<PlanAdjustmentsProvider>
+					<PlanReviewBar sessionId={session.id} interactionId={interactionId} request={request()} />
+					<Composer
+						workspaceId={session.workspaceId}
+						sessionId={session.id}
+						onEditorReady={(ready: Editor | null) => {
+							editor = ready;
+						}}
+					/>
+				</PlanAdjustmentsProvider>
 			</CommandDispatcher>
 		</ServicesProvider>,
 	);
@@ -492,6 +508,105 @@ describe("CHAT-12 plan review bar", () => {
 		);
 
 		expect(screen.getByRole("group", { name: "Plan review" })).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
+	});
+
+	// Conductor draws the bar only while a plan waits and plan mode is on (renderApp @9314918, the
+	// plan mode flag at @9286307). Issue #596.
+	it("shows no plan bar for a waiting plan while plan mode is off, and shows it once plan mode is on", async () => {
+		const { test, session } = await setup({ planMode: false });
+		await acceptConfigChanges(test);
+		void test.container.services.sessions.requestInteraction({
+			sessionId: session.id,
+			interactionId,
+			interaction: request(),
+		});
+
+		render(
+			<ServicesProvider container={test.container}>
+				<CommandDispatcher>
+					<InteractionDock sessionId={session.id} />
+				</CommandDispatcher>
+			</ServicesProvider>,
+		);
+
+		expect(screen.queryByRole("group", { name: "Plan review" })).toBeNull();
+		const turnedOn = await test.container.services.sessions.updateConfig(
+			session.id,
+			config({ planMode: true }),
+		);
+		expect(turnedOn.ok).toBe(true);
+		expect(await screen.findByRole("group", { name: "Plan review" })).toBeTruthy();
+	});
+
+	// Conductor's "Approve plan" acts only while a plan waits and plan mode is on (renderApp
+	// @9295497). The composer's text stays where it is. Issue #596.
+	it("does nothing on Cmd+Shift+Enter while plan mode is off, even with text in the composer", async () => {
+		const { test, session } = await setup({ planMode: false });
+		const answer = vi
+			.spyOn(test.container.services.sessions, "answer")
+			.mockResolvedValue(ok(undefined));
+		const run = vi.spyOn(test.container.services.commands, "run");
+		void test.container.services.sessions.requestInteraction({
+			sessionId: session.id,
+			interactionId,
+			interaction: request(),
+		});
+		let editor: Editor | null = null;
+		render(
+			<ServicesProvider container={test.container}>
+				<CommandDispatcher>
+					<InteractionDock sessionId={session.id} />
+					<Composer
+						workspaceId={session.workspaceId}
+						sessionId={session.id}
+						onEditorReady={(ready: Editor | null) => {
+							editor = ready;
+						}}
+					/>
+				</CommandDispatcher>
+			</ServicesProvider>,
+		);
+		await waitFor(() => expect(editor).not.toBeNull());
+		act(() => {
+			(editor as unknown as Editor).commands.insertContent("Keep the old cache for reads.");
+		});
+		fireEvent.keyDown(screen.getByRole("textbox", { name: "composer" }), APPROVE_KEY);
+
+		expect(answer).not.toHaveBeenCalled();
+		expect(run).not.toHaveBeenCalled();
+		expect((editor as unknown as Editor).getText()).toBe("Keep the old cache for reads.");
+	});
+
+	// Approving turns plan mode off before the agent hears the answer, and the bar shows only in
+	// plan mode. A failed answer must still be seen, so the bar stays once the user has acted on it.
+	it("keeps the bar and its error when the approval fails after plan mode went off", async () => {
+		const { test, session } = await setup();
+		await acceptConfigChanges(test);
+		vi.spyOn(test.container.services.sessions, "answer").mockResolvedValue(
+			err(appError("sidecar_down", "The sidecar is not running.")),
+		);
+		void test.container.services.sessions.requestInteraction({
+			sessionId: session.id,
+			interactionId,
+			interaction: request(),
+		});
+
+		render(
+			<ServicesProvider container={test.container}>
+				<CommandDispatcher>
+					<InteractionDock sessionId={session.id} />
+				</CommandDispatcher>
+			</ServicesProvider>,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+		expect((await screen.findByRole("alert")).textContent).toBe(
+			"Could not send the plan: The sidecar is not running.",
+		);
+		expect(
+			test.container.services.sessions.store.getState().sessions[session.id]?.config.planMode,
+		).toBe(false);
 		expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
 	});
 });

@@ -13,9 +13,11 @@
  * folder at the same path and read back from there, every other write outside is refused, and
  * only the read-only commands the import runs (`git worktree list --porcelain`, `lsof`) reach the
  * shell; the database commands (`db_open`, `db_execute`, `db_select`) reach a migrated scratch
- * file, and the queue is timed on that raw handle, from BEGIN IMMEDIATE to COMMIT or ROLLBACK, so
- * the import's code is unchanged; the sidecar is stopped by the pid it was started
- * with, whatever happens; no value from either database leaves this module, only numbers.
+ * file, and the queue is timed on that raw handle, from BEGIN IMMEDIATE to COMMIT or ROLLBACK and
+ * for each statement outside a transaction, so the import's code is unchanged; the sidecar's lines
+ * are joined once each, however many chunks they come in; the sidecar is stopped by the pid it
+ * was started with, whatever happens; no value from either database leaves this module, only
+ * numbers.
  * Our design choice: a write into a project's folder is kept in the run's folder rather than
  * refused, because a refused write fails the whole import, and the files are a few bytes beside
  * the history the run measures.
@@ -118,6 +120,8 @@ export interface Measured {
 		/** The rows of the chat whose history held it longest; null when it was the rows' write. */
 		longestRows: number | null;
 		rowsWriteSeconds: number;
+		/** The longest statement outside a transaction while the import ran. */
+		longestStatementSeconds: number;
 	};
 	largest: { events: number; turns: number; openSeconds: number; turnsSeconds: number } | null;
 	reads: { keyPages: number; rowReads: number };
@@ -147,6 +151,8 @@ export interface MeasureInput {
 	onStarted: () => void;
 	/** Told the dry run's counts as soon as they are known, so a failed import still shows them. */
 	onDryRun: (dryRun: Measured["dryRun"]) => void;
+	/** Told when the import has ended, so the open of the largest chat is not counted as its memory. */
+	onImported: () => void;
 }
 
 const seconds = (from: number, to: number): number => (to - from) / 1000;
@@ -161,6 +167,8 @@ interface Tally {
 	firstChatAt: number | null;
 	copySeconds: number;
 	holds: { seconds: number; rows: number | null }[];
+	/** The longest statement made outside a transaction, which holds the queue on its own. */
+	longestStatement: number;
 	keyPages: number;
 	rowReads: number;
 	kept: number;
@@ -293,14 +301,31 @@ function fenced(bindings: TauriBindings, folder: string, tally: Tally): TauriBin
 	return { ...bindings, invoke };
 }
 
-/** The raw handle, timed from BEGIN IMMEDIATE to COMMIT or ROLLBACK: how long the queue is held. */
+/**
+ * The raw handle, timed from BEGIN IMMEDIATE to COMMIT or ROLLBACK, and each statement outside a
+ * transaction on its own: how long the queue is held.
+ */
 function timedHolds(raw: SqlDatabase, tally: Tally): SqlDatabase {
 	let begunAt: number | null = null;
+	const alone = async <T>(run: () => Promise<T>): Promise<T> => {
+		if (begunAt !== null || !tally.importing) return run();
+		const startedAt = performance.now();
+		try {
+			return await run();
+		} finally {
+			tally.longestStatement = Math.max(
+				tally.longestStatement,
+				seconds(startedAt, performance.now()),
+			);
+		}
+	};
 	return {
-		select: (sql, params) => raw.select(sql, params),
+		select: (sql, params) => alone(() => raw.select(sql, params)),
 		execute: async (sql, params) => {
 			if (sql === "BEGIN IMMEDIATE") begunAt = performance.now();
-			const done = await raw.execute(sql, params);
+			const done = await (begunAt === null
+				? alone(() => raw.execute(sql, params))
+				: raw.execute(sql, params));
 			if ((sql === "COMMIT" || sql === "ROLLBACK") && begunAt !== null && tally.importing) {
 				tally.holds.push({
 					seconds: seconds(begunAt, performance.now()),
@@ -429,13 +454,20 @@ function withRealSidecar(
 	let stopping = false;
 	const ensure = (): Promise<RealSidecar> => {
 		running ??= start().then((sidecar) => {
-			let buffered = "";
+			// A line's start waits in pieces until its newline comes, and only the new chunk is
+			// searched, so a line of many chunks is copied once (as the Rust shell's framer does).
+			let pending: string[] = [];
 			sidecar.socket.setEncoding("utf8");
 			sidecar.socket.on("data", (chunk: string) => {
-				buffered += chunk;
-				const lines = buffered.split("\n");
-				buffered = lines.pop() ?? "";
-				for (const line of lines) for (const handler of [...lineHandlers]) handler(line);
+				let start = 0;
+				for (let end = chunk.indexOf("\n"); end !== -1; end = chunk.indexOf("\n", start)) {
+					pending.push(chunk.slice(start, end));
+					const line = pending.join("");
+					pending = [];
+					start = end + 1;
+					for (const handler of [...lineHandlers]) handler(line);
+				}
+				if (start < chunk.length) pending.push(chunk.slice(start));
 			});
 			sidecar.socket.once("close", () => {
 				if (stopping) return;
@@ -536,6 +568,7 @@ export async function measureImport(input: MeasureInput): Promise<Measured> {
 		firstChatAt: null,
 		copySeconds: 0,
 		holds: [],
+		longestStatement: 0,
 		keyPages: 0,
 		rowReads: 0,
 		kept: 0,
@@ -655,6 +688,7 @@ export async function measureImport(input: MeasureInput): Promise<Measured> {
 		});
 		const runEnded = performance.now();
 		tally.importing = false;
+		input.onImported();
 		const after = fileBytes(scratch);
 		const firstChatAt = tally.firstChatAt ?? runEnded;
 
@@ -705,6 +739,7 @@ export async function measureImport(input: MeasureInput): Promise<Measured> {
 				longestSeconds: longest?.seconds ?? 0,
 				longestRows: longest?.rows ?? null,
 				rowsWriteSeconds: rowsWrite?.seconds ?? 0,
+				longestStatementSeconds: tally.longestStatement,
 			},
 			largest,
 			reads: { keyPages: tally.keyPages, rowReads: tally.rowReads },

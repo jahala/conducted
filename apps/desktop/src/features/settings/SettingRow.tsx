@@ -12,10 +12,13 @@
  * Must handle: a long description (wraps, no truncation), a switch whose stored key says the
  * opposite of its title (shown and saved inverted), a disabled setting with a reason (the
  * fieldset disables the control), a setting that is highlighted after a search jump, and a save
- * error line when saving fails (a typed number, text or list that was not saved goes back to the
- * stored value, so the field never shows a value the app does not hold).
+ * that fails: a toast with Conductor's words (main @389863) and an error line under the row (a
+ * typed number, text or list that was not saved goes back to the stored value, so the field never
+ * shows a value the app does not hold).
  * Test first: with a disabledReason the control is disabled and the reason is shown.
  */
+
+import type { AppError } from "@conducted/shared";
 import {
 	Children,
 	cloneElement,
@@ -37,6 +40,7 @@ import {
 	type SettingValue,
 	settingsForPage,
 } from "../../core/registries/settings.ts";
+import { settingSaveFailedNotice } from "../../core/setting-save-notice.ts";
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import { Input, Label, Textarea } from "../../ui/Input.tsx";
@@ -44,7 +48,7 @@ import { MoreHorizontalIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { Select } from "../../ui/Select.tsx";
 import { Switch } from "../../ui/Switch.tsx";
-import { toastError } from "../../ui/Toast.tsx";
+import { toast, toastError } from "../../ui/Toast.tsx";
 import { ExternalLink } from "../chat/ExternalLink.tsx";
 
 const DISABLED_TAGS = new Set(["input", "button", "select", "textarea", "fieldset"]);
@@ -173,17 +177,25 @@ export function SettingRow({
 	);
 }
 
-/** Saves one setting through the action table and keeps the failure text for its row. */
+/** Tells the user a setting was not saved, in a toast, as Conductor's settings writer does. */
+export function toastSettingSaveFailed(error: AppError): void {
+	const notice = settingSaveFailedNotice(error);
+	toast.error(notice.title, notice.description === null ? {} : { description: notice.description });
+}
+
+/**
+ * Saves one setting through the action table. A failed save is told in a toast only, as in
+ * Conductor, whose settings rows show no line of their own for it (the owner's ruling, 2026-11-12:
+ * "whatever conductor does").
+ */
 export function useSettingSaves() {
 	const actions = useActions();
-	const [errors, setErrors] = useState<Readonly<Record<string, string | null>>>({});
 
 	const save = useCallback(
 		async (key: string, value: unknown): Promise<boolean> => {
-			setErrors((current) => ({ ...current, [key]: null }));
 			const result = await actions.settings.set(key, value);
 			if (!result.ok) {
-				setErrors((current) => ({ ...current, [key]: result.error.message }));
+				toastSettingSaveFailed(result.error);
 				return false;
 			}
 			return true;
@@ -191,8 +203,7 @@ export function useSettingSaves() {
 		[actions],
 	);
 
-	const errorOf = useCallback((key: string) => errors[key] ?? null, [errors]);
-	return { save, errorOf };
+	return { save };
 }
 
 /** Saves a field's value; true when it was stored. A field puts its stored value back on false. */
@@ -457,7 +468,7 @@ function RegistrySettingRow({
 			{...(def.detailTone === undefined ? {} : { detailTone: def.detailTone })}
 			disabledReason={unavailable}
 			highlighted={focusSettingKey === def.key}
-			saveError={localError ?? saves.errorOf(def.key)}
+			saveError={localError}
 			{...(configured ? { onReset: () => void reset() } : {})}
 		>
 			<SettingControl

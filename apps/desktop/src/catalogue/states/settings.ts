@@ -4,7 +4,8 @@
  * projects in the navigation; the settings search results that show Conductor's search copy; the
  * selects whose options are wording (themes, sounds, effort levels,
  * output styles, the send key, the follow-up behaviour, where pull requests open), each open; the
- * Git page with a custom branch prefix; the Advanced page asking before it changes the root
+ * Git page with a custom branch prefix, and with Conductor's toasts for a switch that cannot be
+ * saved and for a settings file that does not parse; the Advanced page asking before it changes the root
  * folder, and Home after it changed; the Agents page's MCP servers for the chat last open; the Environment page's documented
  * variables; atlas's Add action dialog and icon picker (an emoji search with no match, the Favicon source); the Agents page's provider forms (Anthropic,
  * subscription, Vertex, both Bedrock modes, ChatGPT, Cursor, custom), its card badges and both
@@ -741,19 +742,6 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		},
 	},
 	{
-		id: "settings-agents-no-match",
-		group: "Settings",
-		title: "Agents: a provider search with no match",
-		seed: async (world) => {
-			await seedCast(world);
-			return {
-				route: "/settings/user/agents",
-				after: ({ document }) => typeInto(document, "input", "Search providers", "kilo"),
-				ready: (document) => shows(document, "No providers match your search."),
-			};
-		},
-	},
-	{
 		id: "settings-account-disconnect-github",
 		group: "Settings",
 		title: "Account: asking before GitHub's token is removed",
@@ -1004,6 +992,48 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				route: "/settings/user/git",
 				after: ({ document }) => click(document, "[role=switch]", "Delete branch on archive"),
 				ready: (document) => shows(document, "Warning: archived workspaces will be unrecoverable"),
+			};
+		},
+	},
+	{
+		id: "settings-save-failed",
+		group: "Settings",
+		title: "Git, a switch whose setting cannot be saved: Conductor's toast",
+		seed: async (world) => {
+			await seedCast(world);
+			// A file stands where the settings folder must go, so the save cannot write.
+			world.memory.controls.addFile(`${world.memory.platform.fs.paths.home}/.conducted`, "");
+			return {
+				route: "/settings/user/git",
+				after: ({ document }) => click(document, "[role=switch]", "Delete branch on archive"),
+				ready: (document) =>
+					document.querySelector("[data-sonner-toast]")?.textContent === "Failed to save setting",
+			};
+		},
+	},
+	{
+		id: "settings-save-file-invalid",
+		group: "Settings",
+		title: "Git, a save stopped by a settings file that does not parse: the toast quotes the error",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/git",
+				// The file breaks after the page has loaded, as an edit in another program would break it:
+				// an unclosed table header, so the TOML reader refuses the whole file.
+				after: async ({ world: shown, document }) => {
+					shown.memory.controls.addFile(
+						`${shown.memory.platform.fs.paths.home}/.conducted/settings.toml`,
+						"[git\ndelete_branch_on_archive = true\n",
+					);
+					await click(document, "[role=switch]", "Delete branch on archive");
+				},
+				ready: (document) =>
+					document
+						.querySelector("[data-sonner-toast]")
+						?.textContent?.startsWith(
+							"Can't save setting because your settings file is invalid",
+						) === true,
 			};
 		},
 	},

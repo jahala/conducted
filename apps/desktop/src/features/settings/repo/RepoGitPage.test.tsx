@@ -10,12 +10,14 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../../../test/container.ts";
+import { Toaster, toast } from "../../../ui/Toast.tsx";
 import { RepoGitPage } from "./RepoGitPage.tsx";
 
 let test: TestContainer | undefined;
 
 afterEach(() => {
 	cleanup();
+	toast.dismiss();
 	test?.close();
 	test = undefined;
 });
@@ -160,6 +162,25 @@ describe("SET-07 RepoGitPage", () => {
 		await waitFor(() => expect(toggle.getAttribute("aria-checked")).toBe("false"));
 		const back = await settings.getForRepo("delete_branch_on_archive", repo.rootPath, null);
 		expect(back.ok && back.value.source).not.toBe("repo-local");
+	});
+
+	it("toasts Failed to save setting when this repository's value cannot be saved (issue #614)", async () => {
+		const { repo, container } = await renderPage();
+		render(<Toaster />);
+		await container.services.settings.start();
+		// A file stands where the repository's .conducted folder must go.
+		test?.memory.controls.addFile(`${repo.rootPath}/.conducted`, "");
+		const toggle = await screen.findByRole("switch", { name: "Delete branch on archive" });
+		await waitFor(() => expect((toggle as HTMLButtonElement).disabled).toBe(false));
+
+		fireEvent.click(toggle);
+
+		await waitFor(() =>
+			expect(document.querySelector("[data-sonner-toast]")?.textContent).toBe(
+				"Failed to save setting",
+			),
+		);
+		expect(toggle.getAttribute("aria-checked")).toBe("false");
 	});
 
 	// Conductor's row shows the value the setting falls back to while the repository's value loads:

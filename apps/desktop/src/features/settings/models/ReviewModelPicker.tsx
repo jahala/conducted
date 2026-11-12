@@ -203,14 +203,7 @@ export function ReviewModelRow({ focusSettingKey }: { focusSettingKey: string | 
 				focusSettingKey !== null &&
 				(focusSettingKey === KEY || IN_REVIEW_PICKER.includes(focusSettingKey))
 			}
-			saveError={
-				saves.errorOf(KEY) ??
-				saves.errorOf(AGENT_KEY) ??
-				saves.errorOf("review_claude_effort_level") ??
-				saves.errorOf("review_codex_thinking_level") ??
-				saves.errorOf("review_effort") ??
-				saves.errorOf("review_fast_mode")
-			}
+			saveError={null}
 		>
 			<Menu>
 				<MenuTrigger asChild>

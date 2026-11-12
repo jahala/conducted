@@ -11,6 +11,8 @@
  * 3.4 (queue), 3.5 (composer), 4 (opening a workspace clears its unread chats).
  * Our design choice: every approval, question and plan review appears in one dock between the list and the
  * composer (see InteractionDock), so the user always looks at the same place for "the agent is waiting".
+ * The pane links its plan bar to its composer (composer/plan-adjustments.tsx), so Approve can send
+ * the composer's text as the plan's adjustments (CHAT-12).
  * Each part is its own <NotBuiltYet>, keyed by session, so one failing part leaves the rest usable.
  * Must handle: switching chats (all parts reset, except the find bar, which keeps its query); the
  * composer is the only part that keeps focus; a narrow tab
@@ -30,6 +32,7 @@ import { toastError } from "../../ui/Toast.tsx";
 import { ArchivedComposer } from "../composer/ArchivedComposerBar.tsx";
 import { Composer } from "../composer/Composer.tsx";
 import { GoalBar } from "../composer/GoalBar.tsx";
+import { PlanAdjustmentsProvider } from "../composer/plan-adjustments.tsx";
 import { QueueBox } from "../composer/QueueBox.tsx";
 import { ChatSearchBar } from "./ChatSearchBar.tsx";
 import { FailedSends } from "./FailedSends.tsx";
@@ -86,59 +89,61 @@ export function ChatPane({
 	}, [services, sessionId]);
 
 	return (
-		<div className="flex h-full min-h-0 flex-col">
-			<div
-				data-command-scope="chat-input"
-				data-region="messages"
-				className="relative min-h-0 flex-1"
-			>
-				<ChatSearchBar
-					sessionId={sessionId}
-					open={findOpen}
-					onClose={() => setFindOpen(false)}
-					onRevealTurn={(index) => listRef.current?.scrollToIndex({ index, align: "center" })}
-				/>
-				<NotBuiltYet area="Messages" resetKey={sessionId}>
-					<MessageList sessionId={sessionId} workspaceId={workspaceId} listRef={listRef} />
-				</NotBuiltYet>
+		<PlanAdjustmentsProvider>
+			<div className="flex h-full min-h-0 flex-col">
+				<div
+					data-command-scope="chat-input"
+					data-region="messages"
+					className="relative min-h-0 flex-1"
+				>
+					<ChatSearchBar
+						sessionId={sessionId}
+						open={findOpen}
+						onClose={() => setFindOpen(false)}
+						onRevealTurn={(index) => listRef.current?.scrollToIndex({ index, align: "center" })}
+					/>
+					<NotBuiltYet area="Messages" resetKey={sessionId}>
+						<MessageList sessionId={sessionId} workspaceId={workspaceId} listRef={listRef} />
+					</NotBuiltYet>
+				</div>
+				<div className="relative mx-auto flex w-full max-w-[var(--chat-column-width)] shrink-0 flex-col gap-2 px-4 pb-4">
+					<div className="absolute -top-10 right-4 z-10">
+						<NextUnreadButton currentSessionId={sessionId} />
+					</div>
+					<NotBuiltYet area="Messages not sent" variant="inline" resetKey={sessionId}>
+						<FailedSends sessionId={sessionId} />
+					</NotBuiltYet>
+					<div data-region="agent-request">
+						<NotBuiltYet area="Agent request" variant="inline" resetKey={sessionId}>
+							<InteractionDock sessionId={sessionId} />
+						</NotBuiltYet>
+					</div>
+					<div data-region="goal">
+						<NotBuiltYet area="Goal" variant="inline" resetKey={sessionId}>
+							<GoalBar sessionId={sessionId} />
+						</NotBuiltYet>
+					</div>
+					<div data-region="progress">
+						<NotBuiltYet area="Progress" variant="inline" resetKey={sessionId}>
+							<ProgressTracker sessionId={sessionId} />
+						</NotBuiltYet>
+					</div>
+					<div data-region="queue">
+						<NotBuiltYet area="Queue" variant="inline" resetKey={sessionId}>
+							<QueueBox sessionId={sessionId} />
+						</NotBuiltYet>
+					</div>
+					<div data-region="composer">
+						<NotBuiltYet area="Composer" resetKey={sessionId}>
+							{archived ? (
+								<ArchivedComposer workspaceId={workspaceId} />
+							) : (
+								<Composer workspaceId={workspaceId} sessionId={sessionId} />
+							)}
+						</NotBuiltYet>
+					</div>
+				</div>
 			</div>
-			<div className="relative mx-auto flex w-full max-w-[var(--chat-column-width)] shrink-0 flex-col gap-2 px-4 pb-4">
-				<div className="absolute -top-10 right-4 z-10">
-					<NextUnreadButton currentSessionId={sessionId} />
-				</div>
-				<NotBuiltYet area="Messages not sent" variant="inline" resetKey={sessionId}>
-					<FailedSends sessionId={sessionId} />
-				</NotBuiltYet>
-				<div data-region="agent-request">
-					<NotBuiltYet area="Agent request" variant="inline" resetKey={sessionId}>
-						<InteractionDock sessionId={sessionId} />
-					</NotBuiltYet>
-				</div>
-				<div data-region="goal">
-					<NotBuiltYet area="Goal" variant="inline" resetKey={sessionId}>
-						<GoalBar sessionId={sessionId} />
-					</NotBuiltYet>
-				</div>
-				<div data-region="progress">
-					<NotBuiltYet area="Progress" variant="inline" resetKey={sessionId}>
-						<ProgressTracker sessionId={sessionId} />
-					</NotBuiltYet>
-				</div>
-				<div data-region="queue">
-					<NotBuiltYet area="Queue" variant="inline" resetKey={sessionId}>
-						<QueueBox sessionId={sessionId} />
-					</NotBuiltYet>
-				</div>
-				<div data-region="composer">
-					<NotBuiltYet area="Composer" resetKey={sessionId}>
-						{archived ? (
-							<ArchivedComposer workspaceId={workspaceId} />
-						) : (
-							<Composer workspaceId={workspaceId} sessionId={sessionId} />
-						)}
-					</NotBuiltYet>
-				</div>
-			</div>
-		</div>
+		</PlanAdjustmentsProvider>
 	);
 }

@@ -76,7 +76,7 @@ function ThemeRow({ focusSettingKey }: { focusSettingKey: string | null }) {
 			description={shortcut === null ? null : `Toggle with ${shortcut}`}
 			disabledReason={null}
 			highlighted={focusSettingKey === key}
-			saveError={saves.errorOf(key)}
+			saveError={null}
 		>
 			<Select
 				aria-label={def.title}
@@ -106,7 +106,7 @@ function ZoomRow({ focusSettingKey, saves }: { focusSettingKey: string | null; s
 			}
 			disabledReason={null}
 			highlighted={focusSettingKey === key}
-			saveError={saves.errorOf(key)}
+			saveError={null}
 		>
 			<Select
 				aria-label={def.title}
@@ -163,7 +163,7 @@ function MonoFontRow({ focusSettingKey, saves }: { focusSettingKey: string | nul
 				description={pageDescriptionOf(def)}
 				disabledReason={null}
 				highlighted={focusSettingKey === key}
-				saveError={saves.errorOf(key)}
+				saveError={null}
 			>
 				<Select
 					aria-label={def.title}
@@ -276,11 +276,6 @@ function TerminalFontBlock({
 					}}
 				/>
 				<p className="text-xs text-fg-muted">{familyDef.description}</p>
-				{saves.errorOf(familyKey) === null ? null : (
-					<p role="alert" className="text-xs text-danger">
-						{saves.errorOf(familyKey)}
-					</p>
-				)}
 			</div>
 			<div data-setting-key={sizeKey} className="flex flex-col gap-2">
 				<div className="flex items-center justify-between">
@@ -296,11 +291,6 @@ function TerminalFontBlock({
 					formatValue={(next) => `${next}px`}
 					aria-label={sizeDef.title}
 				/>
-				{saves.errorOf(sizeKey) === null ? null : (
-					<p role="alert" className="text-xs text-danger">
-						{saves.errorOf(sizeKey)}
-					</p>
-				)}
 			</div>
 			<TerminalPreview fontFamily={family} fontSize={size} />
 		</div>

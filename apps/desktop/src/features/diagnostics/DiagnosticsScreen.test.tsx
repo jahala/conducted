@@ -73,10 +73,10 @@ describe("APP-03 diagnostics screen", () => {
 
 		await waitFor(() => expect(mounted.memory.controls.clipboardText).toContain("API_TOKEN="));
 		expect(mounted.memory.controls.clipboardText).not.toContain("super-secret");
-		expect(await screen.findByText("Report copied")).toBeTruthy();
+		expect(await screen.findByText("Redacted report copied")).toBeTruthy();
 	});
 
-	it("asks before copying the full report and copies nothing until it is given", async () => {
+	it("copies the full report at once, as Conductor does", async () => {
 		const { mounted } = await mountDiagnostics();
 		const copies: string[] = [];
 		const original = mounted.container.platform.clipboard.writeText.bind(
@@ -86,19 +86,14 @@ describe("APP-03 diagnostics screen", () => {
 			copies.push(text);
 			await original(text);
 		};
+		const confirm = vi.spyOn(mounted.container.platform.dialogs, "confirm");
 		await screen.findByText("API_TOKEN");
 
-		mounted.memory.controls.queueDialogAnswers({ confirm: false });
-		fireEvent.click(screen.getByRole("button", { name: "Copy full report" }));
-		await waitFor(() =>
-			expect(screen.getByRole("button", { name: "Copy full report" })).toBeTruthy(),
-		);
-		expect(copies).toHaveLength(0);
-
-		mounted.memory.controls.queueDialogAnswers({ confirm: true });
-		fireEvent.click(screen.getByRole("button", { name: "Copy full report" }));
+		fireEvent.click(screen.getByRole("button", { name: "Copy report" }));
 		await waitFor(() => expect(copies).toHaveLength(1));
+		expect(confirm).not.toHaveBeenCalled();
 		expect(copies[0]).toContain("super-secret");
+		expect(await screen.findByText("Report copied to clipboard")).toBeTruthy();
 		expect(await screen.findByText("Full values")).toBeTruthy();
 	});
 
@@ -136,7 +131,7 @@ describe("APP-03 diagnostics screen", () => {
 
 		fireEvent.click(
 			screen.getByRole("button", {
-				name: "Create a new session with the redacted report attached",
+				name: "Ask agent to analyze redacted report",
 			}),
 		);
 

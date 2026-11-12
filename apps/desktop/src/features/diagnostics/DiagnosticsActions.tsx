@@ -3,6 +3,8 @@
  * Owns: the row of buttons on the diagnostics page: copy the redacted report, copy the full
  * report, start a chat with the redacted report attached, copy the logs, and restart.
  * Behaviour: ui-map.md 2, `/diagnostics` (button list; "Copy logs (may include personal data)").
+ * The labels "Copy report" and "Ask agent to analyze redacted report" are Conductor's (renderApp
+ * @10610669 and @10611428).
  * Must handle: a busy action disabling the others and showing its own spinner, the chat action
  * disabled when no workspace exists, and the Restart hint that says it asks first while an agent
  * is working.
@@ -53,7 +55,7 @@ export function DiagnosticsActions({
 				loading={busy === "copy_full"}
 				title="Copy the full diagnostics report to your clipboard"
 			>
-				Copy full report
+				Copy report
 			</Button>
 			<Button
 				variant="outline"
@@ -66,7 +68,7 @@ export function DiagnosticsActions({
 						: "Create a workspace before starting a chat from diagnostics."
 				}
 			>
-				Create a new session with the redacted report attached
+				Ask agent to analyze redacted report
 			</Button>
 			<Button
 				variant="outline"

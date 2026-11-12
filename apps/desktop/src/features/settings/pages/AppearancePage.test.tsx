@@ -5,6 +5,7 @@ import { CommandDispatcher } from "../../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { getSettingDef } from "../../../core/registries/settings.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
+import { Toaster, toast } from "../../../ui/Toast.tsx";
 import { AppearanceController } from "../appearance/AppearanceController.tsx";
 import { AppearancePage } from "./AppearancePage.tsx";
 
@@ -18,6 +19,7 @@ function clearDocumentAppearance() {
 }
 
 afterEach(() => {
+	toast.dismiss();
 	cleanup();
 	current?.close();
 	current = null;
@@ -236,7 +238,7 @@ describe("SET-06 AppearancePage", () => {
 		expect(screen.getByText("Failed to load settings")).toBeTruthy();
 	});
 
-	it("shows the error and keeps the old value when a save fails", async () => {
+	it("says a failed save in a toast and keeps the old value", async () => {
 		const test = loadedContainer();
 		vi.spyOn(test.container.actions.settings, "set").mockResolvedValue(
 			err(appError("setting_save_failed", "Couldn't save the setting")),
@@ -245,12 +247,19 @@ describe("SET-06 AppearancePage", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<AppearancePage />
+				<Toaster />
 			</ServicesProvider>,
 		);
 
 		fireEvent.keyDown(screen.getByRole("switch", { name: "Code ligatures" }), { key: " " });
 
-		expect(await screen.findByText("Couldn't save the setting")).toBeTruthy();
+		await waitFor(() =>
+			expect(document.querySelector("[data-sonner-toast]")?.textContent).toContain(
+				"Couldn't save the setting",
+			),
+		);
+		// A failed save is told in the toast only, as in Conductor: no line under the row.
+		expect(screen.queryByRole("alert")).toBeNull();
 		expect(screen.getByRole("switch", { name: "Code ligatures" }).getAttribute("data-state")).toBe(
 			"checked",
 		);
@@ -290,6 +299,7 @@ describe("SET-06 AppearancePage", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<AppearancePage />
+				<Toaster />
 			</ServicesProvider>,
 		);
 		const size = screen.getByRole("slider", { name: "Terminal Font Size" });
@@ -297,7 +307,13 @@ describe("SET-06 AppearancePage", () => {
 
 		fireEvent.keyDown(size, { key: "ArrowRight" });
 
-		expect(await screen.findByText("Couldn't save the setting")).toBeTruthy();
+		await waitFor(() =>
+			expect(document.querySelector("[data-sonner-toast]")?.textContent).toContain(
+				"Couldn't save the setting",
+			),
+		);
+		// A failed save is told in the toast only, as in Conductor: no line under the row.
+		expect(screen.queryByRole("alert")).toBeNull();
 		await waitFor(() => expect(size.getAttribute("aria-valuenow")).toBe(stored));
 		expect(screen.getByText(`${stored}px`)).toBeTruthy();
 	});

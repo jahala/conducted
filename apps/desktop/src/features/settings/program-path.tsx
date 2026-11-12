@@ -161,7 +161,7 @@ export function ProgramPathRow({
 			description={pageDescriptionOf(def)}
 			disabledReason={null}
 			highlighted={focusSettingKey === settingKey}
-			saveError={problem ?? saves.errorOf(settingKey)}
+			saveError={problem}
 			stacked
 		>
 			<div className="flex w-full flex-col">

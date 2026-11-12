@@ -93,7 +93,7 @@ export function SshKeyPathRow({ focusSettingKey }: { focusSettingKey: string | n
 			description={pageDescriptionOf(def)}
 			disabledReason={null}
 			highlighted={focusSettingKey === SSH_KEY_PATH_SETTING}
-			saveError={problem ?? saves.errorOf(SSH_KEY_PATH_SETTING)}
+			saveError={problem}
 			stacked
 		>
 			<div className="flex w-full items-center gap-1">
