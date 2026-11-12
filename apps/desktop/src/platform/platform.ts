@@ -735,6 +735,33 @@ export interface ProgramStatus {
 	error: string | null;
 	/** Where the managed copy is. Null until one is installed. */
 	path: string | null;
+	/** Claude Code only: which copy runs and why (D133). Null for every other program. */
+	follow: ProgramFollow | null;
+}
+
+/**
+ * What the last look at Claude Code's release host found. Mirrors `FollowCheck` in
+ * binaries/follow.rs.
+ */
+export type ProgramFollowCheck =
+	| { kind: "checking" }
+	/** The copy that runs is the newest release; `latest` is the host's newest version. */
+	| { kind: "newest"; latest: string }
+	/** A newer release is out, but its manifest does not list the SDK, so it is skipped. */
+	| { kind: "untested"; latest: string }
+	/** A newer release is downloading for new chats. */
+	| { kind: "downloading"; latest: string }
+	/** The host could not be read, or the newer release was refused. */
+	| { kind: "failed"; error: string };
+
+/** Which Claude Code runs and why. Mirrors `FollowNote` in binaries/follow.rs. */
+export interface ProgramFollow {
+	/** The version the app ships with: the oldest it runs, and the answer when offline. */
+	shipped: string;
+	/** The Claude Agent SDK a release's manifest must list before the app moves to it. */
+	sdk: string;
+	/** What the last look at the release host found. Null before the first one. */
+	check: ProgramFollowCheck | null;
 }
 
 /** binaries.rs: downloads official releases, checks their checksums, keeps one version of each. */
@@ -742,7 +769,11 @@ export interface Programs {
 	statuses(): Promise<Result<ProgramStatus[]>>;
 	/** Fires on every change of one program's status, including download progress. */
 	onStatus(listener: (status: ProgramStatus) => void): Unsubscribe;
-	/** Downloads and installs the version this app pins. Also the Retry after a failure. */
+	/**
+	 * Downloads and installs the version this app pins; for Claude Code, its newest release that
+	 * lists the sidecar's SDK, or the pinned one when none does or the host is out of reach (D133).
+	 * Also the Retry after a failure.
+	 */
 	install(program: ManagedProgram): Promise<Result<void>>;
 	/** Downloads the current version again, replacing the installed copy. */
 	redownload(program: ManagedProgram): Promise<Result<void>>;

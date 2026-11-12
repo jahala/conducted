@@ -401,6 +401,7 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 			nextAttemptAt: null,
 			error: null,
 			path: null,
+			follow: null,
 		};
 
 	const setProgramStatus = (status: ProgramStatus): void => {
