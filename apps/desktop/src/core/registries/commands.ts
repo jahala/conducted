@@ -937,7 +937,8 @@ export const COMMANDS = [
 		// Conductor registers it with the chat pane's commands, so it works while the user types in
 		// the composer (renderApp @9295505). With text in the composer it sends that text as the
 		// plan's adjustments instead, as Conductor's hidden "Submit plan response" on the same keys
-		// does (main @3792553, renderApp @9313268). The chat's composer and plan bar handle it.
+		// does (main @3792553, renderApp @9313268). It acts only while plan mode is on (renderApp
+		// @9295497). The chat's composer and plan bar handle it.
 		scope: "global",
 		feature: "CHAT-12",
 	},
