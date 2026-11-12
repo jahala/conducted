@@ -51,13 +51,29 @@ export interface Seal {
 
 /**
  * The `sandbox-exec` profile: no IP traffic beyond this Mac's loopback, no writes under
- * `ownerHome`, and the setuid programs in `execOutside` run outside the sandbox. The end-to-end
- * tests (scripts/e2e) start the app under the same profile.
+ * `ownerHome`, and the setuid programs in `execOutside` run outside the sandbox. With `execOnlyFrom`,
+ * programs run only from those folders (and `execOutside`); the sandbox refuses any other, and to
+ * a process inside it such a program does not look executable. The end-to-end tests
+ * (scripts/e2e) start the app under the same profile, limited to its fresh folder and the
+ * system's own programs.
  */
-export function sandboxProfile(ownerHome: string, execOutside: readonly string[]): string {
+export function sandboxProfile(
+	ownerHome: string,
+	execOutside: readonly string[],
+	execOnlyFrom?: readonly string[],
+): string {
+	// The last rule that matches decides, so the refusal comes first, then what is allowed.
+	const exec =
+		execOnlyFrom === undefined
+			? []
+			: [
+					"(deny process-exec*)",
+					`(allow process-exec* ${execOnlyFrom.map((root) => `(subpath ${JSON.stringify(root)})`).join(" ")})`,
+				];
 	return [
 		"(version 1)",
 		"(allow default)",
+		...exec,
 		// A sandboxed process may not run a setuid program; these run outside the sandbox instead.
 		...execOutside.map(
 			(program) => `(allow process-exec (literal ${JSON.stringify(program)}) (with no-sandbox))`,
