@@ -1,21 +1,15 @@
 /**
  * @feature catalogue What an after-step does on the page, as a user would
- * Owns: finding a control by its role and accessible text, waiting a bounded number of frames for it to
- * appear, and clicking, pointing at, typing into or pressing keys in it with real DOM events (Cmd and
- * Alt modifiers included), so the app's own handlers run.
+ * Owns: finding a control by its role and accessible text, waiting for it to appear (up to the
+ * catalogue's hang limit, HANG_MS in settle.ts), and clicking, pointing at, typing into or pressing
+ * keys in it with real DOM events (Cmd and Alt modifiers included), so the app's own handlers run.
  * Our design choice: each of those acts once the page has gone quiet, as a user acts on a loaded
  * screen. Until then the app may still move the focus (the composer takes it once it has loaded),
  * which would close a menu the step just opened. `find` and the `...On` helpers do not wait.
  * Test first: not applicable; the screenshot run opens every state that uses it.
  */
 
-import { waitForQuiet } from "./settle.ts";
-
-/** The most frames to wait for a control to appear, about five seconds at 60 frames a second. */
-const MAX_FRAMES = 300;
-
-const nextFrame = (): Promise<void> =>
-	new Promise((resolve) => requestAnimationFrame(() => resolve()));
+import { poll, waitForQuiet } from "./settle.ts";
 
 const normal = (text: string | null): string => (text ?? "").replace(/\s+/g, " ").trim();
 
@@ -30,25 +24,21 @@ export async function find(
 	name: string,
 	options: { prefix?: boolean } = {},
 ): Promise<HTMLElement> {
-	for (let frame = 0; frame < MAX_FRAMES; frame++) {
-		const found = [...document.querySelectorAll<HTMLElement>(selector)].find((element) => {
+	const found = await poll(() =>
+		[...document.querySelectorAll<HTMLElement>(selector)].find((element) => {
 			const text = nameOf(element);
 			return options.prefix === true ? text.startsWith(name) : text === name;
-		});
-		if (found !== undefined) return found;
-		await nextFrame();
-	}
-	throw new Error(`No ${selector} named "${name}" appeared.`);
+		}),
+	);
+	if (found === undefined) throw new Error(`No ${selector} named "${name}" appeared.`);
+	return found;
 }
 
 /** Waits for the first element matching `selector`, for a target with no name of its own. */
 export async function findFirst(document: Document, selector: string): Promise<HTMLElement> {
-	for (let frame = 0; frame < MAX_FRAMES; frame++) {
-		const found = document.querySelector<HTMLElement>(selector);
-		if (found !== null) return found;
-		await nextFrame();
-	}
-	throw new Error(`No ${selector} appeared.`);
+	const found = await poll(() => document.querySelector<HTMLElement>(selector) ?? undefined);
+	if (found === undefined) throw new Error(`No ${selector} appeared.`);
+	return found;
 }
 
 /** Waits for the control named `name`, then clicks it as a pointer does. */
@@ -202,10 +192,8 @@ export async function pressUntilTaken(
 	at?: string,
 ): Promise<void> {
 	await waitForQuiet(document.body);
-	for (let frame = 0; frame < MAX_FRAMES; frame++) {
-		if (press(document, key, modifiers, at)) return;
-		await nextFrame();
-	}
+	const taken = await poll(() => (press(document, key, modifiers, at) ? true : undefined));
+	if (taken !== undefined) return;
 	const chord = `${modifiers.meta === true ? "Cmd+" : ""}${modifiers.alt === true ? "Alt+" : ""}`;
 	const where = at === undefined ? "" : ` in ${at}`;
 	throw new Error(`The app never took the key ${chord}${key}${where}.`);
