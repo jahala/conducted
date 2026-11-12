@@ -1,5 +1,5 @@
 /**
- * @feature test support A node:sqlite handle shaped like tauri-plugin-sql
+ * @feature test support A node:sqlite handle shaped like the Rust shell's database commands
  * Owns: `createNodeSqlDatabase`, the `SqlDatabase` the app's statement queue wraps, over a
  * node:sqlite database, and `createNodeQueuedDatabase`, which wraps it in that queue.
  * Behaviour: not applicable, test support only.
@@ -21,7 +21,7 @@ import {
 const bind = (params: readonly unknown[]): Record<string, never> =>
 	Object.fromEntries(params.map((value, index) => [`$${index + 1}`, value])) as never;
 
-/** The raw handle the plugin gives the app, over node:sqlite. */
+/** The raw handle `db_execute` and `db_select` give the app, over node:sqlite. */
 export function createNodeSqlDatabase(db: DatabaseSync): SqlDatabase {
 	return {
 		execute: async (sql, params = []) => {

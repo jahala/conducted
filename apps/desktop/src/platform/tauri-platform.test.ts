@@ -7,7 +7,9 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
+import { databaseCommands } from "../test/database-commands.ts";
 import type { Database, FileStat } from "./platform.ts";
+import type { SqlDatabase } from "./queued-database.ts";
 import {
 	COMMANDS,
 	createTauriAppInfo,
@@ -18,7 +20,6 @@ import {
 	createTauriOpener,
 	createTauriPlatform,
 	EVENTS,
-	type SqlDatabase,
 	type TauriBindings,
 } from "./tauri.ts";
 
@@ -227,41 +228,55 @@ describe("PLAT-02 Tauri app info", () => {
 
 describe("PLAT-02 Tauri database", () => {
 	it("PLAT-02 opens conducted.db in WAL with foreign keys on", async () => {
-		const loaded: string[] = [];
-		const statements: string[] = [];
+		const events: string[] = [];
 		const raw = fakeSql({
 			execute: async (sql) => {
-				statements.push(sql);
+				events.push(sql);
 				return { rowsAffected: 0 };
 			},
 		});
 		const result = await createTauriDatabase({
-			sql: {
-				load: async (path) => {
-					loaded.push(path);
-					return raw;
-				},
-			},
+			invoke: databaseCommands(raw, async () => {
+				events.push(COMMANDS.dbOpen);
+			}),
 		});
 
 		expect(result.ok).toBe(true);
-		expect(loaded).toEqual(["sqlite:conducted.db"]);
-		expect(statements).toEqual(["PRAGMA journal_mode = WAL", "PRAGMA foreign_keys = ON"]);
+		expect(events).toEqual([
+			COMMANDS.dbOpen,
+			"PRAGMA journal_mode = WAL",
+			"PRAGMA foreign_keys = ON",
+		]);
 	});
 
-	it("PLAT-02 turns a plugin load rejection into an Err", async () => {
+	it("PLAT-02 turns a db_open rejection into an Err", async () => {
 		const result = await createTauriDatabase({
-			sql: {
-				load: async () => {
-					throw { code: "sql_load_failed", message: "the database is locked" };
-				},
-			},
+			invoke: databaseCommands(fakeSql(), async () => {
+				throw { code: "db_open_failed", message: "the database is locked" };
+			}),
 		});
 
 		expect(result).toEqual({
 			ok: false,
-			error: { code: "sql_load_failed", message: "the database is locked" },
+			error: { code: "db_open_failed", message: "the database is locked" },
 		});
+	});
+
+	it("PLAT-02 hands a statement's error on as an AppError with SQLite's message", async () => {
+		const failure = {
+			code: "db_statement_failed",
+			message: "error returned from database: (code: 2067) UNIQUE constraint failed: t.id",
+		};
+		const raw = fakeSql({
+			execute: async (sql) => {
+				if (sql.startsWith("PRAGMA")) return { rowsAffected: 0 };
+				throw failure;
+			},
+		});
+		const result = await createTauriDatabase({ invoke: databaseCommands(raw) });
+		if (!result.ok) throw new Error("the database did not open");
+
+		await expect(result.value.execute("INSERT INTO t (id) VALUES (1)")).rejects.toEqual(failure);
 	});
 
 	it("PLAT-02 merges identical concurrent select calls", async () => {
@@ -276,7 +291,7 @@ describe("PLAT-02 Tauri database", () => {
 				return (await waiting) as unknown as Rows;
 			},
 		});
-		const result = await createTauriDatabase({ sql: { load: async () => raw } });
+		const result = await createTauriDatabase({ invoke: databaseCommands(raw) });
 		if (!result.ok) throw new Error("the database did not open");
 
 		const first = result.value.select<{ name: string }>("SELECT name FROM t WHERE id = $1", [1]);
@@ -292,7 +307,7 @@ describe("PLAT-02 Tauri database", () => {
 	it("PLAT-02 logs a SQLite call that reaches the slow threshold", async () => {
 		const logs: { level: string; message: string; data: unknown }[] = [];
 		const result = await createTauriDatabase(
-			{ sql: { load: async () => fakeSql() } },
+			{ invoke: databaseCommands(fakeSql()) },
 			{
 				slowMs: 0,
 				log: (level, message, data) => {
@@ -319,7 +334,7 @@ describe("PLAT-02 Tauri database", () => {
 				return { rowsAffected: 0 };
 			},
 		});
-		const result = await createTauriDatabase({ sql: { load: async () => raw } });
+		const result = await createTauriDatabase({ invoke: databaseCommands(raw) });
 		if (!result.ok) throw new Error("the database did not open");
 
 		await result.value.transaction(async (tx) => {
@@ -343,7 +358,7 @@ describe("PLAT-02 Tauri database", () => {
 				return { rowsAffected: 0 };
 			},
 		});
-		const result = await createTauriDatabase({ sql: { load: async () => raw } });
+		const result = await createTauriDatabase({ invoke: databaseCommands(raw) });
 		if (!result.ok) throw new Error("the database did not open");
 
 		await expect(
@@ -369,7 +384,7 @@ describe("PLAT-02 Tauri database", () => {
 		const raw = fakeSql({
 			execute: async () => ({ rowsAffected: 0 }),
 		});
-		const result = await createTauriDatabase({ sql: { load: async () => raw } });
+		const result = await createTauriDatabase({ invoke: databaseCommands(raw) });
 		if (!result.ok) throw new Error("the database did not open");
 
 		const first = result.value.transaction(async () => {
@@ -407,7 +422,7 @@ describe("PLAT-02 Tauri database", () => {
 				return { rowsAffected: 0 };
 			},
 		});
-		const result = await createTauriDatabase({ sql: { load: async () => raw } });
+		const result = await createTauriDatabase({ invoke: databaseCommands(raw) });
 		if (!result.ok) throw new Error("the database did not open");
 
 		const transaction = result.value.transaction(async (tx) => {
@@ -451,7 +466,7 @@ describe("PLAT-02 Tauri database", () => {
 				return [{ value }] as unknown as Rows;
 			},
 		});
-		const result = await createTauriDatabase({ sql: { load: async () => raw } });
+		const result = await createTauriDatabase({ invoke: databaseCommands(raw) });
 		if (!result.ok) throw new Error("the database did not open");
 
 		const first = result.value.select<{ value: number }>("SELECT value FROM t");
@@ -472,7 +487,7 @@ describe("PLAT-02 Tauri database", () => {
 				return { rowsAffected: 0 };
 			},
 		});
-		const result = await createTauriDatabase({ sql: { load: async () => raw } });
+		const result = await createTauriDatabase({ invoke: databaseCommands(raw) });
 		if (!result.ok) throw new Error("the database did not open");
 
 		let kept: Database | null = null;
@@ -503,7 +518,7 @@ describe("PLAT-02 Tauri database", () => {
 				return [] as unknown as Rows;
 			},
 		});
-		const result = await createTauriDatabase({ sql: { load: async () => raw } });
+		const result = await createTauriDatabase({ invoke: databaseCommands(raw) });
 		if (!result.ok) throw new Error("the database did not open");
 		const db = result.value;
 
@@ -530,7 +545,7 @@ describe("PLAT-02 Tauri database", () => {
 				return { rowsAffected: 0 };
 			},
 		});
-		const result = await createTauriDatabase({ sql: { load: async () => raw } });
+		const result = await createTauriDatabase({ invoke: databaseCommands(raw) });
 		if (!result.ok) throw new Error("the database did not open");
 
 		await expect(
@@ -550,7 +565,6 @@ describe("PLAT-02 Tauri database", () => {
 
 describe("PLAT-02 Tauri Platform build", () => {
 	const extra: Partial<TauriBindings> = {
-		sql: { load: async () => fakeSql() },
 		dialog: {
 			open: async () => null,
 			save: async () => null,
