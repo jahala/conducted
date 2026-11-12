@@ -193,6 +193,42 @@
 	--color-term-bright-cyan: light-dark(#057e93, #7bebf9);
 	--color-term-bright-white: light-dark(#78726b, #ffffff);
 
+	/* File-kind brand tints: the colour of a file kind's glyph in the file tree and the path chip,
+	   named by Conductor 0.92.1's tint names (renderApp @2481908; the kinds are in ui/file-icon.ts).
+	   The hues are Tailwind 4's palette, from the tailwindcss package's theme.css; the grays are
+	   Conductor's own. They are Conductor's colours unchanged, including amber-100 and gray-900, which
+	   sit close to the light and the dark canvas. Only documentation differs in dark mode. */
+	--color-file-amber-100: oklch(96.2% 0.059 95.617);
+	--color-file-amber-500: oklch(76.9% 0.188 70.08);
+	--color-file-blue-400: oklch(70.7% 0.165 254.624);
+	--color-file-blue-500: oklch(62.3% 0.214 259.815);
+	--color-file-blue-600: oklch(54.6% 0.245 262.881);
+	--color-file-blue-700: oklch(48.8% 0.243 264.376);
+	--color-file-blue-800: oklch(42.4% 0.199 265.638);
+	--color-file-cyan-400: oklch(78.9% 0.154 211.53);
+	--color-file-cyan-600: oklch(60.9% 0.126 221.723);
+	--color-file-documentation: light-dark(#47423e, #8e8885);
+	--color-file-emerald-600: oklch(59.6% 0.145 163.225);
+	--color-file-gray-600: #766f6b;
+	--color-file-gray-900: #2c2826;
+	--color-file-green-500: oklch(72.3% 0.219 149.579);
+	--color-file-green-600: oklch(62.7% 0.194 149.214);
+	--color-file-indigo-500: oklch(58.5% 0.233 277.117);
+	--color-file-orange-500: oklch(70.5% 0.213 47.604);
+	--color-file-orange-600: oklch(64.6% 0.222 41.116);
+	--color-file-orange-700: oklch(55.3% 0.195 38.402);
+	--color-file-pink-500: oklch(65.6% 0.241 354.308);
+	--color-file-pink-600: oklch(59.2% 0.249 0.584);
+	--color-file-purple-500: oklch(62.7% 0.265 303.9);
+	--color-file-purple-600: oklch(55.8% 0.288 302.321);
+	--color-file-red-500: oklch(63.7% 0.237 25.331);
+	--color-file-red-600: oklch(57.7% 0.245 27.325);
+	--color-file-red-700: oklch(50.5% 0.213 27.518);
+	--color-file-sky-400: oklch(74.6% 0.16 232.661);
+	--color-file-teal-700: oklch(51.1% 0.096 186.391);
+	--color-file-yellow-400: oklch(85.2% 0.199 91.936);
+	--color-file-yellow-600: oklch(68.1% 0.162 75.834);
+
 	/* Two families. */
 	--font-sans: "Geist", system-ui, sans-serif;
 	--font-mono: "Geist Mono", ui-monospace, monospace;

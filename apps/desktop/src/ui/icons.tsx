@@ -2,8 +2,9 @@
  * @feature APP-05 Icons
  * Owns: the small set of 16px line icons the shell uses. They inherit the text colour.
  * Behaviour: ui-map.md 8 (Conductor uses Lucide and Material file icons).
- * Our design choice: a few hand-drawn line icons instead of an icon library. The file-type set is the
- * Material Icon Theme from its own package, in `ui/file-icon.tsx`.
+ * Our design choice: a few hand-drawn line icons instead of an icon library. File-type icons are
+ * Conductor's tinted brand glyphs and the Material Icon Theme, each from its own package, in
+ * `ui/file-icon.tsx`.
  * Must handle: decorative by default (aria-hidden); the button that holds an icon carries the accessible name.
  * The status, git and tool-card families cover the marks those rows need.
  * Test first: every icon renders an svg with aria-hidden.

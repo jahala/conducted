@@ -103,7 +103,7 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # ratchet:Swatinem/rust-cache@v2.9.3
         with:
           workspaces: apps/desktop/src-tauri
-      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # ratchet:taiki-e/install-action@v2.90.1
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # ratchet:taiki-e/install-action@v2.90.3
         with:
           tool: cargo-llvm-cov
       # The toolchain file in this folder pins Rust, so rustup adds the component to that version.

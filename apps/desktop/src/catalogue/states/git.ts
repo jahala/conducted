@@ -6,13 +6,15 @@
  * failed check, one ready to merge and a merged one, the Changes tab when the tree is clean and when git fails,
  * the Changes tab as a folder tree with a filter that matches nothing, the tab strip's new tab menu,
  * a changed file's right-click menu and its discard confirm, the Rename workspace dialog, the toast
- * after Copy link, the question before archiving a workspace whose agent works, and the Artifacts
- * tab with one file.
+ * after Copy link, the question before archiving a workspace whose agent works, the Artifacts tab
+ * with one file, and the All files tab holding every kind in Conductor's brand file icon table, in
+ * parts.
  * Behaviour: ui-map.md 3.6 (Git panel), 3.4 (diff view), 3.7.x (pull request header); core/status/
  * git-header.ts decides the header state and its main action.
  * Test first: not applicable; the screenshot run opens every state.
  */
 import type { Workspace } from "../../core/model.ts";
+import { BRAND_TABLE } from "../../ui/file-icon.ts";
 import {
 	ARBOR_FILES,
 	animateCast,
@@ -86,6 +88,46 @@ export const prOf = (kind: PrKind, fields: Partial<ScriptedPr> = {}): GitWorld =
 			createdAt: CATALOGUE_NOW - DAY,
 		},
 	],
+});
+
+/** Where the brand glyph states plant their files: a folder, so arbor's own root files stay as they are. */
+const KINDS_FOLDER = "file-kinds";
+
+/** Files a glyph state plants: with arbor's root rows, the open folder stays on one 900px screen. */
+const KINDS_PER_STATE = 14;
+
+/**
+ * A file for every name and extension in Conductor's brand table (#534), then two kinds outside it
+ * that keep their Material icons, cut into parts of KINDS_PER_STATE so the shots draw every glyph
+ * and tint in light and dark.
+ */
+const KIND_PARTS: readonly (readonly string[])[] = (() => {
+	const names = [
+		...Object.keys(BRAND_TABLE.names),
+		"Dockerfile",
+		"Dockerfile.dev",
+		...Object.keys(BRAND_TABLE.extensions).map((extension) => `sample.${extension}`),
+		"init.lua",
+		"Makefile",
+	];
+	return Array.from({ length: Math.ceil(names.length / KINDS_PER_STATE) }, (_, part) =>
+		names.slice(part * KINDS_PER_STATE, (part + 1) * KINDS_PER_STATE),
+	);
+})();
+
+/** The All files tab with one part of the brand table's kinds open in KINDS_FOLDER. */
+const kindsState = (names: readonly string[], part: number): CatalogueState => ({
+	id: `git-files-glyphs-${part + 1}`,
+	group: "Git panel",
+	title: `All files tab with Conductor's file glyphs, part ${part + 1} of ${KIND_PARTS.length}`,
+	seed: arborScene({
+		files: Object.fromEntries(names.map((name) => [`${KINDS_FOLDER}/${name}`, `${name}\n`])),
+		after: async ({ document }) => {
+			await click(document, "button,[role=tab]", "All files");
+			await click(document, "[role=treeitem]", KINDS_FOLDER);
+		},
+		ready: (document) => names.every((name) => shows(document, name)),
+	}),
 });
 
 export const GIT_STATES: CatalogueState[] = [
@@ -234,7 +276,7 @@ export const GIT_STATES: CatalogueState[] = [
 	{
 		id: "git-files-icons",
 		group: "Git panel",
-		title: "All files tab with several file kinds and their Material icons",
+		title: "All files tab with several file kinds and their icons, one file open",
 		seed: arborScene({
 			files: {
 				"main.rs": 'fn main() {\n\tprintln!("hello");\n}\n',
@@ -252,6 +294,7 @@ export const GIT_STATES: CatalogueState[] = [
 			ready: (document) => has(document, "[role=tab]", "main.rs"),
 		}),
 	},
+	...KIND_PARTS.map(kindsState),
 	{
 		id: "git-changes-clean",
 		group: "Git panel",
