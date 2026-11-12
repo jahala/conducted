@@ -1,6 +1,7 @@
 import { appError, err, ok, type Result } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { FileSystem, ShellOutput } from "../../platform/platform.ts";
+import { createTestContainer } from "../../test/container.ts";
 import type { GitCommand } from "./commands.ts";
 import { type GitRunner, isSuccessfulExit } from "./runner.ts";
 import {
@@ -429,6 +430,37 @@ describe("WS-01 prepareWorktree", () => {
 					call.cwd === "/wt",
 			),
 		).toBe(true);
+	});
+
+	it("makes the repository's info folder when it has none, then excludes .context (issue #600)", async () => {
+		// `git init` with an empty template folder leaves no `.git/info`; the file write does not
+		// make a missing folder, as files.rs does not.
+		const { git } = makeRunner((command) => {
+			if (matches(command, "git", ["config", "--local", "--get", "core.worktree"]))
+				return output(1);
+			if (matches(command, "git", ["config", "--local", "--get", "core.bare"])) return output(1);
+			if (matches(command, "git", ["rev-parse", "--git-common-dir"])) return output(0, ".git");
+			return undefined;
+		});
+		const test = createTestContainer();
+		try {
+			const { fs } = test.memory.platform;
+			test.memory.controls.addFolder("/Users/conducted/conducted/wt/.git");
+
+			const result = await prepareWorktree(git, {
+				repoRootPath: "/Users/conducted/code/repo",
+				worktreePath: "/Users/conducted/conducted/wt",
+				autoSetupUpstream: false,
+				fs,
+			});
+
+			expect(result).toEqual({ ok: true, value: { warning: null } });
+			expect(await fs.readText("/Users/conducted/conducted/wt/.git/info/exclude")).toEqual(
+				ok(".context/\n"),
+			);
+		} finally {
+			test.close();
+		}
 	});
 
 	it("returns an error, and writes nothing, when git prints no common directory", async () => {
