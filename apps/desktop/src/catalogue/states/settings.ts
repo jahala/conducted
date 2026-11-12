@@ -466,6 +466,47 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		},
 	},
 	{
+		id: "settings-agents-codex-signed-in",
+		group: "Settings",
+		title: "Agents: Codex just signed in with ChatGPT, the toast naming the plan",
+		seed: async (world) => {
+			await seedCast(world);
+			let signedIn = false;
+			world.answerSidecar({
+				getAgentInstalls: () => ({
+					agents: [
+						{
+							agent: "codex",
+							installed: true,
+							path: "/Users/sam/Library/Application Support/Conducted/bin/codex",
+							source: "managed",
+							version: "0.98.0",
+							authenticated: signedIn,
+							...(signedIn ? { authMethod: "chatgpt" as const } : {}),
+						},
+					],
+				}),
+				startAgentLogin: () => ({
+					loginId: "catalogue-codex",
+					url: "https://auth.openai.com/codex/device",
+					userCode: "ABCD-1234",
+					verificationUrl: "https://auth.openai.com/codex/device",
+					instructions: "Enter the code on OpenAI's page.",
+				}),
+				// The user entered the code on OpenAI's page, so the login ends signed in.
+				finishAgentLogin: () => {
+					signedIn = true;
+					return { outcome: "signed_in" as const };
+				},
+			});
+			return {
+				route: "/settings/user/agents",
+				after: ({ document }) => click(document, "button", "Run codex login", { prefix: true }),
+				ready: (document) => shows(document, "Codex now uses your ChatGPT plan"),
+			};
+		},
+	},
+	{
 		id: "settings-agents-anthropic",
 		group: "Settings",
 		title: "Agents: Claude Code's Anthropic API key form",
