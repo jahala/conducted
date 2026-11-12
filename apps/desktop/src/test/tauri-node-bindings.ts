@@ -28,6 +28,7 @@ import {
 	rename,
 	rm,
 	stat,
+	statfs,
 	writeFile,
 } from "node:fs/promises";
 import { constants as osConstants } from "node:os";
@@ -461,6 +462,14 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				return undefined;
 			case COMMANDS.fsPaths:
 				return paths;
+			case COMMANDS.dbFreeBytes: {
+				// db.rs `free_bytes`: statfs's available blocks on the disk of the app's folder. The
+				// run's folder holds that folder, which a run may not have made yet.
+				const disk = await statfs(dir).catch((error: Error) => {
+					throw new CommandFailure("db_free_space_failed", error.message);
+				});
+				return disk.bavail * disk.bsize;
+			}
 			case COMMANDS.logWrite:
 				return undefined;
 			case COMMANDS.httpFetch: {

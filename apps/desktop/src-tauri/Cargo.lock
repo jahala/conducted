@@ -680,6 +680,7 @@ dependencies = [
  "grep-searcher",
  "ignore",
  "image",
+ "libc",
  "lzma-rust2",
  "muda",
  "native-tls",
