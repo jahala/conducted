@@ -26,6 +26,7 @@ import {
 	SettingsService,
 	type SettingsServiceDeps,
 	SHARED_SETTINGS_READ_ONLY_MESSAGE,
+	settingsFileOverwritable,
 	validateEnvVarName,
 } from "./settings.ts";
 import { tomlCodec } from "./toml-codec.ts";
@@ -546,17 +547,88 @@ describe("DATA-05 writing settings", () => {
 		expect(!result.ok && result.error.code).toBe("setting_unknown");
 	});
 
-	it("refuses to save into an invalid file, and overwrites only when asked", async () => {
+	// Conductor's "Overwrite file" (mutateSettingsFile, main @415335; readSettingsFileDataForWrite,
+	// @416200): a forced save starts from the file as the app last read it whole, and with no such
+	// read there is nothing to start from, so no button is offered and a forced save is refused.
+	it("refuses to save into an invalid file it never read, and offers no overwrite", async () => {
 		const test = harness();
 		test.fs.files.set(userFile(), "{ not toml");
 		const blocked = await test.service.set("delete_branch_on_archive", true);
 		expect(blocked.ok).toBe(false);
 		expect(!blocked.ok && blocked.error.message).toBe(SETTINGS_FILE_INVALID_MESSAGE);
-		const overwritten = await test.service.set("delete_branch_on_archive", true, {
-			overwrite: true,
-		});
+		expect(!blocked.ok && settingsFileOverwritable(blocked.error)).toBe(false);
+		const forced = await test.service.set("delete_branch_on_archive", true, { overwrite: true });
+		expect(!forced.ok && forced.error.message).toBe("Failed to save setting");
+		expect(test.fs.files.get(userFile())).toBe("{ not toml");
+		expect(test.service.get("delete_branch_on_archive")).toBe(false);
+	});
+
+	it("overwrites an invalid file from the file as the last save left it, with the new value", async () => {
+		const test = harness();
+		test.fs.files.set(userFile(), '[models]\ndefault = "model-a"\n');
+		expect((await test.service.set("delete_branch_on_archive", true)).ok).toBe(true);
+		test.fs.files.set(userFile(), "[git\ndelete_branch_on_archive = true\n");
+
+		const blocked = await test.service.set("archive_on_merge", true);
+		expect(!blocked.ok && blocked.error.message).toBe(
+			"Can't save setting because your settings file is invalid",
+		);
+		expect(!blocked.ok && settingsFileOverwritable(blocked.error)).toBe(true);
+		expect(test.service.get("archive_on_merge")).toBe(false);
+
+		const overwritten = await test.service.set("archive_on_merge", true, { overwrite: true });
 		expect(overwritten.ok).toBe(true);
-		expect(test.fs.files.get(userFile())).toContain("delete_branch_on_archive = true");
+		const parsed = tomlCodec.parse(test.fs.files.get(userFile()) ?? "");
+		expect(parsed.ok && parsed.value).toMatchObject({
+			models: { default: "model-a" },
+			git: { delete_branch_on_archive: true, archive_on_merge: true },
+		});
+		expect(test.service.get("archive_on_merge")).toBe(true);
+	});
+
+	it("shows the overwritten file's values, not ones read from a later edit it replaced", async () => {
+		const test = harness();
+		test.fs.files.set(userFile(), '[models]\ndefault = "model-a"\n');
+		expect((await test.service.start()).ok).toBe(true);
+		expect((await test.service.set("delete_branch_on_archive", true)).ok).toBe(true);
+		// An edit elsewhere that the next reload reads, then one that breaks the file.
+		test.fs.files.set(userFile(), '[models]\ndefault = "model-b"\n');
+		expect((await test.service.reloadFromDisk()).ok).toBe(true);
+		expect(test.service.get("default_model")).toBe("model-b");
+		test.fs.files.set(userFile(), "[models\n");
+
+		expect((await test.service.set("archive_on_merge", true)).ok).toBe(false);
+		expect((await test.service.set("archive_on_merge", true, { overwrite: true })).ok).toBe(true);
+
+		expect(test.service.get("default_model")).toBe("model-a");
+		expect(test.service.get("delete_branch_on_archive")).toBe(true);
+		expect(test.service.get("archive_on_merge")).toBe(true);
+		test.service.stop();
+	});
+
+	it("offers no second overwrite when a forced save fails", async () => {
+		const test = harness();
+		expect((await test.service.set("delete_branch_on_archive", true)).ok).toBe(true);
+		test.fs.files.set(userFile(), "[git\n");
+		test.fs.failWrites.add(userFile());
+		const forced = await test.service.set("archive_on_merge", true, { overwrite: true });
+		expect(!forced.ok && forced.error.message).toBe("Failed to save setting");
+		expect(!forced.ok && settingsFileOverwritable(forced.error)).toBe(false);
+		expect(test.service.get("archive_on_merge")).toBe(false);
+	});
+
+	it("overwrites a project's invalid local file from its last save", async () => {
+		const test = harness();
+		const local = "/repos/app/.conducted/settings.local.toml";
+		expect((await test.service.setForRepo("/repos/app", "archive_on_merge", true)).ok).toBe(true);
+		test.fs.files.set(local, "[broken\n");
+		const key = "delete_branch_on_archive";
+		const blocked = await test.service.setForRepo("/repos/app", key, true);
+		expect(!blocked.ok && settingsFileOverwritable(blocked.error)).toBe(true);
+		const forced = await test.service.setForRepo("/repos/app", key, true, { overwrite: true });
+		expect(forced.ok).toBe(true);
+		const read = await test.service.readSettingsFile(local);
+		expect(read.ok && read.value.values).toMatchObject({ archive_on_merge: true, [key]: true });
 	});
 
 	it("rolls the store back when the file write fails", async () => {

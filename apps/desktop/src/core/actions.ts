@@ -242,11 +242,11 @@ export function createActions(
 			remove: (id) => services.composer.removeSnippet(id),
 		},
 		settings: {
-			set: (key, value) => services.settings.set(key, value),
+			set: (key, value, options) => services.settings.set(key, value, options),
 			reset: (key) => services.settings.delete(key),
 			setEnvVar: (name, value, scope) => services.settings.setEnvVar(name, value, scope),
 			removeEnvVar: (name, scope) => services.settings.removeEnvVar(name, scope),
-			resetForRepo: (repoId, key) => services.settings.resetForRepo(repoId, key),
+			resetForRepo: (repoId, key, options) => services.settings.resetForRepo(repoId, key, options),
 			filePath: (file) => services.settings.filePath(file),
 			openFile: (file, appName) => services.settings.openFile(file, appName),
 		},

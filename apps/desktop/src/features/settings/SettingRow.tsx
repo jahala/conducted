@@ -12,9 +12,9 @@
  * Must handle: a long description (wraps, no truncation), a switch whose stored key says the
  * opposite of its title (shown and saved inverted), a disabled setting with a reason (the
  * fieldset disables the control), a setting that is highlighted after a search jump, and a save
- * that fails: a toast with Conductor's words (main @389863) and an error line under the row (a
- * typed number, text or list that was not saved goes back to the stored value, so the field never
- * shows a value the app does not hold).
+ * that fails: a toast with Conductor's words (main @389730), with its "Overwrite file" button for
+ * an invalid file the app can save over (a typed number, text or list that was not saved goes back
+ * to the stored value, so the field never shows a value the app does not hold).
  * Test first: with a disabledReason the control is disabled and the reason is shown.
  */
 
@@ -40,7 +40,7 @@ import {
 	type SettingValue,
 	settingsForPage,
 } from "../../core/registries/settings.ts";
-import { settingSaveFailedNotice } from "../../core/setting-save-notice.ts";
+import { type OverwriteAndSave, tellSettingSaveFailed } from "../../core/setting-save-notice.ts";
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import { Input, Label, Textarea } from "../../ui/Input.tsx";
@@ -177,10 +177,17 @@ export function SettingRow({
 	);
 }
 
-/** Tells the user a setting was not saved, in a toast, as Conductor's settings writer does. */
-export function toastSettingSaveFailed(error: AppError): void {
-	const notice = settingSaveFailedNotice(error);
-	toast.error(notice.title, notice.description === null ? {} : { description: notice.description });
+/**
+ * Tells the user a setting was not saved, in a toast, as Conductor's settings writer does.
+ * `overwrite` repeats the save over an invalid file, for the toast's "Overwrite file" button.
+ */
+export function toastSettingSaveFailed(error: AppError, overwrite: OverwriteAndSave): void {
+	tellSettingSaveFailed(error, overwrite, (shown) => {
+		toast.error(shown.title, {
+			...(shown.description === null ? {} : { description: shown.description }),
+			...(shown.action === null ? {} : { action: shown.action }),
+		});
+	});
 }
 
 /**
@@ -195,7 +202,9 @@ export function useSettingSaves() {
 		async (key: string, value: unknown): Promise<boolean> => {
 			const result = await actions.settings.set(key, value);
 			if (!result.ok) {
-				toastSettingSaveFailed(result.error);
+				toastSettingSaveFailed(result.error, () =>
+					actions.settings.set(key, value, { overwrite: true }),
+				);
 				return false;
 			}
 			return true;
