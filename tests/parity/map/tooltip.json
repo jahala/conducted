@@ -92,12 +92,9 @@
 		"by": "seed"
 	},
 	"tooltip:R8843427": {
-		"status": "matched",
-		"state": "git-diff",
-		"via": "aria-label",
-		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > button:nth-of-type(1)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Composer"
 	},
 	"tooltip:R8922004": {
 		"status": "decided",
@@ -118,12 +115,9 @@
 		"by": "hand"
 	},
 	"tooltip:R9523634": {
-		"status": "matched",
-		"state": "chat-notices",
-		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div > span",
-		"by": "seed"
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "inventory-controls Chat view"
 	},
 	"tooltip:R9525824": {
 		"status": "matched",
@@ -173,11 +167,12 @@
 		"by": "hand"
 	},
 	"tooltip:R11579984": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-03",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-agents-claude-login",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > div > button > span",
+		"by": "seed"
 	},
 	"tooltip:R11916650": {
 		"status": "decided",

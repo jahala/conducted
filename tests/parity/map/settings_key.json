@@ -180,12 +180,9 @@
 		"by": "seed"
 	},
 	"settings_key:ssh_key_path": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-12",
-		"owner": "hand",
-		"note": "SSH into a cloud workspace."
+		"status": "matched",
+		"ours": "ssh_key_path",
+		"by": "seed"
 	},
 	"settings_key:delete_branch_on_archive": {
 		"status": "matched",
@@ -415,12 +412,9 @@
 		"by": "hand"
 	},
 	"settings_key:conductor_root_path": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SET-02",
-		"owner": "hand",
-		"note": "The app data folder on the Advanced page."
+		"status": "matched",
+		"ours": "conductor_root_path",
+		"by": "seed"
 	},
 	"settings_key:dashboard_enabled": {
 		"status": "matched",
