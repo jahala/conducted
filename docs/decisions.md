@@ -953,7 +953,7 @@ Why: the owner's rule "Match Conductor. Nothing made up; gaps are reported." The
 
 ## D131. File icons draw Conductor's tinted brand glyphs, from their own packages (2026-11-12)
 
-Made in the #534 build, under the owner's rule "Match Conductor. Nothing made up; gaps are reported." The second package (react-icons) is this build's call, for the lead to confirm.
+Decided by the lead under the owner's rule "Match Conductor. Nothing made up; gaps are reported." The second package (react-icons) is needed because 11 of Conductor's glyphs are not Simple Icons. How the app shows the CC BY 4.0 credit that Font Awesome and codicons require is the owner's call (#577).
 
 Context: Conductor 0.92.1 looks a file up in a hand-made table before the Material Icon Theme (renderApp `x8i` @2480863): 22 names, a Dockerfile prefix and 84 reachable extensions, drawn with 43 glyphs in 30 tints. Its glyphs come from react-icons. Matched path for path, 32 are Simple Icons, 8 are Font Awesome 5's solid file shapes, 2 are VS Code codicons (`json`, `settings-gear`) and 1 is Devicons' `java`. The issue assumed all were Simple Icons.
 
