@@ -6,7 +6,7 @@
  * approval, a question and a plan review; a workspace with a closed chat, so the tab strip offers
  * "View chat history"; a workspace address no workspace answers ("Workspace not
  * found"); and a reply that uses every Markdown part (headings, lists, inline code, a code block, a
- * table, a quote, a callout, links and a rule); a long user message shortened with Show more; the
+ * table, a quote, a callout, links and a rule); a long user message shortened with Show more; the reply just copied; the
  * plan review bar's three tooltips; and the toast
  * after copying a chat image.
  * Behaviour: ui-map.md 3.3 (chat), sessions-and-chats.md "Questions, approvals and plans".
@@ -177,6 +177,16 @@ async function longMessageChat(world: World): Promise<Scene> {
 }
 
 export const CHAT_STATES: CatalogueState[] = [
+	{
+		id: "chat-copied",
+		group: "Workspace chat",
+		title: "The turn footer's copy button just after copying the reply",
+		seed: castChat(
+			(cast) => ({ route: chatRoute(cast.arbor, cast.chats.arbor), workspace: cast.arbor }),
+			"Copied",
+			(document) => click(document, "button", "Copy final message"),
+		),
+	},
 	{
 		id: "chat-long-message",
 		group: "Workspace chat",
