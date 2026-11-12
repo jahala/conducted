@@ -69,6 +69,12 @@ export interface CommandDef {
 	/** False for commands the research marks as not rebindable. */
 	configurable: boolean;
 	scope: CommandScope;
+	/**
+	 * True for a global command whose key still works while a dialog is open. Conductor's key
+	 * listener skips every other app shortcut under an open dialog; these are the commands its table
+	 * marks global (main @3778851 onwards).
+	 */
+	overDialogs?: true;
 	/** Backlog id of the feature that owns the behaviour. */
 	feature: string;
 }
@@ -88,6 +94,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+K"],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "NAV-08",
 	},
 	{
@@ -97,6 +104,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+Alt+T"],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "SET-06",
 	},
 	{
@@ -106,6 +114,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+Alt+/"],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "NAV-09",
 	},
 	{
@@ -115,6 +124,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+,"],
 		configurable: false,
 		scope: "global",
+		overDialogs: true,
 		feature: "SET-02",
 	},
 	{
@@ -124,6 +134,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+Q"],
 		configurable: false,
 		scope: "global",
+		overDialogs: true,
 		feature: "PLAT-15",
 	},
 	{
@@ -133,6 +144,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+Alt+F"],
 		configurable: false,
 		scope: "global",
+		overDialogs: true,
 		feature: "APP-09",
 	},
 	{
@@ -142,6 +154,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+Alt+I"],
 		configurable: false,
 		scope: "global",
+		overDialogs: true,
 		feature: "APP-03",
 	},
 	{
@@ -151,6 +164,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+Shift+I"],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "APP-03",
 	},
 	{
@@ -161,6 +175,7 @@ export const COMMANDS = [
 		defaultShortcuts: [],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "APP-03",
 	},
 	{
@@ -179,6 +194,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+Escape"],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "APP-03",
 	},
 	{
@@ -287,6 +303,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Ctrl+O"],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "CHAT-08",
 	},
 	{
@@ -323,6 +340,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+."],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "NAV-12",
 	},
 	{
@@ -332,6 +350,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+=", "Cmd+Plus"],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "SET-06",
 	},
 	{
@@ -341,6 +360,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+-"],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "SET-06",
 	},
 	{
@@ -350,6 +370,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+0"],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "SET-06",
 	},
 	{
@@ -359,6 +380,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+["],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "NAV-02",
 	},
 	{
@@ -368,6 +390,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+]"],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "NAV-02",
 	},
 	{
@@ -377,6 +400,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+Shift+H"],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "NAV-05",
 	},
 	{
@@ -449,6 +473,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+P"],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "REV-07",
 	},
 	{
@@ -458,6 +483,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+Shift+F"],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "REV-07",
 	},
 	{
@@ -485,6 +511,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+Shift+N"],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "WS-02",
 	},
 	{
@@ -539,6 +566,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+Shift+A"],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "WS-05",
 	},
 	{
@@ -984,6 +1012,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+I"],
 		configurable: true,
 		scope: "global",
+		overDialogs: true,
 		feature: "PR-09",
 	},
 	{
