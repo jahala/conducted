@@ -55,7 +55,7 @@ describe("APP-05 toast variants", () => {
 
 describe("APP-05 how long a toast shows", () => {
 	// Conductor's toaster closes a toast after 5 seconds unless the toast sets its own time
-	// (renderApp @614279, M4i = 5e3; its Toaster gets only a theme, @11706792).
+	// (renderApp @614297, M4i = 5e3; its Toaster gets only a theme, @11706792).
 	it("keeps a toast for 5 seconds, as Conductor's toaster does", () => {
 		vi.useFakeTimers();
 		try {

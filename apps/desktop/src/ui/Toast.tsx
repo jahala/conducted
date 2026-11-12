@@ -128,7 +128,7 @@ export function Toaster({ workspaceId }: ToasterProps = {}) {
 		<Sonner
 			position="bottom-right"
 			// Conductor's toaster closes a toast after 5 seconds unless it sets its own time (renderApp
-			// @614279); sonner's own default is 4.
+			// @614297); sonner's own default is 4.
 			duration={TOAST_DURATION_MS}
 			toastOptions={{
 				unstyled: true,
@@ -136,7 +136,7 @@ export function Toaster({ workspaceId }: ToasterProps = {}) {
 					toast:
 						"flex w-(--toast-width) items-start gap-2 rounded-lg border border-border bg-raised p-4 text-code text-fg shadow-toast",
 					title: "font-medium",
-					// Conductor keeps a description's line breaks (renderApp CSS, `[data-description]`
+					// Conductor keeps a description's line breaks (renderApp CSS @10462, `[data-description]`
 					// white-space: pre-line), so a quoted parse error reads line by line.
 					description: "whitespace-pre-line text-fg-muted",
 					error: "text-danger",
