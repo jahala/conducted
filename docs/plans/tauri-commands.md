@@ -4,13 +4,16 @@ The names the Rust shell registers and `apps/desktop/src/platform/tauri.ts` call
 
 Binary data (terminal output, history, images) travels as base64 strings or through a `tauri::ipc::Channel`, never as JSON number arrays.
 
-Dialogs, clipboard text and images, opening URLs, notifications permission and the SQL database use their Tauri plugins directly from `platform/tauri.ts`. Window focus, theme and drag and drop, and the webview zoom, use Tauri's window and webview API (the zoom needs `core:webview:allow-set-webview-zoom` in `capabilities/default.json`). They need no custom command.
+Dialogs, clipboard text and images, opening URLs and notifications permission use their Tauri plugins directly from `platform/tauri.ts`. The SQL database has commands of its own over one connection (D137). Window focus, theme and drag and drop, and the webview zoom, use Tauri's window and webview API (the zoom needs `core:webview:allow-set-webview-zoom` in `capabilities/default.json`). They need no custom command.
 
 | Platform method                                  | Command                                                                      | Rust module         | Events emitted                         |
 | ------------------------------------------------ | ---------------------------------------------------------------------------- | ------------------- | -------------------------------------- |
 | `app.health`                                     | `health`                                                                     | lib.rs              |                                        |
 | `app.dbVersionWarning`                           | `db_version_check`                                                           | db.rs               |                                        |
 | `app.databaseFreeBytes`                          | `db_free_bytes`                                                              | db.rs               |                                        |
+| `db` (opened on its first statement)             | `db_open`                                                                    | database.rs         |                                        |
+| `db.execute`                                     | `db_execute { query, values }`                                               | database.rs         |                                        |
+| `db.select`                                      | `db_select { query, values }`                                                | database.rs         |                                        |
 | `app.version`, `app.channel`                     | `app_info`                                                                   | lib.rs              |                                        |
 | `app.onQuitRequested`, `app.quit`                | `app_quit`                                                                   | lib.rs              | `app://quit-requested`                 |
 | `app.onDeepLink`                                 | `deep_link_launch` (the launch links)                                        | deep_link.rs        | `app://deep-link`                      |

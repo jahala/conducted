@@ -1011,3 +1011,23 @@ Context: Conductor titles its system folder pickers "Select project directory", 
 Chosen: a parity entry that is the title of a system dialog is mapped to D134. Its note names the screen that opens the dialog and the test that asserts the title the Platform receives. The test drives the real screen, so changing the title fails it. A dialog the app draws itself stays a catalogue match.
 
 Why: the words are on screen and must match Conductor's. Only a test can see them, so the decision names the test that holds them.
+
+## D137. The app's database is one connection that nothing replaces while the app runs (2026-11-12)
+
+Decided by the agent fixing issue #616, which the owner filed. Replaces "An explicit pool pin is PLAT-27" in `platform/tauri.ts`.
+
+Context: a transaction is BEGIN IMMEDIATE, its statements and COMMIT, each sent to the Rust shell as its own call (`platform/queued-database.ts`). The app sent them through tauri-plugin-sql 2.6.0, which opens a sqlx pool with `Pool::connect(db_url)` (`wrapper.rs:102`) and so with sqlx 0.8's defaults: up to 10 connections, an idle one closed after 10 minutes, and any one closed when it is released after 30 minutes of life (`sqlx-core-0.8.6/src/pool/connection.rs`, `return_to_pool`). A connection closed inside a transaction rolls it back, and the transaction's later statements then save one by one on a new connection. A TEMP table or an ATTACH vanished with the connection too. A test through the real Rust side showed both on main: the second insert of a transaction saved on its own and COMMIT failed with "no transaction is active", and a TEMP table was gone after the UI's open ran a second time, because the plugin's `load` replaces the pool it holds.
+
+Chosen:
+
+- **Our own commands over one connection.** `database.rs` holds one sqlx `SqliteConnection` from the first `db_open` until the app exits. `db_execute` and `db_select` run on it. There is no pool, so nothing closes the connection while the app runs and nothing opens a second one. Once it is closed (at exit) every database command fails with `db_closed`, and a connection SQLite can no longer use fails each statement the same way. No later statement of a transaction can save on its own.
+- **What the UI sends stays the same.** Values bind as the plugin bound them (null, text, every number as a REAL, a boolean, array or object as its JSON text), and rows come back keyed by column name in column order. A test runs the same statements through the plugin on main and through our commands, with the same answers. The migrations run through sqlx's migrator with the same versions and checksums, so a database the plugin migrated opens unchanged; this was checked on a file the plugin migrated.
+- **The plugin is removed.** `tauri-plugin-sql`, `@tauri-apps/plugin-sql` and the `sql:` permissions are gone, so no web page can load or close a pool under the app. The live parity harness seeds through `db_open`, `db_select` and `db_execute`, and the parity map records Conductor's `sql|*` commands under this decision.
+- **The stand-ins are held to it.** The contract case `db.one-connection` loses the connection between BEGIN and COMMIT and requires the transaction's later statements, its commit and every statement after it to fail. The memory Platform and the Node stand-in both run it; a stand-in that opens a new connection fails it.
+
+Why the other ways were not enough:
+
+- **Pool options through the plugin.** It has none: `Pool::connect` takes only the URL, and SQLite's URL options do not reach the pool.
+- **A pool the app builds and puts in the plugin's `DbInstances`.** One connection with no lifetime and no idle timeout stops the 30-minute close, but sqlx still opens a new connection after one fails its ping. The only hook that can refuse it (`after_connect`) makes every later statement wait the 30-second acquire timeout. And any call to the plugin's `load` replaces the pool with a default one.
+
+The test: `apps/desktop/src-tauri/tests/plat_02_database.rs`.

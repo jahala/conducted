@@ -3,8 +3,9 @@
 //!
 //! Owns: the migration list for `conducted.db`, the check that stops the app when the
 //! database was migrated by a newer version, and `db_free_bytes`, the free space on the
-//! database's disk, which the Conductor import checks before it writes (D132). The UI reads and writes through tauri-plugin-sql; this
-//! module only defines the schema and guards it.
+//! database's disk, which the Conductor import checks before it writes (D132). The UI reads and
+//! writes through the one connection in `database.rs`, which runs these migrations when it opens;
+//! this module only defines the schema and guards it.
 //!
 //! Behaviour: docs/research/conductor/native-and-sidecar-map.md A11 (Conductor's migrations and
 //! rollback guard: at startup the database version is compared with the app's newest migration, and
@@ -12,18 +13,18 @@
 //! the UI). Our command is `db_version_check`.
 //!
 //! Must handle:
-//! - The check must run before the UI opens the database. Opening it through the plugin runs
+//! - The check must run before the UI opens the database. Opening it (`db_open`) runs
 //!   migrations, and a database with applied versions the app does not know makes the migrator
 //!   fail with a message the user cannot act on.
 //! - The version is the highest `version` with `success = 1` in the `_sqlx_migrations` table that
-//!   the plugin keeps. It is read with a read-only connection, so the check never creates or
+//!   sqlx's migrator keeps. It is read with a read-only connection, so the check never creates or
 //!   changes the file.
 //! - No database file yet: state `fresh`. A file without the table: state `fresh`.
 //! - A database version above `app_schema_version()`: state `database_newer`, with a message that
 //!   tells the user to update the app. The app does not offer to migrate down. This is checked
 //!   before failed rows, so a newer database with a failed row still asks for an update.
 //! - A row with `success = 0` means a migration failed half way: state `failed_migration`. The
-//!   plugin's migrator refuses such a database on every start, so the message says a restart will
+//!   migrator refuses such a database on every start, so the message says a restart will
 //!   not help, and names the file to restore from a backup and asks the user to report it.
 //! - Never edit an applied migration; add a new numbered file and a new entry in `migrations()`.
 //!
@@ -31,9 +32,9 @@
 //! `migration_rollbacks` table; for us "update the app" is the only supported fix. Undo SQL and the
 //! rollback command need that table, which is a new migration and so belongs to a change that may
 //! edit `migrations/`.
-//! Our design choice: the database file is `conducted.db` in the app config folder, which is where
-//! tauri-plugin-sql puts it (the same folder as the app data folder on macOS). The implementation
-//! uses `rusqlite` for the read-only query.
+//! Our design choice: the database file is `conducted.db` in the app config folder, where
+//! tauri-plugin-sql put it before D137 (the same folder as the app data folder on macOS). The
+//! implementation uses `rusqlite` for the read-only query.
 //!
 //! Test first: a temp database whose `_sqlx_migrations` holds a version one higher than
 //! `app_schema_version()` yields `database_newer`; one at the same version yields `ok`.
@@ -45,128 +46,116 @@ use std::path::{Path, PathBuf};
 
 use rusqlite::{Connection, OpenFlags};
 use serde::Serialize;
-use tauri::{AppHandle, Manager};
-use tauri_plugin_sql::{Migration, MigrationKind};
+use tauri::{AppHandle, Manager, Runtime};
 
 use crate::error::{CommandError, CommandResult, blocking};
 
-pub const DB_URL: &str = "sqlite:conducted.db";
+/// One numbered schema change. sqlx's migrator records each by version, with a checksum of its
+/// SQL, in `_sqlx_migrations`.
+#[derive(Debug, Clone, Copy)]
+pub struct Migration {
+    pub version: i64,
+    pub description: &'static str,
+    pub sql: &'static str,
+}
 
+/// Every migration, oldest first.
 pub fn migrations() -> Vec<Migration> {
     vec![
         Migration {
             version: 1,
             description: "init",
             sql: include_str!("../migrations/0001_init.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 2,
             description: "archive_times_and_env_uniqueness",
             sql: include_str!("../migrations/0002_archive_times_and_env_uniqueness.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 3,
             description: "diff_comment_side",
             sql: include_str!("../migrations/0003_diff_comment_side.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 4,
             description: "review_states_backlog_snippets_keys",
             sql: include_str!("../migrations/0004_review_states_backlog_snippets_keys.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 5,
             description: "diff_comment_suggestion_base",
             sql: include_str!("../migrations/0005_diff_comment_suggestion_base.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 6,
             description: "model_context_windows",
             sql: include_str!("../migrations/0006_model_context_windows.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 7,
             description: "session_fork_resume",
             sql: include_str!("../migrations/0007_session_fork_resume.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 8,
             description: "backlog_repo_optional",
             sql: include_str!("../migrations/0008_backlog_repo_optional.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 9,
             description: "workspace_host",
             sql: include_str!("../migrations/0009_workspace_host.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 10,
             description: "scan_indexes",
             sql: include_str!("../migrations/0010_scan_indexes.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 11,
             description: "drop_unused_columns",
             sql: include_str!("../migrations/0011_drop_unused_columns.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 12,
             description: "linked_folders_off_chats",
             sql: include_str!("../migrations/0012_linked_folders_off_chats.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 13,
             description: "drop_session_context_window",
             sql: include_str!("../migrations/0013_drop_session_context_window.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 14,
             description: "port_forwards",
             sql: include_str!("../migrations/0014_port_forwards.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 15,
             description: "settings_garry_mode",
             sql: include_str!("../migrations/0015_settings_garry_mode.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 16,
             description: "terminal_host",
             sql: include_str!("../migrations/0016_terminal_host.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 17,
             description: "root_path_key",
             sql: include_str!("../migrations/0017_root_path_key.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 18,
             description: "terminal_placement",
             sql: include_str!("../migrations/0018_terminal_placement.sql"),
-            kind: MigrationKind::Up,
         },
         Migration {
             version: 19,
             description: "workspace_remote_file_sync",
             sql: include_str!("../migrations/0019_workspace_remote_file_sync.sql"),
-            kind: MigrationKind::Up,
         },
     ]
 }
@@ -208,7 +197,7 @@ pub struct DbVersionCheck {
 pub struct DatabaseFacts {
     /// Whether the file exists at all.
     pub exists: bool,
-    /// Whether the plugin's migration table is in the file.
+    /// Whether sqlx's migration table is in the file.
     pub has_migration_table: bool,
     /// The highest version whose migration finished.
     pub db_version: Option<i64>,
@@ -216,8 +205,8 @@ pub struct DatabaseFacts {
     pub failed_migration: bool,
 }
 
-/// The path of the database the sql plugin opens: `conducted.db` in the app config folder.
-pub fn database_path(app: &AppHandle) -> CommandResult<PathBuf> {
+/// The path of the app's database: `conducted.db` in the app config folder.
+pub fn database_path<R: Runtime>(app: &AppHandle<R>) -> CommandResult<PathBuf> {
     app.path()
         .app_config_dir()
         .map(|directory| directory.join("conducted.db"))
@@ -546,7 +535,7 @@ mod tests {
 
         let result = check(database.path());
 
-        // The plugin's migrator refuses a half-applied migration on every start, so a restart
+        // The migrator refuses a half-applied migration on every start, so a restart
         // cannot help. The message points at the file to restore and says to report the problem.
         let message = result.message.expect("a failed migration has a message");
         assert!(!message.contains("Restart the app"), "{message}");
