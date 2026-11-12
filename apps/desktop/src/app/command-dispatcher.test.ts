@@ -5,8 +5,8 @@
  * Test first: with a base and a modal handler registered for "palette.open", only the modal one runs.
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
 import { appError, err, type Result } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { effectiveShortcuts, getCommand } from "../core/registries/commands.ts";
@@ -237,6 +237,55 @@ describe("NAV-14 dispatchCommand", () => {
 		).not.toThrow();
 		expect(run).not.toHaveBeenCalled();
 		expect(report).toHaveBeenCalledWith("No command named no.such.command.");
+	});
+});
+
+/**
+ * The dialogs Conductor keeps off its dialog store, so app shortcuts still run under them, with how
+ * many each file draws. Every other dialog holds app shortcuts, as Conductor's store dialogs do.
+ * The evidence for each is in ui-map.md 5.4 ("Which dialogs hold app shortcuts").
+ */
+const DIALOGS_THAT_LET_SHORTCUTS_THROUGH: Readonly<Record<string, number>> = {
+	"features/chat/ResetChatDialog.tsx": 1,
+	"features/chat/MermaidDiagram.tsx": 1,
+	"features/diff/DiscardCommentDialog.tsx": 1,
+	"features/git-panel/changes/StackView.tsx": 1,
+	"features/scripts-panel/run/AddActionDialog.tsx": 1,
+	"features/settings/cloud/McpServersSection.tsx": 2,
+	"features/settings/environment/AddEnvVarForm.tsx": 1,
+	"features/settings/environment/EnvVarTable.tsx": 1,
+	"features/settings/pages/AccountPage.tsx": 3,
+	"features/settings/repo/RemoveRepoDialog.tsx": 1,
+	"features/workspace/WorkspaceActionsMenu.tsx": 1,
+};
+
+/** The desktop's source folder, found from the working directory as the menu.rs check does. */
+function desktopSourceRoot(): string {
+	const root = [resolve(process.cwd(), "src"), resolve(process.cwd(), "apps/desktop/src")].find(
+		(candidate) => existsSync(resolve(candidate, "app/command-dispatcher.ts")),
+	);
+	if (root === undefined) throw new Error("The desktop's src folder was not found.");
+	return root;
+}
+
+function sourceFiles(folder: string): string[] {
+	return readdirSync(folder, { withFileTypes: true }).flatMap((entry) => {
+		const path = resolve(folder, entry.name);
+		if (entry.isDirectory()) return sourceFiles(path);
+		return /\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) ? [path] : [];
+	});
+}
+
+describe("NAV-14 which dialogs hold app shortcuts", () => {
+	it("lets shortcuts through exactly the dialogs Conductor keeps off its dialog store", () => {
+		const root = desktopSourceRoot();
+		const found: Record<string, number> = {};
+		for (const path of sourceFiles(resolve(root, "features"))) {
+			const marks = /\bletShortcutsThrough\b|\bletShortcutsThroughProps\(true\)/g;
+			const count = readFileSync(path, "utf8").match(marks)?.length ?? 0;
+			if (count > 0) found[relative(root, path)] = count;
+		}
+		expect(found).toEqual(DIALOGS_THAT_LET_SHORTCUTS_THROUGH);
 	});
 });
 

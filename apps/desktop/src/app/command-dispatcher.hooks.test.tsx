@@ -5,7 +5,8 @@
  * Behaviour: ui-map.md 1.1, 5.4, 8.
  * Test first: the modal handler wins, then the base handler runs after the modal unmounts.
  */
-import { appError, err, ok, type SessionId } from "@conducted/shared";
+import { appError, err, ok, type SessionId, type TurnId } from "@conducted/shared";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, renderHook, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,11 +14,14 @@ import { createContainer } from "../core/container.ts";
 import { ServicesProvider } from "../core/context.tsx";
 import type { CommandId } from "../core/registries/commands.ts";
 import { tomlCodec } from "../core/services/toml-codec.ts";
+import { ResetChatDialog } from "../features/chat/ResetChatDialog.tsx";
 import { createMemoryPlatform } from "../platform/memory.ts";
 import type { Database, MenuShortcut, Platform } from "../platform/platform.ts";
 import { createTestIds } from "../test/ids.ts";
+import { AlertDialog, AlertDialogContent } from "../ui/AlertDialog.tsx";
 import { Dialog, DialogContent } from "../ui/Dialog.tsx";
 import { Popover } from "../ui/Popover.tsx";
+import { Sheet, SheetContent } from "../ui/Sheet.tsx";
 import { Toaster } from "../ui/Toast.tsx";
 import {
 	CommandDispatcher,
@@ -720,6 +724,83 @@ describe("NAV-14 keys while a dialog is open", () => {
 
 		expect(run).toHaveBeenCalledWith("app.commandPalette");
 		expect(event.defaultPrevented).toBe(true);
+	});
+
+	// Conductor holds app shortcuts only under the dialogs that go through its dialog store (the
+	// `F0` wrapper @1848478, or a root whose open state is the store's). The rest, such as Reset
+	// chat? (its own state @9589206) and the Settings sheets and editors (the bare root `S_`
+	// @1840607), set no active dialog id, so app shortcuts still run under them. Issue #610.
+	it.each([
+		[
+			"a dialog",
+			<Dialog key="dialog" open>
+				<DialogContent title="Add action" letShortcutsThrough>
+					<input aria-label="Name" />
+				</DialogContent>
+			</Dialog>,
+		],
+		[
+			"an alert dialog",
+			<AlertDialog key="alert" open>
+				<AlertDialogContent title="Switch branch?" letShortcutsThrough>
+					<input aria-label="Name" />
+				</AlertDialogContent>
+			</AlertDialog>,
+		],
+		[
+			"a sheet",
+			<Sheet key="sheet" open>
+				<SheetContent title="Add environment variable" footer={null} letShortcutsThrough>
+					<input aria-label="Name" />
+				</SheetContent>
+			</Sheet>,
+		],
+	])("keeps app shortcuts working under %s that lets them through", (_kind, dialog) => {
+		const harness = buildHarness();
+		const { container, wrapper } = harness;
+		viewChat(harness);
+		vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
+		const fork = vi.fn(() => true);
+		render(
+			<CommandDispatcher>
+				<Handles commandId="chat.fork" handler={fork} />
+				{dialog}
+			</CommandDispatcher>,
+			{ wrapper },
+		);
+		screen.getByLabelText("Name").focus();
+
+		press(FORK);
+
+		expect(fork).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps app shortcuts working under Reset chat?, which Conductor keeps off its dialog store", () => {
+		const harness = buildHarness();
+		const { container, wrapper } = harness;
+		viewChat(harness);
+		vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
+		const toggle = vi.fn(() => true);
+		render(
+			<QueryClientProvider client={new QueryClient()}>
+				<CommandDispatcher>
+					<Handles commandId="view.toggleLeftSidebar" handler={toggle} />
+					<ResetChatDialog
+						open
+						onOpenChange={() => undefined}
+						sessionId={"on-screen" as SessionId}
+						turnId={"t1" as TurnId}
+					/>
+				</CommandDispatcher>
+			</QueryClientProvider>,
+			{ wrapper },
+		);
+		screen.getByRole("button", { name: "Cancel" }).focus();
+
+		// Cmd+B: the dialog's own Cmd+Enter confirm would take a fork key here.
+		press({ key: "b", metaKey: true });
+
+		expect(toggle).toHaveBeenCalledTimes(1);
 	});
 
 	// A popover is not a dialog in Conductor (only its dialogs set the active dialog id), so app

@@ -431,7 +431,24 @@ Popovers: model picker, "+" menu, Forward ports, Resources, View options, chat h
 
 Source: registry `sb` in M@3782527. 176 entries. Each has `id`, key (logical or physical), `configurable`, `category`, optional `when` (global, input focus, terminal focus, dialog ids). Overrides persist under `keybinding_overrides_v1`. A conflict table (`fsn`) says which commands share a scope, so rebinding can detect real conflicts. Send key mode setting "Send messages with": `Enter` or `Cmd+Enter` swaps the four `chat.*` Enter bindings. VERIFIED M@3782527-3807000.
 
-While a dialog is open, the root key listener runs a shortcut only when the dialog registered it or its command is marked global. A handler registered inside a dialog is bound to that dialog's id. VERIFIED @680362 (the rule), @2232794 (`Kn` adds the dialog's id). The global ones: Command palette, Toggle theme, Shortcuts help, Settings, Quit, Close diagnostics, Send feedback, Open debug tools, Open sidecar logs, Open app log viewer, Toggle Garry mode, Toggle zen mode, Zoom in, Zoom out, Reset zoom, Navigate back, Navigate forward, Go to Home, Quick open file, Search in files, Create new workspace from PR, branch, or issue, Archive workspace, Link issue, and the two onboarding keys. VERIFIED M@3778851-3796000. "A dialog is open" means the dialog store holds an active dialog id (@681094), which the dialogs built on its `F0` wrapper set (23 of them, the New workspace dialog among them, @11505182). About 16 dialogs, most on Settings pages, use the bare dialog root (`S_`) and set no id, so app shortcuts still work under them. A popover is not a dialog.
+While a dialog is open, the root key listener runs a shortcut only when the dialog registered it or its command is marked global. A handler registered inside a dialog is bound to that dialog's id. VERIFIED @680362 (the rule), @2232794 (`Kn` adds the dialog's id). The global ones: Command palette, Toggle theme, Shortcuts help, Settings, Quit, Close diagnostics, Send feedback, Open debug tools, Open sidecar logs, Open app log viewer, Toggle Garry mode, Toggle zen mode, Zoom in, Zoom out, Reset zoom, Navigate back, Navigate forward, Go to Home, Quick open file, Search in files, Create new workspace from PR, branch, or issue, Archive workspace, Link issue, and the two onboarding keys. VERIFIED M@3778851-3796000. "A dialog is open" means the dialog store holds an active dialog id (@681094). A popover is not a dialog.
+
+Which dialogs hold app shortcuts (VERIFIED, issue #610). Only a dialog opened through the dialog store sets an id: the 23 built on its `F0` wrapper (@1848478, the New workspace dialog among them), and the alert dialogs whose open state is the store's (`h0` @1913054 with a store selector: archive workspace, close running chat, discard file changes, change root path, restore workspace, create private GitHub repo, equip loadout, confirm quit). The store's ids are declared together (main @3725892), plus the per-file attachment preview and per-setting prompt preview ids. Neither dialog root (`S_` @1840607, `h0`) touches the store, so every other dialog lets app shortcuts through. Ours mark those with `letShortcutsThrough` (ui/dialog-shortcuts.ts); `NAV-14 which dialogs hold app shortcuts` in app/command-dispatcher.test.ts lists them:
+
+| Ours | Conductor's evidence |
+|---|---|
+| Reset chat? | its own state, @9589206 |
+| Expanded Mermaid diagram | its own state, @8048587 |
+| Discard comment? | `h0` with its own state, @9731360 |
+| Switch branch? (stack view) | `h0` @2187137, no store id |
+| Add or edit action | `S_` @4985460 |
+| Add or edit MCP server, Select MCP servers | `S_` @10778481, @10768061 |
+| Add and edit environment variable sheets | the sheet root with its own state, @10712780, @10706717 |
+| GitHub on the Account page, its token warning, Disconnect GitHub? | `S_` @11053513 (the warning is a line inside it, @11048121), `h0` @11032759 |
+| Remove repository | `h0` with its own state, @11298444 |
+| Pause port forwarding? | `h0` @11144368, no store id |
+
+Our dialogs with no Conductor dialog keep holding app shortcuts: the review prompt editor (Conductor's "Edit before sending" puts the prompt in a new chat's composer, @2553500), the Claude and Codex config editors (Conductor shows them on the page, @10993932), Delete section? (Conductor deletes at once, @10477336), Remove variable?, Disconnect Linear?, the Conductor import and the wrong-CPU build (a full screen in Conductor, @12041474).
 
 **General**
 

@@ -30,7 +30,8 @@
  * character or caret key in a focused text field, which is the field's typing (`fieldOwnsKey`); a
  * key pressed while a dialog is open, which runs only the dialog's own keys and the global commands
  * marked `overDialogs`, as Conductor's listener does (renderApp @680362), so fork or approve plan
- * cannot act behind a dialog; a popover, which is not a dialog.
+ * cannot act behind a dialog; a dialog Conductor keeps off its dialog store, under which app
+ * shortcuts still run (ui/dialog-shortcuts.ts); a popover, which is not a dialog.
  * Our design choice: priorities are three named levels (`base`, `area`, `modal`), not numbers. A terminal
  * or diff area registers at `area`; a dialog registers at `modal`, so it wins while it is open.
  * Our design choice: a focus area marks itself with `data-command-scope="chat-input"` (or several scope
@@ -81,6 +82,7 @@ import {
 import { resolveSendKey, type SendIntent, type SendWith } from "../features/composer/send-key.ts";
 import { TERMINAL_OWNED_COMMAND_IDS } from "../features/terminal/terminal-keys.ts";
 import type { MenuShortcut } from "../platform/platform.ts";
+import { LETS_SHORTCUTS_THROUGH } from "../ui/dialog-shortcuts.ts";
 import { Kbd } from "../ui/Kbd.tsx";
 import { toast, toastError } from "../ui/Toast.tsx";
 import { type OverlayId, useOverlayStore } from "./overlay-store.ts";
@@ -532,9 +534,11 @@ export function isTextEntry(element: Element): boolean {
 }
 
 /**
- * True while a dialog is open over the app: an overlay (the palette, quick open), or a modal dialog
- * anywhere in the page, whether or not it has focus. Conductor's key listener asks its dialog store
- * the same question (renderApp @681094). A popover's panel has the dialog role too, but Conductor
+ * True while a dialog that holds app shortcuts is open: an overlay (the palette, quick open), or a
+ * modal dialog anywhere in the page, whether or not it has focus. Conductor's key listener asks its
+ * dialog store the same question (renderApp @681094), and only the dialogs that go through that
+ * store answer yes. A dialog Conductor keeps off its store carries `LETS_SHORTCUTS_THROUGH` and
+ * does not count (ui/dialog-shortcuts.ts). A popover's panel has the dialog role too, but Conductor
  * does not count a popover as a dialog. Radix draws a popover inside its popper wrapper, which
  * tells the two apart. A dialog that is closing (data-state "closed") no longer counts.
  */
@@ -542,6 +546,7 @@ function dialogOpen(root: ParentNode, openOverlay: OverlayId | null): boolean {
 	if (openOverlay !== null) return true;
 	for (const element of root.querySelectorAll("[role='dialog'], [role='alertdialog']")) {
 		if (element.getAttribute("data-state") === "closed") continue;
+		if (element.hasAttribute(LETS_SHORTCUTS_THROUGH)) continue;
 		if (element.closest("[data-radix-popper-content-wrapper]") === null) return true;
 	}
 	return false;

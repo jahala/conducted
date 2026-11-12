@@ -148,6 +148,7 @@ export function StackView({
 				}}
 			>
 				<AlertDialogContent
+					letShortcutsThrough
 					title="Switch branch?"
 					description={`An agent is running in this workspace. Switching to ${pendingBranch ?? ""} will change the files it's working on.`}
 					confirmLabel="Switch anyway"

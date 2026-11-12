@@ -89,6 +89,7 @@ export function ResetChatDialog({
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
+				letShortcutsThrough
 				title="Reset chat?"
 				description="Later messages will be deleted."
 				onConfirm={() => void reset()}
