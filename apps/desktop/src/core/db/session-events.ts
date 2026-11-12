@@ -4,7 +4,7 @@
  * @feature APP-18 Chat history from Conductor
  * Owns: the chat's append-only event log: append, read in order, mark reverted, find turns cut
  * off by a crash, and sum a workspace's reported agent cost; the staging an imported chat's
- * history is written to before it joins the chat in one statement (APP-18, D135);
+ * history is written to before it joins the chat in one statement (APP-18, D136);
  * `storedEventBytes`, what one imported event takes in the table, which the Conductor import's
  * dry run sums (D132).
  * Behaviour: sessions.md section 5 (durable events, acknowledgement after the write),
@@ -168,7 +168,7 @@ export function storedEventBytes(
 
 const COLUMNS = "session_id, idx, event_id, type, turn_id, content, received_at, reverted_at";
 
-/** The schema name of the imported chat's staging (APP-18, D135). */
+/** The schema name of the imported chat's staging (APP-18, D136). */
 const STAGING = "conductor_history";
 
 /** The JSON list `stageMany` takes: each event's stored columns. */
@@ -196,7 +196,7 @@ export const SESSION_EVENTS_SQL = {
 		ON CONFLICT (session_id, event_id) DO NOTHING
 		RETURNING idx`,
 	/**
-	 * APP-18 (D135): the staging of one imported chat. `''` makes SQLite create a temporary file of
+	 * APP-18 (D136): the staging of one imported chat. `''` makes SQLite create a temporary file of
 	 * its own, deleted on DETACH or when the connection closes.
 	 */
 	stagingAttached: `SELECT COUNT(*) AS n FROM pragma_database_list WHERE name = '${STAGING}'`,
@@ -289,7 +289,7 @@ export interface SessionEventRepository {
 		receivedAt: number,
 	): Promise<Result<AppendOutcome>>;
 	/**
-	 * APP-18 (D135): attaches an empty staging, first detaching one an earlier run left. Run it on
+	 * APP-18 (D136): attaches an empty staging, first detaching one an earlier run left. Run it on
 	 * the database, never inside a transaction, which cannot attach.
 	 */
 	openStaging(): Promise<Result<void>>;

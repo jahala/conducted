@@ -442,7 +442,9 @@ export class ComposerService {
 		const folder = draftAttachmentsDir(fs.paths, sessionId);
 		const made = await fs.mkdirp(folder);
 		if (!made.ok) return made;
-		const destination = await this.#freePath(folder, attachmentFileName(originalName));
+		const free = await this.#freePath(folder, attachmentFileName(originalName));
+		if (!free.ok) return free;
+		const destination = free.value;
 		const materialized = await write(files, destination, kind === "image");
 		if (!materialized.ok) return err(this.#copyError(materialized.error));
 		const added = await this.#deps.repos.attachments.addDraft({
@@ -493,7 +495,9 @@ export class ComposerService {
 			return err(appError("no_active_chat", "Open a chat first."));
 		}
 		for (const path of paths) {
-			if (!(await this.#deps.platform.fs.exists(path))) {
+			const found = await this.#deps.platform.fs.exists(path);
+			if (!found.ok) return found;
+			if (!found.value) {
 				return err(appError("attachment_missing", `"${path}" is no longer in the workspace.`));
 			}
 		}
@@ -568,7 +572,11 @@ export class ComposerService {
 		for (const path of attachmentPaths) {
 			const row = listed.value.find((entry) => entry.path === path);
 			if (row === undefined) {
-				if (!(await fs.exists(path))) {
+				const found = await fs.exists(path);
+				if (!found.ok) {
+					return err(appError("attachment_unavailable", "Attachments not available", found.error));
+				}
+				if (!found.value) {
 					return err(appError("attachment_unavailable", "Attachments not available"));
 				}
 				finalPaths.push(path);
@@ -593,7 +601,11 @@ export class ComposerService {
 			} else {
 				const made = await fs.mkdirp(folder);
 				if (!made.ok) return made;
-				if (!(await fs.exists(destination))) {
+				const copied = await fs.exists(destination);
+				if (!copied.ok) {
+					return err(appError("attachment_unavailable", "Attachments not available", copied.error));
+				}
+				if (!copied.value) {
 					const materialized = await files.materialize(path, destination, {
 						resizeImage: row.kind === "image",
 					});
@@ -655,18 +667,20 @@ export class ComposerService {
 	}
 
 	/** A path in `folder` that no other file uses yet. */
-	async #freePath(folder: string, name: string): Promise<string> {
+	async #freePath(folder: string, name: string): Promise<Result<string>> {
 		const fs = this.#deps.platform.fs;
 		let path = `${folder}/${name}`;
 		let suffix = 1;
-		while (await fs.exists(path)) {
+		for (;;) {
+			const taken = await fs.exists(path);
+			if (!taken.ok) return taken;
+			if (!taken.value) return ok(path);
 			const dot = name.lastIndexOf(".");
 			const stem = dot === -1 ? name : name.slice(0, dot);
 			const extension = dot === -1 ? "" : name.slice(dot);
 			path = `${folder}/${stem}-${suffix}${extension}`;
 			suffix += 1;
 		}
-		return path;
 	}
 
 	/** Turns a Rust copy failure into the message the user sees. */
@@ -728,7 +742,8 @@ export class ComposerService {
 	async #removeFile(sessionId: SessionId): Promise<Result<void>> {
 		const file = draftFile(this.#deps.platform.fs.paths, sessionId);
 		const exists = await this.#deps.platform.fs.exists(file);
-		if (!exists) return ok(undefined);
+		if (!exists.ok) return exists;
+		if (!exists.value) return ok(undefined);
 		return this.#deps.platform.fs.trash(file);
 	}
 
@@ -860,7 +875,9 @@ export class ComposerService {
 		const made = await fs.mkdirp(folder);
 		if (!made.ok) return made;
 
-		const path = await this.#freePath(folder, name);
+		const free = await this.#freePath(folder, name);
+		if (!free.ok) return free;
+		const path = free.value;
 		const written = await fs.writeTextAtomic(path, text);
 		if (!written.ok) return written;
 		const added = await this.#deps.repos.attachments.addDraft({

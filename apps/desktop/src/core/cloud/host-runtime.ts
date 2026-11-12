@@ -265,7 +265,7 @@ export function createHostedPlatform(
 				: fileOperation(cloud, host, { operation: "exists", path }, (value) => {
 						const exists = (value as { exists?: unknown }).exists;
 						return typeof exists === "boolean" ? exists : null;
-					}).then((result) => (result.ok ? result.value : false));
+					});
 		},
 		stat: (path) => {
 			const host = hostAt(path);

@@ -63,7 +63,7 @@ function makeFs(): FileSystem {
 			return ok(undefined);
 		},
 		async exists() {
-			return false;
+			return ok(false);
 		},
 		async stat() {
 			return err(appError("fs_not_found", "missing"));

@@ -5,9 +5,12 @@
  * the environment forms share.
  * Behaviour: services-map.md 4.2.4 (path resolution: absolute, `~`, relative to the settings
  * directory, then to the repository root).
- * Must handle: a relative path that exists in neither folder (the caller reports the missing file).
+ * Must handle: a relative path that exists in neither folder (the caller reports the missing file);
+ * a settings folder the file commands may not check is the Err, never "not there" (issue #601).
  * Values are secrets and are returned only to the caller.
  */
+import { ok, type Result } from "@conducted/shared";
+
 /** Collapses `.` and `..` by spelling, so a path names the same file on disk as the app writes it. */
 export function normalizeFilePath(path: string): string {
 	const absolute = path.startsWith("/");
@@ -34,17 +37,19 @@ export interface EnvFilePathInput {
 	/** The folder the layer covers: the home folder for the user layer, else the worktree. */
 	sourceRoot: string;
 	home: string;
-	exists(path: string): Promise<boolean>;
+	exists(path: string): Promise<Result<boolean>>;
 }
 
 /** Absolute and `~` paths stand as given; a relative path is taken from the settings folder when
  * it exists there, and otherwise from the layer's root (services-map.md 4.2.4). */
-export async function resolveEnvFilePath(input: EnvFilePathInput): Promise<string> {
+export async function resolveEnvFilePath(input: EnvFilePathInput): Promise<Result<string>> {
 	const path = input.path.trim();
-	if (path.startsWith("/")) return normalizeFilePath(path);
-	if (path === "~") return normalizeFilePath(input.home);
-	if (path.startsWith("~/")) return normalizeFilePath(`${input.home}/${path.slice(2)}`);
+	if (path.startsWith("/")) return ok(normalizeFilePath(path));
+	if (path === "~") return ok(normalizeFilePath(input.home));
+	if (path.startsWith("~/")) return ok(normalizeFilePath(`${input.home}/${path.slice(2)}`));
 	const inSettings = normalizeFilePath(`${input.settingsDir}/${path}`);
-	if (await input.exists(inSettings)) return inSettings;
-	return normalizeFilePath(`${input.sourceRoot}/${path}`);
+	const found = await input.exists(inSettings);
+	if (!found.ok) return found;
+	if (found.value) return ok(inSettings);
+	return ok(normalizeFilePath(`${input.sourceRoot}/${path}`));
 }

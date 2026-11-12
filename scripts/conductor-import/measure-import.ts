@@ -12,11 +12,12 @@
  * project's folder (its new `.conducted/settings.toml`, the git exclude) is kept under the run's
  * folder at the same path and read back from there, every other write outside is refused, and
  * only the read-only commands the import runs (`git worktree list --porcelain`, `lsof`) reach the
- * shell; the database queue is timed on the raw handle, from BEGIN IMMEDIATE to COMMIT or
- * ROLLBACK and for each statement outside a transaction, so the import's code is unchanged; the
- * sidecar's lines are joined once each, however many chunks they come in; the sidecar is stopped
- * by the pid it was started with, whatever happens; no value from either database leaves this
- * module, only numbers.
+ * shell; the database commands (`db_open`, `db_execute`, `db_select`) reach a migrated scratch
+ * file, and the queue is timed on that raw handle, from BEGIN IMMEDIATE to COMMIT or ROLLBACK and
+ * for each statement outside a transaction, so the import's code is unchanged; the sidecar's lines
+ * are joined once each, however many chunks they come in; the sidecar is stopped by the pid it
+ * was started with, whatever happens; no value from either database leaves this module, only
+ * numbers.
  * Our design choice: a write into a project's folder is kept in the run's folder rather than
  * refused, because a refused write fails the whole import, and the files are a few bytes beside
  * the history the run measures.
@@ -45,6 +46,7 @@ import {
 	EVENTS,
 	type TauriBindings,
 } from "../../apps/desktop/src/platform/tauri.ts";
+import { databaseCommands } from "../../apps/desktop/src/test/database-commands.ts";
 import { createNodeSqlDatabase } from "../../apps/desktop/src/test/node-sql.ts";
 import { createNodeTauriBindings } from "../../apps/desktop/src/test/tauri-node-bindings.ts";
 import { cryptoIds, systemClock } from "../../packages/shared/src/clock.ts";
@@ -342,7 +344,7 @@ function fileBytes(path: string): FileBytes {
 	return { database: size(path), journal: size(`${path}-wal`) };
 }
 
-/** Opens the scratch Conducted database as the SQL plugin does: a file, every migration applied. */
+/** Opens the scratch Conducted database as `db_open` does: a file, every migration applied. */
 function openScratchDatabase(path: string, tally: Tally): SqlDatabase {
 	const db = new DatabaseSync(path);
 	for (const name of readdirSync(MIGRATIONS)
@@ -582,11 +584,35 @@ export async function measureImport(input: MeasureInput): Promise<Measured> {
 		}
 	};
 	const stand = createNodeTauriBindings(folder);
+	// The database commands reach the migrated scratch file, opened on `db_open` as the app opens its
+	// own; every other command goes to the stand-in.
+	let scratch: SqlDatabase | null = null;
+	const database = (): SqlDatabase => {
+		scratch ??= openScratchDatabase(join(folder, "conducted.db"), tally);
+		return scratch;
+	};
+	const answerDatabase = databaseCommands(
+		{
+			execute: (query, values) => database().execute(query, values),
+			select: (query, values) => database().select(query, values),
+		},
+		async () => {
+			database();
+		},
+	);
+	const databaseCommandNames = new Set<string>([
+		COMMANDS.dbOpen,
+		COMMANDS.dbExecute,
+		COMMANDS.dbSelect,
+	]);
 	const relay = withRealSidecar(
 		fenced(
 			{
 				...stand.bindings,
-				sql: { load: async () => openScratchDatabase(join(folder, "conducted.db"), tally) },
+				invoke: <T>(command: string, args?: Record<string, unknown>): Promise<T> =>
+					databaseCommandNames.has(command)
+						? answerDatabase<T>(command, args)
+						: stand.bindings.invoke<T>(command, args),
 			},
 			folder,
 			tally,

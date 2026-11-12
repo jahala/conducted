@@ -20,7 +20,7 @@
  * Our design choice: an imported event is received at the import's time, while its own time
  * (`at`) is Conductor's, so the chat shows when things happened and the data lifetime job, which
  * ages events by when they were received, treats imported events as events received at import.
- * Our design choice (D135): the app has one database queue, and a transaction holds it, so the
+ * Our design choice (D136): the app has one database queue, and a transaction holds it, so the
  * reads and the mapping happen outside any transaction. Each read's events go into a staging that
  * no reader of the chat sees, one statement each, and the app's own writes take their turn between
  * them. The chat's transaction then copies the staged events in one statement, so the queue waits

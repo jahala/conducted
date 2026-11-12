@@ -71,11 +71,15 @@ export const PLATFORM_ERROR_CODES = [
 	"cloud_url_not_allowed",
 	"cloud_vm_id_invalid",
 	"db_check_failed",
+	"db_close_failed",
+	"db_closed",
 	"db_free_space_failed",
 	"db_migration_failed",
+	"db_not_open",
 	"db_open_failed",
 	"db_path_unavailable",
 	"db_read_failed",
+	"db_statement_failed",
 	"db_version_unreadable",
 	"deep_link_too_long",
 	"deep_link_unavailable",
@@ -276,7 +280,7 @@ export interface SqlResult {
 	lastInsertId?: number;
 }
 
-/** conducted.db through tauri-plugin-sql. Parameters use `$1, $2, ...`. */
+/** conducted.db on the Rust shell's one connection (database.rs). Parameters use `$1, $2, ...`. */
 export interface Database {
 	execute(sql: string, params?: readonly unknown[]): Promise<SqlResult>;
 	select<Row>(sql: string, params?: readonly unknown[]): Promise<Row[]>;
@@ -353,7 +357,12 @@ export interface FileSystem {
 	writeTextAtomic(path: string, text: string): Promise<Result<void>>;
 	/** Writes bytes atomically, for a binary file the mirror keeps (CLOUD-11). Same folder rule. */
 	writeBytes(path: string, bytes: Uint8Array): Promise<Result<void>>;
-	exists(path: string): Promise<boolean>;
+	/**
+	 * Whether anything is at `path`: Ok(false) when nothing is there. A path the file commands may
+	 * not reach is an Err with `fs_out_of_scope`, never false, so a refusal never reads as a missing
+	 * file (issue #601).
+	 */
+	exists(path: string): Promise<Result<boolean>>;
 	stat(path: string): Promise<Result<FileStat>>;
 	mkdirp(path: string): Promise<Result<void>>;
 	readDir(path: string): Promise<Result<FileStat[]>>;

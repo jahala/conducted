@@ -12,6 +12,7 @@ import { ok } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
 import { type SshHostEntry, sshConfigText, sshHostnames } from "../cloud/ssh.ts";
+import { READ_PUBLIC_KEY_SCRIPT } from "../ssh-key.ts";
 
 const CLOUD = { kind: "cloud" as const, url: "https://w.example.dev", vmId: "vm-1" };
 
@@ -107,8 +108,14 @@ describe("CLOUD-12 a cloud workspace's SSH door", () => {
 			const { workspace, paths } = await cloudWorkspaceWithKey(test);
 			const home = test.memory.platform.fs.paths.home;
 			const custom = `${home}/keys/custom`;
-			test.memory.controls.files.set(custom, "");
-			test.memory.controls.files.set(`${custom}.pub`, "ssh-ed25519 CUSTOMKEY conducted\n");
+			// The key is read through the shell, as Conductor reads it (issue #601).
+			test.memory.controls.scriptShell((command) =>
+				command.program === "sh" &&
+				command.args[1] === READ_PUBLIC_KEY_SCRIPT &&
+				command.args.at(-1) === custom
+					? ok({ exitCode: 0, stdout: "ssh-ed25519 CUSTOMKEY conducted\n", stderr: "" })
+					: null,
+			);
 			test.container.services.settings.store.setState({
 				values: { ssh_key_path: custom },
 			});
@@ -137,7 +144,11 @@ describe("CLOUD-12 a cloud workspace's SSH door", () => {
 			const { workspace } = await cloudWorkspaceWithKey(test);
 			const home = test.memory.platform.fs.paths.home;
 			const missing = `${home}/keys/missing`;
-			test.memory.controls.files.set(missing, "");
+			test.memory.controls.scriptShell((command) =>
+				command.program === "sh" && command.args.at(-1) === missing
+					? ok({ exitCode: 1, stdout: "", stderr: `cat: ${missing}.pub: No such file\n` })
+					: null,
+			);
 			test.container.services.settings.store.setState({
 				values: { ssh_key_path: missing },
 			});

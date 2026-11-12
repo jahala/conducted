@@ -15,7 +15,9 @@
  * with "origin" only as a placeholder, a branch list read only while the popover is open, a
  * repository value that differs from the user's (Reset to shared settings removes it, so the
  * shared settings.toml or the user's value applies again), a save that fails (the row says so, the
- * switch shows the stored value), and only the newest read changing a row.
+ * switch shows the stored value), only the newest read changing a row, and a value still loading
+ * (the switch shows the setting's default and cannot be changed, as Conductor's row does,
+ * renderApp @11165946; issue #615).
  * Test first: turning on Delete branch on archive writes this repository's value and leaves the
  * user's value alone.
  */
@@ -127,7 +129,7 @@ function RepoSwitchRow({
 		>
 			<Switch
 				aria-label={def.title}
-				checked={resolved?.value ?? false}
+				checked={resolved?.value ?? def.default === true}
 				disabled={resolved === null}
 				onCheckedChange={(checked) => void change(checked)}
 			/>

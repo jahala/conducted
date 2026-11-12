@@ -273,7 +273,7 @@ describe("APP-17 the import's plan", () => {
 });
 
 describe("D132 the space the import needs", () => {
-	it("asks for the history, the largest chat twice more and the margin (D135)", () => {
+	it("asks for the history, the largest chat twice more and the margin (D136)", () => {
 		// The journal holds the largest chat's transaction, and its staging holds it once more.
 		const space = importSpace({ diskBytes: 5e9, largestChatDiskBytes: 1e9 }, 10e9);
 		expect(space).toEqual({

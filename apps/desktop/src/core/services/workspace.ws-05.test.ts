@@ -110,7 +110,7 @@ function makeFs(folderExists = true): { fs: FileSystem; trashed: string[] } {
 				return ok(undefined);
 			},
 			async exists() {
-				return folderExists;
+				return ok(folderExists);
 			},
 			async stat() {
 				return err(appError("fs_not_found", "missing"));

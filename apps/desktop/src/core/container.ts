@@ -957,7 +957,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 		if (!repository.ok) return repository;
 		if (repository.value === null)
 			return err(appError("repo_unknown", "That project was removed."));
-		if (!(await platform.fs.exists(repository.value.rootPath))) return ok(null);
+		const found = await platform.fs.exists(repository.value.rootPath);
+		if (!found.ok) return found;
+		if (!found.value) return ok(null);
 		return ok(repository.value.rootPath);
 	};
 	const sessions: SessionsService = new SessionsService({

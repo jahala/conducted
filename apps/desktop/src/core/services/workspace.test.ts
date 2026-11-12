@@ -251,7 +251,7 @@ function makeHarness(
 			return ok(undefined);
 		},
 		async exists() {
-			return options.exists ?? false;
+			return ok(options.exists ?? false);
 		},
 		async stat() {
 			return err(appError("fs_not_found", "missing"));

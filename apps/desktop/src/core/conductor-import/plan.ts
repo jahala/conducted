@@ -265,7 +265,7 @@ export interface ImportSpace {
 	historyBytes: number;
 	/**
 	 * What must be free to start: the history, room for SQLite's journal to hold the largest
-	 * chat's transaction, room for that chat's staging (D135), and the margin.
+	 * chat's transaction, room for that chat's staging (D136), and the margin.
 	 */
 	neededBytes: number;
 	/** Free on the disk that holds Conducted's database, when it was read. */
@@ -276,7 +276,7 @@ export interface ImportSpace {
 /**
  * The space check (D132). SQLite's journal holds a whole chat's transaction before its pages are
  * copied into the database, and keeps that size until the app closes, and the chat is staged in
- * a temporary database before that transaction copies it (D135). The staging holds the same rows
+ * a temporary database before that transaction copies it (D136). The staging holds the same rows
  * without the chat's id and indexes, so it takes less than the chat does in the database. So the
  * largest chat counts three times while the import runs. With nothing to write, the import leaves
  * the disk as it found it, so no margin is asked.

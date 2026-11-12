@@ -3,7 +3,7 @@
  * @feature APP-18 Chat history from Conductor
  * Tests the statements that write an imported chat's history: the staging the import writes a
  * chat's events to, which no reader of the chat sees, and the one statement that copies them into
- * the chat after its last position, in order, with the time they were received (D135).
+ * the chat after its last position, in order, with the time they were received (D136).
  * Test first: three staged events are not in the chat until they are published, then read back in
  * order at idx 0 to 2.
  */
@@ -49,7 +49,7 @@ afterEach(() => {
 	store.close();
 });
 
-describe("APP-18 a chat's history staged, then written in one statement (D135)", () => {
+describe("APP-18 a chat's history staged, then written in one statement (D136)", () => {
 	const staged = [
 		userMessageEvent("e1", "turn-1", 100),
 		agentEvent("e2", "turn-1", 110, [{ kind: "text", text: 'It\'s "quoted"\nand long' }]),

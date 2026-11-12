@@ -79,7 +79,7 @@ const fakeFs = (): FakeFs => {
 			return ok(undefined);
 		},
 		async exists(path) {
-			return files.has(path);
+			return ok(files.has(path));
 		},
 		async stat(path) {
 			return files.has(path) ? ok(statFor(path)) : err(appError("fs_not_found", "missing"));
