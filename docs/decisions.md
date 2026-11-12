@@ -1014,6 +1014,22 @@ Chosen: a parity entry that is the title of a system dialog is mapped to D134. I
 
 Why: the words are on screen and must match Conductor's. Only a test can see them, so the decision names the test that holds them.
 
+## D135. End-to-end tests drive the real app through its own WebDriver server (2026-11-12)
+
+Decided by the lead's brief for part 1 of #564, under the owner's plan in the issue ("The app runs in a debug build with Tauri's WebdriverIO service ... The plugin is compiled only into the test build. A check fails if it's in the release bundle.").
+
+Context: Tauri's own driver (`tauri-driver`) has no macOS support. On macOS, WebdriverIO reaches WKWebView only through `tauri-plugin-wdio-webdriver`, an HTTP WebDriver server compiled into the app, which lets any local process drive the window.
+
+Chosen:
+
+- **A Cargo feature, `e2e`, compiles the server in.** Nothing but `pnpm test:e2e` turns it on. `verifyBundle` fails a release whose app binary holds the server's markers, and each e2e run proves the same scan finds them in the test build.
+- **The test build is a debug `.app` bundle** with the release config's bundled sidecar. A bare debug binary finds no resources in production mode, and a dev build needs a dev server on a fixed port.
+- **WebdriverIO's `remote()` talks to the server directly.** The harness starts the app itself, so it owns the process ids, the environment and the folder; `@wdio/tauri-service` would start the app for it.
+- **Everything the app keeps is in the fresh folder.** `HOME` and `CFFIXED_USER_HOME` point there; the first launch of a probe without `CFFIXED_USER_HOME` read three stored keys of another copy of the app from the shared WebKit store, so it is required. The app runs under the sidecar differential run's sandbox profile.
+- **Data is written by the app's own repositories** while the app is stopped, after its first launch ran the migrations.
+
+Why: the owner's plan names the plugin and the release check; a check that cannot reach the owner's data or another copy's is the only kind that may run on the owner's Mac.
+
 ## D136. A chat's history is read outside its transaction, so the import keeps the database queue free (2026-11-12)
 
 Proposed by the #598 PR; not yet ruled on by the owner.

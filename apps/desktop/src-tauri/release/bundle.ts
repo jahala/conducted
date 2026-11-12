@@ -8,6 +8,8 @@
  * `allow-unsigned-executable-memory` and `audio-input`; privacy strings for the microphone and for
  * the Desktop, Documents and Downloads folders; one arm64 binary with no Frameworks folder; signed
  * with a team identity, hardened runtime, notarised).
+ * It also fails a bundle whose app binary carries the embedded WebDriver server of the end-to-end
+ * test build (the `e2e` Cargo feature, issue #564): any local process could drive that window.
  * Must handle: a missing signing identity or notarisation credential (an error value that names
  * the missing variable, never a build that ships unsigned; an empty variable counts as missing);
  * the sidecar signed before the app, with the JIT entitlements, because Bun needs them and the app
@@ -77,6 +79,8 @@ export type RunTool = (
 
 export interface BundleReport {
 	bundleIdentifier: string | null;
+	/** The app binary carries the end-to-end tests' WebDriver server (`hasWebDriver`). */
+	hasWebDriver: boolean;
 	version: string | null;
 	missingEntitlements: string[];
 	missingPrivacyKeys: string[];
@@ -422,6 +426,34 @@ async function stapleArtifact(run: RunTool, artifactPath: string): Promise<Resul
 	return ok(undefined);
 }
 
+/**
+ * Text only the embedded WebDriver server (`tauri-plugin-wdio-webdriver`, compiled in by the `e2e`
+ * Cargo feature) puts in a binary: the variable that names its port, and its status reply. Both
+ * are string literals, so a stripped release binary keeps them.
+ */
+export const WEBDRIVER_MARKERS = [
+	"TAURI_WEBDRIVER_PORT",
+	"tauri-plugin-webdriver is ready",
+] as const;
+
+/**
+ * Whether `binary` carries the embedded WebDriver server. `grep` exits 0 when a marker is found,
+ * 1 when none is, and 2 when it cannot read the file, which is an error, never a "no".
+ */
+export async function hasWebDriver(run: RunTool, binary: string): Promise<Result<boolean>> {
+	const markers = WEBDRIVER_MARKERS.flatMap((marker) => ["-e", marker]);
+	const output = await runToolOutput(run, "grep", ["-a", "-q", "-F", ...markers, binary]);
+	if (!output.ok) return output;
+	if (output.value.exitCode === 0) return ok(true);
+	if (output.value.exitCode === 1) return ok(false);
+	return err(
+		appError(
+			"release_binary_unreadable",
+			`grep could not read ${binary}: ${textOf(output.value) || `exit ${output.value.exitCode}`}.`,
+		),
+	);
+}
+
 /** Reads a built `.app` and reports what it holds and what is missing. */
 export async function verifyBundle(run: RunTool, appPath: string): Promise<Result<BundleReport>> {
 	const infoPath = join(appPath, "Contents", "Info.plist");
@@ -449,12 +481,16 @@ export async function verifyBundle(run: RunTool, appPath: string): Promise<Resul
 
 	const architectures = new Set<string>();
 	const mainBinary = executable === null ? null : join(appPath, "Contents", "MacOS", executable);
+	let webDriver = false;
 	if (mainBinary !== null) {
 		const described = await runToolOutput(run, "file", ["-b", mainBinary]);
 		if (!described.ok) return described;
 		for (const architecture of architecturesIn(described.value.stdout)) {
 			architectures.add(architecture);
 		}
+		const scanned = await hasWebDriver(run, mainBinary);
+		if (!scanned.ok) return scanned;
+		webDriver = scanned.value;
 	}
 
 	const sidecar = sidecarBinaryPath(appPath);
@@ -483,6 +519,7 @@ export async function verifyBundle(run: RunTool, appPath: string): Promise<Resul
 
 	return ok({
 		bundleIdentifier,
+		hasWebDriver: webDriver,
 		version,
 		missingEntitlements: REQUIRED_ENTITLEMENTS.filter(
 			(key) => !appSignature.value.entitlements.includes(key),
@@ -537,6 +574,11 @@ export function bundleProblems(report: BundleReport, expected: ExpectedBundle): 
 	}
 	if (report.hasFrameworksFolder) {
 		problems.push("The bundle has a Frameworks folder.");
+	}
+	if (report.hasWebDriver) {
+		problems.push(
+			"The app binary carries the end-to-end tests' WebDriver server; build without the e2e feature.",
+		);
 	}
 	if (!report.signed) problems.push("The app is not signed with a Developer ID identity.");
 	if (!report.hardenedRuntime) problems.push("The app is not signed with the hardened runtime.");

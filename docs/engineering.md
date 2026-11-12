@@ -52,6 +52,7 @@ The header says what the file does now, not what the feature will do one day. Wh
 | Unit and components, desktop | Vitest with jsdom and Testing Library | next to the code, `*.test.ts(x)`    | `pnpm test`                       |
 | Desktop, needs macOS         | Vitest, project `macos`               | next to the code, `*.macos.test.ts` | `pnpm test:macos`, CI's macOS job |
 | Rust                         | `cargo test`                          | inline `#[cfg(test)]` modules       | in `apps/desktop/src-tauri`       |
+| End-to-end, the real app     | WebdriverIO, the app's own WebDriver  | `scripts/e2e`                       | `pnpm test:e2e`                   |
 | Guards                       | `bun test`                            | `scripts/guards`                    | `pnpm guards`                     |
 
 Rules every test follows:
@@ -121,6 +122,19 @@ The owner's ruling: Conductor's own frontend runs on this Mac only, from the git
 `pnpm test`, `pnpm test:changed` and `pnpm test:macos` run through `scripts/with-run-dir.ts`. It gives the run its own folder (`$TMPDIR/conducted-runs/<run id>`, recorded with the run's process id), points `TMPDIR` at it, and removes it when the run ends. When the run ends it fails if anything is left. The next run removes folders whose recorded process is gone.
 
 Tests that create git repos, sidecar sockets or temporary files create them under `TMPDIR`, and stop every process they start by the process id they recorded.
+
+## End-to-end tests in the real app
+
+`pnpm test:e2e [round-trip|drag|overflow]` drives the app people use: the Tauri shell with WKWebView, the real sidecar and a real database (issue #564, D135). The other tiers run in jsdom, in Chromium or through the service container, and missed bugs that only the real window shows.
+
+- **The test build** is a debug `.app` bundle with the release config's bundled sidecar (`tauri build --debug --bundles app --features e2e`). The `e2e` Cargo feature compiles in `tauri-plugin-wdio-webdriver`, the WebDriver server inside the app that is how WebdriverIO reaches WKWebView on macOS, and makes the build serve the built UI with no dev server. Nothing else turns the feature on. A release fails when its app binary carries the server (`verifyBundle` in `apps/desktop/src-tauri/release/bundle.ts`), and every e2e run first proves that scan finds the server in the test build.
+- **Where it runs.** `.github/workflows/e2e.yml` runs it on GitHub's hosted macOS runners, on pull requests that touch what the app is built from, nightly on main, and by hand. The repository is public, so it never runs on a runner on the owner's Mac: such a runner would execute any outside pull request's code there.
+- **One fresh folder per check**, under `/tmp/conducted-e2e/`, holds a clone of the bundle and the app's home and temp folder: its data, config, WebKit storage and settings files. The app starts with an environment built from nothing. `HOME` and `CFFIXED_USER_HOME` both point into the folder; without the second, WebKit keeps the page's storage in the owner's `~/Library/WebKit`, shared with every copy of the app. Each launch checks that the Keychain search list holds none of the owner's keychains, and the first launch checks that the page's storage starts empty. The app runs under the sidecar differential run's sandbox profile: no network beyond loopback and no writes in the owner's home, so it downloads no agent programs.
+- **Seeded data.** After a first launch applies the migrations, the app quits and `scripts/e2e/world.ts` writes two projects (one with a very long name), three workspaces on this Mac and one cloud workspace through the app's own repositories, with real git repositories on disk.
+- **A restart** is the app's own quit (`app://quit-requested`, what the Quit menu item sends), then a new start over the same folder.
+- **The checks.** `round-trip` changes every registry setting on every settings page, the user's and a project's, and the cloud workspace's Sync files switch, restarts, and reads each back in the window. Settings are listed from the registry, so a new one is covered without editing the check; one it cannot reach fails it, unless `NOT_COVERED` in `scripts/e2e/settings-round-trip.ts` names the reason. `drag` drags a workspace onto Pinned in the sidebar and checks it lands there. `overflow` measures every settings page for anything that scrolls sideways or reaches past the window, at rest, with a long project name and with search results open, after proving the measurement on a known wide box.
+- **Leaves nothing behind.** Every ending, Ctrl+C included, stops the app and everything it started by the pids it recorded, and removes the folder. A process that outlived its app or a folder left on disk fails the run. A run killed outright leaves its folder to the next run, which removes it.
+- **Limits.** The WebDriver server sends pointer input as events in the page. It does not move the Mac's cursor, so it never starts macOS's own drag session, which Tauri's handler answers. The app's window shows on screen while a check runs, so on the owner's Mac a run waits for 08:00, as browser runs do.
 
 ## Releases
 
