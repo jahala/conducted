@@ -7,7 +7,8 @@
  * terminal'; the tab limit; 'View chat history'; chat tab menu 'Fork to new tab'), 5.4 (previous,
  * next, close, reopen and fork shortcuts).
  * Our design choice: The open chats and the workspace's centre terminals are the tabs. A terminal
- * made in the right panel is listed there, not here (issue #482). A file, comment, PR or
+ * made in the right panel is listed there, not here (issue #482), until it is dragged across
+ * (issue #527, SplitPanes.tsx). A file, comment, PR or
  * browser tab is the tab the URL names, so the URL stays the one source of truth for the open tab.
  * The tab limit is five, or ten with Tab Freak Mode. A browser URL that does not parse is shown as-is.
  * Must handle: Many tabs (scroll); at the tab limit (new-tab menu disabled); closing the active tab
@@ -45,7 +46,7 @@ import { CloseChatDialog } from "./CloseChatDialog.tsx";
 import { NewTabMenu } from "./NewTabMenu.tsx";
 import { TabContextMenu } from "./TabContextMenu.tsx";
 import { TabItem } from "./TabItem.tsx";
-import { neighbourAfterClose, type TabDescriptor } from "./tab-layout.ts";
+import { inOrder, neighbourAfterClose, type TabDescriptor } from "./tab-layout.ts";
 import { useNewTab } from "./useNewTab.tsx";
 import type { WorkspaceSearch } from "./workspace-search.ts";
 
@@ -254,17 +255,7 @@ export function TabStrip({
 		workspaceHostKind:
 			workspace.state === "ready" && workspace.data.host.kind === "cloud" ? "cloud" : undefined,
 	}).filter((tab) => excludeRefs === undefined || !excludeRefs.has(tab.ref));
-	// A saved drag order first; tabs opened since then keep their place after it.
-	const ranks =
-		order === undefined ? undefined : new Map(order.map((ref, position) => [ref, position]));
-	const tabs =
-		ranks === undefined
-			? naturalTabs
-			: [...naturalTabs].sort(
-					(left, right) =>
-						(ranks.get(left.ref) ?? Number.MAX_SAFE_INTEGER) -
-						(ranks.get(right.ref) ?? Number.MAX_SAFE_INTEGER),
-				);
+	const tabs = inOrder(naturalTabs, order);
 
 	const activeRef = tabRef(resolveActiveTab(search));
 

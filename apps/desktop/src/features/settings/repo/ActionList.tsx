@@ -81,6 +81,7 @@ export function ActionList({
 							size="xs"
 							variant="ghost"
 							aria-label={item.hidden ? "Show action" : "Hide action"}
+							title={item.hidden ? "Show action" : "Hide action"}
 							onClick={() => onToggleHidden(item.id, !item.hidden)}
 						>
 							{item.hidden ? "Show" : "Hide"}
@@ -89,7 +90,12 @@ export function ActionList({
 							Edit
 						</Button>
 						{item.canReset && onReset ? (
-							<Button size="xs" variant="ghost" onClick={() => onReset(item.id)}>
+							<Button
+								size="xs"
+								variant="ghost"
+								title="Reset to your repo's settings.toml"
+								onClick={() => onReset(item.id)}
+							>
 								Reset
 							</Button>
 						) : null}

@@ -133,6 +133,13 @@ describe("CHAT-06 chat turn", () => {
 		expect(screen.getByText("banner:This turn stopped before it finished.")).toBeTruthy();
 	});
 
+	it("shows nothing for an imported turn whose end was not recorded, as Conductor does (D130)", () => {
+		const value = turn({ outcome: "unrecorded", endedAt: 20 });
+		render(<TurnItem turn={value} sessionId={sessionId} />);
+		expect(screen.queryByText("banner:This turn stopped before it finished.")).toBeNull();
+		expect(screen.queryByText("banner:Interrupted by user")).toBeNull();
+	});
+
 	it("shows a failed turn's error once when the agent's own error block already says it", () => {
 		const text = "API Error: 500 Internal server error";
 		const value = turn({

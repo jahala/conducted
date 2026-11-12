@@ -8,8 +8,9 @@
  * `available_in`; ids are normalised; labels come from the id; the shared file is read-only, so a
  * change to a shared action is written to the personal file).
  * Children: ActionIconPicker.
- * Must handle: an empty name or command (Save disabled), no place to run (Save disabled), a name
- * that normalises to an existing id (error naming the clash, Save disabled), a folder with
+ * Must handle: an empty name or command (Save disabled, saying Conductor's "Action names can't be
+ * empty" once a command is typed), no place to run (Save disabled), a name that normalises to an
+ * existing id ("Action names must be unique", Save disabled), a folder with
  * `$VARIABLES` (the known names are shown as help), and a save failure (dialog stays open with the
  * text kept).
  * Test first: two names that normalise to the same id show the clash and disable Save.
@@ -162,7 +163,13 @@ export function AddActionDialog({
 							autoFocus
 							placeholder="My action"
 							aria-invalid={clash || undefined}
-							error={clash ? `An action called "${draft.name.trim()}" already exists.` : undefined}
+							error={
+								clash
+									? "Action names must be unique"
+									: draft.name.trim() === "" && draft.command.trim() !== ""
+										? "Action names can't be empty"
+										: undefined
+							}
 							onChange={(event) => set({ name: event.target.value })}
 						/>
 					</div>

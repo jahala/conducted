@@ -1,7 +1,8 @@
 /**
  * @feature NAV-10 Tab layout model
  * Owns: The pure model of the centre: which tabs exist, which group holds them, and the operations
- * on it (close, move, split).
+ * on it (close, move, split, and place: a tab that comes from outside the centre, such as a
+ * terminal dragged in from the bottom panel, issue #527).
  * Behaviour: ui-map.md 3.2 and 8 (the centre is a tree of tab groups; tabs drag between groups or
  * to an edge to split; the active tab picks its right neighbour on close, else its left).
  * Our design choice: Plain functions over an immutable tree, no store inside. The shape here is
@@ -57,7 +58,23 @@ export type TabGroupNode = TabGroup | SplitGroup;
 export type TabAction =
 	| { type: "close"; ref: string }
 	| { type: "move"; ref: string; toGroupId: string; index: number }
+	/** Puts a tab in a group at `index` (the end when absent), wherever it was before. */
+	| { type: "place"; tab: TabDescriptor; toGroupId: string; index?: number }
 	| { type: "split"; ref: string; groupId: string; edge: "left" | "right" | "top" | "bottom" };
+
+/** Tabs in a saved drag order first; tabs opened since then keep their place after it. */
+export function inOrder(
+	tabs: readonly TabDescriptor[],
+	order: readonly string[] | undefined,
+): TabDescriptor[] {
+	if (order === undefined) return [...tabs];
+	const ranks = new Map(order.map((ref, position) => [ref, position]));
+	return [...tabs].sort(
+		(left, right) =>
+			(ranks.get(left.ref) ?? Number.MAX_SAFE_INTEGER) -
+			(ranks.get(right.ref) ?? Number.MAX_SAFE_INTEGER),
+	);
+}
 
 /** A layout with one empty group. The root is always a group or a split of groups. */
 export function emptyLayout(groupId = "group-main"): TabGroup {
@@ -320,6 +337,16 @@ export function applyTabAction({
 			if (tab === undefined) return layout;
 			const removed = removeTab(layout, action.ref);
 			return withGroup(removed, target.id, (group) => insertTab(group, tab, action.index));
+		}
+		case "place": {
+			const target = listGroups(layout).find((group) => group.id === action.toGroupId);
+			if (target === undefined) return layout;
+			const source = findTabGroup(layout, action.tab.ref);
+			const base =
+				source === null || source.id === target.id ? layout : removeTab(layout, action.tab.ref);
+			return withGroup(base, target.id, (group) =>
+				insertTab(group, action.tab, action.index ?? group.tabs.length),
+			);
 		}
 		case "split": {
 			const group = listGroups(layout).find((current) => current.id === action.groupId);

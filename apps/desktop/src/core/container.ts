@@ -669,7 +669,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			return found.ok ? ok(found.value.name) : found;
 		},
 		rootPath: () => expandHome(setting<string>("conductor_root_path"), platform.fs.paths.home),
-		setting,
+		saveEnabled: (id, enabled) => workspace.setRemoteFileSyncEnabled(id, enabled),
 		now: () => clock.now(),
 	});
 	/**
@@ -1367,6 +1367,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repositories: () => repositories,
 		repositoriesOn: (tx) => createRepositories(tx, repositoryDeps),
 		git: gitRunner,
+		sidecar: client,
 		toml: inputs.toml,
 		settings,
 		chatDefaults: () => newChatConfig(LOCAL_HOST, setting),

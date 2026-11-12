@@ -25,6 +25,7 @@ const workspace: Workspace = {
 	path: "/ws/oslo",
 	branch: "feature/oslo",
 	branchIsPlaceholder: false,
+	remoteFileSyncEnabled: false,
 	host: { kind: "local" },
 	displayName: null,
 	targetBranch: "origin/main",

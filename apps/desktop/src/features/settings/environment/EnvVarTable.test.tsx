@@ -54,7 +54,8 @@ describe("SET-04 EnvVarTable", () => {
 	it("dims an inherited row that this scope replaces", () => {
 		render(<EnvVarTable {...props([row({ editable: false, dimmed: true })])} />);
 
-		expect(screen.getByRole("row").className).toContain("opacity-50");
+		expect(screen.getByRole("row", { name: /TOKEN/ }).className).toContain("opacity-50");
+		expect(screen.getByText("Locally overwritten")).toBeTruthy();
 		// A row of another scope can be looked at, not changed or deleted here.
 		expect(screen.getByRole("button", { name: "View TOKEN" })).toBeTruthy();
 		expect(screen.queryByRole("button", { name: "Delete TOKEN" })).toBeNull();

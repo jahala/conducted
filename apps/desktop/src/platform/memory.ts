@@ -1040,6 +1040,31 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	// ---------------------------------------------------------------- import from Conductor (APP-17)
 
 	const copyFolder = `${paths.appData}/${CONDUCTOR_COPY_FOLDER}`;
+	/**
+	 * Each copy's sent `session_messages` rows by chat, in rowid order, built once per copy. A row's
+	 * rowid is its place in the table plus one, as SQLite numbers the rows the fixture inserts.
+	 */
+	const chatIndexes = new WeakMap<
+		MemoryConductorDatabase,
+		Map<string, { rowid: number; row: Readonly<Record<string, unknown>> }[]>
+	>();
+	const messagesByChat = (copy: MemoryConductorDatabase) => {
+		const table = copy.session_messages;
+		if (table === undefined) return null;
+		const known = chatIndexes.get(copy);
+		if (known !== undefined) return known;
+		const byChat = new Map<string, { rowid: number; row: Readonly<Record<string, unknown>> }[]>();
+		table.forEach((row, index) => {
+			if (typeof row.session_id !== "string" || row.sent_at === null || row.sent_at === undefined)
+				return;
+			const rows = byChat.get(row.session_id) ?? [];
+			rows.push({ rowid: index + 1, row });
+			byChat.set(row.session_id, rows);
+		});
+		chatIndexes.set(copy, byChat);
+		return byChat;
+	};
+	const textOrNull = (value: unknown): string | null => (typeof value === "string" ? value : null);
 	const cloneDatabase = (source: MemoryConductorDatabase): MemoryConductorDatabase =>
 		Object.fromEntries(
 			Object.entries(source).map(([table, rows]) => [table, rows.map((row) => ({ ...row }))]),
@@ -1095,7 +1120,52 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			for (const table of CONDUCTOR_COUNTED_TABLES) {
 				counts[table] = copy.value[table]?.length ?? null;
 			}
-			return ok({ tables, counts });
+			const chats = messagesByChat(copy.value);
+			const messageRows =
+				chats === null
+					? null
+					: Object.fromEntries([...chats].map(([chat, rows]) => [chat, rows.length]));
+			return ok({ tables, counts, messageRows });
+		},
+		readMessageKeys: async (copyPath, sessionId, afterRowid, limit) => {
+			const copy = ownCopy(copyPath);
+			if (!copy.ok) return copy;
+			const rows = messagesByChat(copy.value)?.get(sessionId) ?? [];
+			let start = 0;
+			while (start < rows.length && (rows[start]?.rowid ?? 0) <= afterRowid) start++;
+			return ok(
+				rows.slice(start, start + Math.max(1, limit)).map(({ rowid, row }) => ({
+					rowid,
+					role: textOrNull(row.role),
+					turn_id: textOrNull(row.turn_id),
+					sent_at: textOrNull(row.sent_at),
+					created_at: textOrNull(row.created_at),
+					chars: textOrNull(row.content)?.length ?? 0,
+				})),
+			);
+		},
+		readMessages: async (copyPath, sessionId, rowids) => {
+			const copy = ownCopy(copyPath);
+			if (!copy.ok) return copy;
+			const all = copy.value.session_messages ?? [];
+			const wanted = [...new Set(rowids)].sort((a, b) => a - b);
+			return ok(
+				wanted.flatMap((rowid) => {
+					const row = all[rowid - 1];
+					if (row === undefined || row.session_id !== sessionId || row.sent_at == null) return [];
+					return [
+						{
+							rowid,
+							id: String(row.id),
+							role: textOrNull(row.role),
+							content: textOrNull(row.content),
+							sent_at: textOrNull(row.sent_at),
+							created_at: textOrNull(row.created_at),
+							turn_id: textOrNull(row.turn_id),
+						},
+					];
+				}),
+			);
 		},
 		moveSecrets: async (copyPath, moves) => {
 			const copy = ownCopy(copyPath);

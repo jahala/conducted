@@ -1,9 +1,9 @@
 /**
  * @feature RUN-07 Terminals: tabs, script runs and output for the GetTerminalOutput tool; CHAT-23
  * Run button on shell code blocks
- * Owns: creating and closing terminal tabs, starting setup, run and Spotlight scripts and chat
- * code block commands in a terminal, keeping the live handles, saving history, and reading a
- * terminal's text for agents.
+ * Owns: creating and closing terminal tabs, moving one between the centre strip and the bottom
+ * panel (issue #527), starting setup, run and Spotlight scripts and chat code block commands in a
+ * terminal, keeping the live handles, saving history, and reading a terminal's text for agents.
  * Behaviour: services-map.md 5A.4 (terminal layers, launch request, history and cold restore,
  * kinds of terminals), 5A.1.2 and 5A.1.3 (setup and run scripts as terminals; the agent tool
  * bridge and its error texts), 5A.1.2 (the environment variables), ui-map.md 3.7.
@@ -48,9 +48,13 @@
  * and `runCommand`. A terminal row says which host it runs on: a cloud workspace can open a Mac
  * terminal in its local mirror beside one in the sandbox (CLOUD-11, D120). An ended terminal reads
  * its saved scrollback once, before its connection is handed to the view, so a reopened terminal
- * replays it (PLAT-08). `runCommand` starts a chat code
- * block's command as a `run` terminal in the
- * workspace and returns its row; the chat shows its live stream, status, exit code, Stop and
+ * replays it (PLAT-08). An interactive terminal also keeps what its shell printed in this run, up
+ * to the scrollback limit, so a view mounted later (after a move between strips, or a workspace
+ * switch in the panel) replays it before live output; the saved scrollback replaces it once read,
+ * and it goes when the tab closes. `move` changes only the stored placement: the shell, its
+ * connection and that replay stay, so the terminal keeps its session and scrollback.
+ * `runCommand` starts a chat code block's command as a `run` terminal in the workspace and returns
+ * its row; the chat shows its live stream, status, exit code, Stop and
  * Clear. `outputFor` reads the live screen, keeps the text of a finished terminal in memory, and
  * falls back to the saved screen for an older one. A run or spotlight script never saves its
  * screen, so its output stays off disk. `installShellIntegration` writes the zsh shim at app start
@@ -418,6 +422,13 @@ interface ConnectionRecord {
 	dataListeners: Set<(chunk: Uint8Array) => void>;
 	exitListeners: Set<(exitCode: number | null) => void>;
 	pending: Uint8Array[];
+	/**
+	 * What an interactive terminal's shell printed since this app started it, oldest first, within
+	 * the scrollback limit. A view mounted later (after a move between strips, #527, or a workspace
+	 * switch) replays it, so the terminal keeps its scrollback. Freed when the tab closes.
+	 */
+	output: Uint8Array[];
+	outputBytes: number;
 	unsubscribeData: TerminalUnsubscribe | null;
 	unsubscribeExit: TerminalUnsubscribe | null;
 	/** Turns output bytes into text for the shell markers. */
@@ -432,6 +443,19 @@ export const RESTART_DIVIDER = "--- Previous terminal session restored. Starting
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
+
+/** The bytes of several chunks, in order, as one array. */
+function joinBytes(chunks: readonly Uint8Array[]): Uint8Array {
+	let length = 0;
+	for (const chunk of chunks) length += chunk.byteLength;
+	const joined = new Uint8Array(length);
+	let at = 0;
+	for (const chunk of chunks) {
+		joined.set(chunk, at);
+		at += chunk.byteLength;
+	}
+	return joined;
+}
 
 /** The lowest free "Terminal N" title. */
 export function nextTerminalTitle(terminals: readonly Terminal[]): string {
@@ -576,6 +600,9 @@ export class TerminalsService {
 			return;
 		}
 		record.history = loaded.value;
+		// The saved history holds everything the shell printed, so the replay starts again from it.
+		record.output = [];
+		record.outputBytes = 0;
 	}
 
 	#setConnection(id: TerminalId, value: Loadable<TerminalConnection>): void {
@@ -607,6 +634,8 @@ export class TerminalsService {
 			dataListeners: new Set(),
 			exitListeners: new Set(),
 			pending: [],
+			output: [],
+			outputBytes: 0,
 			unsubscribeData: null,
 			unsubscribeExit: null,
 			decoder: new TextDecoder(),
@@ -614,8 +643,12 @@ export class TerminalsService {
 			connection: undefined as unknown as TerminalConnection,
 		};
 		record.connection = {
+			// The saved scrollback, then what the shell printed since this app started it. Output no
+			// view has taken yet is left out: `onData` hands it to the next listener.
 			get history() {
-				return record.history;
+				const delivered = record.output.length - record.pending.length;
+				if (delivered <= 0) return record.history;
+				return joinBytes([record.history, ...record.output.slice(0, delivered)]);
 			},
 			get ended() {
 				return record.ended;
@@ -738,11 +771,23 @@ export class TerminalsService {
 		);
 		record.shellCarry = scanned.carry;
 		if (scanned.events.length > 0) this.#applyShellEvents(record.terminal.id, scanned.events);
+		if (record.terminal.kind === "terminal") this.#keepOutput(record, chunk);
 		if (record.dataListeners.size === 0) {
 			record.pending.push(chunk);
 			return;
 		}
 		for (const listener of [...record.dataListeners]) listener(chunk);
+	}
+
+	/** Adds a chunk to the terminal's replay, dropping the oldest output past the scrollback limit. */
+	#keepOutput(record: ConnectionRecord, chunk: Uint8Array): void {
+		record.output.push(chunk);
+		record.outputBytes += chunk.byteLength;
+		const limit = this.#deps.scrollbackLimitBytes();
+		while (record.outputBytes > limit && record.output.length > 0) {
+			const oldest = record.output.shift();
+			record.outputBytes -= oldest?.byteLength ?? 0;
+		}
 	}
 
 	/** Keeps the running program of a terminal from its shell markers. */
@@ -1064,6 +1109,43 @@ export class TerminalsService {
 		if (!removed.ok) return removed;
 		this.#forget(id);
 		return ok(undefined);
+	}
+
+	/**
+	 * Backs `Actions.terminals.move`: moves a workspace terminal's tab between the centre strip and
+	 * the bottom panel (issue #527). Only the stored placement changes. The process, the connection
+	 * a view holds and the scrollback stay as they are, so the terminal keeps its live session, as
+	 * Conductor's moves keep the terminal's id (main bundle `ngn`, `sgn`). Like those moves, it
+	 * refuses a terminal that is not an interactive terminal of this workspace, and a terminal
+	 * already in the strip it goes to.
+	 */
+	async move(
+		workspaceId: WorkspaceId,
+		id: TerminalId,
+		placement: Terminal["placement"],
+	): Promise<Result<Terminal>> {
+		const found = await this.#deps.repos.terminals.get(id);
+		if (!found.ok) return found;
+		const terminal = found.value;
+		if (terminal === null || terminal.workspaceId !== workspaceId || terminal.kind !== "terminal") {
+			return err(
+				appError("terminal_not_in_workspace", "That terminal is not a terminal of this workspace."),
+			);
+		}
+		if (terminal.placement === placement) {
+			return err(appError("terminal_already_there", "That terminal is already there."));
+		}
+		const written = await this.#deps.repos.terminals.setPlacement(id, placement);
+		if (!written.ok) return written;
+		if (!written.value) {
+			return err(
+				appError("terminal_not_in_workspace", "That terminal is not a terminal of this workspace."),
+			);
+		}
+		// A list read that began before the move must not put the terminal back in its old strip.
+		this.#loads.invalidate(`w:${workspaceId}`);
+		this.#update(id, { placement });
+		return ok({ ...terminal, placement });
 	}
 
 	/**

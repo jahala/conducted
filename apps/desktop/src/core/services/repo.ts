@@ -49,7 +49,8 @@
  * Gaps against services-map.md 4.2: the workspace-level shared file is not read. Keeping
  * `settings.local.toml` out of git is DATA-05's; linking it into every worktree is WS-01's.
  * Also owns the per-user hidden run action ids (SET-07, services-map.md 5A.1.6): they live in
- * local storage, never in a settings file.
+ * local storage, never in a settings file. And the Misc page's files-to-copy preview: the ignored
+ * files the settings list and `.worktreeinclude` match, read without writing anything.
  * Test first: the repo's scripts, prompts, globs and run mode are read from
  * `.conducted/settings.toml`.
  * CLOUD-04 test first: a cloud repo reads the shared settings from the clone's branch, not the
@@ -80,6 +81,7 @@ import {
 	commitAll,
 	fetchBranchIntoRemoteRef,
 	initRepository,
+	lsFilesIgnoredNul,
 	lsTreeFileAt,
 	pushSetUpstreamHeadWithGh,
 	remoteGetUrl,
@@ -119,6 +121,7 @@ import {
 	type SettingsService,
 } from "./settings.ts";
 import { expandHome } from "./workspace.ts";
+import { parseWorktreeInclude, selectIncludedPaths } from "./workspace-creation.ts";
 
 /** What the clone dialog shows while a repository is cloned and after it ends. */
 export interface CloneProgress {
@@ -1155,6 +1158,35 @@ export class RepoService {
 			configDropped,
 		});
 		return ok(config);
+	}
+
+	/**
+	 * Backs `Actions.projects.copyPreview`: the gitignored files a new workspace would copy for this
+	 * repository, from its file list and its `.worktreeinclude`, in the same order the copy uses.
+	 * Read-only, so the Misc page can show what the patterns match before a workspace exists.
+	 */
+	async copyPreview(repoId: RepoId): Promise<Result<string[]>> {
+		const found = await this.#deps.repos.repos.get(repoId);
+		if (!found.ok) return found;
+		if (found.value === null)
+			return err(appError("repo_unknown", "That project no longer exists."));
+		const repo = found.value;
+		const known = this.store.getState().configs[repoId];
+		const loaded = known === undefined ? await this.loadConfig(repoId) : ok(known);
+		if (!loaded.ok) return loaded;
+		const includePath = `${repo.rootPath}/.worktreeinclude`;
+		let fromFile: string[] = [];
+		if (await this.#deps.platform.fs.exists(includePath)) {
+			const text = await this.#deps.platform.fs.readText(includePath);
+			if (!text.ok) return text;
+			fromFile = parseWorktreeInclude(text.value);
+		}
+		const patterns = [...loaded.value.copyFiles, ...fromFile];
+		if (patterns.length === 0) return ok([]);
+		const listed = await this.#deps.git.run(lsFilesIgnoredNul(), { cwd: repo.rootPath });
+		if (!listed.ok) return listed;
+		const candidates = listed.value.stdout.split("\0").filter((path) => path !== "");
+		return ok(selectIncludedPaths(candidates, patterns));
 	}
 
 	/** Backs `Actions.projects.updateConfig`. Writes the local file, leaving the shared one alone. */

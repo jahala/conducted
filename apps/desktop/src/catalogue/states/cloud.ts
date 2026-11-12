@@ -17,7 +17,7 @@ import type { Workspace } from "../../core/model.ts";
 import { seedCast, workspaceRoute } from "../cast.ts";
 import { click, shows } from "../dom.ts";
 import { addWorkspace, must, setSetting } from "../seeds.ts";
-import type { CatalogueState, Scene } from "../state.ts";
+import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import type { World } from "../world.ts";
 
 /** Lets React effects (the sync a panel starts on mount) run, so a state can show their next step. */
@@ -38,6 +38,7 @@ interface CloudOptions {
 	files?: "ok" | "failed";
 	/** The sandbox's listening ports. */
 	ports?: { port: number; processName: string }[];
+	/** The Advanced setting, which also gives the workspace its Sync files switch, as a create does. */
 	autoSync?: boolean;
 	/** A forward the catalogue writes before start, with its workspace switch on. */
 	forward?: { remotePort: number; localPort: number };
@@ -124,6 +125,24 @@ function scriptCloud(world: World, options: CloudOptions = {}): void {
 	});
 }
 
+/**
+ * Shows the workspace's Sync files switch on in the workspace store without saving it or starting
+ * a sync, so a state can hold a sync view still for its picture.
+ */
+function switchOnInStore(app: AfterContext["app"], workspace: Workspace): void {
+	app.container.services.workspace.store.setState((state) => {
+		const current = state.workspacesById[workspace.id];
+		if (current === undefined) return state;
+		return {
+			...state,
+			workspacesById: {
+				...state.workspacesById,
+				[workspace.id]: { ...current, remoteFileSyncEnabled: true },
+			},
+		};
+	});
+}
+
 /** Adds a ready cloud workspace to the cast's atlas project and scripts its Worker. */
 async function cloudWorkspace(
 	world: World,
@@ -132,11 +151,13 @@ async function cloudWorkspace(
 ): Promise<{ workspace: Workspace; scene: Omit<Scene, "after" | "ready"> }> {
 	const cast = await seedCast(world);
 	scriptCloud(world, options);
-	await setSetting(world, "auto_sync_files_in_new_cloud_workspaces", options.autoSync ?? true);
+	const autoSync = options.autoSync ?? true;
+	await setSetting(world, "auto_sync_files_in_new_cloud_workspaces", autoSync);
 	const workspace = await addWorkspace(world, cast.atlas, {
 		name,
 		displayName: name,
 		host: CLOUD,
+		remoteFileSyncEnabled: autoSync,
 	});
 	const forwards = [
 		...(options.forward === undefined ? [] : [options.forward]),
@@ -310,14 +331,11 @@ export const CLOUD_STATES: CatalogueState[] = [
 				after: async ({ app, document }) => {
 					const service = app.container.services.cloudFileSync;
 					await frames(6);
+					switchOnInStore(app, workspace);
 					service.store.setState((state) => {
 						const byWorkspace = { ...state.byWorkspace };
 						delete byWorkspace[workspace.id];
-						return {
-							...state,
-							intent: { ...state.intent, [workspace.id]: true },
-							byWorkspace,
-						};
+						return { ...state, byWorkspace };
 					});
 					await click(document, "[role=tab]", "Ports", { prefix: true });
 				},
@@ -337,9 +355,9 @@ export const CLOUD_STATES: CatalogueState[] = [
 					const service = app.container.services.cloudFileSync;
 					const mirror = service.mirrorPathOf(workspace.id);
 					await frames(6);
+					switchOnInStore(app, workspace);
 					service.store.setState((state) => ({
 						...state,
-						intent: { ...state.intent, [workspace.id]: true },
 						byWorkspace: {
 							...state.byWorkspace,
 							[workspace.id]: {

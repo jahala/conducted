@@ -22,6 +22,7 @@ function workspace({
 		path: `/repos/${id}`,
 		branch: `branch-${id}`,
 		branchIsPlaceholder: false,
+		remoteFileSyncEnabled: false,
 		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "main",

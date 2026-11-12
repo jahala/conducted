@@ -1,9 +1,10 @@
 /**
  * @feature APP-17 Import from Conductor: the dry run and the import
+ * @feature APP-18 Chat history from Conductor: what history comes, and what became of it
  * Owns: `ConductorImportDialog`, which runs the dry run when it opens, shows per kind what comes
  * over, what is already here and what stays behind with each reason, the script renames and the
- * script files the user changes by hand, then imports when the user goes ahead and shows the
- * outcome; `ConductorImportRow`, its Settings row; and `ConductorImportOffer`, the first-run button.
+ * script files the user changes by hand and which chats bring their history, then imports when
+ * the user goes ahead and shows the outcome, naming each chat whose history did not come over; `ConductorImportRow`, its Settings row; and `ConductorImportOffer`, the first-run button.
  * Behaviour: docs/plans/migrate-from-conductor.md (safety rule 2: a dry run comes first; rule 6:
  * no value is shown). Conductor has no such control, so its place follows D098: the General page,
  * after Sync agent configs, which also brings things over from elsewhere, and the first project
@@ -14,7 +15,13 @@
  * Test first: the dialog shows the dry run's counts and imports when the user goes ahead.
  */
 import { useEffect, useRef, useState } from "react";
-import type { ImportKind, ImportPreview, LeftOut } from "../../core/api.ts";
+import type {
+	HistoryOutcome,
+	HistoryPreview,
+	ImportKind,
+	ImportPreview,
+	LeftOut,
+} from "../../core/api.ts";
 import { useActions, useConductorImport } from "../../core/hooks.ts";
 import { Alert, AlertDescription } from "../../ui/Alert.tsx";
 import { Button } from "../../ui/Button.tsx";
@@ -71,6 +78,97 @@ function CountsTable({ preview }: { preview: ImportPreview }) {
 	);
 }
 
+/** Conductor's agents by the name the user knows them by. */
+const AGENT_LABEL: Readonly<Record<string, string>> = {
+	claude: "Claude",
+	codex: "Codex",
+	cursor: "Cursor",
+	acp: "OpenCode and Pi",
+	other: "Other agents",
+};
+
+const entries = (n: number): string =>
+	`${n.toLocaleString("en-US")} ${n === 1 ? "entry" : "entries"}`;
+
+/** Which chats bring their history, which already have it, and which come without it. */
+function HistoryDetails({ history }: { history: HistoryPreview }) {
+	const lines: { key: string; text: string; reason: string | null }[] = [];
+	if (history.comes.chats > 0) {
+		lines.push({
+			key: "comes",
+			text: `${count(history.comes.chats, "chat")} with ${history.comes.chats === 1 ? "its" : "their"} history (${entries(history.comes.rows)})`,
+			reason: null,
+		});
+	}
+	if (history.alreadyThere.chats > 0) {
+		lines.push({
+			key: "already",
+			text: `${count(history.alreadyThere.chats, "chat")} already here with history or new turns`,
+			reason: "Nothing is added to them.",
+		});
+	}
+	for (const agent of history.notMapped) {
+		lines.push({
+			key: `agent:${agent.agent}`,
+			text: `${AGENT_LABEL[agent.agent] ?? agent.agent}: ${count(agent.chats, "chat")} (${entries(agent.rows)})`,
+			reason:
+				"History not brought: no mapping for this agent yet. Each chat continues from the agent's own transcript.",
+		});
+	}
+	if (history.withChatsLeftOut.chats > 0) {
+		lines.push({
+			key: "left",
+			text: `${count(history.withChatsLeftOut.chats, "chat")} that stay behind (${entries(history.withChatsLeftOut.rows)})`,
+			reason: "Their history stays with them in Conductor.",
+		});
+	}
+	if (lines.length === 0) return null;
+	return (
+		<Section title="Chat history">
+			<ul className="flex flex-col gap-2 text-sm">
+				{lines.map((line) => (
+					<li key={line.key} className="flex flex-col gap-0.5">
+						<span className="text-fg">{line.text}</span>
+						{line.reason === null ? null : <span className="text-fg-muted">{line.reason}</span>}
+					</li>
+				))}
+			</ul>
+		</Section>
+	);
+}
+
+/** What became of the history: how many chats brought it, and each chat whose history failed. */
+function HistoryResult({ history }: { history: HistoryOutcome }) {
+	if (history.failed.length === 0 && history.changed === 0) return null;
+	return (
+		<div className="flex flex-col gap-2 text-sm">
+			{history.changed > 0 ? (
+				<p className="text-fg-muted">
+					{count(history.changed, "chat")} gained new turns since the dry run, so nothing was added
+					to {history.changed === 1 ? "it" : "them"}.
+				</p>
+			) : null}
+			{history.failed.length > 0 ? (
+				<Alert>
+					<AlertDescription>
+						<span className="font-medium">
+							History not brought for {count(history.failed.length, "chat")}. Each came over without
+							it and continues from the agent's own transcript.
+						</span>
+						<ul className="mt-1 flex flex-col gap-1">
+							{history.failed.map((failure) => (
+								<li key={failure.sessionId}>
+									{failure.label}: {failure.reason}
+								</li>
+							))}
+						</ul>
+					</AlertDescription>
+				</Alert>
+			) : null}
+		</div>
+	);
+}
+
 /** Left-out items grouped by kind and reason, so a long list reads as a few lines. */
 function groups(
 	items: readonly LeftOut[],
@@ -103,6 +201,7 @@ function PreviewDetails({ preview }: { preview: ImportPreview }) {
 	return (
 		<div className="flex flex-col gap-5">
 			<CountsTable preview={preview} />
+			<HistoryDetails history={preview.history} />
 			{left.length === 0 ? null : (
 				<Section title="What stays behind">
 					<ul className="flex flex-col gap-2 text-sm">
@@ -238,12 +337,18 @@ export function ConductorImportDialog({ onClose, onImported }: ConductorImportDi
 						</Alert>
 					) : null}
 					{state.phase === "imported" && state.imported !== null ? (
-						<p role="status" className="text-sm text-fg">
-							Imported {count(state.imported.repos, "project")},{" "}
-							{count(state.imported.workspaces, "workspace")} and{" "}
-							{count(state.imported.chats, "chat")}. Chats continue from each agent's own
-							transcript.
-						</p>
+						<>
+							<p role="status" className="text-sm text-fg">
+								Imported {count(state.imported.repos, "project")},{" "}
+								{count(state.imported.workspaces, "workspace")} and{" "}
+								{count(state.imported.chats, "chat")}
+								{state.history === null || state.history.chats === 0
+									? ""
+									: `, with the history of ${count(state.history.chats, "chat")}`}
+								. Chats continue from each agent's own transcript.
+							</p>
+							{state.history === null ? null : <HistoryResult history={state.history} />}
+						</>
 					) : null}
 					{preview !== null ? (
 						<>

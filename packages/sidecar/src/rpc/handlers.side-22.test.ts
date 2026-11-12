@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { SlashCommand } from "@conducted/protocol";
 import { appError, err, ok } from "@conducted/shared";
+import { ConductorHistoryImports } from "../import/history-imports.ts";
 import { createLogger, type LogRecord } from "../logging/logger.ts";
 import { AgentProgramChoices } from "../models/agent-programs.ts";
 import { createNodeCompletionsFiles, FileCompletionsCache } from "../models/completions-cache.ts";
@@ -97,6 +98,7 @@ function deps(
 				ok({ shell: "/bin/zsh", path: "/usr/bin", env: {}, providerSecrets: {} }),
 		},
 		utilityPrompt: { run: async () => ok({ text: "" }) },
+		conductorHistory: new ConductorHistoryImports(),
 		setLogLevel: () => {},
 		logger: createLogger({
 			sink: (record) => records.push(record),

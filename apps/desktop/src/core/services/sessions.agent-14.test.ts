@@ -86,6 +86,7 @@ async function seedChat(overrides: Partial<SessionConfig> = {}): Promise<Session
 			path: "/code/workspaces/oslo",
 			branch: "jahala/oslo",
 			branchIsPlaceholder: true,
+			remoteFileSyncEnabled: false,
 			host: { kind: "local" },
 			targetBranch: "origin/main",
 			port: 55_000,

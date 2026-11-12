@@ -205,6 +205,20 @@ describe("RUN-06 terminal view buffering", () => {
 		expect(received).toHaveLength(1);
 	});
 
+	it("reads the history when it subscribes, so output another view took meanwhile is replayed", () => {
+		const source = fakeConnection();
+		let replay = new Uint8Array([1]);
+		Object.defineProperty(source, "history", { get: () => replay });
+		const buffered = new BufferedTerminalConnection(source);
+		// The strip the terminal is leaving still listens, and takes one more chunk (#527).
+		replay = new Uint8Array([1, 2]);
+
+		buffered.start();
+
+		expect([...buffered.history]).toEqual([1, 2]);
+		buffered.dispose();
+	});
+
 	it("subscribes again after a dispose, so StrictMode's second effect still gets output", () => {
 		const source = fakeConnection();
 		const buffered = new BufferedTerminalConnection(source);

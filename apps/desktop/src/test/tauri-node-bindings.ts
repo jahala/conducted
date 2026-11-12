@@ -303,7 +303,57 @@ async function readConductorCopy(
 			? Number(db.prepare(`SELECT COUNT(*) AS n FROM "${table}"`).get()?.n)
 			: null;
 	}
-	return { tables, counts };
+	const messageRows = exists("session_messages")
+		? Object.fromEntries(
+				db
+					.prepare(
+						`SELECT session_id, COUNT(*) AS n FROM session_messages
+						WHERE sent_at IS NOT NULL AND session_id IS NOT NULL GROUP BY session_id`,
+					)
+					.all()
+					.map((row) => [String(row.session_id), Number(row.n)]),
+			)
+		: null;
+	return { tables, counts, messageRows };
+}
+
+/** conductor_import.rs `read_message_keys` and `read_messages`, for a copy the import made. */
+async function readConductorMessages(
+	args: Record<string, unknown>,
+	folder: string,
+	databases: DatabaseSync[],
+	keys: boolean,
+): Promise<unknown> {
+	const copyPath = String(args.copyPath);
+	const found = await stat(copyPath).catch(() => null);
+	if (dirname(copyPath) !== folder || found?.isFile() !== true) {
+		return fail("conductor_import_bad_copy", `${copyPath} is not a copy this import made.`);
+	}
+	const db = new DatabaseSync(copyPath, { readOnly: true });
+	databases.push(db);
+	const exists =
+		db
+			.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?")
+			.get("session_messages")?.n !== 0;
+	if (!exists) return [];
+	const sessionId = String(args.sessionId);
+	const rows = keys
+		? db
+				.prepare(
+					`SELECT rowid, role, turn_id, sent_at, created_at, COALESCE(length(content), 0) AS chars
+					FROM session_messages WHERE session_id = ? AND sent_at IS NOT NULL AND rowid > ?
+					ORDER BY rowid LIMIT ?`,
+				)
+				.all(sessionId, Number(args.afterRowid), Math.max(1, Number(args.limit)))
+		: db
+				.prepare(
+					`SELECT rowid, id, role, content, sent_at, created_at, turn_id FROM session_messages
+					WHERE session_id = ? AND sent_at IS NOT NULL
+						AND rowid IN (SELECT value FROM json_each(?))
+					ORDER BY rowid`,
+				)
+				.all(sessionId, JSON.stringify(args.rowids ?? []));
+	return rows.map((row) => ({ ...row }));
 }
 
 /** `dir` is a folder the caller made and removes. Everything the bindings create lives in it. */
@@ -622,6 +672,10 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				return copyConductorDatabase(String(args.source), conductorFolder);
 			case COMMANDS.conductorImportRead:
 				return readConductorCopy(String(args.copyPath), conductorFolder, databases);
+			case COMMANDS.conductorImportReadMessageKeys:
+				return readConductorMessages(args, conductorFolder, databases, true);
+			case COMMANDS.conductorImportReadMessages:
+				return readConductorMessages(args, conductorFolder, databases, false);
 			case COMMANDS.conductorImportDiscard: {
 				const names = await readdir(conductorFolder).catch(() => [] as string[]);
 				for (const name of names) await rm(join(conductorFolder, name), { force: true });

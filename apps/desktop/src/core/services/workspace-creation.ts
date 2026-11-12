@@ -41,6 +41,7 @@ import type { StoreApi } from "zustand/vanilla";
 import { globToRegExp } from "../../platform/glob.ts";
 import type { Platform } from "../../platform/platform.ts";
 import type { NewWorkspaceInput } from "../api.ts";
+import { AUTO_SYNC_SETTING, initialSyncEnabled } from "../cloud/file-sync.ts";
 import {
 	cloudWorkspaceFolder,
 	cloudWorkspaceName,
@@ -598,6 +599,10 @@ export class WorkspaceCreation {
 			setupLogPath: null,
 			// A worktree on this Mac, or the named Worker's sandbox (CLOUD-19).
 			host,
+			remoteFileSyncEnabled: initialSyncEnabled(
+				host,
+				this.#deps.setting<boolean>(AUTO_SYNC_SETTING) === true,
+			),
 		});
 		if (!row.ok) return row;
 		this.#host.put(row.value);

@@ -31,6 +31,7 @@ const nothing = (): ConductedState => ({
 	repos: [],
 	workspaces: [],
 	sessionIds: new Set(),
+	sessionIdsWithEvents: new Set(),
 	commentIds: new Set(),
 	sectionIds: new Set(),
 	sectionCount: 0,
@@ -56,6 +57,18 @@ const DEFAULTS: PlanInput["chatDefaults"] = {
 	},
 };
 
+/** Each chat's sent `session_messages` rows, as the copy's read counts them. */
+function sentRowsByChat(
+	database: ReturnType<typeof buildConductorFixture>,
+): Record<string, number> {
+	const counts: Record<string, number> = {};
+	for (const row of database.session_messages ?? []) {
+		if (row.sent_at === null || typeof row.session_id !== "string") continue;
+		counts[row.session_id] = (counts[row.session_id] ?? 0) + 1;
+	}
+	return counts;
+}
+
 function plan(
 	rows: ConductorFixtureRows,
 	options: { conducted?: ConductedState; folders?: Record<string, RepoFolder> } = {},
@@ -65,7 +78,7 @@ function plan(
 		...rows,
 	});
 	return planConductorImport({
-		snapshot: { tables: database, counts: {} },
+		snapshot: { tables: database, counts: {}, messageRows: sentRowsByChat(database) },
 		workspacesRoot: "/Users/me/conducted",
 		conducted: options.conducted ?? nothing(),
 		folders: options.folders ?? { [ROOT]: folder() },

@@ -11,10 +11,14 @@
  * the sign-in finishing (the parent calls agents.finishLogin, then the dialog closes by itself
  * once the install turns authenticated), a code that must be copied exactly, and the request
  * failing (error text, Retry).
+ * Codex draws Conductor's device-code steps (@10926386-@10934000): the personal or business plan
+ * settings page, the OpenAI authorization page, the code and its copy button, and Restart. Claude
+ * draws its paste form ("Paste code from Claude", "Paste here") and its setup-token command.
  * Test first: with a code the dialog shows a copy button, and when the install turns authenticated
  * it calls onOpenChange(false).
  */
-import { useEffect, useState } from "react";
+import type { AgentKind } from "@conducted/shared";
+import { type ReactNode, useEffect, useState } from "react";
 import { Button } from "../../../ui/Button.tsx";
 import { Dialog, DialogContent, DialogFooter } from "../../../ui/Dialog.tsx";
 import { Input, Label } from "../../../ui/Input.tsx";
@@ -35,6 +39,8 @@ export interface AgentLoginFlow {
 export interface AgentLoginDialogProps {
 	open: boolean;
 	agentName: string;
+	/** The program's own flow: Codex draws Conductor's device-code steps, Claude its paste form. */
+	agent?: AgentKind;
 	flow: AgentLoginFlow | null;
 	error: string | null;
 	/** The install turned authenticated after the flow finished. */
@@ -52,9 +58,18 @@ export interface AgentLoginDialogProps {
 	onCopy?: (text: string) => void;
 }
 
+/** Conductor's two settings pages for enabling Codex device authorization (renderApp @10921095). */
+const CODEX_PERSONAL_SETTINGS =
+	"https://chatgpt.com/#settings/Security:~:text=Enable%20device%20code%20authorization%20for%20Codex";
+const CODEX_BUSINESS_SETTINGS =
+	"https://chatgpt.com/admin/permissions#:~:text=authentication%20for%20Codex%20CLI";
+/** OpenAI's device authorization page, when the flow does not name one. */
+const CODEX_DEVICE_PAGE = "https://auth.openai.com/codex/device";
+
 export function AgentLoginDialog({
 	open,
 	agentName,
+	agent,
 	flow,
 	error,
 	signedIn = false,
@@ -67,6 +82,7 @@ export function AgentLoginDialog({
 	onCopy,
 }: AgentLoginDialogProps) {
 	const [code, setCode] = useState("");
+	const [plan, setPlan] = useState<"personal" | "business">("personal");
 
 	useEffect(() => {
 		if (open && signedIn) onOpenChange(false);
@@ -79,13 +95,36 @@ export function AgentLoginDialog({
 	};
 
 	const openTarget = flow?.url ?? flow?.verificationUrl;
+	const isCodex = agent === "codex";
+	const verificationUrl = flow?.verificationUrl ?? CODEX_DEVICE_PAGE;
+	const settingsUrl = plan === "business" ? CODEX_BUSINESS_SETTINGS : CODEX_PERSONAL_SETTINGS;
+
+	const deviceStep = (
+		index: number,
+		title: string,
+		action: { label: string; url: string } | null,
+		body?: ReactNode,
+	) => (
+		<li className="flex gap-2 text-sm">
+			<span className="text-fg-muted">{index}.</span>
+			<div className="min-w-0 space-y-2">
+				<p>{title}</p>
+				{action === null ? null : (
+					<Button variant="outline" size="sm" onClick={() => onOpenUrl(action.url)}>
+						{action.label}
+					</Button>
+				)}
+				{body}
+			</div>
+		</li>
+	);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
-				title={`Sign in to ${agentName}`}
-				description={flow?.instructions}
-				onConfirm={requiresCode ? submit : undefined}
+				title={isCodex ? "Sign in to Codex" : `Sign in to ${agentName}`}
+				description={isCodex ? null : flow?.instructions}
+				onConfirm={!isCodex && requiresCode ? submit : undefined}
 			>
 				<div className="flex flex-col gap-4">
 					{error ? (
@@ -94,80 +133,150 @@ export function AgentLoginDialog({
 						</p>
 					) : null}
 
-					{openTarget ? (
-						<div>
-							<Button variant="secondary" onClick={() => onOpenUrl(openTarget)}>
-								Open browser
-							</Button>
-						</div>
-					) : null}
-
-					{flow?.code ? (
-						<div className="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2">
-							<code className="min-w-0 flex-1 font-mono text-sm text-fg">{flow.code}</code>
-							<Button
-								size="xs"
-								variant="secondary"
-								aria-label="Copy Codex verification code"
-								onClick={() => onCopy?.(flow.code ?? "")}
-							>
-								Copy code
-							</Button>
-						</div>
-					) : null}
-
-					{flow?.command && !flow.code ? (
-						<div className="flex flex-col gap-1">
-							<p className="text-sm font-medium text-fg">Run this command instead</p>
-							<div className="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2">
-								<code className="min-w-0 flex-1 font-mono text-sm text-fg">{flow.command}</code>
-								<Button size="xs" variant="secondary" onClick={() => onCopy?.(flow.command ?? "")}>
-									Copy command
+					{isCodex ? (
+						<>
+							<p className="text-sm text-fg-muted">
+								Authorize Conducted to use your ChatGPT subscription.
+							</p>
+							<div className="flex flex-wrap items-center gap-2">
+								<Button
+									type="button"
+									size="sm"
+									variant={plan === "personal" ? "secondary" : "outline"}
+									onClick={() => setPlan("personal")}
+								>
+									Personal plan
+								</Button>
+								<Button
+									type="button"
+									size="sm"
+									variant={plan === "business" ? "secondary" : "outline"}
+									onClick={() => setPlan("business")}
+								>
+									Business plan
 								</Button>
 							</div>
-						</div>
-					) : null}
+							<ol className="flex flex-col gap-4">
+								{deviceStep(1, "Enable device code authorization for Codex.", {
+									label:
+										plan === "business" ? "Open ChatGPT admin settings" : "Open ChatGPT settings",
+									url: settingsUrl,
+								})}
+								{deviceStep(2, "Open the OpenAI device authorization page.", {
+									label: "Open device authorization",
+									url: verificationUrl,
+								})}
+								{deviceStep(
+									3,
+									"Enter this code when OpenAI asks for it:",
+									null,
+									flow?.code === undefined ? (
+										<div className="flex items-center gap-2 text-sm text-fg-muted">
+											<Spinner size="sm" label="Starting device code authorization" />
+											Starting device code authorization...
+										</div>
+									) : (
+										<div className="flex items-center gap-2">
+											<button
+												type="button"
+												onClick={() => onCopy?.(flow.code ?? "")}
+												className="rounded-md border border-border bg-surface px-3 py-1.5 font-mono text-sm tracking-wider hover:bg-hover"
+											>
+												{flow.code}
+											</button>
+											<Button
+												size="xs"
+												variant="ghost"
+												aria-label="Copy Codex verification code"
+												onClick={() => onCopy?.(flow.code ?? "")}
+											>
+												Copy
+											</Button>
+										</div>
+									),
+								)}
+							</ol>
+							{finishing ? (
+								<div className="flex items-center gap-2 text-sm text-fg-muted">
+									<Spinner size="sm" label="Waiting for approval" />
+									Waiting for approval—keep this dialog open.
+								</div>
+							) : null}
+							<div>
+								<Button variant="outline" size="sm" onClick={onRetry}>
+									Restart device authorization
+								</Button>
+							</div>
+						</>
+					) : (
+						<>
+							{openTarget ? (
+								<div>
+									<Button variant="secondary" onClick={() => onOpenUrl(openTarget)}>
+										{error === null && flow !== null ? "Open browser again" : "Open browser"}
+									</Button>
+								</div>
+							) : null}
 
-					{requiresCode ? (
-						<div className="flex flex-col gap-1.5">
-							<Label htmlFor="agent-login-code">
-								{agentName === "Claude Code"
-									? "Paste code from Claude"
-									: `Paste code from ${agentName}`}
-							</Label>
-							<Input
-								id="agent-login-code"
-								value={code}
-								autoFocus
-								placeholder="Paste the code"
-								onChange={(event) => setCode(event.target.value)}
-							/>
-						</div>
-					) : null}
+							{flow?.command && !flow.code ? (
+								<div className="flex flex-col gap-1">
+									<p className="text-sm text-fg-muted">
+										Run <code className="font-mono">claude setup-token</code> in a terminal and
+										paste the token you get back here.
+									</p>
+									<div className="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2">
+										<code className="min-w-0 flex-1 font-mono text-sm text-fg">{flow.command}</code>
+										<Button
+											aria-label="Copy command"
+											title="Copy command"
+											size="xs"
+											variant="secondary"
+											onClick={() => onCopy?.(flow.command ?? "")}
+										>
+											Copy command
+										</Button>
+									</div>
+								</div>
+							) : null}
 
-					{finishing ? (
-						<div className="flex items-center gap-2 text-sm text-fg-muted">
-							<Spinner size="sm" label="Waiting for sign-in" />
-							Waiting for sign-in…
-						</div>
-					) : null}
+							{requiresCode ? (
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor="agent-login-code">Paste code from Claude</Label>
+									<Input
+										id="agent-login-code"
+										value={code}
+										autoFocus
+										placeholder="Paste here"
+										onChange={(event) => setCode(event.target.value)}
+									/>
+								</div>
+							) : null}
+
+							{finishing ? (
+								<div className="flex items-center gap-2 text-sm text-fg-muted">
+									<Spinner size="sm" label="Waiting for sign-in" />
+									Waiting for sign-in...
+								</div>
+							) : null}
+						</>
+					)}
 				</div>
 
 				<DialogFooter>
 					<Button variant="ghost" onClick={() => onOpenChange(false)}>
 						Cancel
 					</Button>
-					{requiresCode ? (
+					{!isCodex && requiresCode ? (
 						<Button
 							variant="default"
 							loading={finishing}
 							disabled={code.trim() === ""}
 							onClick={submit}
 						>
-							Finish sign-in
+							Connect
 						</Button>
 					) : null}
-					{error !== null || flow === null ? (
+					{!isCodex && (error !== null || flow === null) ? (
 						<Button variant={flow === null ? "default" : "secondary"} onClick={onRetry}>
 							Retry
 						</Button>

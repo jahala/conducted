@@ -4,14 +4,16 @@
  * Behaviour: ui-map.md 6, "Environment page" (env files list, "Cancel adding env file");
  * services-map.md 4.2.3 (environment_variable_files).
  * Must handle: no files, a file that does not exist (marked), a path outside the repository
- * (refused), adding by picking from a list of dotenv-style files found in the repository, and
- * removing an entry without touching the file. The dotenv reader itself is core/services/dotenv,
+ * (refused), adding by picking from a list of dotenv-style files found in the repository or with
+ * the system file picker (its title is "Select env file" and the Browse button explains Cmd+Shift+.),
+ * and removing an entry without touching the file. The dotenv reader itself is core/services/dotenv,
  * because the launch reads the same files (SET-04).
  * Test first: adding a path outside the repository root is refused.
  */
 import { useState } from "react";
 import { Button } from "../../../ui/Button.tsx";
 import { Input } from "../../../ui/Input.tsx";
+import { FolderIcon } from "../../../ui/icons.tsx";
 
 /** Collapses `.` and `..` by spelling, so a path cannot leave the repository it was given. */
 const normalize = (path: string): string => {
@@ -45,6 +47,8 @@ export interface EnvFilesListProps {
 	repositoryRoot?: string;
 	onAdd: (path: string) => Promise<boolean>;
 	onRemove: (path: string) => Promise<boolean>;
+	/** Opens the system file picker with Conductor's title. Null when the user cancels. */
+	onBrowse?: () => Promise<string | null>;
 }
 
 export function EnvFilesList({
@@ -53,6 +57,7 @@ export function EnvFilesList({
 	repositoryRoot,
 	onAdd,
 	onRemove,
+	onBrowse,
 }: EnvFilesListProps) {
 	const [adding, setAdding] = useState(false);
 	const [path, setPath] = useState("");
@@ -116,16 +121,36 @@ export function EnvFilesList({
 			{adding ? (
 				<div className="flex flex-col gap-2">
 					<div className="flex items-end gap-2">
-						<Input
-							aria-label="Environment file path"
-							placeholder=".env.local"
-							list="environment-file-candidates"
-							value={path}
-							autoCapitalize="off"
-							spellCheck={false}
-							className="font-mono"
-							onChange={(event) => setPath(event.target.value)}
-						/>
+						<div className="relative flex-1">
+							<Input
+								aria-label="Environment file path"
+								placeholder={repositoryRoot === undefined ? "~/.env" : ".env"}
+								list="environment-file-candidates"
+								value={path}
+								autoCapitalize="off"
+								spellCheck={false}
+								className="pr-8 font-mono"
+								onChange={(event) => setPath(event.target.value)}
+							/>
+							{onBrowse === undefined ? null : (
+								<Button
+									variant="ghost"
+									size="xs"
+									className="absolute top-1/2 right-1 -translate-y-1/2"
+									title="Browse for env file. Press Cmd+Shift+. to show hidden files."
+									aria-label="Browse for env file"
+									onClick={() => {
+										void onBrowse().then((picked) => {
+											if (picked === null) return;
+											setPath(picked);
+											setError(null);
+										});
+									}}
+								>
+									<FolderIcon className="size-3.5" />
+								</Button>
+							)}
+						</div>
 						<datalist id="environment-file-candidates">
 							{candidates.map((candidate) => (
 								<option key={candidate} value={candidate} />

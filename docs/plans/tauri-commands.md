@@ -95,6 +95,8 @@ Dialogs, clipboard text and images, opening URLs, notifications permission and t
 | `conductorImport.find`                           | `conductor_import_find`                                                      | conductor_import.rs |                                        |
 | `conductorImport.copy`                           | `conductor_import_copy`                                                      | conductor_import.rs |                                        |
 | `conductorImport.read`                           | `conductor_import_read`                                                      | conductor_import.rs |                                        |
+| `conductorImport.readMessageKeys`                | `conductor_import_read_message_keys`                                         | conductor_import.rs |                                        |
+| `conductorImport.readMessages`                   | `conductor_import_read_messages`                                             | conductor_import.rs |                                        |
 | `conductorImport.moveSecrets`                    | `conductor_import_move_secrets`                                              | conductor_import.rs |                                        |
 | `conductorImport.discardCopies`                  | `conductor_import_discard`                                                   | conductor_import.rs |                                        |
 | `visualizations.serve`                           | `visualization_serve { document }`                                           | visualization.rs    |                                        |

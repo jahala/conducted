@@ -257,6 +257,7 @@ describe("s1-core-1 join", () => {
 					path: "/code/join-archive/old",
 					branch: "jahala/old",
 					branchIsPlaceholder: true,
+					remoteFileSyncEnabled: false,
 					host: { kind: "local" },
 					targetBranch: "origin/main",
 					port: 55_101,

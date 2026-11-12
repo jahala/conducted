@@ -4233,12 +4233,9 @@
 		"owner": "rule:quote"
 	},
 	"text:R10778940": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Installed\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D004",
+		"note": "The Installed tab of Conductor's organization MCP page, which configures cloud workspaces inside an organization (D004, D018).",
 		"by": "hand"
 	},
 	"text:R10778993": {
