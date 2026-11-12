@@ -121,6 +121,7 @@ const harness = (options: HarnessOptions = {}) => {
 		liveStates: {},
 		cancelling: {},
 		events: {},
+		histories: {},
 		progress: {},
 		sending: {},
 		acpConfigOptions: { [sessionId]: { state: "ready", data: [] } },

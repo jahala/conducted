@@ -394,13 +394,13 @@ export function TabStrip({
 	 */
 	const fork = (sessionId: SessionId): void => {
 		void forkFlight.run(`workspace:${workspaceId}:fork:${sessionId}`, async () => {
-			const opened = await services.services.sessions.open(sessionId);
-			if (!opened.ok) {
-				toastError("Unable to fork chat", opened.error);
+			// Every turn, not only the ones the chat has loaded (CHAT-06): the fork copies the whole chat.
+			const turns = await services.services.sessions.completeTurns(sessionId);
+			if (!turns.ok) {
+				toastError("Unable to fork chat", turns.error);
 				return;
 			}
-			const turns = services.services.sessions.chatView(sessionId)?.turns ?? [];
-			const reversed = [...turns].reverse();
+			const reversed = [...turns.value].reverse();
 			const turn =
 				reversed.find((candidate) => candidate.endCheckpointId !== null) ??
 				reversed.find((candidate) => candidate.startCheckpointId !== null);

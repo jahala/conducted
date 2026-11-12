@@ -1078,6 +1078,7 @@ Chosen:
 - **The measure tells its stages apart.** It prints peak memory for the dry run, the import, and the open of the largest chat; the longest statement outside a transaction beside the longest transaction; and its relay joins a line once. Its test runs a chat of 200,700 rows and 338 million characters and bounds how far each process's memory rises while the import runs.
 
 Why: rule 3 is kept per chat, and the app's own writes wait at most for SQLite's copy of one chat, never for its reads. On the made-up chat the peak memory the measure reported was its own open of the chat, which the import does not do; the lead's run on the copy shows whether that holds for the owner's chats.
+Since D142: opening a chat reads its last turns only, so the measure's open no longer raises the peak.
 
 ## D137. The app's database is one connection that nothing replaces while the app runs (2026-11-12)
 
@@ -1125,3 +1126,22 @@ Context: the `rust` job runs on `macos-latest`. On 2026-11-12 GitHub's arm64 Mac
 Chosen: an Ubuntu job, `macos-changes`, compares the pull request with main (`scripts/macos-job.ts`) against `MACOS_JOB` in `scripts/test-rules.ts`, the paths the job checks, reads or installs. The `rust` job runs when one changed, when `macos-changes` failed, and on every push to main. Otherwise its condition skips it, and GitHub reports a job skipped by its condition as a success, so the required check passes. `scripts/macos-job.test.ts` holds the list to the paths the crate names and the files the macOS tests import.
 
 Why not skip the job's steps inside the job: the job would still wait for a macOS runner, which is the shortage. Why not a `paths` filter on the workflow: a required check whose workflow never starts holds the pull request forever.
+
+## D142. A chat opens on its last five turns and loads older ones as the list reaches its top (2026-11-12)
+
+Decided by the agent fixing issue #617, which the owner filed, under the owner's rule "Match Conductor. Nothing made up; gaps are reported."
+
+Context: `sessions.open` loaded every event of a chat into memory. On a made-up chat of 200,700 rows and 608 million characters, the import's measure saw opening it take the process from 527 MB to 1,907 MB, in 1.59 s. Measured stage by stage, the parsed events the store kept were about 1.3 GB, twice their text; the rows' text read from SQLite was another 640 MB while it lasted; the turns built from them shared the events' strings and added about 50 MB. Each later rebuild of the turns, on every streamed event, also wrote every turn out as text to compare it, about 1.6 GB of garbage and 370 ms. The owner's longest imported chat has about 344,000 events. Conductor's chat reads a window of turns instead (frontend.md 5, "History in pages").
+
+Chosen:
+
+- **The last five turns, then one at a time.** The open reads the list of every turn the chat shows (its id, where its first event is, and the first 200 characters of the message that began it) and the events of the last five turns. While older turns are stored, the list's header says "Loading messages…" and loads one more turn each time its top is within 800 pixels. A failed load says "Couldn't load messages" with Retry. The list stays hidden under the loading skeleton until its turns fill it, nothing older is stored, a load failed or 5 seconds pass. Older turns join through Virtuoso's `firstItemIndex`, so the turns on screen stay still.
+- **The outline lists every turn.** A turn that is not loaded shows the start of its message, and its plan is not marked until it loads, as in Conductor. Find in the chat searches the loaded turns, as in Conductor.
+- **The gap: a picked turn loads every turn back to it.** Conductor loads the picked turn alone and leaves a gap marker that fills as the user scrolls into it. Ours loads every turn from the picked one to the first loaded one, so what is loaded is always one run of turns to the end. A gap filled from below inserts a turn above what the user reads, which Virtuoso, without the paid message list Conductor uses, does not hold still, and that could not be checked in a real window. A jump far back in a long chat therefore costs memory in proportion to the turns after the picked one. This is filed as #652.
+- **Late work stays in its card (D129).** A loaded turn can hold a background helper's work for a call in a turn that is not loaded. The open asks SQLite which of the call ids the loaded events name are calls in the other turns, and the turn builder leaves that work and its result out of the loaded turn, as a build of every turn does. The lookup reads the chat's agent events, so it runs only for ids not asked before.
+- **An event of a turn that is not loaded waits in the database.** Alone it would show as a turn of its own; it comes when its turn loads. One stored while its turn is being read is kept.
+- **What needs the whole chat reads it and keeps nothing.** Copying the transcript, attaching a chat to another (CHAT-26), reading one of its plans and the tab strip's fork build every turn from the stored events each time, as Conductor reads every row to copy a transcript.
+
+Why: the owner's rule. The chat behaves as Conductor's does, and opening it costs memory near what the screen shows: on the made-up chat the open now leaves the process's peak where the import left it and takes 0.12 s, and a test at 223,000 events keeps 5.6 MB where loading everything kept 403 MB.
+
+The tests: `apps/desktop/src/core/services/sessions.chat-06-memory.container.test.ts` (the bound), `sessions.chat-06.container.test.ts` and `features/chat/MessageList.chat-06.test.tsx` (the behaviour), and the measure's bound on the open in `scripts/conductor-import/measure.test.ts`.

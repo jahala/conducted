@@ -80,7 +80,8 @@ export const useChat: Queries["useChat"] = (sessionId) => {
 		if (state.sessions[sessionId] === undefined) {
 			return { state: "error", error: appError("session_unknown", "That chat no longer exists.") };
 		}
-		if (state.events[sessionId] === undefined) return { state: "loading" };
+		// Ready once the chat's last turns are read (CHAT-06).
+		if (state.histories[sessionId] === undefined) return { state: "loading" };
 		const data = sessions.chatView(sessionId);
 		return data === null ? { state: "loading" } : { state: "ready", data };
 	}, [state, sessionId, sessions]);

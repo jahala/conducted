@@ -6,8 +6,9 @@
  * the resident memory of the import's process and of the sidecar every 250 ms, and prints counts
  * and timings only: the dry run's counts, the dry run's and the import's time, the five slowest
  * chats as rows and seconds, the longest hold of the database queue, peak memory in each stage
- * (the dry run, the import, and opening the largest chat, which loads all of it), the time to
- * open the largest imported chat and build its turns, and the dry run's estimate of the disk space
+ * (the dry run, the import, and opening the largest chat as the app opens it, on its last turns,
+ * CHAT-06), the time to open the largest imported chat and build its turns, its turns and how
+ * many of them the open loaded, and the dry run's estimate of the disk space
  * chat history takes beside the scratch database's file and journal after the import (D132). The
  * Rust shell clones the copy on APFS, and so does the Node stand-in, so neither copy takes space.
  * Behaviour: docs/plans/migrate-from-conductor.md ("Chat history"); issue #556, "Done means".
@@ -137,7 +138,7 @@ export function reportLines(measured: Measured, memory: MemoryPeaks): string[] {
 		),
 		largest === null
 			? "largest chat: no chat has events"
-			: `largest chat: ${int(largest.events)} events, ${int(largest.turns)} turns; opened in ${secs(largest.openSeconds)} s, turns built in ${secs(largest.turnsSeconds)} s`,
+			: `largest chat: ${int(largest.events)} events, ${int(largest.turns)} turns, ${int(largest.loadedTurns)} of them loaded; opened in ${secs(largest.openSeconds)} s, turns built in ${secs(largest.turnsSeconds)} s`,
 		`outside the run's folder: ${int(outside.kept)} files written by the import kept in the run's folder, ${int(outside.refusedWrites)} writes refused, ${int(outside.refusedCommands)} commands refused`,
 		`scratch database in bytes, when the dry run ended: file ${int(disk.before.database)}, journal ${int(disk.before.journal)}`,
 		`scratch database in bytes, after the import: file ${int(disk.after.database)}, journal ${int(disk.after.journal)}`,
@@ -148,7 +149,7 @@ export function reportLines(measured: Measured, memory: MemoryPeaks): string[] {
 
 /**
  * The stages memory is told apart by: the dry run, the import, and the measure's own open of the
- * largest chat, which loads every event of it and so must not be counted as the import's.
+ * largest chat, which the import does not do and so must not be counted as the import's.
  */
 const MEMORY_STAGES = ["dry run", "import", "opening the largest chat"] as const;
 type MemoryStage = (typeof MEMORY_STAGES)[number];

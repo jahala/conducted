@@ -32,6 +32,7 @@ const baseState = (overrides: Partial<SessionsState> = {}): SessionsState => ({
 	liveStates: {},
 	cancelling: {},
 	events: {},
+	histories: {},
 	progress: {},
 	sending: {},
 	openInteractions: {},
