@@ -348,10 +348,20 @@ export const CHAT_STATES: CatalogueState[] = [
 		id: "chat-plan-review",
 		group: "Workspace chat",
 		title: "Plan review",
-		seed: castChat(
-			(cast) => ({ route: chatRoute(cast.fjord, cast.chats.fjord), workspace: cast.fjord }),
-			"Invalidate cached prices on write",
-		),
+		seed: async (world) => {
+			// The sidecar takes the answer to the plan it is waiting on and logs it, so the plan
+			// review browser check (scripts/catalogue/plan-approve.browser.ts) can see what it got.
+			world.answerSidecar({
+				answerInteraction: ({ answer }) => {
+					console.info("[catalogue] answered interaction:", JSON.stringify(answer));
+					return { accepted: true, superseded: false };
+				},
+			});
+			return castChat(
+				(cast) => ({ route: chatRoute(cast.fjord, cast.chats.fjord), workspace: cast.fjord }),
+				"Invalidate cached prices on write",
+			)(world);
+		},
 	},
 	...(
 		[
