@@ -1020,6 +1020,34 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		},
 	},
 	{
+		id: "settings-repo-preview-urls",
+		group: "Settings",
+		title: "atlas: Misc, two preview addresses that can be reordered",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			const repoId = cast.atlas.id;
+			return {
+				route: "/settings/user/general",
+				after: async ({ app }) => {
+					const { actions, services } = app.container;
+					const loaded = await services.repo.loadConfig(repoId);
+					if (!loaded.ok)
+						throw new Error(`Loading atlas's settings failed: ${loaded.error.message}`);
+					const saved = await actions.projects.updateConfig(repoId, {
+						...loaded.value,
+						previewUrls: [
+							{ name: "App", url: "http://localhost:$CONDUCTED_PORT" },
+							{ name: "Storybook", url: "http://localhost:6006" },
+						],
+					});
+					if (!saved.ok) throw new Error(`Saving atlas's settings failed: ${saved.error.message}`);
+					await app.router.navigate({ to: `/settings/repos/${repoId}/misc` });
+				},
+				ready: (document) => has(document, "button", "Move preview URL down"),
+			};
+		},
+	},
+	{
 		id: "settings-repo-add-action",
 		group: "Settings",
 		title: "atlas: Actions, the Add action dialog",
