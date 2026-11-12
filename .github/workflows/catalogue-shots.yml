@@ -2,8 +2,9 @@ name: Catalogue shots
 
 # Draws every state of the states catalogue (docs/engineering.md, "States catalogue") in Chromium
 # and uploads the PNGs, so a screen change can be read beside Conductor's captures without a
-# browser run on the owner's Mac. Runs on pull requests that touch the desktop's screens. The same
-# job runs the browser check of the Codex visualization frame under the app's production policy
+# browser run on the owner's Mac. Runs on pull requests that touch the desktop's screens. The
+# states are drawn in three parts side by side (`shots.ts --shard`), because one run of about 300
+# states outgrew its 30-minute limit. A separate job runs the browser check of the Codex visualization frame under the app's production policy
 # (scripts/visualization/frame-policy.browser.ts, issue #466), the Loadout's pointer drag
 # (scripts/catalogue/loadout-drag.browser.ts, issue #481), the pointer checks for every in-app
 # drag (scripts/catalogue/pointer-drag.browser.ts, issue #529) and the Settings sidebar's measure
@@ -36,9 +37,13 @@ jobs:
     # packages are already in it, so the job never needs Ubuntu's package mirror (issue #540).
     container:
       image: mcr.microsoft.com/playwright@sha256:06a9939e57531807f8d5fd76ce44b53165ffb7d7501d87ab10e285c20b1e971f # v1.64.0-noble
-    # A full run takes about 14 minutes (2026-11-08), so 15 cut normal runs off. The limit catches
-    # a hang, not slowness.
+    # One part draws a third of the states, about 10 minutes at 300 states (2026-11-12). The limit
+    # catches a hang, not slowness.
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
@@ -54,14 +59,37 @@ jobs:
       - name: Let git use the checkout
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: pnpm install --frozen-lockfile
-      - run: bun scripts/catalogue/shots.ts
+      - run: bun scripts/catalogue/shots.ts --shard=${{ matrix.shard }}/3
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
         # GitHub's artifact store once hung an upload for 9 minutes (#555); a hang fails here, not at the job's limit.
         timeout-minutes: 5
         with:
-          name: catalogue-shots
+          name: catalogue-shots-${{ matrix.shard }}
           path: .context/shots/ours/
           retention-days: 14
+
+  browser-checks:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright@sha256:06a9939e57531807f8d5fd76ce44b53165ffb7d7501d87ab10e285c20b1e971f # v1.64.0-noble
+    # The four checks take about 5 minutes together (2026-11-12). The limit catches a hang.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # ratchet:actions/setup-node@v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      # setup-bun needs unzip, which the Playwright image lacks; npm's bun package carries the binary.
+      - name: Install bun from npm at the pinned version
+        run: npm install --global "bun@$(cat .bun-version)"
+      # The job runs as root in the container and the checkout belongs to the runner's user, so git
+      # refuses the folder until it is marked safe.
+      - name: Let git use the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - run: pnpm install --frozen-lockfile
       - name: The visualization frame runs its scripts under the production policy
         if: ${{ !cancelled() }}
         run: bun scripts/visualization/frame-policy.browser.ts
