@@ -14,6 +14,7 @@ import {
 	diskImagePath,
 	diskImageSizeMegabytes,
 	ENTITLEMENTS_PATH,
+	hasWebDriver,
 	NOTARY_PROFILE_ENV,
 	notariseBundle,
 	notariseDiskImage,
@@ -89,6 +90,8 @@ function bundleRun(overrides: {
 	sidecarFile?: string;
 	contents?: string;
 	staplerExitCode?: number;
+	/** The app binary carries the end-to-end tests' WebDriver server. */
+	webDriver?: boolean;
 }): { run: RunTool; calls: Call[] } {
 	const info = overrides.info ?? INFO;
 	return scripted((program, args) => {
@@ -109,6 +112,9 @@ function bundleRun(overrides: {
 				stderr: "",
 				exitCode: 0,
 			});
+		}
+		if (program === "grep") {
+			return ok({ stdout: "", stderr: "", exitCode: overrides.webDriver === true ? 0 : 1 });
 		}
 		if (program === "ls") {
 			return ok({
@@ -176,6 +182,7 @@ describe("PLAT-25 release bundle", () => {
 		expect(result.value.version).toBe("0.1.0");
 		expect(result.value.architectures).toEqual(["arm64"]);
 		expect(result.value.hasFrameworksFolder).toBe(false);
+		expect(result.value.hasWebDriver).toBe(false);
 		expect(result.value.missingEntitlements).toEqual([]);
 		expect(result.value.missingPrivacyKeys).toEqual([]);
 		expect(result.value.signed).toBe(true);
@@ -205,6 +212,42 @@ describe("PLAT-25 release bundle", () => {
 				"The app has no stapled notarisation ticket.",
 			]),
 		);
+	});
+
+	it("PLAT-25 bundleProblems refuses an app binary that carries the end-to-end WebDriver server", async () => {
+		const { run, calls } = bundleRun({ webDriver: true });
+
+		const result = await verifyBundle(run, APP);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.hasWebDriver).toBe(true);
+		expect(bundleProblems(result.value, EXPECTED_NOTARISED)).toEqual([
+			"The app binary carries the end-to-end tests' WebDriver server; build without the e2e feature.",
+		]);
+		const scan = calls.find((call) => call.program === "grep");
+		expect(scan?.args).toEqual([
+			"-a",
+			"-q",
+			"-F",
+			"-e",
+			"TAURI_WEBDRIVER_PORT",
+			"-e",
+			"tauri-plugin-webdriver is ready",
+			`${APP}/Contents/MacOS/Conducted`,
+		]);
+	});
+
+	it("PLAT-25 hasWebDriver reports an unreadable binary as an error, never as absent", async () => {
+		const { run } = scripted(() =>
+			ok({ stdout: "", stderr: "grep: Conducted: Permission denied", exitCode: 2 }),
+		);
+
+		const result = await hasWebDriver(run, `${APP}/Contents/MacOS/Conducted`);
+
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error.code).toBe("release_binary_unreadable");
 	});
 
 	it("PLAT-25 bundleProblems compares the bundle with the version the release just set", async () => {
@@ -420,6 +463,7 @@ describe("PLAT-25 release bundle", () => {
 				return ok({ stdout: "Mach-O 64-bit executable arm64\n", stderr: "", exitCode: 0 });
 			}
 			if (program === "ls") return ok({ stdout: "MacOS\nResources\n", stderr: "", exitCode: 0 });
+			if (program === "grep") return ok({ stdout: "", stderr: "", exitCode: 1 });
 			if (program === "codesign") {
 				return ok({ stdout: "", stderr: completeSignature(REQUIRED_ENTITLEMENTS), exitCode: 0 });
 			}
@@ -458,6 +502,7 @@ describe("PLAT-25 release bundle", () => {
 			if (program === "ls") {
 				return ok({ stdout: "MacOS\nResources\n", stderr: "", exitCode: 0 });
 			}
+			if (program === "grep") return ok({ stdout: "", stderr: "", exitCode: 1 });
 			if (program === "codesign") {
 				return ok({
 					stdout: "",
