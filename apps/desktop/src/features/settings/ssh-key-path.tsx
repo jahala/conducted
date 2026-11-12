@@ -11,10 +11,13 @@
  * main-BE1h_1MP.js expand `~`, read only `<path>.pub`, and answer "Custom SSH public key not found
  * at <path>.pub" when it is missing. `ssh_key_path` is a user-scope Advanced setting.
  * Must handle: an empty value (the auto-generated key, no reset button), a `~` path, a missing
- * private file or `.pub` half (Conductor's message, nothing saved), a cancelled picker, and a
- * failed save (the field goes back to the stored value).
- * Our design choice: the check runs on the private file and its `.pub` companion; Conductor reads
- * only the companion, but a key whose private half is gone cannot open anything.
+ * private file or `.pub` half (Conductor's message, nothing saved), a key outside the app's file
+ * folders such as `~/.ssh` (read through the shell, as Conductor reads it, issue #601), a check that
+ * cannot run (its reason, never "not found"), a cancelled picker, and a failed save (the field goes
+ * back to the stored value).
+ * Our design choice: the check is core/ssh-key.ts `readCustomPublicKey`, which also needs the
+ * private file; Conductor reads only the companion, but a key whose private half is gone cannot
+ * open anything.
  * Test first: AdvancedPage.test.tsx, a missing `/keys/missing.pub` is refused with Conductor's
  * wording and settings.set is not called.
  */
@@ -22,7 +25,8 @@ import { useEffect, useState } from "react";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useSetting } from "../../core/hooks.ts";
 import { getSettingDef, pageDescriptionOf } from "../../core/registries/settings.ts";
-import { customSshKeyMissing, expandSshKeyPath, SSH_KEY_PATH_SETTING } from "../../core/ssh-key.ts";
+import { expandSshKeyPath, readCustomPublicKey, SSH_KEY_PATH_SETTING } from "../../core/ssh-key.ts";
+import type { Shell } from "../../platform/platform.ts";
 import { Input } from "../../ui/Input.tsx";
 import { FolderIcon, TrashIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
@@ -31,20 +35,17 @@ import { SettingRow, useSettingSaves } from "./SettingRow.tsx";
 
 /**
  * Conductor's problem for a custom key that cannot be used, or null for an empty or usable path.
- * The private file and its `.pub` half must both be there.
+ * The read is the one the cloud SSH service makes, so a key accepted here is a key it can use.
  */
 async function sshKeyPathProblem(
 	value: string,
 	home: string,
-	exists: (path: string) => Promise<boolean>,
+	shell: Pick<Shell, "run">,
 ): Promise<string | null> {
 	const text = value.trim();
 	if (text === "") return null;
-	const keyPath = expandSshKeyPath(text, home);
-	if (!(await exists(keyPath)) || !(await exists(`${keyPath}.pub`))) {
-		return customSshKeyMissing(keyPath);
-	}
-	return null;
+	const read = await readCustomPublicKey(shell, expandSshKeyPath(text, home), home);
+	return read.ok ? null : read.error.message;
 }
 
 /** The icon-button style Conductor uses inside and beside the field. */
@@ -63,8 +64,7 @@ export function SshKeyPathRow({ focusSettingKey }: { focusSettingKey: string | n
 	useEffect(() => setText(stored), [stored]);
 	if (def === undefined) return null;
 
-	const check = (value: string) =>
-		sshKeyPathProblem(value, platform.fs.paths.home, (path) => platform.fs.exists(path));
+	const check = (value: string) => sshKeyPathProblem(value, platform.fs.paths.home, platform.shell);
 
 	const save = async (next: string) => {
 		setProblem(null);

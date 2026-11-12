@@ -1,3 +1,4 @@
+import { appError, err, ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseDotenv } from "../../../core/dotenv.ts";
@@ -98,7 +99,7 @@ describe("SET-04 EnvFilesList", () => {
 		const onRemove = vi.fn(async () => true);
 		render(
 			<EnvFilesList
-				files={[{ path: ".env", exists: false }]}
+				files={[{ path: ".env", exists: ok(false) }]}
 				candidates={[]}
 				repositoryRoot="/repo"
 				onAdd={async () => true}
@@ -110,6 +111,25 @@ describe("SET-04 EnvFilesList", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Remove .env" }));
 
 		await waitFor(() => expect(onRemove).toHaveBeenCalledWith(".env"));
+	});
+
+	it("says why a file could not be checked instead of calling it missing (issue #601)", () => {
+		const refused = appError(
+			"fs_out_of_scope",
+			"Path is outside the folders this window may reach: /secrets/.env",
+		);
+		render(
+			<EnvFilesList
+				files={[{ path: "/secrets/.env", exists: err(refused) }]}
+				candidates={[]}
+				repositoryRoot="/repo"
+				onAdd={async () => true}
+				onRemove={async () => true}
+			/>,
+		);
+
+		expect(screen.getByText(refused.message)).toBeTruthy();
+		expect(screen.queryByText("File not found")).toBeNull();
 	});
 
 	it("keeps only paths inside the root", () => {

@@ -357,7 +357,12 @@ export interface FileSystem {
 	writeTextAtomic(path: string, text: string): Promise<Result<void>>;
 	/** Writes bytes atomically, for a binary file the mirror keeps (CLOUD-11). Same folder rule. */
 	writeBytes(path: string, bytes: Uint8Array): Promise<Result<void>>;
-	exists(path: string): Promise<boolean>;
+	/**
+	 * Whether anything is at `path`: Ok(false) when nothing is there. A path the file commands may
+	 * not reach is an Err with `fs_out_of_scope`, never false, so a refusal never reads as a missing
+	 * file (issue #601).
+	 */
+	exists(path: string): Promise<Result<boolean>>;
 	stat(path: string): Promise<Result<FileStat>>;
 	mkdirp(path: string): Promise<Result<void>>;
 	readDir(path: string): Promise<Result<FileStat[]>>;

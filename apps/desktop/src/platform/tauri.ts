@@ -10,8 +10,8 @@
  * an Error; both become `AppError` values for every method that returns a `Result`. The methods
  * whose interface type has no `Result` throw the `AppError` instead (`shell.loginEnv`, the `pty`
  * handle's `write`, `resize`, `kill` and `screenText`, `sidecar.logPath`) or let the plugin's
- * rejection through (`dialogs`, `opener.openUrl`, `clipboard`). `fs.exists` answers false when
- * the command fails. Binary data (terminal output, images) crosses as base64 strings or a
+ * rejection through (`dialogs`, `opener.openUrl`, `clipboard`). `fs.exists` answers false only
+ * when `fs_stat` finds nothing; a refused path is its Err (issue #601). Binary data (terminal output, images) crosses as base64 strings or a
  * Channel, never as number arrays; event listeners return an unsubscribe function that can be
  * called twice, and one called before the listen call resolves releases the listener as soon as
  * it does; a listen call that fails leaves the subscription silent, because the interface has no
@@ -827,7 +827,7 @@ export function createTauriFileSystem(
 			}),
 		exists: async (path) => {
 			const result = await invokeResult<FileStat | null>(bindings, COMMANDS.fsStat, { path });
-			return result.ok && result.value !== null;
+			return result.ok ? ok(result.value !== null) : result;
 		},
 		stat: async (path) => {
 			const result = await invokeResult<FileStat | null>(bindings, COMMANDS.fsStat, { path });

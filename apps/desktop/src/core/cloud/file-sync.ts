@@ -264,10 +264,13 @@ export class FileSyncService {
 		return this.syncNow(workspaceId);
 	}
 
-	/** True when the workspace's mirror folder is on disk, so a Mac preview can read it. */
-	async mirrorReady(workspaceId: WorkspaceId): Promise<boolean> {
+	/**
+	 * True when the workspace's mirror folder is on disk, so a Mac preview can read it. A mirror the
+	 * file commands cannot check is the Err, not false.
+	 */
+	async mirrorReady(workspaceId: WorkspaceId): Promise<Result<boolean>> {
 		const mirror = this.mirrorPathOf(workspaceId);
-		if (!mirror.ok) return false;
+		if (!mirror.ok) return ok(false);
 		return this.#deps.fs.exists(mirror.value);
 	}
 
@@ -306,7 +309,9 @@ export class FileSyncService {
 		const mirror = this.mirrorPathOf(workspaceId);
 		if (!mirror.ok) return mirror;
 		const status = this.store.getState().byWorkspace[workspaceId];
-		const exists = await this.#deps.fs.exists(mirror.value);
+		const found = await this.#deps.fs.exists(mirror.value);
+		if (!found.ok) return found;
+		const exists = found.value;
 		if (!exists && !this.isEnabled(workspaceId)) {
 			return err(appError("cloud_file_sync_off", SYNC_OFF_LABEL));
 		}
@@ -382,7 +387,9 @@ export class FileSyncService {
 		const mirror = this.mirrorPathOf(workspaceId);
 		if (!mirror.ok) return mirror;
 		const mirrored = `${mirror.value}/${guarded.value}`;
-		if (await this.#deps.fs.exists(mirrored)) {
+		const inMirror = await this.#deps.fs.exists(mirrored);
+		if (!inMirror.ok) return inMirror;
+		if (inMirror.value) {
 			if (options.reveal !== false) {
 				const revealed = await this.#reveal(mirrored);
 				if (!revealed.ok) return revealed;
@@ -596,7 +603,9 @@ export class FileSyncService {
 		for (const stale of previous?.files ?? []) {
 			if (seen.has(stale)) continue;
 			const local = `${mirrorPath}/${stale}`;
-			if (await this.#deps.fs.exists(local)) await this.#deps.fs.trash(local);
+			const left = await this.#deps.fs.exists(local);
+			if (!left.ok) return left;
+			if (left.value) await this.#deps.fs.trash(local);
 		}
 		const baseline: Baseline = {
 			version: 1,

@@ -29,7 +29,8 @@
  * disabled); a model that lacks the current effort (switch to its default and say so); fast mode not
  * available for the model or the account (toggle hidden); no models match the search; ACP agents
  * (OpenCode, Pi) listed under Agent; a cloud workspace reads its own model list and shows the
- * reason when that list is not available (CLOUD-04).
+ * reason when that list is not available (CLOUD-04); a click on another flyout row while one
+ * flyout is open opens the other.
  * Test first: Choosing a model that supports only 'high' effort while 'max' is set updates the
  * config to 'high' and says the effort changed.
  * CLOUD-04 test first: keeps a cloud workspace's model list apart from the local one.
@@ -458,7 +459,11 @@ export function ModelMenu({
 			side="right"
 			align="start"
 			open={flyout === label}
-			onOpenChange={(open) => setFlyout(open ? label : null)}
+			// A click on another row opens its flyout before this one hears the click outside it,
+			// so a late close clears only its own flyout (issue #609).
+			onOpenChange={(open) =>
+				setFlyout((current) => (open ? label : current === label ? null : current))
+			}
 			className="grid max-h-80 w-64 gap-0.5 overflow-y-auto p-1! ring-1 ring-popover-ring"
 			trigger={
 				<button type="button" aria-label={label} className={flyoutRow}>

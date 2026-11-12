@@ -1,3 +1,4 @@
+import { ok } from "@conducted/shared";
 /**
  * @feature PLAT-02 Tauri implementation of the Platform interface
  * Owns: tests for the Tauri Platform door: startup build order, the database wrapper, the file
@@ -83,8 +84,8 @@ describe("PLAT-02 Tauri file system", () => {
 		);
 
 		expect(await fs.readText(file.path)).toEqual({ ok: true, value: "héllo" });
-		expect(await fs.exists(file.path)).toBe(true);
-		expect(await fs.exists("/data/missing")).toBe(false);
+		expect(await fs.exists(file.path)).toEqual(ok(true));
+		expect(await fs.exists("/data/missing")).toEqual(ok(false));
 		expect(await fs.stat("/data/missing")).toMatchObject({
 			ok: false,
 			error: { code: "fs_not_found" },

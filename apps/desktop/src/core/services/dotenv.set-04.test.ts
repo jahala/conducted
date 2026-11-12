@@ -8,6 +8,7 @@
  * the repository root second.
  * Test first: reads names, export prefixes, quotes and comments.
  */
+import { ok } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import { parseDotenv } from "../dotenv.ts";
 import { resolveEnvFilePath } from "./dotenv.ts";
@@ -44,14 +45,18 @@ describe("SET-04 dotenv", () => {
 			sourceRoot: "/repo",
 			exists: async (path: string) => {
 				seen.push(path);
-				return path === "/repo/.conducted/.env";
+				return ok(path === "/repo/.conducted/.env");
 			},
 		};
-		expect(await resolveEnvFilePath({ ...input, path: ".env" })).toBe("/repo/.conducted/.env");
+		expect(await resolveEnvFilePath({ ...input, path: ".env" })).toEqual(
+			ok("/repo/.conducted/.env"),
+		);
 		expect(seen).toEqual(["/repo/.conducted/.env"]);
 
 		seen.length = 0;
-		expect(await resolveEnvFilePath({ ...input, path: "config/.env" })).toBe("/repo/config/.env");
+		expect(await resolveEnvFilePath({ ...input, path: "config/.env" })).toEqual(
+			ok("/repo/config/.env"),
+		);
 		expect(seen).toEqual(["/repo/.conducted/config/.env"]);
 	});
 
@@ -59,13 +64,13 @@ describe("SET-04 dotenv", () => {
 		const input = {
 			settingsDir: "/repo/.conducted",
 			sourceRoot: "/repo",
-			exists: async () => false,
+			exists: async () => ok(false),
 		};
-		expect(await resolveEnvFilePath({ ...input, home: "/Users/me", path: "/etc/.env" })).toBe(
-			"/etc/.env",
+		expect(await resolveEnvFilePath({ ...input, home: "/Users/me", path: "/etc/.env" })).toEqual(
+			ok("/etc/.env"),
 		);
-		expect(await resolveEnvFilePath({ ...input, home: "/Users/me", path: "~/.env" })).toBe(
-			"/Users/me/.env",
+		expect(await resolveEnvFilePath({ ...input, home: "/Users/me", path: "~/.env" })).toEqual(
+			ok("/Users/me/.env"),
 		);
 	});
 });

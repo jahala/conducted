@@ -576,7 +576,7 @@ describe("APP-17 import from Conductor, through the container", () => {
 		expect(test.memory.controls.secrets.size).toBe(0);
 		expect(test.memory.controls.files.has(`${ROOT}/.conducted/settings.toml`)).toBe(false);
 		expect(test.memory.controls.files.has(`${ROOT}/.conducted/settings.local.toml`)).toBe(false);
-		expect(await test.memory.platform.fs.exists(`${ROOT}/.conducted`)).toBe(false);
+		expect(await test.memory.platform.fs.exists(`${ROOT}/.conducted`)).toEqual(ok(false));
 		expect(conductorState(test)).toBe(conductor);
 	});
 
@@ -918,7 +918,7 @@ describe("D132 the disk space chat history takes, through the container", () => 
 		expect(await countRows(test)).toEqual(before);
 		expect(await eventCount(test, "s-1")).toBe(0);
 		expect(test.memory.controls.secrets.size).toBe(0);
-		expect(await test.memory.platform.fs.exists(`${ROOT}/.conducted`)).toBe(false);
+		expect(await test.memory.platform.fs.exists(`${ROOT}/.conducted`)).toEqual(ok(false));
 		expect(conductorState(test)).toBe(conductor);
 		// Its copy is gone, so the next try starts from a fresh dry run.
 		expect(test.memory.controls.conductorDatabases.size).toBe(1);

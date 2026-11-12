@@ -444,6 +444,11 @@ export class WorkspaceService {
 			}
 			if (logPath.value === null) continue;
 			const saved = await this.#deps.platform.fs.exists(logPath.value);
+			if (!saved.ok) {
+				// A log the file commands cannot check is reported, not called missing.
+				logError ??= saved.error;
+				continue;
+			}
 			// The exit code and the interrupted reason are not stored, so the load leaves both
 			// null rather than inventing a value from the workspace state.
 			setupRuns[workspace.id] = {
@@ -451,7 +456,7 @@ export class WorkspaceService {
 				exitCode: null,
 				terminalId: null,
 				logPath: logPath.value,
-				log: saved ? "saved" : "missing",
+				log: saved.value ? "saved" : "missing",
 				interruptedReason: null,
 			};
 		}
@@ -831,7 +836,9 @@ export class WorkspaceService {
 		if (workspace.state === "initializing") {
 			return err(appError("workspace_not_ready", ARCHIVE_NOT_READY_MESSAGE));
 		}
-		if (!(await this.#deps.platform.fs.exists(workspace.path))) {
+		const folder = await this.#deps.platform.fs.exists(workspace.path);
+		if (!folder.ok) return folder;
+		if (!folder.value) {
 			return err(appError("workspace_corrupted", WORKSPACE_CORRUPTED_MESSAGE));
 		}
 		if (this.#deps.sessions.hasWorkingChats(id) && options.stopRunningAgents !== true) {
@@ -1202,16 +1209,16 @@ export class WorkspaceService {
 		if (!reachable.ok) return reachable;
 		let directoryName = workspace.directoryName;
 		let worktreePath = workspace.path;
-		const pathFree = !(await this.#deps.platform.fs.exists(worktreePath));
+		const atPath = await this.#deps.platform.fs.exists(worktreePath);
+		if (!atPath.ok) return atPath;
+		const pathFree = !atPath.value;
 		const nameTaken = others.some((row) => row.directoryName === directoryName);
 		if (!pathFree || nameTaken) {
 			const taken = new Set(others.map((row) => row.directoryName));
 			if (!pathFree) taken.add(directoryName);
 			const picked = await nextFreeName(directoryName, async (candidate) => {
 				if (taken.has(candidate)) return ok(true);
-				return ok(
-					await this.#deps.platform.fs.exists(worktreeFolderFor(root, repo.name, candidate)),
-				);
+				return this.#deps.platform.fs.exists(worktreeFolderFor(root, repo.name, candidate));
 			});
 			if (!picked.ok) return picked;
 			directoryName = picked.value;
@@ -1412,7 +1419,9 @@ export class WorkspaceService {
 			if (!stopped.ok) return stopped;
 		}
 
-		if (await this.#deps.platform.fs.exists(workspace.path)) {
+		const folder = await this.#deps.platform.fs.exists(workspace.path);
+		if (!folder.ok) return folder;
+		if (folder.value) {
 			const removed = await removeWorktree(this.#deps.git, this.#deps.platform.fs, {
 				repoRootPath,
 				worktreePath: workspace.path,
@@ -1421,7 +1430,9 @@ export class WorkspaceService {
 		}
 
 		// The archive ref keeps the last commit reachable until the workspace itself is deleted.
-		if (await this.#deps.platform.fs.exists(repoRootPath)) {
+		const repoFolder = await this.#deps.platform.fs.exists(repoRootPath);
+		if (!repoFolder.ok) return repoFolder;
+		if (repoFolder.value) {
 			const archiveDeleted = await this.#deps.git.runChecked(updateRefDelete(archiveRef(id)), {
 				cwd: repoRootPath,
 			});
@@ -1564,7 +1575,9 @@ export class WorkspaceService {
 			return ok(undefined);
 		}
 		if (workspace.prNumber !== null && workspace.prNumber !== prNumber) return ok(undefined);
-		if (!(await this.#deps.platform.fs.exists(workspace.path))) {
+		const folder = await this.#deps.platform.fs.exists(workspace.path);
+		if (!folder.ok) return folder;
+		if (!folder.value) {
 			return err(appError("workspace_corrupted", WORKSPACE_CORRUPTED_MESSAGE));
 		}
 		return this.archive(id, { deleteBranch: false });

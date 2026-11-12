@@ -198,8 +198,8 @@ describe("WS-10 delete a workspace", () => {
 				sameArgs(command.args, ["update-ref", "-d", `refs/conducted/archive/${workspace.id}`]),
 			),
 		).toBe(true);
-		expect(await h.memory.platform.fs.exists(setupLog)).toBe(false);
-		expect(await h.memory.platform.fs.exists(viewed)).toBe(false);
+		expect(await h.memory.platform.fs.exists(setupLog)).toEqual(ok(false));
+		expect(await h.memory.platform.fs.exists(viewed)).toEqual(ok(false));
 		expect(h.deleteAll).toHaveBeenCalledWith(workspace.id);
 		expect(must(await h.repositories.workspaces.get(workspace.id))).toBeNull();
 		expect(h.clearRuns).toHaveBeenCalledWith(workspace.id);

@@ -246,7 +246,10 @@ export class SystemService {
 			// link sits beside its versions and the status is enough.
 			const link =
 				program === "cursor" ? null : `${programsBinDir(this.#deps.platform.fs.paths)}/${program}`;
-			if (link === null || (await this.#deps.platform.fs.exists(link))) return ok(status.path);
+			if (link === null) return ok(status.path);
+			const linked = await this.#deps.platform.fs.exists(link);
+			if (!linked.ok) return linked;
+			if (linked.value) return ok(status.path);
 		}
 		const failure =
 			status !== undefined && status.state === "failed" && status.error !== null

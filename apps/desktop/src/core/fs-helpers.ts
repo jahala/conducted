@@ -44,7 +44,9 @@ export async function trashIfPresent(
 	fs: Pick<FileSystem, "exists" | "trash">,
 	path: string,
 ): Promise<Result<boolean>> {
-	if (!(await fs.exists(path))) return ok(false);
+	const found = await fs.exists(path);
+	if (!found.ok) return found;
+	if (!found.value) return ok(false);
 	const removed = await fs.trash(path);
 	return removed.ok ? ok(true) : removed;
 }
