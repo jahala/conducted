@@ -9,10 +9,10 @@
 	},
 	"tooltip:M2690256": {
 		"status": "matched",
-		"state": "git-checks-deployments",
+		"state": "chat-tool-cards-plan-mode",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(6) > div > span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(3) > div > button > span:nth-of-type(2) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"tooltip:R1717507": {
@@ -76,12 +76,12 @@
 		"by": "hand"
 	},
 	"tooltip:R8800031": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-12",
-		"item": "Conductor shows \"Copy plan\" (tooltip, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-tool-cards-plan-mode",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > span",
+		"by": "seed"
 	},
 	"tooltip:R8821619": {
 		"status": "matched",
@@ -115,9 +115,12 @@
 		"by": "hand"
 	},
 	"tooltip:R9523634": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Chat view"
+		"status": "matched",
+		"state": "chat-notices",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > span",
+		"by": "seed"
 	},
 	"tooltip:R9525824": {
 		"status": "matched",
@@ -144,12 +147,12 @@
 		"by": "seed"
 	},
 	"tooltip:R9642788": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Chat view",
-		"backlog": "REV-08",
-		"item": "File header copy button's tooltip reads 'Copy file contents' (ours says 'Copy file contents to clipboard')",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-diff",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"tooltip:R10033594": {
 		"status": "matched",

@@ -233,10 +233,10 @@
 	},
 	"title:M3783058": {
 		"status": "matched",
-		"state": "settings-key-bindings",
+		"state": "settings-search-zoom",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(2) > div > div:nth-of-type(7) > article > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(4) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:M3783186": {
@@ -257,10 +257,10 @@
 	},
 	"title:M3783469": {
 		"status": "matched",
-		"state": "settings-key-bindings",
+		"state": "route-not-found",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div > div:nth-of-type(3) > article > div:nth-of-type(1) > p",
+		"role": "link",
+		"selector": "div > div > div:nth-of-type(2) > section > div > a",
 		"by": "seed"
 	},
 	"title:M3783722": {
@@ -1599,14 +1599,12 @@
 		"by": "hand"
 	},
 	"title:R3975899": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files",
-		"class": "wording",
-		"backlog": "REV-08",
-		"item": "'Empty CSV' and 'Preview not available'",
-		"owner": "hand",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "file-video-failed",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > section > h2",
+		"by": "seed"
 	},
 	"title:R3989871": {
 		"status": "matched",
@@ -1625,12 +1623,12 @@
 		"owner": "hand"
 	},
 	"title:R3991091": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files",
-		"backlog": "REV-10",
-		"item": "Artifacts: hover 'Attach to chat' and 'Upload files'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-artifacts",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(1) > button > span",
+		"by": "seed"
 	},
 	"title:R4363426": {
 		"status": "gap",
@@ -1700,27 +1698,27 @@
 	},
 	"title:R8050074": {
 		"status": "matched",
-		"state": "settings-key-bindings",
+		"state": "settings-search-zoom",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(2) > div > div:nth-of-type(5) > article > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(2) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R8050390": {
 		"status": "matched",
-		"state": "settings-key-bindings",
+		"state": "settings-search-zoom",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(2) > div > div:nth-of-type(6) > article > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(3) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R8050707": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-24",
-		"item": "Mermaid diagrams with 'Rendering diagram...', 'Expand diagram', 'Copy Mermaid source', zoom in, zoom out, reset",
-		"owner": "hand"
+		"status": "matched",
+		"state": "passport",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(3) > span",
+		"by": "seed"
 	},
 	"title:R8062343": {
 		"status": "matched",
@@ -1839,19 +1837,19 @@
 		"owner": "hand"
 	},
 	"title:R10045277": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "GIT-04",
-		"item": "Conductor shows \"Closed\" (title, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "pr-tab-closed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > section:nth-of-type(1) > div > span",
+		"by": "seed"
 	},
 	"title:R10045411": {
 		"status": "matched",
-		"state": "composer-draft",
-		"via": "title",
-		"role": "button",
-		"selector": "[data-testid=\"workspace-draft-indicator\"]",
+		"state": "new-workspace-slash-menu",
+		"via": "aria-label",
+		"role": "img",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > nav > a:nth-of-type(2) > span:nth-of-type(3)",
 		"by": "seed"
 	},
 	"title:R10045807": {
@@ -1871,12 +1869,12 @@
 		"by": "seed"
 	},
 	"title:R10062089": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-06",
-		"item": "Archived text 'Workspace archived. Unarchive this workspace to view files, terminals, and browser previews.'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "workspace-archived-file",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section > h2",
+		"by": "seed"
 	},
 	"title:R10065307": {
 		"status": "gap",
@@ -2138,10 +2136,10 @@
 	},
 	"title:R10995392": {
 		"status": "matched",
-		"state": "settings-search-agent-settings",
+		"state": "settings-search-low-contrast",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(8) > button > span:nth-of-type(1)",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(12) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11006890": {
@@ -2162,10 +2160,10 @@
 	},
 	"title:R11026670": {
 		"status": "matched",
-		"state": "settings-search-repository-scripts",
+		"state": "settings-search-low-contrast",
 		"via": "text",
-		"role": "label",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > label",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(7) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11027006": {
@@ -2238,10 +2236,10 @@
 	},
 	"title:R11098344": {
 		"status": "matched",
-		"state": "settings-advanced",
+		"state": "settings-search-theme",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(7) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11098664": {
@@ -2278,10 +2276,10 @@
 	},
 	"title:R11099826": {
 		"status": "matched",
-		"state": "settings-advanced",
+		"state": "settings-search-theme",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(7) > div > div > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(8) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11100102": {
@@ -2302,18 +2300,18 @@
 	},
 	"title:R11101187": {
 		"status": "matched",
-		"state": "settings-search-agent-settings",
+		"state": "settings-search-theme",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(6) > button > span:nth-of-type(1)",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(4) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11101563": {
 		"status": "matched",
-		"state": "settings-advanced",
+		"state": "settings-search-theme",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(10) > div > div > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(12) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11103087": {
@@ -2412,10 +2410,10 @@
 	},
 	"title:R11108532": {
 		"status": "matched",
-		"state": "settings-experimental",
+		"state": "settings-search-low-contrast",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(12) > div > div > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(19) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11108935": {
@@ -2428,18 +2426,18 @@
 	},
 	"title:R11109216": {
 		"status": "matched",
-		"state": "settings-experimental",
+		"state": "settings-search-theme",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(14) > div > div > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(9) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11109622": {
 		"status": "matched",
-		"state": "settings-experimental",
+		"state": "settings-search-low-contrast",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(15) > div > div > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(16) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11110023": {
@@ -2450,18 +2448,18 @@
 	},
 	"title:R11110370": {
 		"status": "matched",
-		"state": "settings-experimental",
+		"state": "settings-search-low-contrast",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(16) > div > div > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(8) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11110866": {
 		"status": "matched",
-		"state": "settings-search-agent-settings",
+		"state": "settings-search-low-contrast",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(7) > button > span:nth-of-type(1)",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(18) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11116941": {
@@ -2638,10 +2636,10 @@
 	},
 	"title:R11139381": {
 		"status": "matched",
-		"state": "settings-git",
+		"state": "settings-search-theme",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(5) > div > div > div > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(10) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11139747": {
@@ -2654,10 +2652,10 @@
 	},
 	"title:R11140161": {
 		"status": "matched",
-		"state": "settings-git",
+		"state": "settings-search-theme",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(7) > div > div > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(13) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11141583": {
@@ -2670,10 +2668,10 @@
 	},
 	"title:R11141930": {
 		"status": "matched",
-		"state": "settings-search-agent-settings",
+		"state": "settings-search-theme",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(2) > button > span:nth-of-type(1)",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(3) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11142369": {
@@ -2979,12 +2977,12 @@
 		"by": "hand"
 	},
 	"title:R11262722": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "COMP-02",
-		"item": "Default models: 'Default model'",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-search-default-model",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(1) > button > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"title:R11263302": {
 		"status": "matched",
@@ -3004,23 +3002,23 @@
 	},
 	"title:R11264376": {
 		"status": "matched",
-		"state": "settings-default-models",
+		"state": "settings-search-default-model",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(4) > div > div > div > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(2) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11264596": {
 		"status": "matched",
-		"state": "settings-default-models",
+		"state": "settings-search-low-contrast",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(5) > div > div > div > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(14) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11264843": {
 		"status": "matched",
-		"state": "settings-repo-add-action",
+		"state": "settings-repo-general-prompt",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > div > p:nth-of-type(1)",
@@ -3037,7 +3035,7 @@
 	},
 	"title:R11266402": {
 		"status": "matched",
-		"state": "settings-repo-add-action",
+		"state": "settings-repo-general-prompt",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(1) > button > span > span:nth-of-type(1) > span",
@@ -3045,7 +3043,7 @@
 	},
 	"title:R11266590": {
 		"status": "matched",
-		"state": "settings-repo-add-action",
+		"state": "settings-repo-general-prompt",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(2) > button > span > span:nth-of-type(1) > span",
@@ -3053,7 +3051,7 @@
 	},
 	"title:R11266781": {
 		"status": "matched",
-		"state": "settings-repo-add-action",
+		"state": "settings-repo-general-prompt",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(3) > button > span > span:nth-of-type(1) > span",
@@ -3061,7 +3059,7 @@
 	},
 	"title:R11266999": {
 		"status": "matched",
-		"state": "settings-repo-add-action",
+		"state": "settings-repo-general-prompt",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(4) > button > span > span:nth-of-type(1) > span",
@@ -3069,7 +3067,7 @@
 	},
 	"title:R11267212": {
 		"status": "matched",
-		"state": "settings-repo-add-action",
+		"state": "settings-repo-general-prompt",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(5) > button > span > span:nth-of-type(1) > span",
@@ -3077,15 +3075,15 @@
 	},
 	"title:R11295025": {
 		"status": "matched",
-		"state": "settings-repo-add-action",
+		"state": "settings-repo-preview-urls",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(4) > span",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11295405": {
 		"status": "matched",
-		"state": "settings-repo-icon-picker",
+		"state": "settings-repo-preview-urls",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > p:nth-of-type(1)",
@@ -3093,7 +3091,7 @@
 	},
 	"title:R11296047": {
 		"status": "matched",
-		"state": "settings-repo-icon-picker",
+		"state": "settings-repo-preview-urls",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(2) > p:nth-of-type(1)",
@@ -3101,15 +3099,15 @@
 	},
 	"title:R11296771": {
 		"status": "matched",
-		"state": "settings-repo-icon-picker",
+		"state": "settings-search-default-model",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div:nth-of-type(1) > p:nth-of-type(1)",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(3) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11297385": {
 		"status": "matched",
-		"state": "settings-repo-icon-picker",
+		"state": "settings-repo-preview-urls",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(4) > p:nth-of-type(1)",
@@ -3117,7 +3115,7 @@
 	},
 	"title:R11297857": {
 		"status": "matched",
-		"state": "settings-repo-icon-picker",
+		"state": "settings-repo-preview-urls",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(5) > div > p:nth-of-type(1)",
@@ -3141,34 +3139,34 @@
 	},
 	"title:R11299304": {
 		"status": "matched",
-		"state": "settings-appearance",
+		"state": "settings-search-theme",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(11) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11299537": {
 		"status": "matched",
-		"state": "settings-appearance",
+		"state": "settings-search-theme",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(2) > div > div > div > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(1) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11299805": {
 		"status": "matched",
-		"state": "settings-appearance",
+		"state": "settings-search-zoom",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(3) > div > div > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(1) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11300029": {
 		"status": "matched",
-		"state": "settings-appearance",
+		"state": "settings-search-low-contrast",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(5) > div > div > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(20) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"title:R11300277": {

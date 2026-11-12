@@ -891,10 +891,10 @@
 	},
 	"label:M733593": {
 		"status": "matched",
-		"state": "home-archived",
+		"state": "workspace-archived-file",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"home-workspace-card\"] > div > button:nth-of-type(1) > span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section > div > button > span",
 		"by": "seed"
 	},
 	"label:M780682": {
@@ -1152,12 +1152,12 @@
 		"by": "hand"
 	},
 	"label:R104487": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-11",
-		"item": "Approval secondary button 'Yes for this session', 'Allow all edits during this session' or 'Yes always' (Cmd+Enter)",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-approval-local-command",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > fieldset > div:nth-of-type(3) > button:nth-of-type(2) > span > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R104578": {
 		"status": "matched",
@@ -1256,28 +1256,28 @@
 		"owner": "rule:cite"
 	},
 	"label:R1329480": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Diff and files",
-		"backlog": "REV-11",
-		"item": "Conflict hunks in the diff: 'Accept current change', 'Accept incoming change', 'Accept both'",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "file-conflicts",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > section > article > fieldset > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R1329561": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Diff and files",
-		"backlog": "REV-11",
-		"item": "Conflict hunks in the diff: 'Accept current change', 'Accept incoming change', 'Accept both'",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "file-conflicts",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > section > article > fieldset > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"label:R1329639": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Diff and files",
-		"backlog": "REV-11",
-		"item": "Conflict hunks in the diff: 'Accept current change', 'Accept incoming change', 'Accept both'",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "file-conflicts",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > section > article > fieldset > button:nth-of-type(3)",
+		"by": "seed"
 	},
 	"label:R2030135": {
 		"status": "matched",
@@ -1663,19 +1663,19 @@
 		"by": "seed"
 	},
 	"label:R3978313": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Git, review and files",
-		"backlog": "GIT-04",
-		"item": "Conductor shows \"Closed\" (title, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "pr-tab-closed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > section:nth-of-type(1) > div > span",
+		"by": "seed"
 	},
 	"label:R3978395": {
 		"status": "matched",
-		"state": "composer-draft",
-		"via": "title",
-		"role": "button",
-		"selector": "[data-testid=\"workspace-draft-indicator\"]",
+		"state": "new-workspace-slash-menu",
+		"via": "aria-label",
+		"role": "img",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > nav > a:nth-of-type(2) > span:nth-of-type(3)",
 		"by": "seed"
 	},
 	"label:R3978464": {
@@ -1970,27 +1970,27 @@
 	},
 	"label:R5652630": {
 		"status": "matched",
-		"state": "terminal-find",
+		"state": "search-in-files",
 		"via": "aria-label",
 		"role": "button",
-		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div > search > button:nth-of-type(1)",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > button:nth-of-type(1)",
 		"by": "seed"
 	},
 	"label:R5652994": {
 		"status": "matched",
-		"state": "file-edit-find",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > search > div:nth-of-type(1) > button:nth-of-type(4) > span",
+		"state": "search-in-files",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > button:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R5653348": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-07",
-		"item": "Search in files (Cmd+Shift+F) with Match case, Whole word, Regular expression",
-		"owner": "hand"
+		"status": "matched",
+		"state": "search-in-files",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > button:nth-of-type(3)",
+		"by": "seed"
 	},
 	"label:R8149130": {
 		"status": "matched",
@@ -2009,12 +2009,12 @@
 		"by": "seed"
 	},
 	"label:R8697662": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "SET-02",
-		"item": "Scopes user and workspace with 'reset to repo settings.toml' actions",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-reset-dialog",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > button:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"label:R8822100": {
 		"status": "matched",
@@ -2175,12 +2175,12 @@
 		"by": "seed"
 	},
 	"label:R9080270": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "NAV-10",
-		"item": "Tab strip hint labels 'Run tab', 'Terminal panel', 'Workspace tabs' and 'Commands' with 'to exit' and 'to select command'.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "new-workspace-slash-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > form > div > div > div:nth-of-type(1) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"label:R9081765": {
 		"status": "gap",
@@ -2207,28 +2207,28 @@
 		"by": "seed"
 	},
 	"label:R9235878": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "COMP-02",
-		"item": "'Fast' toggle in the model picker",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-context-usage",
+		"via": "text",
+		"role": "img",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(6) > div > div > div > div:nth-of-type(2) > button > span > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"label:R9240756": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "COMP-02",
-		"item": "Favourite models ('loadouts'), up to five, reorder, 'Add models', 'Edit'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-model-switch-mid-chat",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(1) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"label:R9241717": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "COMP-02",
-		"item": "Model picker 'Agent' submenu: Claude Code, Codex, Cursor",
-		"owner": "hand"
+		"status": "matched",
+		"state": "composer-model-picker",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > button > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R9278910": {
 		"status": "gap",
@@ -2343,12 +2343,12 @@
 		"by": "seed"
 	},
 	"label:R9406451": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-26",
-		"item": "Empty chat shelves 'Add chat transcripts:' and 'Add plans:' with 'New chat in <directory>.'",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "composer-empty-shelves",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(1) > div > div > p",
+		"by": "seed"
 	},
 	"label:R9406669": {
 		"status": "gap",
@@ -2359,12 +2359,12 @@
 		"owner": "rule:cite"
 	},
 	"label:R9537511": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-27",
-		"item": "'Something went wrong, retrying n/m' with 'Retry now' and 'Retry in new chat'",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-retrying",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(5) > div > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"label:R9627220": {
 		"status": "matched",
@@ -2488,10 +2488,10 @@
 	},
 	"label:R10026716": {
 		"status": "matched",
-		"state": "git-checks-deployments",
+		"state": "chat-tool-cards-plan-mode",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(6) > div > span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(3) > div > button > span:nth-of-type(2) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R10026849": {
@@ -2923,10 +2923,10 @@
 	},
 	"label:R10754989": {
 		"status": "matched",
-		"state": "settings-agents",
+		"state": "composer-model-picker",
 		"via": "text",
-		"role": "tab",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(2) > button > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R10755170": {
@@ -2988,12 +2988,12 @@
 		"by": "hand"
 	},
 	"label:R10918784": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents",
-		"backlog": "SET-03",
-		"item": "Conductor shows \"Manage usage\" (label, inventory-controls Settings: Agents); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-codex-signed-in",
+		"via": "text",
+		"role": "button",
+		"selector": "div > section > ol > li:nth-of-type(2) > button",
+		"by": "seed"
 	},
 	"label:R10929460": {
 		"status": "matched",
@@ -3260,12 +3260,12 @@
 		"by": "hand"
 	},
 	"label:R11440860": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PRJ-01",
-		"item": "Sidebar footer 'Add project...' button and menu",
-		"owner": "hand"
+		"status": "matched",
+		"state": "new-workspace-cloud-no-github-project",
+		"via": "text",
+		"role": "button",
+		"selector": "div:nth-of-type(3) > div > form > header > div > button",
+		"by": "seed"
 	},
 	"label:R11448282": {
 		"status": "gap",
@@ -3285,7 +3285,7 @@
 	},
 	"label:R11571757": {
 		"status": "matched",
-		"state": "settings-agents-subscription",
+		"state": "settings-agents-subscription-saved",
 		"via": "text",
 		"role": "span",
 		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > button > span",
@@ -3407,10 +3407,10 @@
 	},
 	"label:R11723671": {
 		"status": "matched",
-		"state": "settings-search-repository-scripts",
+		"state": "settings-search-low-contrast",
 		"via": "text",
-		"role": "label",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > label",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(7) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"label:R11748740": {

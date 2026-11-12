@@ -53,7 +53,7 @@
 	},
 	"toast:M2099774": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "REV-03",
 		"item": "Conductor shows \"Failed to add comment to chat\" (message, Unplaced); ours has no counterpart yet (parity gap).",
@@ -61,7 +61,7 @@
 	},
 	"toast:M2100103": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "REV-03",
 		"item": "Conductor shows \"Failed to save comment\" (message, Unplaced); ours has no counterpart yet (parity gap).",
@@ -221,7 +221,7 @@
 	},
 	"toast:R252371": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "COMP-02",
 		"item": "Conductor shows \"Couldn't save loadouts. Try again.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
@@ -244,12 +244,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R677318": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "CHAT-29",
-		"item": "A chat image has a menu with \"Copy image\": shows \"Copied image to clipboard\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-attachment-copied",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R677447": {
 		"status": "gap",
@@ -476,16 +476,16 @@
 		"by": "seed"
 	},
 	"toast:R5493916": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "NAV-10",
-		"item": "Conductor shows \"Copied link\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "workspace-copied-link",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div > div",
+		"by": "seed"
 	},
 	"toast:R5493957": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "NAV-10",
 		"item": "Conductor shows \"Failed to copy link\" (message, Unplaced); ours has no counterpart yet (parity gap).",
@@ -647,7 +647,7 @@
 	},
 	"toast:R8701195": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "SET-01",
 		"item": "Conductor shows \"Failed to reset setting\" (message, Unplaced); ours has no counterpart yet (parity gap).",
@@ -663,19 +663,19 @@
 	},
 	"toast:R8889053": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "COMP-02",
 		"item": "Conductor shows \"FYI: When you switch effort mid-chat with Claude, your next response will be slower and use more tokens.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
 		"owner": "hand"
 	},
 	"toast:R8889231": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "COMP-02",
-		"item": "Conductor shows \"FYI: When you switch models mid-chat, your next response will be slower and use more tokens.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "composer-model-switch-mid-chat",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div > div",
+		"by": "seed"
 	},
 	"toast:R8920359": {
 		"status": "gap",
@@ -781,7 +781,7 @@
 	},
 	"toast:R9300528": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "SET-05",
 		"item": "Conductor shows \"Configuration refreshed.\" (message, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
@@ -956,12 +956,12 @@
 		"by": "seed"
 	},
 	"toast:R9953202": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-08",
-		"item": "If a file changed on disk while the user has unsaved edits, ask to keep or discard before saving.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "file-save-changed-on-disk",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R10074815": {
 		"status": "gap",
@@ -1134,12 +1134,12 @@
 		"by": "hand"
 	},
 	"toast:R10918731": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents",
-		"backlog": "SET-03",
-		"item": "After a Codex login with the ChatGPT plan, show \"Codex now uses your ChatGPT plan\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-codex-signed-in",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li:nth-of-type(2) > div > div",
+		"by": "seed"
 	},
 	"toast:R10923050": {
 		"status": "gap",
@@ -1166,12 +1166,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R10954108": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents",
-		"backlog": "SET-03",
-		"item": "The Agents page lets the user save a provider API key and shows \"API key saved\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-subscription-saved",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R10954503": {
 		"status": "gap",
@@ -1182,24 +1182,24 @@
 		"owner": "rule:cite"
 	},
 	"toast:R10966069": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "SET-02",
-		"item": "The user can move the app's data folder; success shows \"Conductor root path changed successfully\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-advanced-root-path-changed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R10998780": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-03",
-		"item": "The Agents page can import a provider API key from the environment: \"API key imported from env\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-key-imported",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R11014233": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-ui-text Settings and agents",
 		"backlog": "SET-07",
 		"item": "Conductor shows \"Action names must be unique\" (message, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap).",
@@ -1207,7 +1207,7 @@
 	},
 	"toast:R11015771": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "SET-07",
 		"item": "Conductor shows \"Action names can't be empty\" (message, Unplaced); ours has no counterpart yet (parity gap).",
@@ -1281,7 +1281,7 @@
 	},
 	"toast:R11117343": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Settings: General",
 		"backlog": "SET-02",
 		"item": "Conductor shows \"Failed to reset message send key\" (message, inventory-controls Settings: General); ours has no counterpart yet (parity gap).",
@@ -1289,7 +1289,7 @@
 	},
 	"toast:R11117511": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Settings: General",
 		"backlog": "SET-02",
 		"item": "Conductor shows \"Failed to update message send key\" (message, inventory-controls Settings: General); ours has no counterpart yet (parity gap).",
@@ -1451,7 +1451,7 @@
 	},
 	"toast:R11298129": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "SET-07",
 		"item": "Conductor shows \"Repository removed successfully\" (message, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
