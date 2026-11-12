@@ -197,6 +197,10 @@ function makeService(
 		settings,
 		removal: { removeWorkspacesOf: async () => ok(undefined), releaseBacklogOf: () => {} },
 		ids: createTestIds(),
+		// No setting save fails in these tests, so a report would be a defect.
+		reportSettingSaveFailed: (error) => {
+			throw new Error(`Unexpected failed setting save: ${error.message}`);
+		},
 	});
 
 	return {

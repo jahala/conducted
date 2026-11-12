@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { NEW_CHAT_EFFORT_FALLBACK } from "../../../core/workspace-helpers.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
+import { Toaster, toast } from "../../../ui/Toast.tsx";
 import { EFFORT_LABELS } from "../../composer/ModelPicker.tsx";
 import { DefaultModelsPage } from "./DefaultModelsPage.tsx";
 
@@ -19,6 +20,7 @@ let test: TestContainer | undefined;
 
 afterEach(() => {
 	cleanup();
+	toast.dismiss();
 	vi.restoreAllMocks();
 	test?.close();
 	test = undefined;
@@ -384,7 +386,7 @@ describe("SET-02 DefaultModelsPage", () => {
 		expect(keys).not.toContain("default_claude_effort_level");
 	});
 
-	it("puts a switch back and says so when its setting cannot be saved (issue #600)", async () => {
+	it("puts a switch back when its setting cannot be saved, with no line under the row (issue #600)", async () => {
 		const { container } = await renderPage();
 		// The settings folder is a file now, so the save cannot make it.
 		const home = container.platform.fs.paths.home;
@@ -399,8 +401,56 @@ describe("SET-02 DefaultModelsPage", () => {
 
 		fireEvent.click(toggle);
 
-		expect((await within(row).findByRole("alert")).textContent).toBe("Failed to save setting");
+		// The toast says it (the next test); as in Conductor, the row has no line of its own.
+		await waitFor(() => expect(container.services.settings.get("default_plan_mode")).toBe(false));
+		expect(within(row).queryByRole("alert")).toBeNull();
 		expect(toggle.getAttribute("aria-checked")).toBe("false");
 		expect(container.services.settings.get("default_plan_mode")).toBe(false);
+	});
+
+	// Conductor's settings writer toasts every failed save (Uz, main @389863): "Failed to save
+	// setting", or for a file it cannot read, "Can't save setting because your settings file is
+	// invalid" with the parse error's first six lines.
+	it("toasts Failed to save setting when a switch cannot be saved, as Conductor does (issue #614)", async () => {
+		const { container } = await renderPage();
+		render(<Toaster />);
+		const home = container.platform.fs.paths.home;
+		expect(await container.platform.fs.trash(`${home}/.conducted`)).toEqual({
+			ok: true,
+			value: undefined,
+		});
+		test?.memory.controls.addFile(`${home}/.conducted`, "");
+		const row = document.querySelector('[data-setting-key="default_plan_mode"]') as HTMLElement;
+
+		fireEvent.click(within(row).getByRole("switch"));
+
+		await waitFor(() =>
+			expect(document.querySelector("[data-sonner-toast]")?.textContent).toBe(
+				"Failed to save setting",
+			),
+		);
+	});
+
+	it("toasts that the settings file is invalid, with its parse error, when it cannot be read (issue #614)", async () => {
+		const { container } = await renderPage();
+		render(<Toaster />);
+		const file = `${container.platform.fs.paths.home}/.conducted/settings.toml`;
+		test?.memory.controls.files.set(file, "[models\n");
+		const row = document.querySelector('[data-setting-key="default_plan_mode"]') as HTMLElement;
+
+		fireEvent.click(within(row).getByRole("switch"));
+
+		const shown = await waitFor(() => {
+			const element = document.querySelector("[data-sonner-toast]");
+			expect(element).not.toBeNull();
+			return element as HTMLElement;
+		});
+		expect(
+			within(shown).getByText("Can't save setting because your settings file is invalid"),
+		).toBeTruthy();
+		const parsed = container.services.settings.readSettingsText("[models\n", file);
+		const parseError = !parsed.ok ? (parsed.error.cause as { message: string }).message : "";
+		expect(parseError).not.toBe("");
+		expect(shown.textContent).toContain(parseError.split("\n")[0]);
 	});
 });

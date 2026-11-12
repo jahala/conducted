@@ -101,7 +101,7 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 				}
 				disabledReason={null}
 				highlighted={focusSettingKey === ROOT_PATH_KEY}
-				saveError={saves.errorOf(ROOT_PATH_KEY)}
+				saveError={null}
 				stacked
 			>
 				{/* Conductor's row: the path at full width, then "Browse" with a folder icon. */}

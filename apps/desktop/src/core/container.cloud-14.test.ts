@@ -16,6 +16,8 @@ import {
 import { ok } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../test/container.ts";
+import { failingOnExecute } from "../test/failing-database.ts";
+import { SETTINGS_SQL } from "./db/settings.ts";
 
 const CLOUD: Host = { kind: "cloud", url: "https://conducted.example.workers.dev", vmId: "vm-1" };
 
@@ -233,6 +235,54 @@ describe("CLOUD-14 RunLocalCommand through the real container", () => {
 			test.close();
 		}
 	});
+	it("Yes always that cannot be saved still runs the command and tells the user (issue #614)", async () => {
+		const test = createTestContainer({
+			wrapDatabase: (database) =>
+				failingOnExecute(database, SETTINGS_SQL.upsert, new Error("disk I/O error")),
+		});
+		try {
+			await test.container.sidecar.start();
+			const seeded = await readyCloudWorkspace(test);
+			const session = await test.container.services.sessions.create(seeded.id, CONFIG);
+			if (!session.ok) throw new Error(session.error.message);
+			test.memory.controls.scriptShell((command) =>
+				command.program === "/bin/bash" ? ok({ exitCode: 0, stdout: "", stderr: "" }) : null,
+			);
+
+			const relay = await cloudRelay(test, session.value.id);
+			relay.emit({
+				jsonrpc: "2.0",
+				id: 8,
+				method: "runLocalCommand",
+				params: { sessionId: session.value.id, command: "whoami" },
+			});
+			await waitFor(
+				"the card",
+				() =>
+					test.container.services.sessions.store.getState().openInteractions[session.value.id] !==
+					undefined,
+			);
+			const open =
+				test.container.services.sessions.store.getState().openInteractions[session.value.id];
+			if (open === undefined) throw new Error("no card");
+			await test.container.services.sessions.answer(session.value.id, open.interactionId, {
+				kind: "tool_approval",
+				decision: "always_allow",
+			});
+			await waitFor("the answer", () => relay.answered(8) !== undefined);
+
+			expect(test.container.services.settings.get<boolean>("always_allow_local_execution")).toBe(
+				false,
+			);
+			expect(test.toasted).toEqual([
+				{ message: "Failed to save setting", tone: "error", action: null, secondaryAction: null },
+			]);
+		} finally {
+			test.container.services.repo.dispose();
+			test.close();
+		}
+	});
+
 	it("the same request over the Mac's own sidecar is refused, with no card", async () => {
 		const test = createTestContainer();
 		try {
