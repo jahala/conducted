@@ -33,7 +33,7 @@ const SHA = {
 const member = (fields: ScriptedStackMember): ScriptedStackMember => fields;
 
 /** The stack, from trunk up, with each open member's merge state and the base it sits on. */
-function loginStack(options: {
+export function loginStack(options: {
 	sessionStore?: string;
 	/** The commit #230 was built on: #229's head, unless #229 moved on since. */
 	safeNextBase?: string;
@@ -87,7 +87,7 @@ function loginStack(options: {
 }
 
 /** arbor's pull request, approved with its checks passed, at the top of `stack`. */
-const stacked = (stack: ScriptedStack, extra: Partial<GitWorld> = {}): GitWorld => ({
+export const stacked = (stack: ScriptedStack, extra: Partial<GitWorld> = {}): GitWorld => ({
 	...prOf("ready"),
 	stacks: [stack],
 	...extra,

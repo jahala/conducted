@@ -15,6 +15,7 @@ import { setSetting } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
 import type { World } from "../world.ts";
 import { arborScene, COMMITTED_ONLY, prOf } from "./git.ts";
+import { loginStack, stacked } from "./stacks.ts";
 
 const CHANGES_DIFF = {
 	tab: "file",
@@ -144,15 +145,37 @@ const WHITESPACE_DIFF: CatalogueState = {
 	},
 };
 
+/** GitHub's members endpoint for arbor's stack, the read that fails in stack-load-error. */
+const LOGIN_STACK_MEMBERS = `repos/{owner}/{repo}/stacks/${loginStack({}).number}`;
+
 const STACK_LOAD_ERROR: CatalogueState = {
 	id: "stack-load-error",
 	group: "Stacked pull requests",
 	title: "A stack whose pull requests cannot be read",
-	seed: arborScene({
-		git: { ...prOf("open"), github: "offline" },
-		ready: (document) =>
-			shows(document, "Couldn't load this stack. Open the PR on GitHub to see it."),
-	}),
+	// GitHub reports arbor's pull request and the stack it sits in, then the connection drops
+	// before the stack's members are read.
+	seed: async (world: World) => {
+		const scene = await arborScene({
+			git: stacked(loginStack({})),
+			ready: (document) =>
+				shows(document, "Couldn't load this stack. Open the PR on GitHub to see it."),
+		})(world);
+		world.scriptShell((command) =>
+			command.program === "gh" &&
+			command.args[0] === "api" &&
+			command.args[1] === LOGIN_STACK_MEMBERS
+				? {
+						ok: true,
+						value: {
+							stdout: "",
+							stderr: `Get "https://api.github.com/repos/acme/atlas/stacks/${loginStack({}).number}": dial tcp: lookup api.github.com: no such host\n`,
+							exitCode: 1,
+						},
+					}
+				: null,
+		);
+		return scene;
+	},
 };
 
 const REVIEW_MENU: CatalogueState = {
@@ -196,7 +219,8 @@ const EDIT_FIND: CatalogueState = {
 		files: { "notes.txt": "alpha beta\nalpha gamma\n" },
 		search: { tab: "file", path: "notes.txt", fileMode: "edit" },
 		after: async ({ document }) => {
-			await pressUntilTaken(document, "f", { meta: true });
+			// Find in file belongs to the editor, so the key is pressed with the editor focused.
+			await pressUntilTaken(document, "f", { meta: true }, "[data-file-viewer] .cm-content");
 		},
 		ready: (document) => shows(document, "Replace All"),
 	}),
@@ -232,7 +256,7 @@ export const REVIEW_STATES: CatalogueState[] = [
 	targetBranch(
 		"git-target-branch-error",
 		"The target branch list when it cannot load",
-		{ arborBroken: true },
+		{ atlasBranchesBroken: true },
 		(document) => shows(document, "Couldn't load branches."),
 	),
 	UNTRACKED_NOTE,
