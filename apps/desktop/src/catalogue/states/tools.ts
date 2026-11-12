@@ -5,7 +5,8 @@
  * slash command, Glob, List files and a plain Bash call with its raw input shown; and a design fix
  * that activates a skill, reads a mockup image, asks the user, retries an edit Claude Code refused
  * and opens the edit that worked; a turn that keeps a task list, runs JavaScript in a Node
- * REPL and generates an image; a turn whose todo list is empty, started and done; a reply with a
+ * REPL and generates an image; a turn whose todo list is empty, started and done; a turn that
+ * enters plan mode and proposes a plan, with the plan's menu open; a reply with a
  * Mermaid diagram; and a background helper whose work
  * arrives in the next turn, shown inside the card of the turn that started it (D129).
  * Behaviour: ui-map.md 3.3 (chat, tool cards); the cards are features/chat/tools/cards/.
@@ -13,7 +14,7 @@
  */
 import { animateCast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, find, shows } from "../dom.ts";
+import { click, find, rightClick, shows } from "../dom.ts";
 import { deliverEvents, setLiveState } from "../live.ts";
 import { addChat, addEvents } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
@@ -410,6 +411,42 @@ async function todoToolsChat(world: World): Promise<Scene> {
 	};
 }
 
+/** A turn that enters plan mode and proposes a plan the user approved; the plan's menu open. */
+async function planModeChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.grove, { title: "Plan the cache change" });
+	const talk = conversation("grove-plan-mode", CATALOGUE_NOW - 7 * MINUTE);
+	const turn = talk.user("Plan how to invalidate the price cache before changing anything.");
+	talk.tool(turn, {
+		tool: "enter_plan_mode",
+		rawName: "EnterPlanMode",
+		input: {},
+		output: "Entered plan mode.",
+	});
+	talk.tool(turn, {
+		tool: "exit_plan_mode",
+		rawName: "ExitPlanMode",
+		input: {
+			plan: "1. Clear PriceCache on every price write.\n2. Add a test that writes, then reads.",
+		},
+		output: "The user approved the plan.",
+	});
+	talk.usage(turn, 9_000);
+	talk.text(turn, "The plan is approved; I will start with the cache.");
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	return {
+		route: chatRoute(cast.grove, chat),
+		after: async ({ app, document }) => {
+			await animateCast(world, cast, app);
+			await refreshGit(app, cast.grove);
+			await openRow(document, "2 tool calls");
+			await rightClick(document, "button", "Propose plan", { prefix: true });
+		},
+		ready: (document) => shows(document, "Enter plan mode") && shows(document, "Copy plan"),
+	};
+}
+
 /** A reply in arbor that explains the sign-in redirect with a Mermaid sequence diagram. */
 async function mermaidChat(world: World): Promise<Scene> {
 	const cast = await seedCast(world);
@@ -567,6 +604,12 @@ export const TOOL_STATES: CatalogueState[] = [
 		group: "Workspace chat",
 		title: "A turn's todo cards: an empty list, one item started, all done",
 		seed: todoToolsChat,
+	},
+	{
+		id: "chat-tool-cards-plan-mode",
+		group: "Workspace chat",
+		title: "A turn that entered plan mode and proposed a plan, the plan's right-click menu open",
+		seed: planModeChat,
 	},
 	{
 		id: "chat-mermaid",
