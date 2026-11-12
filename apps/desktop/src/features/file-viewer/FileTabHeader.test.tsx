@@ -38,13 +38,21 @@ const baseProps = {
 };
 
 describe("REV-08 FileTabHeader", () => {
-	it("shows the file's own Material icon in the path chip", () => {
-		const { container } = render(
+	// #534: a kind in Conductor's brand table draws its tinted glyph; the rest keep Material's image.
+	it("shows the file's own glyph or Material icon in the path chip", () => {
+		const view = render(
 			<FileTabHeader {...baseProps} path="src/main.rs" mode="diff" onModeChange={() => {}} />,
 		);
-		const icon = container.querySelector("img[data-file-icon]");
-		expect(icon?.getAttribute("data-file-icon")).toBe("rust");
-		expect(icon?.getAttribute("src")).toBeTruthy();
+		const glyph = view.container.querySelector("svg[data-file-icon]");
+		expect(glyph?.getAttribute("data-file-icon")).toBe("rust");
+		expect(glyph?.getAttribute("class")).toContain("text-file-orange-700");
+
+		view.rerender(
+			<FileTabHeader {...baseProps} path="src/init.lua" mode="diff" onModeChange={() => {}} />,
+		);
+		const image = view.container.querySelector("img[data-file-icon]");
+		expect(image?.getAttribute("data-file-icon")).toBe("lua");
+		expect(image?.getAttribute("src")).toBeTruthy();
 	});
 
 	it("disables the Edit toggle for a deleted file and gives the reason", () => {

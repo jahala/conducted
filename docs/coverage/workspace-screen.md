@@ -364,7 +364,7 @@ All rows are owned by `D/core/status/git-header.ts` (GIT-04), which returns the 
 
 | Item                                                                          | Research ref | Status  | Covered by (file and id)                                                                         | Fix |
 | ----------------------------------------------------------------------------- | ------------ | ------- | ------------------------------------------------------------------------------------------------ | --- |
-| File tree with Material file icons, virtualised                               | 3.6          | Covered | git-panel/files/FileTreeRow.tsx, file-tree-model.ts (REV-06). Icon set is an open question there | -   |
+| File tree with Material file icons, virtualised                               | 3.6          | Covered | git-panel/files/FileTreeRow.tsx, file-tree-model.ts (REV-06); icons from `ui/file-icon.tsx` (Conductor's brand glyphs, then Material) | -   |
 | Row menu: "View"                                                              | 3.6          | Covered | git-panel/files/FileRowMenu.tsx                                                                  | -   |
 | Row menu: "Attach in chat"                                                    | 3.6          | Covered | FileRowMenu.tsx; `files.attachToChat`                                                            | -   |
 | Row menu: "Copy path", "Copy relative path"                                   | 3.6          | Covered | FileRowMenu.tsx                                                                                  | -   |

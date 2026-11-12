@@ -3,8 +3,9 @@
  * Owns: one row of the file tree. Indent, chevron for folders, a file icon by type, name, and a
  * change marker when the file differs from the target branch.
  * Behaviour: ui-map.md 3.6 ("file tree with Material file icons, virtualised"). Row height is 28px
- * with 20px indent per level (ui-dimensions.md 4). The file's icon comes from APP-05's
- * Material Icon Theme rule (`ui/file-icon.tsx`); a folder keeps a plain folder glyph.
+ * with 20px indent per level (ui-dimensions.md 4). The file's icon comes from APP-05's rule
+ * (`ui/file-icon.tsx`), given the bare name as Conductor's tree gives it: a tinted brand glyph for
+ * a kind in Conductor's table, else the Material Icon Theme's icon; a folder keeps a plain folder glyph.
  * Measured from Conductor 0.92.1 (renderApp @2530991): one click on a row opens a file (in its
  * whole-file view) or toggles a folder; the row of the file open in the centre is filled; names are
  * 12px monospace.
