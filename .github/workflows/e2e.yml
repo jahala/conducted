@@ -1,0 +1,58 @@
+# End-to-end tests in the real app (issue #564): the test build of the desktop app, driven through
+# its embedded WebDriver server, over a fresh folder per check (`pnpm test:e2e`, scripts/e2e).
+# The repository is public, so this runs on GitHub's hosted macOS runners, never on a runner on the
+# owner's Mac: a self-hosted runner would execute any outside pull request's code there.
+# It runs on pull requests that touch what the app is built from, nightly on main, and by hand.
+name: e2e
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "apps/desktop/**"
+      - "packages/**"
+      - "scripts/e2e/**"
+      - "scripts/app-process.ts"
+      - "scripts/with-run-dir.ts"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/e2e.yml"
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  e2e:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: macos-latest
+    # A cold build of the test app takes most of the run; the checks take about four minutes
+    # (2026-11-12). The limit catches a hang, not slowness.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # ratchet:dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # ratchet:Swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: apps/desktop/src-tauri
+          key: e2e
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # ratchet:actions/setup-node@v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # ratchet:oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - run: pnpm install --frozen-lockfile
+      - name: End-to-end checks in the real app
+        run: pnpm test:e2e
