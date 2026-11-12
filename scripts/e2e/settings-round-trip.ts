@@ -220,12 +220,18 @@ async function change(
 	}
 }
 
-/** Opens the item's screen and reads what its control shows. */
+/**
+ * Opens the item's screen and reads what its control shows once it can be used. A control is
+ * disabled while its value loads and shows a placeholder value meanwhile (a project's switch shows
+ * the setting's default, as Conductor's does), so a read before then would see the placeholder,
+ * not the stored value (issue #615). Every item here was changed through its control, so it can be
+ * used; one that stays disabled fails with its row's reason.
+ */
 async function readAgain(browser: Browser, item: Expected): Promise<string> {
 	await item.open(browser);
-	const reading = await until(`${item.name} on its screen`, async () => {
+	const reading = await until(`${item.name} usable on its screen`, async () => {
 		const found = await readControl(browser, item.scope);
-		return found ?? undefined;
+		return found === null || found.disabled ? undefined : found;
 	});
 	return reading.value;
 }
