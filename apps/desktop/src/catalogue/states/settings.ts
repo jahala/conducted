@@ -11,7 +11,7 @@
  * sign-in dialogs; a changed setting's actions menu; the Connect GitHub and disconnect dialogs; the
  * environment file picker, variable editor, import banner and local-override table; the MCP
  * list loading, empty, filtered and failed; a subscription token saved and an Anthropic key taken
- * from this Mac; Appearance with a custom code font; and a project's
+ * from this Mac; a shortcut being recorded; Appearance with a custom code font; and a project's
  * Actions page with no actions, and with
  * a hidden shared action, a personal action and a shared one changed on this Mac.
  * Behaviour: ui-map.md 6 (settings pages).
@@ -798,6 +798,20 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		},
 	},
 	page("settings-key-bindings", "Keyboard shortcuts", "key-bindings", "Keyboard shortcuts"),
+	{
+		id: "settings-key-bindings-recording",
+		group: "Settings",
+		title: "Keyboard shortcuts, recording a new key for Cycle effort level",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/key-bindings",
+				after: ({ document }) =>
+					click(document, "button", "Change shortcut for Cycle effort level"),
+				ready: (document) => shows(document, "Type shortcut"),
+			};
+		},
+	},
 	page("settings-default-models", "Default models", "models", "Default models"),
 	page("settings-git", "Git", "git", "Branch name prefix"),
 	page("settings-connections", "Connections", "connections", "Connections"),

@@ -6,7 +6,8 @@
  * failed check, one ready to merge and a merged one, the Changes tab when the tree is clean and when git fails,
  * the Changes tab as a folder tree with a filter that matches nothing, the tab strip's new tab menu,
  * a changed file's right-click menu and its discard confirm, the Rename workspace dialog, the toast
- * after Copy link, and the Artifacts tab with one file.
+ * after Copy link, the question before archiving a workspace whose agent works, and the Artifacts
+ * tab with one file.
  * Behaviour: ui-map.md 3.6 (Git panel), 3.4 (diff view), 3.7.x (pull request header); core/status/
  * git-header.ts decides the header state and its main action.
  * Test first: not applicable; the screenshot run opens every state.
@@ -14,6 +15,7 @@
 import type { Workspace } from "../../core/model.ts";
 import {
 	ARBOR_FILES,
+	animateCast,
 	type Cast,
 	chatRoute,
 	type GitWorld,
@@ -182,6 +184,25 @@ export const GIT_STATES: CatalogueState[] = [
 			},
 			ready: (document) => shows(document, "Copied link"),
 		}),
+	},
+	{
+		id: "workspace-archive-running",
+		group: "Workspace chat",
+		title: "Archiving a workspace whose agent is still working asks first",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: chatRoute(cast.beacon, cast.chats.beacon),
+				after: async ({ app, document }) => {
+					await animateCast(world, cast, app);
+					await refreshGit(app, cast.beacon);
+					await rightClick(document, "a[aria-current=page]", "Rate limit api", { prefix: true });
+					// The item's name carries its shortcut after the word.
+					await click(document, "[role=menuitem]", "Archive", { prefix: true });
+				},
+				ready: (document) => shows(document, "Agents are still running in this workspace."),
+			};
+		},
 	},
 	{
 		id: "chat-tab-menu",
