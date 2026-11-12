@@ -111,6 +111,12 @@ async function renderBarInRouter(
 
 const group = () => screen.getByRole("group", { name: "Plan review" });
 
+/**
+ * Cmd+Shift+Enter as a browser sends it. The key code matters: ProseMirror takes every keydown with
+ * code 13 and prevents its default, as Chromium showed on the catalogue (issue #586).
+ */
+const APPROVE_KEY = { key: "Enter", keyCode: 13, metaKey: true, shiftKey: true };
+
 /** The bar and the chat's composer, as the chat shows them while the plan waits. */
 async function renderBarAndComposer(test: TestContainer, session: Session): Promise<Editor> {
 	void test.container.services.sessions.requestInteraction({
@@ -332,6 +338,99 @@ describe("CHAT-12 plan review bar", () => {
 				approved: true,
 			}),
 		);
+	});
+
+	// Focus sits in the composer while a plan waits, so the key must work from there. Conductor
+	// registers its approve shortcut with the chat pane's commands (renderApp @9295505).
+	it("approves when Cmd+Shift+Enter is pressed in the composer", async () => {
+		const { test, session } = await setup();
+		const answer = vi
+			.spyOn(test.container.services.sessions, "answer")
+			.mockResolvedValue(ok(undefined));
+		vi.spyOn(test.container.services.sessions, "updateConfig").mockResolvedValue(ok(undefined));
+
+		await renderBarAndComposer(test, session);
+		fireEvent.keyDown(screen.getByRole("textbox", { name: "composer" }), APPROVE_KEY);
+
+		await waitFor(() =>
+			expect(answer).toHaveBeenCalledWith(session.id, interactionId, {
+				kind: "plan_approval",
+				approved: true,
+			}),
+		);
+		expect(await screen.findByText("Approved")).toBeTruthy();
+	});
+
+	// Conductor's approve action sends the composer's text as the plan's adjustments when there is
+	// any, and approves only an empty composer (renderApp @9313268).
+	it("sends the composer's text as the plan feedback on Cmd+Shift+Enter, without approving", async () => {
+		const { test, session } = await setup();
+		const answer = vi
+			.spyOn(test.container.services.sessions, "answer")
+			.mockResolvedValue(ok(undefined));
+		const updateConfig = vi.spyOn(test.container.services.sessions, "updateConfig");
+
+		const editor = await renderBarAndComposer(test, session);
+		act(() => {
+			editor.commands.insertContent("Keep the old cache for reads.");
+		});
+		fireEvent.keyDown(screen.getByRole("textbox", { name: "composer" }), APPROVE_KEY);
+
+		await waitFor(() =>
+			expect(answer).toHaveBeenCalledWith(session.id, interactionId, {
+				kind: "plan_approval",
+				approved: false,
+				feedback: "Keep the old cache for reads.",
+			}),
+		);
+		expect(answer).toHaveBeenCalledTimes(1);
+		expect(updateConfig).not.toHaveBeenCalled();
+	});
+
+	// The key is the chat pane's, so with no plan waiting it must do nothing there: no message,
+	// and no "not available" error from the command runner.
+	it("does nothing on Cmd+Shift+Enter in the composer when no plan waits", async () => {
+		const { test, session } = await setup();
+		const send = vi.spyOn(test.container.services.sessions, "send");
+		const run = vi.spyOn(test.container.services.commands, "run");
+		let editor: Editor | null = null;
+		render(
+			<ServicesProvider container={test.container}>
+				<CommandDispatcher>
+					<Composer
+						workspaceId={session.workspaceId}
+						sessionId={session.id}
+						onEditorReady={(ready: Editor | null) => {
+							editor = ready;
+						}}
+					/>
+				</CommandDispatcher>
+			</ServicesProvider>,
+		);
+		await waitFor(() => expect(editor).not.toBeNull());
+		act(() => {
+			(editor as unknown as Editor).commands.insertContent("Not yet.");
+		});
+		fireEvent.keyDown(screen.getByRole("textbox", { name: "composer" }), APPROVE_KEY);
+
+		expect(send).not.toHaveBeenCalled();
+		expect(run).not.toHaveBeenCalled();
+		expect((editor as unknown as Editor).getText()).toBe("Not yet.");
+	});
+
+	// The bar once marked itself as a card scope for its shortcut, so Enter on its buttons ran the
+	// tool approval card's "Approve tool request" and failed as not available.
+	it("leaves Enter on the bar's buttons to the buttons", async () => {
+		const { test, session } = await setup();
+		const run = vi.spyOn(test.container.services.commands, "run");
+
+		renderBar(test, session.id);
+		const kept = fireEvent.keyDown(screen.getByRole("button", { name: "Hand off" }), {
+			key: "Enter",
+		});
+
+		expect(kept).toBe(true);
+		expect(run).not.toHaveBeenCalled();
 	});
 
 	// This test sent the bar's feedback with Cmd+Shift+Enter. With the feedback in the composer,
