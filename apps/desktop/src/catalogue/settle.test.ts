@@ -27,12 +27,16 @@ describe("settle", () => {
 
 	it("fails a state whose screen showed what it is about, then lost it", async () => {
 		document.body.innerHTML = `<div role="menu">Cycle effort</div>`;
-		// The menu closes a few frames after the ready check first held, as a focus change closes it.
-		setTimeout(() => document.querySelector("[role=menu]")?.remove(), 50);
+		// The menu closes right after the ready check first held, as a focus change closes it.
+		const ready = (document: Document): boolean => {
+			const holds = shows(document, "Cycle effort");
+			if (holds) queueMicrotask(() => document.querySelector("[role=menu]")?.remove());
+			return holds;
+		};
 
-		await expect(
-			settle("menu-closes", (document) => shows(document, "Cycle effort"), IDLE),
-		).rejects.toThrow('"menu-closes" showed what it is about, then lost it');
+		await expect(settle("menu-closes", ready, IDLE)).rejects.toThrow(
+			'"menu-closes" showed what it is about, then lost it',
+		);
 	});
 });
 
@@ -40,11 +44,13 @@ describe("waitForQuiet", () => {
 	it("returns only once the page has stopped changing", async () => {
 		document.body.innerHTML = `<p>loading</p>`;
 		let changes = 0;
-		const timer = setInterval(() => {
+		// The page changes on each of the next five frames, as a screen that is still loading does.
+		const step = (): void => {
 			changes++;
 			document.body.innerHTML = `<p>step ${changes}</p>`;
-			if (changes === 5) clearInterval(timer);
-		}, 20);
+			if (changes < 5) requestAnimationFrame(step);
+		};
+		requestAnimationFrame(step);
 
 		await waitForQuiet(document.body);
 

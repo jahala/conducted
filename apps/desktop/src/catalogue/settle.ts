@@ -8,7 +8,8 @@
  * Must handle: every wait is bounded by frames, so a state that never settles fails with the reason
  * instead of hanging the screenshot run; a ready check that held once and no longer holds once the
  * page is quiet fails the state, since the picture would not show what the state is about.
- * Test first: settle.test.ts.
+ * Test first: a ready check that holds, then stops holding before the page goes quiet, fails the
+ * settle with the state's id.
  */
 
 /** Frames the page must stay unchanged before it counts as settled. */
