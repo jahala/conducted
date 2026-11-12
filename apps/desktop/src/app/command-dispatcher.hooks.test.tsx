@@ -1,20 +1,23 @@
 /**
  * @feature NAV-14 Shortcut and menu dispatcher
- * Owns: tests for the root listeners and the handler hook: menu events, deep links, key presses and
- * the menu accelerators going out to the Rust shell.
+ * Owns: tests for the root listeners and the handler hook: menu events, deep links, key presses,
+ * keys while a dialog is open, and the menu accelerators going out to the Rust shell.
  * Behaviour: ui-map.md 1.1, 5.4, 8.
  * Test first: the modal handler wins, then the base handler runs after the modal unmounts.
  */
-import { appError, err, ok } from "@conducted/shared";
+import { appError, err, ok, type SessionId } from "@conducted/shared";
 import { act, cleanup, render, renderHook, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createContainer } from "../core/container.ts";
 import { ServicesProvider } from "../core/context.tsx";
+import type { CommandId } from "../core/registries/commands.ts";
 import { tomlCodec } from "../core/services/toml-codec.ts";
 import { createMemoryPlatform } from "../platform/memory.ts";
 import type { Database, MenuShortcut, Platform } from "../platform/platform.ts";
 import { createTestIds } from "../test/ids.ts";
+import { Dialog, DialogContent } from "../ui/Dialog.tsx";
+import { Popover } from "../ui/Popover.tsx";
 import { Toaster } from "../ui/Toast.tsx";
 import {
 	CommandDispatcher,
@@ -540,5 +543,208 @@ describe("NAV-14 useCommandHandler", () => {
 		});
 		expect(modal).toHaveBeenCalledTimes(1);
 		expect(base).toHaveBeenCalledTimes(1);
+	});
+});
+
+/** A screen's handler for one command, so a test sees whether a key reached it. */
+function Handles({ commandId, handler }: { commandId: CommandId; handler: CommandHandlerFn }) {
+	useCommandHandler(commandId, "base", handler);
+	return null;
+}
+
+/** A chat on screen, so the chat commands are enabled, as they are while the user works in one. */
+function viewChat(harness: ReturnType<typeof buildHarness>): void {
+	harness.container.services.sessions.setViewing("on-screen" as SessionId);
+}
+
+/** Presses a key on the focused element, as the browser does, and hands back the event. */
+function press(init: KeyboardEventInit): KeyboardEvent {
+	const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
+	const target = document.activeElement ?? document.body;
+	act(() => {
+		target.dispatchEvent(event);
+	});
+	return event;
+}
+
+const FORK = { key: "Enter", metaKey: true, altKey: true };
+const APPROVE_PLAN = { key: "Enter", metaKey: true, shiftKey: true };
+
+// Conductor's root key listener runs a handler while a dialog is open only when the handler was
+// registered inside that dialog, or its command is marked global (renderApp @680362; the table's
+// global flags from main @3778851). Issue #597.
+describe("NAV-14 keys while a dialog is open", () => {
+	it("does nothing for an app shortcut such as fork or approve plan while a dialog is open", () => {
+		const harness = buildHarness();
+		const { container, wrapper } = harness;
+		viewChat(harness);
+		const run = vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
+		const fork = vi.fn(() => true);
+		const approve = vi.fn(() => true);
+		render(
+			<CommandDispatcher>
+				<Handles commandId="chat.fork" handler={fork} />
+				<Handles commandId="chat.approvePlan" handler={approve} />
+				<Dialog open>
+					<DialogContent title="Rename chat">
+						<input aria-label="Name" />
+					</DialogContent>
+				</Dialog>
+			</CommandDispatcher>,
+			{ wrapper },
+		);
+		screen.getByLabelText("Name").focus();
+
+		const forked = press(FORK);
+		const approved = press(APPROVE_PLAN);
+
+		expect(fork).not.toHaveBeenCalled();
+		expect(approve).not.toHaveBeenCalled();
+		expect(run).not.toHaveBeenCalled();
+		expect(forked.defaultPrevented).toBe(false);
+		expect(approved.defaultPrevented).toBe(false);
+	});
+
+	it("does nothing for a chat field's shortcut typed in a dialog's field", () => {
+		const harness = buildHarness();
+		const { container, wrapper } = harness;
+		viewChat(harness);
+		vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
+		const findNext = vi.fn(() => true);
+		render(
+			<CommandDispatcher>
+				<Handles commandId="chat.findNext" handler={findNext} />
+				<Dialog open>
+					<DialogContent title="Rename chat">
+						<input aria-label="Name" />
+					</DialogContent>
+				</Dialog>
+			</CommandDispatcher>,
+			{ wrapper },
+		);
+		screen.getByLabelText("Name").focus();
+
+		press({ key: "g", metaKey: true });
+
+		expect(findNext).not.toHaveBeenCalled();
+	});
+
+	it("does nothing for an app shortcut while an overlay such as quick open is open", () => {
+		const harness = buildHarness();
+		const { container, wrapper } = harness;
+		viewChat(harness);
+		const run = vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
+		const fork = vi.fn(() => true);
+		render(
+			<CommandDispatcher>
+				<Handles commandId="chat.fork" handler={fork} />
+			</CommandDispatcher>,
+			{ wrapper },
+		);
+		act(() => {
+			useOverlayStore.getState().show("quick-open");
+		});
+
+		press(FORK);
+
+		expect(fork).not.toHaveBeenCalled();
+		expect(run).not.toHaveBeenCalled();
+	});
+
+	it("still runs the dialog's own keys: Cmd+Enter confirms and Escape closes", () => {
+		const harness = buildHarness();
+		const { wrapper } = harness;
+		viewChat(harness);
+		const confirm = vi.fn();
+		const openChange = vi.fn();
+		render(
+			<CommandDispatcher>
+				<Dialog open onOpenChange={openChange}>
+					<DialogContent title="Rename chat" onConfirm={confirm}>
+						<input aria-label="Name" />
+					</DialogContent>
+				</Dialog>
+			</CommandDispatcher>,
+			{ wrapper },
+		);
+		screen.getByLabelText("Name").focus();
+
+		press({ key: "Enter", metaKey: true });
+		press({ key: "Escape" });
+
+		expect(confirm).toHaveBeenCalledTimes(1);
+		expect(openChange).toHaveBeenCalledWith(false);
+	});
+
+	it("runs a dialog command's handler, such as the open dialog's confirm", () => {
+		const harness = buildHarness();
+		const { wrapper } = harness;
+		viewChat(harness);
+		const confirm = vi.fn(() => true);
+		render(
+			<CommandDispatcher>
+				<Dialog open>
+					<DialogContent title="New workspace">
+						<ConfirmingDialog handler={confirm} />
+					</DialogContent>
+				</Dialog>
+			</CommandDispatcher>,
+			{ wrapper },
+		);
+		screen.getByLabelText("Branch name").focus();
+
+		const event = press({ key: "Enter", metaKey: true });
+
+		expect(confirm).toHaveBeenCalledTimes(1);
+		expect(event.defaultPrevented).toBe(true);
+	});
+
+	it("still runs the commands Conductor keeps over a dialog, such as Cmd+K for the palette", () => {
+		const harness = buildHarness();
+		const { container, wrapper } = harness;
+		viewChat(harness);
+		const run = vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
+		render(
+			<CommandDispatcher>
+				<Dialog open>
+					<DialogContent title="Rename chat">
+						<input aria-label="Name" />
+					</DialogContent>
+				</Dialog>
+			</CommandDispatcher>,
+			{ wrapper },
+		);
+		screen.getByLabelText("Name").focus();
+
+		const event = press({ key: "k", metaKey: true });
+
+		expect(run).toHaveBeenCalledWith("app.commandPalette");
+		expect(event.defaultPrevented).toBe(true);
+	});
+
+	// A popover is not a dialog in Conductor (only its dialogs set the active dialog id), so app
+	// shortcuts keep working while one is open. Radix gives a popover's panel the dialog role too.
+	it("keeps app shortcuts working while a popover is open", () => {
+		const harness = buildHarness();
+		const { container, wrapper } = harness;
+		viewChat(harness);
+		vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
+		const fork = vi.fn(() => true);
+		render(
+			<CommandDispatcher>
+				<Handles commandId="chat.fork" handler={fork} />
+				<Popover open trigger={<button type="button">Model</button>}>
+					<input aria-label="Filter models" />
+				</Popover>
+			</CommandDispatcher>,
+			{ wrapper },
+		);
+		const field = screen.getByLabelText("Filter models");
+		expect(field.closest("[role='dialog']")).not.toBeNull();
+		field.focus();
+
+		press(FORK);
+
+		expect(fork).toHaveBeenCalledTimes(1);
 	});
 });
