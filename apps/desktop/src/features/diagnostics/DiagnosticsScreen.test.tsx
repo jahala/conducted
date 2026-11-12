@@ -89,14 +89,12 @@ describe("APP-03 diagnostics screen", () => {
 		await screen.findByText("API_TOKEN");
 
 		mounted.memory.controls.queueDialogAnswers({ confirm: false });
-		fireEvent.click(screen.getByRole("button", { name: "Copy full report" }));
-		await waitFor(() =>
-			expect(screen.getByRole("button", { name: "Copy full report" })).toBeTruthy(),
-		);
+		fireEvent.click(screen.getByRole("button", { name: "Copy report" }));
+		await waitFor(() => expect(screen.getByRole("button", { name: "Copy report" })).toBeTruthy());
 		expect(copies).toHaveLength(0);
 
 		mounted.memory.controls.queueDialogAnswers({ confirm: true });
-		fireEvent.click(screen.getByRole("button", { name: "Copy full report" }));
+		fireEvent.click(screen.getByRole("button", { name: "Copy report" }));
 		await waitFor(() => expect(copies).toHaveLength(1));
 		expect(copies[0]).toContain("super-secret");
 		expect(await screen.findByText("Full values")).toBeTruthy();
@@ -136,7 +134,7 @@ describe("APP-03 diagnostics screen", () => {
 
 		fireEvent.click(
 			screen.getByRole("button", {
-				name: "Create a new session with the redacted report attached",
+				name: "Ask agent to analyze redacted report",
 			}),
 		);
 
