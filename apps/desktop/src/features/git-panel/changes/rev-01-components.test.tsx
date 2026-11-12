@@ -267,13 +267,16 @@ describe("REV-01 scope back bar", () => {
 		const onBack = vi.fn();
 		render(<ScopeBackBar label="Fix the bug" onBack={onBack} />);
 		expect(screen.getByText("Fix the bug")).toBeTruthy();
-		fireEvent.click(screen.getByRole("button", { name: "All changes" }));
+		const back = screen.getByRole("button", { name: "All changes" });
+		expect(back.getAttribute("title")).toBe("Back to all changes");
+		fireEvent.click(back);
 		expect(onBack).toHaveBeenCalledTimes(1);
 	});
 });
 
 describe("REV-01 target branch picker", () => {
-	it("says why the list is empty when the branches could not be loaded", () => {
+	it("says the branches could not be loaded, with Try again", () => {
+		const onRetry = vi.fn();
 		render(
 			<TargetBranchPicker
 				branches={[]}
@@ -281,10 +284,31 @@ describe("REV-01 target branch picker", () => {
 				onSelect={vi.fn()}
 				loading={false}
 				error="git said no"
+				onRetry={onRetry}
 			/>,
 		);
-		expect(screen.getByRole("alert").textContent).toContain("git said no");
-		expect(screen.queryByText("No branches match")).toBeNull();
+		expect(screen.getByRole("alert").textContent).toBe("Couldn't load branches.");
+		fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+		expect(onRetry).toHaveBeenCalledTimes(1);
+		expect(screen.queryByText("No branch found.")).toBeNull();
+	});
+
+	it("says no branch was found when the list is empty", () => {
+		render(
+			<TargetBranchPicker
+				branches={[]}
+				current=""
+				onSelect={vi.fn()}
+				loading={false}
+				error={null}
+			/>,
+		);
+		expect(screen.getByText("No branch found.")).toBeTruthy();
+	});
+
+	it("says the branches are loading, as Conductor does", () => {
+		render(<TargetBranchPicker branches={[]} current="" onSelect={vi.fn()} loading error={null} />);
+		expect(screen.getByRole("status").textContent).toBe("Loading branches...");
 	});
 
 	it("narrows the list as the user types", () => {
@@ -327,5 +351,24 @@ describe("REV-01 changes toolbar", () => {
 		expect(onFilterChange).toHaveBeenCalledWith("src/a");
 		fireEvent.keyDown(input, { key: "Escape" });
 		expect(onFilterChange).toHaveBeenLastCalledWith("");
+	});
+
+	it("closes the filter with Conductor's Close filter button", () => {
+		const onFilterChange = vi.fn();
+		render(
+			<ChangesToolbar
+				workspaceId={"w1" as WorkspaceId}
+				filter="src/a"
+				onFilterChange={onFilterChange}
+				view="flat"
+				onViewChange={vi.fn()}
+				scope={{ kind: "branch" }}
+				onScopeChange={vi.fn()}
+			/>,
+		);
+		const close = screen.getByRole("button", { name: "Close filter" });
+		expect(close.getAttribute("title")).toBe("Close filter");
+		fireEvent.click(close);
+		expect(onFilterChange).toHaveBeenCalledWith("");
 	});
 });

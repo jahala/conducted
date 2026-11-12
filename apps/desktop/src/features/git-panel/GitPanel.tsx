@@ -411,7 +411,7 @@ export function GitPanel({
 			case "add_comments_to_chat":
 				return run(
 					actions.comments.sendToChat(workspaceId, commentsToAdd),
-					"Couldn't add the comments to the chat",
+					"Failed to add comments to chat",
 				);
 			case "retry":
 				return refresh();

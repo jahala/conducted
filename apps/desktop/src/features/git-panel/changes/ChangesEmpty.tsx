@@ -3,7 +3,8 @@
  * Owns: the designed message for each reason the Changes list is empty or incomplete.
  * Behaviour: ui-map.md 3.6, Changes paragraph (empty texts) and 7.2.
  * Reasons: "no_changes" (changes will appear here), "no_git_status" (the repository could not be
- * read), "operation_in_progress" (finish the rebase or merge to see changes), "filter_no_match"
+ * read), "operation_in_progress" (Conductor's "No git status" with "Finish rebasing or merging to
+ * see changes"), "filter_no_match"
  * (no file matches the filter, with a clear-filter action), "untracked_truncated" (a note under a
  * non-empty list: some untracked files are not shown), "no_range_changes" (the chosen stack pull
  * requests change nothing; Conductor's words, PR-08).
@@ -26,21 +27,12 @@ export type ChangesEmptyReason =
 
 export interface ChangesEmptyProps {
 	reason: ChangesEmptyReason;
-	/** The git operation underway, for the "operation_in_progress" text. */
-	operation?: "rebase" | "merge" | "cherry_pick" | "revert";
 	onClearFilter?: () => void;
 	/** The error's own words, for "no_git_status". Without it the generic text shows. */
 	message?: string;
 }
 
-const operationLabel: Record<NonNullable<ChangesEmptyProps["operation"]>, string> = {
-	rebase: "rebase",
-	merge: "merge",
-	cherry_pick: "cherry-pick",
-	revert: "revert",
-};
-
-export function ChangesEmpty({ reason, operation, onClearFilter, message }: ChangesEmptyProps) {
+export function ChangesEmpty({ reason, onClearFilter, message }: ChangesEmptyProps) {
 	if (reason === "no_range_changes") {
 		return <EmptyState compact title="No changes in the selected PRs" />;
 	}
@@ -76,13 +68,8 @@ export function ChangesEmpty({ reason, operation, onClearFilter, message }: Chan
 		);
 	}
 	if (reason === "operation_in_progress") {
-		const label = operation ? operationLabel[operation] : "git operation";
 		return (
-			<EmptyState
-				compact
-				title={`Finish the ${label}`}
-				body={`Changes appear here once the ${label} finishes.`}
-			/>
+			<EmptyState compact title="No git status" body="Finish rebasing or merging to see changes" />
 		);
 	}
 	return (

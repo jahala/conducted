@@ -609,6 +609,8 @@ export interface GitWorld {
 	prs?: ScriptedPr[];
 	/** arbor's folder is no longer a git repository, so every git command fails. */
 	arborBroken?: boolean;
+	/** atlas's clone cannot list its local branches: `git branch` there fails, as git does in a broken repository. */
+	atlasBranchesBroken?: boolean;
 	/** arbor has no branch checked out (a detached HEAD). */
 	arborDetached?: boolean;
 	/** arbor against its upstream, when not the default of in step with it. */
@@ -676,6 +678,11 @@ export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void
 		branch: options.arborDetached === true ? "" : cast.arbor.branch,
 		target: "origin/main",
 		files: arborFiles,
+		unchanged: Object.fromEntries(
+			Object.entries(PROJECT_FILES).filter(([path]) =>
+				arborFiles.every((file) => file.path !== path),
+			),
+		),
 		commits: [
 			{
 				sha: "5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
@@ -708,6 +715,24 @@ export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void
 					}
 				: null,
 		);
+	}
+	if (options.atlasBranchesBroken === true) {
+		world.scriptShell((command) => {
+			const args = command.args[0] === "-c" ? command.args.slice(2) : command.args;
+			return command.program === "git" &&
+				command.cwd === cast.atlas.rootPath &&
+				args[0] === "branch" &&
+				args[1]?.startsWith("--format") === true
+				? {
+						ok: true,
+						value: {
+							stdout: "",
+							stderr: "fatal: not a git repository (or any of the parent directories): .git\n",
+							exitCode: 128,
+						},
+					}
+				: null;
+		});
 	}
 	world.scriptShell(
 		scriptGitHub({
