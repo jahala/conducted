@@ -2,7 +2,9 @@
  * @feature APP-18 Chat history from Conductor: writing each chat's history
  * Owns: `importChatHistories`, which brings the history of each chat the plan names, one chat at
  * a time: it reads the chat's rows from the copy through the Rust shell, has the sidecar map them
- * (packages/sidecar/src/import/history-imports.ts) and stores the events as the chat's own.
+ * (packages/sidecar/src/import/history-imports.ts) and stores the events as the chat's own;
+ * `measureChatHistories`, the dry run's pass over the same reads and mapping, which sizes each
+ * event as the writer stores it and writes nothing (D132).
  * Behaviour: docs/plans/migrate-from-conductor.md ("Chat history"), safety rules 1 (only the copy
  * is read), 3 (all or nothing, here per chat) and 4 (counted and sampled before it commits).
  * Must handle: memory stays bounded by one read, never a chat: the first read pages the chat's
@@ -26,9 +28,10 @@ import { appError, err, ok, type Result } from "@conducted/shared";
 import type { ConductorImport, Database } from "../../platform/platform.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { inTransaction } from "../db/row-codec.ts";
+import { storedEventBytes } from "../db/session-events.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
 import { stable } from "./apply.ts";
-import type { HistoryChat } from "./plan.ts";
+import { type HistoryChat, type HistorySize, TablePages } from "./plan.ts";
 
 /**
  * How much one read takes. The sidecar reads lines of at most 16 MiB characters, so a read's rows
@@ -49,12 +52,16 @@ export const HISTORY_LIMITS: HistoryLimits = {
 	maxReadChars: 6_000_000,
 };
 
-export interface HistoryDeps {
-	db: Database;
-	repositoriesOn: (db: Database) => Repositories;
+/** What reading and mapping a chat needs: the copy's two reads and the sidecar's mapping. */
+export interface ReadDeps {
 	conductorImport: Pick<ConductorImport, "readMessageKeys" | "readMessages">;
 	sidecar: Pick<SidecarClient, "request">;
 	copyPath: string;
+}
+
+export interface HistoryDeps extends ReadDeps {
+	db: Database;
+	repositoriesOn: (db: Database) => Repositories;
 	/** The import's time: when the events are received. */
 	now: number;
 }
@@ -117,7 +124,7 @@ async function importOne(
 async function indexChat(
 	chat: HistoryChat,
 	historyId: string,
-	deps: HistoryDeps,
+	deps: ReadDeps,
 ): Promise<Result<void>> {
 	let after = 0;
 	for (;;) {
@@ -141,21 +148,18 @@ async function indexChat(
 	}
 }
 
-/** The second read, inside the chat's transaction: rows in, events out, written read by read. */
-async function writeChat(
+/**
+ * The second read: rows in, events out, a read at a time, each read's events given to `take`
+ * before the next read. A message too large for the sidecar's line stops it with that reason.
+ */
+async function eachRead(
 	chat: HistoryChat,
 	historyId: string,
-	tx: Database,
-	deps: HistoryDeps,
-): Promise<Result<"brought" | "changed">> {
+	deps: ReadDeps,
+	take: (events: readonly SessionEvent[]) => Promise<Result<void>>,
+): Promise<Result<void>> {
 	const limits = HISTORY_LIMITS;
-	const events = deps.repositoriesOn(tx).sessionEvents;
-	const before = await events.count(chat.sessionId);
-	if (!before.ok) return before;
-	if (before.value > 0) return ok("changed");
 	let rows: Awaited<ReturnType<ConductorImport["readMessages"]>> = ok([]);
-	let written = 0;
-	let first: SessionEvent | undefined;
 	for (;;) {
 		if (!rows.ok) return rows;
 		const chars = rows.value.reduce((sum, row) => sum + (row.content?.length ?? 0), 0);
@@ -174,22 +178,41 @@ async function writeChat(
 			maxChars: limits.charsPerRead,
 		});
 		if (!mapped.ok) return mapped;
-		first ??= mapped.value.events[0];
-		const appended = await events.appendMany(chat.sessionId, mapped.value.events, deps.now);
-		if (!appended.ok) return appended;
-		if (appended.value !== mapped.value.events.length) {
-			return err(
-				mismatch(`${mapped.value.events.length} events were to be written, ${appended.value} were`),
-			);
-		}
-		written += appended.value;
-		if (mapped.value.next === null) break;
+		const taken = await take(mapped.value.events);
+		if (!taken.ok) return taken;
+		if (mapped.value.next === null) return ok(undefined);
 		rows = await deps.conductorImport.readMessages(
 			deps.copyPath,
 			chat.sessionId,
 			mapped.value.next,
 		);
 	}
+}
+
+/** Inside the chat's transaction: the second read, written read by read, then checked. */
+async function writeChat(
+	chat: HistoryChat,
+	historyId: string,
+	tx: Database,
+	deps: HistoryDeps,
+): Promise<Result<"brought" | "changed">> {
+	const events = deps.repositoriesOn(tx).sessionEvents;
+	const before = await events.count(chat.sessionId);
+	if (!before.ok) return before;
+	if (before.value > 0) return ok("changed");
+	let written = 0;
+	let first: SessionEvent | undefined;
+	const read = await eachRead(chat, historyId, deps, async (mapped) => {
+		first ??= mapped[0];
+		const appended = await events.appendMany(chat.sessionId, mapped, deps.now);
+		if (!appended.ok) return appended;
+		if (appended.value !== mapped.length) {
+			return err(mismatch(`${mapped.length} events were to be written, ${appended.value} were`));
+		}
+		written += appended.value;
+		return ok(undefined);
+	});
+	if (!read.ok) return read;
 	const after = await events.count(chat.sessionId);
 	if (!after.ok) return after;
 	if (after.value !== written) {
@@ -203,6 +226,54 @@ async function writeChat(
 		}
 	}
 	return ok("brought");
+}
+
+export interface MeasureDeps extends ReadDeps {
+	/** The dry run's time, which keeps its mappings apart from an import's. */
+	now: number;
+	/** True once the user cancelled the dry run: the chats not yet measured are not. */
+	cancelled: () => boolean;
+}
+
+/**
+ * The dry run's measure of the history it would bring (D132): each chat read and mapped as the
+ * import does, every event sized as the writer stores it, nothing written. A chat whose read or
+ * mapping fails counts what it mapped before the failure, as the import writes that much before it
+ * rolls the chat back. A sidecar that does not answer at all fails the measure: a figure built
+ * without it would be too small, and the space check would pass an import the disk cannot hold.
+ */
+export async function measureChatHistories(
+	chats: readonly HistoryChat[],
+	deps: MeasureDeps,
+): Promise<Result<HistorySize>> {
+	const all = new TablePages();
+	let largestChatDiskBytes = 0;
+	for (const chat of chats) {
+		if (deps.cancelled()) break;
+		// Its own id, so a mapping the dry run leaves open is never the import's.
+		const historyId = `${deps.now}:${chat.sessionId}:size`;
+		const one = new TablePages();
+		const cleared = await deps.sidecar.request("closeConductorHistory", { historyId });
+		if (!cleared.ok) return cleared;
+		try {
+			const indexed = await indexChat(chat, historyId, deps);
+			if (indexed.ok) {
+				await eachRead(chat, historyId, deps, async (mapped) => {
+					for (const event of mapped) {
+						const stored = storedEventBytes(chat.sessionId, event);
+						if (!stored.ok) return stored;
+						all.add(stored.value);
+						one.add(stored.value);
+					}
+					return ok(undefined);
+				});
+			}
+		} finally {
+			await deps.sidecar.request("closeConductorHistory", { historyId });
+		}
+		largestChatDiskBytes = Math.max(largestChatDiskBytes, one.diskBytes);
+	}
+	return ok({ diskBytes: all.diskBytes, largestChatDiskBytes });
 }
 
 const mismatch = (detail: string) =>

@@ -9,7 +9,9 @@
  * no value is shown). Conductor has no such control, so its place follows D098: the General page,
  * after Sync agent configs, which also brings things over from elsewhere, and the first project
  * step of onboarding, where a user arriving from Conductor starts (docs/design.md).
- * Must handle: the dry run loading, failing (with Try again) and finding nothing to bring; the
+ * Must handle: the dry run loading, failing (with Try again) and finding nothing to bring; a disk
+ * without the space the history takes, which shows both numbers and offers Try again in place of
+ * Import (D132); the
  * import running (the dialog cannot close mid-way), failing (the message says Conducted is as it
  * was) and finishing; closing the dialog drops the dry run and its copy.
  * Test first: the dialog shows the dry run's counts and imports when the user goes ahead.
@@ -20,8 +22,10 @@ import type {
 	HistoryPreview,
 	ImportKind,
 	ImportPreview,
+	ImportSpace,
 	LeftOut,
 } from "../../core/api.ts";
+import { formatSpace, noSpaceMessage } from "../../core/disk-space.ts";
 import { useActions, useConductorImport } from "../../core/hooks.ts";
 import { Alert, AlertDescription } from "../../ui/Alert.tsx";
 import { Button } from "../../ui/Button.tsx";
@@ -90,14 +94,24 @@ const AGENT_LABEL: Readonly<Record<string, string>> = {
 const entries = (n: number): string =>
 	`${n.toLocaleString("en-US")} ${n === 1 ? "entry" : "entries"}`;
 
-/** Which chats bring their history, which already have it, and which come without it. */
-function HistoryDetails({ history }: { history: HistoryPreview }) {
+/**
+ * Which chats bring their history, which already have it, and which come without it; and the disk
+ * space the history takes beside the space free (D132).
+ */
+function HistoryDetails({ history, space }: { history: HistoryPreview; space: ImportSpace }) {
 	const lines: { key: string; text: string; reason: string | null }[] = [];
 	if (history.comes.chats > 0) {
 		lines.push({
 			key: "comes",
 			text: `${count(history.comes.chats, "chat")} with ${history.comes.chats === 1 ? "its" : "their"} history (${entries(history.comes.rows)})`,
 			reason: null,
+		});
+	}
+	if (space.historyBytes > 0) {
+		lines.push({
+			key: "space",
+			text: `Takes about ${formatSpace(space.historyBytes)} of disk space`,
+			reason: `${formatSpace(space.freeBytes)} is free.`,
 		});
 	}
 	if (history.alreadyThere.chats > 0) {
@@ -201,7 +215,7 @@ function PreviewDetails({ preview }: { preview: ImportPreview }) {
 	return (
 		<div className="flex flex-col gap-5">
 			<CountsTable preview={preview} />
-			<HistoryDetails history={preview.history} />
+			<HistoryDetails history={preview.history} space={preview.space} />
 			{left.length === 0 ? null : (
 				<Section title="What stays behind">
 					<ul className="flex flex-col gap-2 text-sm">
@@ -304,7 +318,8 @@ export function ConductorImportDialog({ onClose, onImported }: ConductorImportDi
 	};
 
 	const preview = state.phase === "planned" ? state.preview : null;
-	const canImport = preview !== null && toImport(preview) > 0 && !importing;
+	const noRoom = preview !== null && !preview.space.fits;
+	const canImport = preview !== null && toImport(preview) > 0 && !noRoom && !importing;
 
 	return (
 		<Dialog
@@ -352,6 +367,11 @@ export function ConductorImportDialog({ onClose, onImported }: ConductorImportDi
 					) : null}
 					{preview !== null ? (
 						<>
+							{noRoom ? (
+								<Alert tone="destructive">
+									<AlertDescription>{noSpaceMessage(preview.space)}</AlertDescription>
+								</Alert>
+							) : null}
 							{toImport(preview) === 0 ? (
 								<p role="status" className="text-sm text-fg">
 									Nothing new to bring over. Everything that can come over is already here.
@@ -369,7 +389,7 @@ export function ConductorImportDialog({ onClose, onImported }: ConductorImportDi
 							<Button variant="secondary" disabled={importing} onClick={close}>
 								Cancel
 							</Button>
-							{state.phase === "failed" ? (
+							{state.phase === "failed" || noRoom ? (
 								<Button onClick={() => void actions.conductorImport.preview()}>Try again</Button>
 							) : (
 								<Button loading={importing} disabled={!canImport} onClick={() => void runImport()}>

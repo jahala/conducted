@@ -6,6 +6,8 @@ import { ServicesProvider } from "../../core/context.tsx";
 import { conductorChatRows, done, said, text, wrote } from "../../test/conductor-chat.ts";
 import { buildConductorFixture } from "../../test/conductor-fixture.ts";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
+import { answerSidecar, type SidecarCall, sidecarRefuses } from "../../test/sidecar-answers.ts";
+import { answerHistory } from "../../test/sidecar-history.ts";
 import { ProjectStep } from "../onboarding/ProjectStep.tsx";
 import { GeneralPage } from "../settings/pages/GeneralPage.tsx";
 
@@ -13,8 +15,9 @@ const SECRET = "ui-secret-value-789";
 
 let test: TestContainer | undefined;
 
-afterEach(() => {
+afterEach(async () => {
 	cleanup();
+	await test?.container.stop();
 	test?.close();
 	test = undefined;
 });
@@ -74,10 +77,22 @@ async function mount(
 	view: "settings" | "onboarding",
 	onFinish = () => {},
 	withHistory = false,
+	/**
+	 * Starts the container with a sidecar that maps history, and sets the disk's free space.
+	 * `answer` answers a request first when it returns a value.
+	 */
+	mapped?: { freeBytes: number; answer?: (call: SidecarCall) => unknown },
 ): Promise<TestContainer> {
 	const mounted = createTestContainer();
 	test = mounted;
 	seed(mounted, withHistory);
+	if (mapped !== undefined) {
+		const history = answerHistory(() => ({}));
+		answerSidecar(mounted, (call) => mapped.answer?.(call) ?? history(call));
+		mounted.memory.controls.setDatabaseFreeBytes(mapped.freeBytes);
+		const started = await mounted.container.start();
+		if (!started.ok) throw new Error(started.error.message);
+	}
 	await mounted.container.services.settings.start();
 	await mounted.container.services.conductorImport.start();
 	render(
@@ -155,9 +170,15 @@ describe("APP-17 the import from Conductor, on screen", () => {
 	});
 
 	it("the dry run says which chats bring their history, and the outcome names a chat whose history failed", async () => {
-		// The container is not started, so its sidecar cannot map: the Claude chat comes over
-		// without its history, as it would if the sidecar had stopped.
-		await mount("settings", () => {}, true);
+		// The import's mapping of the Claude chat fails (the dry run's own mapping, whose id ends
+		// in ":size", still works): the chat comes over without its history.
+		await mount("settings", () => {}, true, {
+			freeBytes: 50e9,
+			answer: (call) =>
+				call.method === "mapConductorHistory" && !String(call.params.historyId).endsWith(":size")
+					? sidecarRefuses("The mapping stopped.")
+					: undefined,
+		});
 
 		fireEvent.click(screen.getByRole("button", { name: "Review import" }));
 		const dialog = within(await screen.findByRole("dialog"));
@@ -170,6 +191,30 @@ describe("APP-17 the import from Conductor, on screen", () => {
 
 		expect(await dialog.findByText(/Imported 1 project, 1 workspace and 2 chats\./)).toBeTruthy();
 		expect(dialog.getByText(/History not brought for 1 chat\./)).toBeTruthy();
-		expect(dialog.getByText(/Fix login: The sidecar has not been started\./)).toBeTruthy();
+		expect(dialog.getByText(/Fix login: .*The mapping stopped\./)).toBeTruthy();
+	});
+
+	it("the dry run says the disk space chat history takes and the space free (D132)", async () => {
+		await mount("settings", () => {}, true, { freeBytes: 50e9 });
+
+		fireEvent.click(screen.getByRole("button", { name: "Review import" }));
+		const dialog = within(await screen.findByRole("dialog"));
+		expect(await dialog.findByText(/^Takes about \d+ MB of disk space$/)).toBeTruthy();
+		expect(dialog.getByText("50.0 GB is free.")).toBeTruthy();
+		expect(dialog.getByRole("button", { name: "Import" })).toBeTruthy();
+	});
+
+	it("a disk without the space says so with both numbers, and offers Try again in place of Import", async () => {
+		await mount("settings", () => {}, true, { freeBytes: 1e9 });
+
+		fireEvent.click(screen.getByRole("button", { name: "Review import" }));
+		const dialog = within(await screen.findByRole("dialog"));
+		expect(
+			await dialog.findByText(
+				/^There is not enough free disk space\. The import needs \d+\.\d GB free, and 1\.0 GB is free\. Free up space, then try again\.$/,
+			),
+		).toBeTruthy();
+		expect(dialog.queryByRole("button", { name: "Import" })).toBeNull();
+		expect(dialog.getByRole("button", { name: "Try again" })).toBeTruthy();
 	});
 });
