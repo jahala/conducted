@@ -1151,4 +1151,4 @@ Chosen:
 
 Why not match the lost change: it reverts a setting the user saw saved, which is the defect the button exists to avoid.
 
-Not covered: settings saved on the user's behalf (`last_clone_directory`, `always_allow_local_execution`) live in the settings table, so they never meet an invalid file. A setting's Reset and a project's config page do not show this toast yet; Conductor offers the button there too.
+Not covered: settings saved on the user's behalf (`last_clone_directory`, `always_allow_local_execution`) live in the settings table, so they never meet an invalid file. A setting's Reset and a project's config pages do not show this toast yet; Conductor offers the button there too (issue #654).
