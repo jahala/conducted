@@ -143,6 +143,7 @@ describe("MACOS_JOB covers what the job reads", () => {
 		const without = MACOS_JOB.filter((rule) => rule.glob !== "packages/shared/**");
 		expect(cratePaths().filter((path) => !reaches(path, without))).toEqual([
 			"packages/shared/fixtures/secret-names.json",
+			"packages/shared/fixtures/ssh-include.json",
 		]);
 	});
 });
