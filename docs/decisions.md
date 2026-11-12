@@ -950,3 +950,18 @@ Chosen:
 - **Times.** An event's `at` is Conductor's time. It is received at the import's time, so the data lifetime job, which ages events by when they were received and scans from a watermark, treats imported events as events received at import.
 
 Why: the owner's rule "Match Conductor. Nothing made up; gaps are reported." The history matches Conductor's chat by the spike's measure; a turn whose end the rows do not record shows nothing, as in Conductor, without inventing how it ended.
+
+## D131. File icons draw Conductor's tinted brand glyphs, from their own packages (2026-11-12)
+
+Made in the #534 build, under the owner's rule "Match Conductor. Nothing made up; gaps are reported." The second package (react-icons) is this build's call, for the lead to confirm.
+
+Context: Conductor 0.92.1 looks a file up in a hand-made table before the Material Icon Theme (renderApp `x8i` @2480863): 22 names, a Dockerfile prefix and 84 reachable extensions, drawn with 43 glyphs in 30 tints. Its glyphs come from react-icons. Matched path for path, 32 are Simple Icons, 8 are Font Awesome 5's solid file shapes, 2 are VS Code codicons (`json`, `settings-gear`) and 1 is Devicons' `java`. The issue assumed all were Simple Icons.
+
+Chosen:
+
+- **The table is ours, the art is theirs.** `ui/file-icon.ts` holds the table, hand-read and checked entry for entry against Conductor's. `ui/file-icon.tsx` draws the 32 brand glyphs from `simple-icons` 14.15.0 (CC0; every 14.x release matches all 32, 13.0.0 and 15.0.0 do not), and the other 11 from `react-icons` 5.5.0 (MIT wrapper; Font Awesome and codicons are CC BY 4.0, Devicons MIT; 5.6.0 and 5.7.0 redraw some). Both are pinned exactly, and each glyph is imported by name.
+- **Tints are tokens.** `--color-file-<tint>` in `styles.css` holds Conductor's colours unchanged: Tailwind 4's palette and Conductor's own grays. Only `documentation` (Markdown) changes in dark mode.
+- **Conductor's quirks are kept.** The table reads the text a caller gives, so the file tree's bare name matches a name and the path chip's path matches only by extension, as in Conductor. C# draws Simple Icons' `sharp` glyph, as Conductor's does.
+- **Left out.** Conductor's first rule draws a `[LINEAR]-` or `[GITHUB]-` attachment with its own Linear and GitHub images; we have neither image. Folders keep our own glyph; Conductor draws codicons' folder in the muted colour.
+
+Why: the owner's rule. Every glyph comes from its published package, never from Conductor's bundle (D002), and is checked against Conductor's at the same version.
