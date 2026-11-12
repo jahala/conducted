@@ -1,7 +1,8 @@
 /**
  * @feature catalogue States of the composer
  * Owns: a new chat with an empty composer (the empty chat), the composer with a draft and two attached
- * files, the composer with the model picker open, the slash command menu after typing "/" (Claude,
+ * files, the composer with the model picker open (searched with no match, and switching the model of
+ * a started chat), the slash command menu after typing "/" (Claude,
  * Codex, and with a Skills group), a typed command that cannot run here, the "+" menu, the Create
  * snippet dialog, the snippet picker with no snippets yet, the Link issue dialog with atlas's
  * GitHub issues and Linear not connected (and with no open issues), and the warning when fast mode
@@ -13,7 +14,7 @@
 import type { Session, Workspace } from "../../core/model.ts";
 import { chatRoute, type GitWorld, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, find, has, hover, shows } from "../dom.ts";
+import { click, find, has, hover, shows, typeInto } from "../dom.ts";
 import { setLiveState } from "../live.ts";
 import { addChat, addEvents, CLAUDE_CONFIG, must, setSetting } from "../seeds.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
@@ -214,6 +215,48 @@ export const COMPOSER_STATES: CatalogueState[] = [
 				},
 				(document) => shows(document, "Cycle effort"),
 			),
+	},
+	{
+		id: "composer-model-search-empty",
+		group: "Composer",
+		title: "The model picker searched for a model no agent has",
+		seed: (world) =>
+			newChat(
+				world,
+				async ({ document }) => {
+					await click(document, "button", "Model picker");
+					await typeInto(document, "input", "Search models", "gemini");
+				},
+				(document) => shows(document, "No models found"),
+			),
+	},
+	{
+		id: "composer-model-switch-mid-chat",
+		group: "Composer",
+		title: "Switching the model in a chat that has started: the toast about the next reply",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					const added = await app.container.services.favoriteModels.add({
+						agent: "claude",
+						model: "sonnet",
+						effort: "high",
+						fastMode: false,
+					});
+					if (!added.ok) throw new Error(`Adding a favourite failed: ${added.error.message}`);
+					await click(document, "button", "Model picker");
+					await click(document, "button", "Select Claude Code · sonnet");
+				},
+				ready: (document) =>
+					shows(
+						document,
+						"FYI: When you switch models mid-chat, your next response will be slower",
+					),
+			};
+		},
 	},
 	{
 		id: "composer-plus-menu",

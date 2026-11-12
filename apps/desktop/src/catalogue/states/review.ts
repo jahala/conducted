@@ -1,6 +1,7 @@
 /**
  * @feature catalogue States of the review screens: Changes, diff, comments, AI review and previews
- * Owns: the PR status popover, the Changes filter open, the target branch picker and its failure,
+ * Owns: the PR status popover, the Changes filter open, the target branch picker, its failure and a
+ * search with no match,
  * the untracked-files note, a commit scope, a diff that cannot load or has nothing to show, a
  * whitespace-only diff, the review menu, dialog and tooltip, an SVG preview, an empty CSV preview,
  * the editor's find and replace bar, a video and a PDF that cannot load, and unsaved edits to a file
@@ -372,6 +373,21 @@ export const REVIEW_STATES: CatalogueState[] = [
 		{ atlasBranchesBroken: true },
 		(document) => shows(document, "Couldn't load branches."),
 	),
+	{
+		id: "git-target-branch-no-match",
+		group: "Git panel",
+		title: "The target branch picker searched for a branch that does not exist",
+		seed: arborScene({
+			after: async ({ document }) => {
+				await click(document, "button", "Diff scope");
+				await click(document, "[role=menuitem]", "Target branch");
+				const field = await findFirst(document, 'input[placeholder="Select target branch..."]');
+				if (!(field instanceof HTMLInputElement)) throw new Error("No branch field.");
+				fillIn(field, "release/2019");
+			},
+			ready: (document) => shows(document, "No branch found."),
+		}),
+	},
 	UNTRACKED_NOTE,
 	COMMIT_SCOPE,
 	DIFF_ERROR,
