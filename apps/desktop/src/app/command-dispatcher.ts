@@ -4,7 +4,8 @@
  * right handler. Five hooks: `useCommandDispatcher` mounts the root listeners once; `useCommandHandler`
  * lets a screen register a handler for one command id with a priority; `useRunCommandHandlers` lets a
  * screen run a command's handlers, as a slash command does for /plan and /fast; `useScopeKeyDown` lets
- * a focus-trapping dialog run its own scope's keys before its trap takes them. `useScopedKeyMatch` lets a
+ * a focus-trapping dialog run its own scope's keys before its trap takes them, and the composer run
+ * the app's keys on a modified Enter before its editor takes every Enter. `useScopedKeyMatch` lets a
  * card that handles its own keys (question, tool approval) look a key up in its scope with the live rebinds.
  * Behaviour: ui-map.md 5.4 (shortcuts by scope), 8 ("Kn(commandId, handler, opts)" registers a handler with a
  * priority; a hint component reads the live binding so tooltips follow rebinds), 1.1 (root listeners for
@@ -712,12 +713,14 @@ export type DispatchKey = (event: KeyboardEvent, onlyScope?: CommandScope | null
 const DispatchKeyContext = createContext<DispatchKey | null>(null);
 
 /**
- * Lets a layer that traps focus run its own scope's keys before the trap sees them. A modal dialog's
+ * Lets a layer that takes keys for itself run the app's keys before it sees them. A modal dialog's
  * focus trap takes Tab and Shift+Tab to move focus before the event reaches the root listener, so the
  * command palette, whose scope binds those keys, calls this from its own keydown handler and stops
- * the event when it returns true. Without a dispatcher above, it takes no key.
+ * the event when it returns true. With `null`, every active scope's keys count: the composer's editor
+ * (ProseMirror) prevents the default of every Enter, so the composer runs a modified Enter it gives
+ * no meaning to through here first. Without a dispatcher above, it takes no key.
  */
-export function useScopeKeyDown(scope: CommandScope): (event: KeyboardEvent) => boolean {
+export function useScopeKeyDown(scope: CommandScope | null): (event: KeyboardEvent) => boolean {
 	const dispatchKey = useContext(DispatchKeyContext);
 	return useCallback(
 		(event: KeyboardEvent) => (dispatchKey === null ? false : dispatchKey(event, scope)),

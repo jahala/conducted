@@ -104,7 +104,8 @@ describe("CHAT-24 mermaid diagram", () => {
 		fireEvent.click(await screen.findByRole("button", { name: "Zoom in" }));
 		const expanded = screen.getByTestId("mermaid-expanded");
 		expect(expanded.style.transform).toBe("scale(1.25)");
-		expect(expanded.style.transformOrigin).toBe("top left");
+		// The style says "top left"; CSS serialises the keywords horizontal first.
+		expect(expanded.style.transformOrigin).toBe("left top");
 	});
 
 	it("gives two diagrams in one reply different element ids", async () => {

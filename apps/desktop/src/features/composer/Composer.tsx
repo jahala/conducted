@@ -19,7 +19,8 @@
  * rows, which stay mounted and hidden, as Conductor draws it (renderApp @9315874; D098).
  * While a plan waits for review, the placeholder reads Conductor's "Enter your plan adjustments
  * here..." and sending answers the plan as not approved with the text as its feedback (CHAT-12,
- * renderApp @9294541, @9299794; D098).
+ * renderApp @9294541, @9299794; D098). Cmd+Shift+Enter ("Approve plan") sends that text the same
+ * way, and with no text passes on to the plan bar, which approves (renderApp @9313268).
  * Keyboard: Cmd+L focuses the editor and Cmd+Shift+Backspace cancels the running agent. Both are
  * command handlers (NAV-14), so a shortcut the user rebinds moves with it.
  * Must handle: agent working (send becomes queue or steer, a stop button appears); draft restored
@@ -669,6 +670,19 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 			setBusy(false);
 		}
 	};
+
+	// Cmd+Shift+Enter while a plan waits (CHAT-12). Conductor's approve shortcut sends the composer's
+	// text as the plan's adjustments when there is any (renderApp @9313268). An empty composer passes
+	// the key on to the plan bar, which approves. Only the chat on screen takes it.
+	useCommandHandler("chat.approvePlan", "area", () => {
+		if (services.sessions.store.getState().viewingSessionId !== sessionId) return false;
+		if (planInteractionId === null || editor === null) return false;
+		// Adjustments already on their way: approving under them would answer the plan twice.
+		if (busy) return true;
+		if (editor.getText().trim().length === 0) return false;
+		void sendPlanFeedback(editor, planInteractionId);
+		return true;
+	});
 
 	const checkMcp = async () => {
 		const result = await actions.mcp.refresh(sessionId);
