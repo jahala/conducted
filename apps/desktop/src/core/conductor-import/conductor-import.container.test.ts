@@ -713,6 +713,19 @@ describe("APP-18 chat history from Conductor, through the container", () => {
 		expect(open).toEqual([]);
 	});
 
+	it("an imported agent event keeps no raw payload: the original stays in Conductor's database (D132)", async () => {
+		const test = await setUp();
+		must(await test.container.services.conductorImport.preview());
+		must(await test.container.services.conductorImport.run());
+
+		const agent = await test.database.select<{ content: string }>(
+			"SELECT content FROM session_events WHERE session_id = 's-1' AND type = 'agent'",
+		);
+		expect(agent.length).toBeGreaterThan(0);
+		const withRaw = agent.filter((row) => "raw" in (JSON.parse(row.content).message ?? {}));
+		expect(withRaw).toEqual([]);
+	});
+
 	it("a chat of an agent with no mapping comes over without history", async () => {
 		const test = await setUp();
 		must(await test.container.services.conductorImport.preview());
