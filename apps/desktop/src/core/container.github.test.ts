@@ -35,6 +35,7 @@ function buildContainer(): {
 		nextAttemptAt: null,
 		error: null,
 		path: `${memory.platform.fs.paths.appData}/bin/gh`,
+		follow: null,
 	});
 	const container = createContainer({
 		platform: memory.platform,

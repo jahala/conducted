@@ -210,6 +210,7 @@ describe("D088 the program path the app runs", () => {
 				nextAttemptAt: null,
 				error: "The download was cut off.",
 				path: null,
+				follow: null,
 			});
 			const service = new SystemService({
 				platform: test.container.platform,
@@ -237,6 +238,7 @@ describe("D088 the program path the app runs", () => {
 				nextAttemptAt: null,
 				error: "The download was cut off.",
 				path: null,
+				follow: null,
 			});
 
 			const result = await test.container.services.system.programPath("gh");
@@ -300,6 +302,7 @@ describe("PLAT-28 send gate", () => {
 		nextAttemptAt: null,
 		error: null,
 		path: null,
+		follow: null,
 	});
 
 	const serviceWith = async (

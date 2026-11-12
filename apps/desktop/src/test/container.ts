@@ -109,6 +109,7 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 			nextAttemptAt: null,
 			error: null,
 			path: `${memory.platform.fs.paths.appData}/bin/${program}`,
+			follow: null,
 		});
 	}
 	const reported: { title: string; message: string }[] = [];

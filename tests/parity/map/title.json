@@ -1373,7 +1373,7 @@
 	},
 	"title:R1717947": {
 		"status": "decided",
-		"decision": "D133",
+		"decision": "D134",
 		"note": "The title of the system folder picker that adds a project. Ours passes the same title from the sidebar's Add project button and onboarding's project step; AddProjectButton.test.tsx, ProjectStep.test.tsx and command-runner.test.ts assert it.",
 		"by": "hand"
 	},
@@ -1634,7 +1634,7 @@
 		"backlog": "RUN-06",
 		"item": "Confirm 'Open this terminal link?' with Cancel and Open",
 		"owner": "hand",
-		"note": "Conductor asks in a system dialog (the dialog plugin's confirm, kind warning, renderApp @4363426); ours asks in a dialog the app draws, with the same title, text and buttons. Matching means replacing our dialog with the system one, which waits for the owner's yes. Once it is a system dialog, D133 covers it.",
+		"note": "Conductor asks in a system dialog (the dialog plugin's confirm, kind warning, renderApp @4363426); ours asks in a dialog the app draws, with the same title, text and buttons. Matching means replacing our dialog with the system one, which waits for the owner's yes. Once it is a system dialog, D134 covers it.",
 		"by": "hand"
 	},
 	"title:R4405982": {
@@ -1677,7 +1677,7 @@
 	},
 	"title:R5685048": {
 		"status": "decided",
-		"decision": "D133",
+		"decision": "D134",
 		"note": "The title of the system folder picker in Link workspaces and directories. Ours passes the same title; LinkDirectoriesDialog.ws-07.test.tsx asserts it.",
 		"by": "hand"
 	},
@@ -2079,7 +2079,7 @@
 	},
 	"title:R10967435": {
 		"status": "decided",
-		"decision": "D133",
+		"decision": "D134",
 		"note": "The title of the system folder picker that moves the app's data folder. Ours passes 'Select Conducted root directory' (D012) from the Advanced page; AdvancedPage.test.tsx asserts it.",
 		"by": "hand"
 	},

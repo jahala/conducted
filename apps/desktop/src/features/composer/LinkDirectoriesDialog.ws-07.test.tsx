@@ -70,7 +70,7 @@ describe("WS-07 Link workspaces and directories dialog", () => {
 
 		fireEvent.click(screen.getByRole("button", { name: "Select working directories" }));
 		expect(await screen.findByText("/code/shared")).toBeTruthy();
-		// The system folder picker's title, as Conductor's (renderApp @5685048, D133).
+		// The system folder picker's title, as Conductor's (renderApp @5685048, D134).
 		expect(pickFolder).toHaveBeenCalledWith(
 			expect.objectContaining({ title: "Select directory to link" }),
 		);

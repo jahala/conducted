@@ -2,7 +2,7 @@ import { appError, err, ok } from "@conducted/shared";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
-import type { AgentProgramView } from "../../../core/model.ts";
+import type { AgentProgramView, ProgramFollow } from "../../../core/model.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
 import { toast } from "../../../ui/Toast.tsx";
 import { AdvancedPage } from "./AdvancedPage.tsx";
@@ -25,6 +25,7 @@ const claude: AgentProgramView = {
 		nextAttemptAt: null,
 		error: null,
 		path: "/app/agent-binaries/claude/2.1.308/claude",
+		follow: null,
 	},
 	userPath: null,
 };
@@ -201,6 +202,66 @@ describe("SET-02 AdvancedPage", () => {
 		expect(install).toHaveBeenCalledWith("claude");
 	});
 
+	it("PLAT-28 says which Claude Code runs and why (D133)", async () => {
+		const mounted = await mountPage();
+		const shows = async (
+			version: string,
+			follow: ProgramFollow,
+			userPath: string | null = null,
+		): Promise<string> => {
+			act(() => {
+				mounted.container.services.system.store.setState({
+					programs: {
+						state: "ready",
+						data: [{ status: { ...claude.status, version, follow }, userPath }],
+					},
+				});
+			});
+			const name = await screen.findByText("Claude Code", { selector: "li p" });
+			return name.nextElementSibling?.textContent ?? "";
+		};
+		const note = (check: ProgramFollow["check"]): ProgramFollow => ({
+			shipped: "2.1.322",
+			sdk: "0.3.321",
+			check,
+		});
+
+		expect(await shows("2.1.322", note(null))).toBe(
+			"Version 2.1.322, the version this app ships with.",
+		);
+		expect(await shows("2.1.330", note(null))).toBe(
+			"Version 2.1.330, a newer release tested with this app.",
+		);
+		expect(await shows("2.1.322", note({ kind: "checking" }))).toBe(
+			"Version 2.1.322, the version this app ships with. Checking for a newer version.",
+		);
+		expect(await shows("2.1.330", note({ kind: "newest", latest: "2.1.330" }))).toBe(
+			"Version 2.1.330, the newest release.",
+		);
+		expect(await shows("2.1.322", note({ kind: "untested", latest: "2.1.331" }))).toBe(
+			"Version 2.1.322, the version this app ships with. Version 2.1.331 is newer, but it is not tested with this app's Claude Agent SDK 0.3.321, so it is skipped.",
+		);
+		expect(await shows("2.1.330", note({ kind: "downloading", latest: "2.1.331" }))).toBe(
+			"Version 2.1.330. Downloading version 2.1.331 for new chats.",
+		);
+		expect(
+			await shows(
+				"2.1.322",
+				note({
+					kind: "failed",
+					error:
+						"The release host answered 503 for https://downloads.claude.ai/claude-code-releases/latest.",
+				}),
+			),
+		).toBe(
+			"Version 2.1.322, the version this app ships with. The check for a newer version failed: The release host answered 503 for https://downloads.claude.ai/claude-code-releases/latest.",
+		);
+		// A program the user chose wins over the managed copy, whatever the note says.
+		expect(
+			await shows("2.1.330", note({ kind: "newest", latest: "2.1.330" }), "/opt/my/claude"),
+		).toBe("Using the program at /opt/my/claude.");
+	});
+
 	it("AGENT-09 installs Cursor's SDK from the Agent binaries section", async () => {
 		const mounted = await mountPage();
 		const install = vi.spyOn(mounted.container.platform.programs, "install");
@@ -302,6 +363,7 @@ describe("SET-02 AdvancedPage", () => {
 								nextAttemptAt: null,
 								error: null,
 								path: null,
+								follow: null,
 							},
 							userPath: null,
 						},
@@ -334,6 +396,7 @@ describe("SET-02 AdvancedPage", () => {
 								nextAttemptAt: null,
 								error: "The download was cut off.",
 								path: null,
+								follow: null,
 							},
 							userPath: null,
 						},
@@ -426,7 +489,7 @@ describe("SET-02 AdvancedPage", () => {
 				"/tmp/new-root",
 			),
 		);
-		// The system folder picker's title: Conductor's, with our product name (renderApp @10967435, D133).
+		// The system folder picker's title: Conductor's, with our product name (renderApp @10967435, D134).
 		expect(pickFolder).toHaveBeenCalledWith("Select Conducted root directory");
 	});
 });

@@ -985,12 +985,29 @@ Chosen:
 
 Why: the owner's disk must not fill. `raw` was most of the weight, and the original stays in Conductor's database. The dry run already promises to say what the import will do before it does it, and the space it takes is part of that.
 
-## D133. A system dialog's title is checked by a test, not a catalogue state (2026-11-12)
+## D133. Claude Code follows its newest compatible release between app updates (2026-11-12)
+
+Asked for by the owner in #541. Extends D021 and D088; D088's rule stays.
+Context: the app ran only the Claude Code its release feed pinned (D088), so a model that needs a newer Claude Code arrived only with an app release. Conductor pins its Claude Code the same way. Claude Code's release host publishes `https://downloads.claude.ai/claude-code-releases/latest`, the newest version as plain text, and `<version>/manifest.json` with each platform's SHA-256 and size and `sdkCompat.testedWrapperVersions`, the Claude Agent SDK versions that release was tested with. Claude Code's own installer (`https://claude.ai/install.sh`) reads the same two files.
+Chosen:
+
+- **When.** At launch, and whenever a day has passed on the wall clock, looked at once an hour (`apps/desktop/src-tauri/src/binaries/follow.rs`).
+- **Which release.** The `latest` version, when it is newer than the copy that runs and its manifest lists the SDK the sidecar pins. `build.rs` reads that pin from `packages/sidecar/package.json`, its one home. A release that does not list it is never installed, and the Advanced page names it.
+- **How it installs.** From `<version>/darwin-arm64/claude` or `<version>/darwin-x64/claude`, through a temporary file that replaces nothing until its size and SHA-256 match the manifest. A refused or cut-off download leaves the copy that runs, and no temporary file or empty version folder. Claude Code stays Ready meanwhile, so the send gate never holds a chat for it.
+- **The floor.** The release feed's version is the oldest the app runs and the answer when the host is out of reach. A first install and Re-download take the newest compatible release, or the floor. After a restart a followed copy runs only while it is newer than the floor and its install record lists the SDK, so an app update that moves either goes back to the floor until the next check.
+- **Chats.** A new chat resolves the bin link and gets the new copy. A running chat keeps the path it started with: every version that was ready during this app run stays on disk until the next launch, which moves the others to the Trash with their install records.
+- **What stays.** A program chosen in Settings still wins (SET-13). The app never runs a copy from PATH (D088); what changes is that its managed Claude Code is no longer fixed per app version. Codex, gh, watchexec and the cloud sandbox's programs keep their pins.
+- **Codex has no signal.** Its GitHub release gives each file a SHA-256 digest and ships a config schema and an SDK tarball at the same version, but nothing says which client or protocol version it works with. The sidecar speaks Codex's app-server protocol directly, so nothing can gate a move.
+- **Limits.** Only `latest` is read: the host publishes no list of versions (`/claude-code-releases/` answers 404), so a compatible release between the one that runs and an incompatible `latest` is never seen. The manifest is trusted over HTTPS from the vendor's host, as the installer trusts it. The host also publishes `<version>/manifest.json.sig`, but no public key for it is documented, so it is not checked. The floor's checksum is still reviewed in a pull request; a followed version's comes from the host at run time.
+
+Why: the owner's request. New models reach the user without an app release, and the SDK gate keeps the app on releases Claude Code's own tests cover for the SDK the sidecar runs.
+
+## D134. A system dialog's title is checked by a test, not a catalogue state (2026-11-12)
 
 Decided in the parity work under the owner's rule "Match Conductor. Nothing made up; gaps are reported."
 
 Context: Conductor titles its system folder pickers "Select project directory", "Select directory to link" and "Select Conductor root directory" (renderApp @1717947, @5685048, @10967435). macOS draws those windows outside the page, so no catalogue state can show them, and the parity harness's check b never sees them. Ours passes the same titles to `Platform.dialogs.pickFolder`, with our product name in the third (D012).
 
-Chosen: a parity entry that is the title of a system dialog is mapped to D133. Its note names the screen that opens the dialog and the test that asserts the title the Platform receives. The test drives the real screen, so changing the title fails it. A dialog the app draws itself stays a catalogue match.
+Chosen: a parity entry that is the title of a system dialog is mapped to D134. Its note names the screen that opens the dialog and the test that asserts the title the Platform receives. The test drives the real screen, so changing the title fails it. A dialog the app draws itself stays a catalogue match.
 
 Why: the words are on screen and must match Conductor's. Only a test can see them, so the decision names the test that holds them.
