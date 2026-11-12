@@ -18,7 +18,7 @@ import {
 	COPY_FILE_SIZE_LIMIT,
 	type CopyIncludedFilesDeps,
 	copyIncludedFiles,
-} from "./workspace.ts";
+} from "./workspace-creation.ts";
 
 const repo = (rootPath: string): Repo => ({
 	id: "r1" as RepoId,
@@ -40,6 +40,7 @@ const workspace = (path: string): Workspace => ({
 	path,
 	branch: "oslo",
 	branchIsPlaceholder: true,
+	remoteFileSyncEnabled: false,
 	host: { kind: "local" },
 	displayName: null,
 	targetBranch: "main",
@@ -71,9 +72,9 @@ const fsAdapter: CopyIncludedFilesDeps["fs"] = {
 	exists: async (path) => {
 		try {
 			await stat(path);
-			return true;
+			return ok(true);
 		} catch {
-			return false;
+			return ok(false);
 		}
 	},
 	stat: async (path) => {
@@ -226,7 +227,7 @@ describe("WS-03 copyIncludedFiles on real files", () => {
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.value).toEqual(["Skipped big.bin: larger than 256 KiB."]);
-		expect(await fsAdapter.exists(join(workspacePath, "big.bin"))).toBe(false);
+		expect(await fsAdapter.exists(join(workspacePath, "big.bin"))).toEqual(ok(false));
 	});
 
 	it("warns when the repository file list cannot be read", async () => {
@@ -250,7 +251,7 @@ describe("WS-03 copyIncludedFiles on real files", () => {
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.value).toContain("Couldn't read the repository's file list: The file is broken.");
-		expect(await fsAdapter.exists(join(workspacePath, ".env"))).toBe(true);
+		expect(await fsAdapter.exists(join(workspacePath, ".env"))).toEqual(ok(true));
 	});
 
 	it("warns when .worktreeinclude cannot be read", async () => {

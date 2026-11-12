@@ -5,14 +5,19 @@
  * slash command, Glob, List files and a plain Bash call with its raw input shown; and a design fix
  * that activates a skill, reads a mockup image, asks the user, retries an edit Claude Code refused
  * and opens the edit that worked; a turn that keeps a task list, runs JavaScript in a Node
- * REPL and generates an image; and a reply with a Mermaid diagram.
+ * REPL and generates an image; a turn whose todo list is empty, started and done; a turn that
+ * enters plan mode and proposes a plan, with the plan's menu open; two HTML visualizations the chat
+ * cannot show; a reply with a
+ * Mermaid diagram; and a background helper whose work
+ * arrives in the next turn, shown inside the card of the turn that started it (D129).
  * Behaviour: ui-map.md 3.3 (chat, tool cards); the cards are features/chat/tools/cards/.
  * Test first: not applicable; the screenshot run opens every state.
  */
 import { animateCast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, find, shows } from "../dom.ts";
-import { addChat, addEvents } from "../seeds.ts";
+import { click, find, rightClick, shows } from "../dom.ts";
+import { deliverEvents, setLiveState } from "../live.ts";
+import { addChat, addEvents, CLAUDE_CONFIG } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
 import type { World } from "../world.ts";
@@ -33,6 +38,17 @@ async function openRow(document: Document, title: string, nth = 0): Promise<void
 	const row = rows[nth];
 	if (row === undefined) throw new Error(`No closed "${title}" row number ${nth + 1}.`);
 	row.click();
+}
+
+/** Opens the closed rows whose title starts with `title`; a row already open is left alone. */
+async function openClosedRow(document: Document, title: string): Promise<void> {
+	const rows = [...document.querySelectorAll<HTMLElement>("button[aria-expanded=false]")].filter(
+		(row) => (row.textContent ?? "").trim().startsWith(title),
+	);
+	for (const row of rows) {
+		row.click();
+		await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+	}
 }
 
 /** arbor's review of its own change, before the pull request. */
@@ -273,6 +289,39 @@ async function taskToolsChat(world: World): Promise<Scene> {
 		].join("\n"),
 	});
 	talk.tool(turn, {
+		tool: "task_list",
+		rawName: "TaskList",
+		input: {},
+		output: "No tasks",
+	});
+	talk.tool(turn, {
+		tool: "task_list",
+		rawName: "TaskList",
+		input: {},
+		output: "Task #1: Write the Node 24 release notes\nTask #2: Check the minimum Node version",
+	});
+	talk.tool(turn, {
+		tool: "image_view",
+		rawName: "Read",
+		input: { file_path: `${CANYON}/docs/release/node-24-banner.png` },
+		output: "Loaded the image.",
+	});
+	talk.tool(turn, {
+		tool: "send_message",
+		rawName: "SendMessage",
+		input: { chat: "Release checklist", message: "The banner is ready for the post." },
+		output: "Message sent.",
+	});
+	talk.tool(turn, {
+		tool: "sub_agent",
+		rawName: "Task",
+		input: {
+			description: "Check the release notes for missing steps",
+			prompt: "Read docs/release/node-24.md and list any step without a test.",
+		},
+		output: "Every step has a test except the Dockerfile change.",
+	});
+	talk.tool(turn, {
 		tool: "node_repl",
 		rawName: "node_repl",
 		input: { code: "process.versions.node.split('.')[0]" },
@@ -283,6 +332,12 @@ async function taskToolsChat(world: World): Promise<Scene> {
 		rawName: "image_generation",
 		input: { prompt: "A flat banner with a green hexagon and the words Node 24" },
 		output: "Saved the image to docs/release/node-24-banner.png",
+	});
+	talk.tool(turn, {
+		tool: "image_generation",
+		rawName: "image_generation",
+		input: { prompt: "A small square icon of the Node 24 hexagon" },
+		output: null,
 	});
 	talk.usage(turn, 31_000);
 	talk.text(
@@ -296,11 +351,136 @@ async function taskToolsChat(world: World): Promise<Scene> {
 		after: async ({ app, document }) => {
 			await animateCast(world, cast, app);
 			await refreshGit(app, cast.grove);
-			// The turn's work shows open, as the only work of the chat; open two of its rows.
+			// The turn's work shows open, as the only work of the chat; open every card it names.
 			await openRow(document, "Task created");
+			await openClosedRow(document, "Task details");
+			await openClosedRow(document, "Tasks");
+			await openClosedRow(document, "Preview image");
+			await openClosedRow(document, "Send message");
+			await openClosedRow(document, "Subagent");
 			await openRow(document, "Node REPL");
+			await openClosedRow(document, "Loading image");
 		},
 		ready: (document) => shows(document, "process.versions.node"),
+	};
+}
+
+/** A turn that writes the agent's todo list three times: empty, one item started, all done. */
+async function todoToolsChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.grove, { title: "Plan the Node 24 upgrade" });
+	const talk = conversation("grove-todos", CATALOGUE_NOW - 9 * MINUTE);
+	const turn = talk.user("Plan the Node 24 upgrade as a todo list and work through it.");
+	const steps = [
+		[],
+		[
+			{ label: "Bump .node-version to 24", status: "in_progress" },
+			{ label: "Update the Dockerfile's base image", status: "pending" },
+		],
+		[
+			{ label: "Bump .node-version to 24", status: "done" },
+			{ label: "Update the Dockerfile's base image", status: "done" },
+		],
+	];
+	for (const items of steps) {
+		talk.tool(turn, {
+			tool: "todo",
+			rawName: "TodoWrite",
+			input: { items },
+			output: "Todos updated.",
+		});
+	}
+	talk.usage(turn, 18_000);
+	talk.text(
+		turn,
+		"Both steps are done: `.node-version` reads 24 and the Dockerfile uses node:24-slim.",
+	);
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	return {
+		route: chatRoute(cast.grove, chat),
+		after: async ({ app, document }) => {
+			await animateCast(world, cast, app);
+			await refreshGit(app, cast.grove);
+			// The turn's work is folded into one row; open it to show each todo card's title.
+			await click(document, "button", "Expand", { prefix: true });
+		},
+		ready: (document) =>
+			shows(document, "No todos") &&
+			shows(document, "Todo started") &&
+			shows(document, "Todo completed"),
+	};
+}
+
+/** A turn that enters plan mode and proposes a plan the user approved; the plan's menu open. */
+async function planModeChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.grove, { title: "Plan the cache change" });
+	const talk = conversation("grove-plan-mode", CATALOGUE_NOW - 7 * MINUTE);
+	const turn = talk.user("Plan how to invalidate the price cache before changing anything.");
+	talk.tool(turn, {
+		tool: "enter_plan_mode",
+		rawName: "EnterPlanMode",
+		input: {},
+		output: "Entered plan mode.",
+	});
+	talk.tool(turn, {
+		tool: "exit_plan_mode",
+		rawName: "ExitPlanMode",
+		input: {
+			plan: "1. Clear PriceCache on every price write.\n2. Add a test that writes, then reads.",
+		},
+		output: "The user approved the plan.",
+	});
+	talk.usage(turn, 9_000);
+	talk.text(turn, "The plan is approved; I will start with the cache.");
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	return {
+		route: chatRoute(cast.grove, chat),
+		after: async ({ app, document }) => {
+			await animateCast(world, cast, app);
+			await refreshGit(app, cast.grove);
+
+			await rightClick(document, "button", "Propose plan", { prefix: true });
+		},
+		ready: (document) => shows(document, "Enter plan mode") && shows(document, "Copy plan"),
+	};
+}
+
+/** A turn that writes two HTML visualizations the chat cannot show: one outside the workspace, one gone. */
+async function visualizationChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	// Visualizations are Codex's.
+	const config = { ...CLAUDE_CONFIG, agent: "codex" as const, model: "gpt-5.5" };
+	const chat = await addChat(world, cast.grove, { title: "Chart the cache hit rate", config });
+	const talk = conversation("grove-visualizations", CATALOGUE_NOW - 5 * MINUTE);
+	const turn = talk.user("Chart the cache hit rate for the last week as an HTML page.", { config });
+	talk.tool(turn, {
+		tool: "write",
+		rawName: "Write",
+		input: { file_path: "/tmp/hit-rate.html", content: "<h1>Hit rate</h1>\n" },
+		output: "Wrote /tmp/hit-rate.html",
+	});
+	talk.tool(turn, {
+		tool: "write",
+		rawName: "Write",
+		input: { file_path: "charts/hit-rate.html", content: "<h1>Hit rate</h1>\n" },
+		output: "Wrote charts/hit-rate.html",
+	});
+	talk.usage(turn, 11_000);
+	talk.text(turn, "The chart is in charts/hit-rate.html.");
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	return {
+		route: chatRoute(cast.grove, chat),
+		after: async ({ app }) => {
+			await animateCast(world, cast, app);
+			await refreshGit(app, cast.grove);
+		},
+		ready: (document) =>
+			shows(document, "Visualization is outside the workspace:") &&
+			shows(document, "Couldn’t load visualization"),
 	};
 }
 
@@ -339,7 +519,104 @@ async function mermaidChat(world: World): Promise<Scene> {
 	};
 }
 
+/**
+ * canyon's helper chat: the first turn starts a background helper and ends; the helper's work
+ * arrives while the second turn runs, naming the first turn's Task call as its parent.
+ */
+async function backgroundHelperChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.canyon, { title: "Audit the settings copy" });
+	const talk = conversation("canyon-helper", CATALOGUE_NOW - 14 * MINUTE);
+	const first = talk.user(
+		"Start a helper that checks every settings label against the copy deck, then keep going.",
+	);
+	const helper = talk.tool(first, {
+		tool: "sub_agent",
+		rawName: "Task",
+		input: {
+			description: "Check the settings labels against the copy deck",
+			prompt:
+				"Compare each label in src/settings with docs/copy-deck.md and list the ones that differ.",
+			run_in_background: true,
+		},
+		output: "Async agent launched. It reports back when it finishes.",
+	});
+	talk.text(first, "The helper is checking the labels in the background.");
+	talk.end(first);
+	const second = talk.user("While it runs, rename the Danger zone heading to Delete workspace.");
+	talk.agent(second, [{ kind: "text", text: "Reading the copy deck first." }], helper);
+	talk.tool(second, {
+		tool: "grep",
+		rawName: "Grep",
+		input: { pattern: "label=", path: "src/settings" },
+		output: "src/settings/general.tsx:14\nsrc/settings/danger-zone.tsx:9",
+		parent: helper,
+	});
+	talk.tool(second, {
+		tool: "edit",
+		rawName: "Edit",
+		input: {
+			file_path: `${CANYON}/src/settings/danger-zone.tsx`,
+			old_string: "Danger zone",
+			new_string: "Delete workspace",
+		},
+		output: "The file was edited.",
+	});
+	talk.agent(
+		second,
+		[{ kind: "text", text: "Two labels differ from the deck: Danger zone and Sync now." }],
+		helper,
+	);
+	talk.text(second, "The heading now reads Delete workspace.");
+	talk.end(second);
+	await addEvents(world, chat.id, talk.events);
+	return {
+		route: chatRoute(cast.canyon, chat),
+		after: async ({ app, document }) => {
+			await animateCast(world, cast, app);
+			await refreshGit(app, cast.canyon);
+			await openRow(document, "Subagent");
+		},
+		ready: (document) => shows(document, "Two labels differ from the deck"),
+	};
+}
+
+/** A running turn whose task and image are still being worked on, so both cards say they load. */
+async function loadingToolsChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.grove, { title: "Start the release work" });
+	const talk = conversation("grove-loading", CATALOGUE_NOW - 2 * MINUTE, 10_000);
+	const turn = talk.user("Start the release task and make its banner image.");
+	talk.tool(turn, {
+		tool: "task_get",
+		rawName: "TaskGet",
+		input: { taskId: "1" },
+		output: null,
+	});
+	talk.tool(turn, {
+		tool: "image_generation",
+		rawName: "image_generation",
+		input: { prompt: "A flat banner with a green hexagon and the words Node 24" },
+		output: null,
+	});
+	return {
+		route: chatRoute(cast.grove, chat),
+		after: async ({ app }) => {
+			await refreshGit(app, cast.grove);
+			setLiveState(world, chat.id, {});
+			deliverEvents(world, chat.id, talk.events, 10);
+		},
+		ready: (document) => shows(document, "Loading task..."),
+	};
+}
+
 export const TOOL_STATES: CatalogueState[] = [
+	{
+		id: "chat-tools-loading",
+		group: "Workspace chat",
+		title: "A running turn: its task and its image are still being made",
+		seed: loadingToolsChat,
+	},
 	{
 		id: "chat-tool-cards-review",
 		group: "Workspace chat",
@@ -360,9 +637,34 @@ export const TOOL_STATES: CatalogueState[] = [
 		seed: taskToolsChat,
 	},
 	{
+		id: "chat-tool-cards-todos",
+		group: "Workspace chat",
+		title: "A turn's todo cards: an empty list, one item started, all done",
+		seed: todoToolsChat,
+	},
+	{
+		id: "chat-tool-cards-plan-mode",
+		group: "Workspace chat",
+		title: "A turn that entered plan mode and proposed a plan, the plan's right-click menu open",
+		seed: planModeChat,
+	},
+	{
+		id: "chat-visualizations-unavailable",
+		group: "Workspace chat",
+		title: "Two HTML visualizations the chat cannot show: outside the workspace, and missing",
+		seed: visualizationChat,
+	},
+	{
 		id: "chat-mermaid",
 		group: "Workspace chat",
 		title: "A reply with a Mermaid sequence diagram",
 		seed: mermaidChat,
+	},
+	{
+		id: "chat-subagent-late-work",
+		group: "Workspace chat",
+		title:
+			"A background helper's work from the next turn, opened inside the card of the turn that started it",
+		seed: backgroundHelperChat,
 	},
 ];

@@ -1,14 +1,22 @@
 /**
  * @feature DATA-01 Repository for the session_events table
  * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
+ * @feature APP-18 Chat history from Conductor
  * Owns: the chat's append-only event log: append, read in order, mark reverted, find turns cut
- * off by a crash, and sum a workspace's reported agent cost.
+ * off by a crash, and sum a workspace's reported agent cost; the staging an imported chat's
+ * history is written to before it joins the chat in one statement (APP-18, D136);
+ * `storedEventBytes`, what one imported event takes in the table, which the Conductor import's
+ * dry run sums (D132).
  * Behaviour: sessions.md section 5 (durable events, acknowledgement after the write),
  * services-map.md 2.3.3 (append event, revert events), sessions-and-chats.md "How chats are stored".
  * Must handle: append is idempotent on (session_id, event_id) and assigns the next idx in the same
  * statement, so a replayed event adds nothing and two appends never share an idx; the statement
- * returns a row only when it inserted, so an empty result means "duplicate"; reverting marks
- * events and never deletes them; a bad content column returns an error Result.
+ * returns a row only when it inserted, so an empty result means "duplicate"; the staging is a
+ * temporary database SQLite deletes when it is detached or the connection closes, so a staged
+ * chat, which no reader of `session_events` sees, is never left behind, and opening it drops one
+ * an earlier run left attached; publishing copies the staged events after the chat's last idx in
+ * their order and reports how many it inserted, so a duplicate shows as a shortfall; reverting
+ * marks events and never deletes them; a bad content column returns an error Result.
  * Test first: appending the same event id twice stores one row, and a new event id gets idx + 1.
  */
 import { type SessionEvent, zSessionEvent } from "@conducted/protocol";
@@ -26,6 +34,7 @@ import type { RepositoryDeps } from "./deps.ts";
 import {
 	collectResults,
 	executeStatement,
+	executeVoid,
 	parseJsonColumn,
 	selectRows,
 	stringifyJson,
@@ -87,7 +96,91 @@ export function sessionEventToParams(
 	};
 }
 
+/** The text columns `stageMany` writes for one event: event id, type, turn id, content. */
+type StoredColumns = [string, string, string, string];
+
+function storedColumns(event: SessionEvent): Result<StoredColumns> {
+	const content = stringifyJson(event, "session_events.content");
+	if (!content.ok) return content;
+	return ok([event.eventId, event.type, event.turnId, content.value]);
+}
+
+/** UTF-8 bytes of a text, counted without encoding it. */
+function utf8Bytes(text: string): number {
+	let bytes = 0;
+	for (let index = 0; index < text.length; index++) {
+		const unit = text.charCodeAt(index);
+		if (unit < 0x80) bytes += 1;
+		else if (unit < 0x800) bytes += 2;
+		else if (unit >= 0xd800 && unit < 0xdc00 && (text.charCodeAt(index + 1) & 0xfc00) === 0xdc00) {
+			// A surrogate pair is one character of four bytes.
+			bytes += 4;
+			index++;
+		} else bytes += 3;
+	}
+	return bytes;
+}
+
+/** The two whole-number columns, idx and received_at, at SQLite's widest. */
+const NUMBER_COLUMNS_BYTES = 16;
+
+/**
+ * The table's indexes (migrations 0001 and 0010), each by the text columns its entries repeat:
+ * the primary key (session_id, idx), the unique (session_id, event_id), idx_session_events_turn
+ * (session_id, turn_id) and idx_session_events_unreverted_turn (reverted_at, session_id, turn_id,
+ * type, idx). A test lists the table's indexes, so a new one fails until it is counted here.
+ */
+export const SESSION_EVENT_INDEXES = [
+	"sqlite_autoindex_session_events_1",
+	"sqlite_autoindex_session_events_2",
+	"idx_session_events_turn",
+	"idx_session_events_unreverted_turn",
+] as const;
+
+/** What one appended event stores: its row, and the text its index entries repeat. */
+export interface StoredEventBytes {
+	/** The row's text columns as UTF-8 and its numbers. */
+	row: number;
+	/** The text the four index entries hold, as UTF-8; their numbers are SQLite's page format. */
+	indexKeys: number;
+}
+
+/**
+ * The bytes an imported event takes once published, before SQLite's pages (APP-18, D132). The
+ * Conductor import's dry run sums them.
+ */
+export function storedEventBytes(
+	sessionId: SessionId,
+	event: SessionEvent,
+): Result<StoredEventBytes> {
+	const columns = storedColumns(event);
+	if (!columns.ok) return columns;
+	const [eventId, type, turnId, content] = columns.value.map(utf8Bytes) as [
+		number,
+		number,
+		number,
+		number,
+	];
+	const session = utf8Bytes(sessionId);
+	const row = session + eventId + type + turnId + content + NUMBER_COLUMNS_BYTES;
+	return ok({ row, indexKeys: 4 * session + eventId + 2 * turnId + type });
+}
+
 const COLUMNS = "session_id, idx, event_id, type, turn_id, content, received_at, reverted_at";
+
+/** The schema name of the imported chat's staging (APP-18, D136). */
+const STAGING = "conductor_history";
+
+/** The JSON list `stageMany` takes: each event's stored columns. */
+function storedColumnsList(events: readonly SessionEvent[]): Result<string> {
+	const entries: StoredColumns[] = [];
+	for (const event of events) {
+		const columns = storedColumns(event);
+		if (!columns.ok) return columns;
+		entries.push(columns.value);
+	}
+	return stringifyJson(entries, "session_events batch");
+}
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const SESSION_EVENTS_SQL = {
@@ -102,6 +195,40 @@ export const SESSION_EVENTS_SQL = {
 		FROM session_events WHERE session_id = $1
 		ON CONFLICT (session_id, event_id) DO NOTHING
 		RETURNING idx`,
+	/**
+	 * APP-18 (D136): the staging of one imported chat. `''` makes SQLite create a temporary file of
+	 * its own, deleted on DETACH or when the connection closes.
+	 */
+	stagingAttached: `SELECT COUNT(*) AS n FROM pragma_database_list WHERE name = '${STAGING}'`,
+	attachStaging: `ATTACH DATABASE '' AS ${STAGING}`,
+	createStaging: `CREATE TABLE ${STAGING}.events (
+			idx INTEGER PRIMARY KEY, event_id TEXT NOT NULL, type TEXT NOT NULL,
+			turn_id TEXT NOT NULL, content TEXT NOT NULL)`,
+	detachStaging: `DETACH DATABASE ${STAGING}`,
+	/**
+	 * Stages `$1`, a JSON list of `[eventId, type, turnId, content]`, after the events staged
+	 * before, in the list's order.
+	 */
+	stageMany: `INSERT INTO ${STAGING}.events (idx, event_id, type, turn_id, content)
+		SELECT base.next + item.key, json_extract(item.value, '$[0]'),
+			json_extract(item.value, '$[1]'), json_extract(item.value, '$[2]'),
+			json_extract(item.value, '$[3]')
+		FROM json_each($1) AS item,
+			(SELECT COALESCE(MAX(idx), -1) + 1 AS next FROM ${STAGING}.events) AS base`,
+	/**
+	 * Copies every staged event after the chat's last idx, in staged order, received at `$2`. An
+	 * event id the chat holds is dropped, so the count of rows changed says how many were new. The
+	 * WHERE clause keeps the parser from reading ON CONFLICT as a join condition.
+	 */
+	publishStaged: `INSERT INTO session_events (session_id, idx, event_id, type, turn_id, content, received_at)
+		SELECT $1, base.next + staged.idx, staged.event_id, staged.type, staged.turn_id,
+			staged.content, $2
+		FROM ${STAGING}.events AS staged,
+			(SELECT COALESCE(MAX(idx), -1) + 1 AS next FROM session_events WHERE session_id = $1) AS base
+		WHERE true
+		ORDER BY staged.idx
+		ON CONFLICT (session_id, event_id) DO NOTHING`,
+	count: "SELECT COUNT(*) AS n FROM session_events WHERE session_id = $1",
 	listFrom: `SELECT ${COLUMNS} FROM session_events WHERE session_id = $1 AND idx >= $2
 		ORDER BY idx LIMIT $3`,
 	listByTurn: `SELECT ${COLUMNS} FROM session_events WHERE session_id = $1 AND turn_id = $2
@@ -161,6 +288,22 @@ export interface SessionEventRepository {
 		event: SessionEvent,
 		receivedAt: number,
 	): Promise<Result<AppendOutcome>>;
+	/**
+	 * APP-18 (D136): attaches an empty staging, first detaching one an earlier run left. Run it on
+	 * the database, never inside a transaction, which cannot attach.
+	 */
+	openStaging(): Promise<Result<void>>;
+	/** SESSION_EVENTS_SQL.stageMany: answers how many it staged. */
+	stageMany(events: readonly SessionEvent[]): Promise<Result<number>>;
+	/**
+	 * SESSION_EVENTS_SQL.publishStaged: the staged events into the chat, received at `receivedAt`.
+	 * Answers how many it inserted; fewer than staged means some ids were there.
+	 */
+	publishStaged(sessionId: SessionId, receivedAt: number): Promise<Result<number>>;
+	/** Detaches the staging, if it is attached; SQLite deletes its file. */
+	closeStaging(): Promise<Result<void>>;
+	/** SESSION_EVENTS_SQL.count: how many events the chat holds. */
+	count(sessionId: SessionId): Promise<Result<number>>;
 	/** SESSION_EVENTS_SQL.listFrom. Events with idx >= `fromIdx`, in idx order, at most `limit`. */
 	listFrom(
 		sessionId: SessionId,
@@ -203,6 +346,22 @@ export function createSessionEventRepository(
 		const rows = await selectRows<SessionEventRow>(db, sql, params, what);
 		return rows.ok ? collectResults(rows.value.map(sessionEventFromRow)) : err(rows.error);
 	};
+	const closeStaging = async (): Promise<Result<void>> => {
+		const attached = await selectRows<{ n: number }>(
+			db,
+			SESSION_EVENTS_SQL.stagingAttached,
+			[],
+			"Looking for an imported chat's staging",
+		);
+		if (!attached.ok) return err(attached.error);
+		if (Number(attached.value[0]?.n ?? 0) === 0) return ok(undefined);
+		return executeVoid(
+			db,
+			SESSION_EVENTS_SQL.detachStaging,
+			[],
+			"Closing an imported chat's staging",
+		);
+	};
 	return {
 		append: async (sessionId, event, receivedAt) => {
 			const params = sessionEventToParams(sessionId, event, receivedAt);
@@ -216,6 +375,51 @@ export function createSessionEventRepository(
 			if (!rows.ok) return err(rows.error);
 			const idx = rows.value[0]?.idx;
 			return ok(idx === undefined ? { kind: "duplicate" } : { kind: "appended", idx });
+		},
+		openStaging: async () => {
+			const closed = await closeStaging();
+			if (!closed.ok) return closed;
+			const attached = await executeVoid(
+				db,
+				SESSION_EVENTS_SQL.attachStaging,
+				[],
+				"Opening an imported chat's staging",
+			);
+			if (!attached.ok) return attached;
+			return executeVoid(
+				db,
+				SESSION_EVENTS_SQL.createStaging,
+				[],
+				"Opening an imported chat's staging",
+			);
+		},
+		stageMany: async (events) => {
+			if (events.length === 0) return ok(0);
+			const list = storedColumnsList(events);
+			if (!list.ok) return err(list.error);
+			return executeStatement(
+				db,
+				SESSION_EVENTS_SQL.stageMany,
+				[list.value],
+				"Staging an imported chat's events",
+			);
+		},
+		publishStaged: (sessionId, receivedAt) =>
+			executeStatement(
+				db,
+				SESSION_EVENTS_SQL.publishStaged,
+				[sessionId, receivedAt],
+				"Writing an imported chat's events",
+			),
+		closeStaging,
+		count: async (sessionId) => {
+			const rows = await selectRows<{ n: number }>(
+				db,
+				SESSION_EVENTS_SQL.count,
+				[sessionId],
+				"Counting chat events",
+			);
+			return rows.ok ? ok(Number(rows.value[0]?.n ?? 0)) : err(rows.error);
 		},
 		listFrom: (sessionId, fromIdx, limit) =>
 			list(

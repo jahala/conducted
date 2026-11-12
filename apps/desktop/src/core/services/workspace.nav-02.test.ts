@@ -17,6 +17,7 @@ function workspace(overrides: Partial<Workspace> = {}): Workspace {
 		path: "/repos/w1",
 		branch: "branch-w1",
 		branchIsPlaceholder: false,
+		remoteFileSyncEnabled: false,
 		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "main",

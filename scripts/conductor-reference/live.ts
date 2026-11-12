@@ -10,8 +10,8 @@
  * 3. starts our app's debug build, sealed, with that home: its data folder is the scratch folder's.
  *    The build carries the config override (live-config.ts), so its hidden window opens the bridge
  *    page of the live server (live-server.ts) on our dev origin;
- * 4. writes the seeded rows into the app's own database through its SQL plugin, after the plugin's
- *    migrations ran;
+ * 4. writes the seeded rows into the app's own database through its database commands, after
+ *    `db_open` ran the migrations;
  * 5. opens the front in Playwright's Chromium (nothing downloaded; every other origin refused):
  *    Conductor's bundle through the live mapping (`.context/day/conductor-ref/live-mapping.ts`), or our
  *    built UI through the identity mapping, and takes the picture once the page settles (run.ts);
@@ -43,6 +43,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Browser, chromium } from "playwright-core";
 import type { ScriptedRepo } from "../../apps/desktop/src/catalogue/git-repo.ts";
+import { stopApp } from "../app-process.ts";
 import { loadCatalogue, ROOT, type SeededState } from "./catalogue.ts";
 import { checkOverride, DEV_ORIGIN, referenceOverride } from "./live-config.ts";
 import { type CallTally, type Front, type LiveServer, startLiveServer } from "./live-server.ts";
@@ -132,47 +133,6 @@ function build(target: string, fronts: readonly Front[]): string {
 	return realpathSync(join(target, "debug/conducted"));
 }
 
-/** Every process under `pid`, each before its own children, found by parent id (`pgrep -P` prints ids only). */
-function descendants(pid: number): number[] {
-	const found = spawnSync("pgrep", ["-P", String(pid)], { encoding: "utf8" });
-	const children = found.stdout
-		.split("\n")
-		.filter((line) => line.trim() !== "")
-		.map(Number);
-	return children.flatMap((child) => [child, ...descendants(child)]);
-}
-
-const alive = (pid: number): boolean => {
-	try {
-		process.kill(pid, 0);
-		return true;
-	} catch {
-		return false;
-	}
-};
-
-async function exited(child: ChildProcess): Promise<void> {
-	if (child.exitCode !== null || child.signalCode !== null) return;
-	await new Promise<void>((resolve) => child.once("exit", () => resolve()));
-}
-
-/** Stops the app and everything it started, by the pids recorded before the signal. */
-async function stopApp(child: ChildProcess): Promise<string[]> {
-	const pid = child.pid;
-	if (pid === undefined) return [];
-	const under = descendants(pid);
-	child.kill("SIGTERM");
-	const hang = setTimeout(() => child.kill("SIGKILL"), HANG_MS / 4);
-	await exited(child);
-	clearTimeout(hang);
-	const left = under.filter(alive);
-	for (const id of left) process.kill(id, "SIGTERM");
-	// Bounded: fifty checks a tenth of a second apart, then SIGKILL for any that ignored the signal.
-	for (let check = 0; check < 50 && left.some(alive); check++) await Bun.sleep(100);
-	for (const id of left.filter(alive)) process.kill(id, "SIGKILL");
-	return left.map(String);
-}
-
 function launch(exe: string, seal: Seal, log: string): ChildProcess {
 	const env = { ...seal.env, CONDUCTED_SIDECAR_BIN: SIDECAR_BIN };
 	// A window that is never shown lets macOS put the app to sleep (App Nap), which stalls its calls.
@@ -223,17 +183,15 @@ export function sqlLiteral(value: unknown): string {
 	return `'${String(value).replaceAll("'", "''")}'`;
 }
 
-/** Our app's database, as its SQL plugin opens it, with the seeded rows written in. */
+/** Our app's database, opened through its own commands, with the seeded rows written in. */
 async function seedDatabase(server: LiveServer, tables: Record<string, Row[]>): Promise<string[]> {
-	const db = "sqlite:conducted.db";
 	const call = async (command: string, args: unknown): Promise<unknown> => {
 		const answer = await server.ours.invoke(command, args);
 		if (!answer.ok) throw new Error(`${command}: ${JSON.stringify(answer.error)}`);
 		return answer.value;
 	};
-	await call("plugin:sql|load", { db });
-	const master = (await call("plugin:sql|select", {
-		db,
+	await call("db_open", {});
+	const master = (await call("db_select", {
 		query: "SELECT type, name, sql FROM sqlite_master WHERE type = 'table'",
 		values: [],
 	})) as { name: string; sql: string | null }[];
@@ -253,8 +211,7 @@ async function seedDatabase(server: LiveServer, tables: Record<string, Row[]>): 
 	// Parents before children, so every foreign key finds its row.
 	const parents = new Map<string, string[]>();
 	for (const name of writable) {
-		const keys = (await call("plugin:sql|select", {
-			db,
+		const keys = (await call("db_select", {
 			query: `SELECT "table" FROM pragma_foreign_key_list('${name}')`,
 			values: [],
 		})) as { table: string }[];
@@ -270,8 +227,8 @@ async function seedDatabase(server: LiveServer, tables: Record<string, Row[]>): 
 		order.push(name);
 	};
 	for (const name of writable) visit(name, []);
-	// One script on one connection: the foreign keys are checked at the commit, so rows that point at
-	// each other (a workspace's active chat, a chat's workspace) go in together.
+	// One script: the foreign keys are checked at the commit, so rows that point at each other (a
+	// workspace's active chat, a chat's workspace) go in together.
 	const statements = ["BEGIN", "PRAGMA defer_foreign_keys = ON"];
 	for (const name of order) {
 		for (const row of tables[name] ?? []) {
@@ -282,10 +239,8 @@ async function seedDatabase(server: LiveServer, tables: Record<string, Row[]>): 
 		}
 	}
 	statements.push("COMMIT");
-	await call("plugin:sql|execute", { db, query: `${statements.join(";\n")};`, values: [] });
-	// The page opens the database itself, on a fresh pool: no connection of the seeding is left
-	// holding the file's lock.
-	await call("plugin:sql|close", { db });
+	await call("db_execute", { query: `${statements.join(";\n")};`, values: [] });
+	// The page's own `db_open` finds this connection open and keeps it (D137).
 	return Object.keys(tables).filter(
 		(name) => !writable.has(name) && (tables[name]?.length ?? 0) > 0,
 	);

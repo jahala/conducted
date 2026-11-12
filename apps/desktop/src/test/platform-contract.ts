@@ -78,6 +78,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	),
 	c(
 		"fs",
+		"write-missing-folder",
+		"a write into a folder that does not exist is an Err",
+		"writeTextAtomic and writeBytes into a missing folder return Err with fs_not_found and create no folder, as files.rs does (issue #600). A caller that needs the folder makes it with mkdirp first.",
+	),
+	c(
+		"fs",
 		"missing-file",
 		"reading a missing file is an Err",
 		"readText on a path that does not exist returns Err, not an exception.",
@@ -87,6 +93,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"exists-stat",
 		"exists and stat agree",
 		"exists is true for files and folders that stat finds, false for others; stat reports isDirectory and size.",
+	),
+	c(
+		"fs",
+		"exists-refused",
+		"exists on a refused path is an Err, never false",
+		"exists on a path outside the file scope returns Err with fs_out_of_scope, so a refusal never reads as a missing file; a missing path inside the scope is Ok(false) (issue #601).",
 	),
 	c(
 		"fs",
@@ -160,6 +172,13 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"foreign-keys",
 		"foreign keys are enforced",
 		"Inserting a row that points to a missing parent fails; deleting a parent cascades where the schema says so.",
+	),
+	c(
+		"db",
+		"one-connection",
+		"a transaction is one connection's",
+		"When the connection is lost between BEGIN and COMMIT, the transaction's later statements, its commit and every statement after it fail. None runs on a new connection, so no part of the transaction saves on its own (issue #616, D137).",
+		"controls",
 	),
 	c(
 		"shell",
@@ -357,7 +376,7 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"app",
 		"resource-usage",
 		"resourceUsage places each process in the longest workspace that holds its folder",
-		"A process in a folder inside two given workspace paths reports the inner one, a process in none reports no workspace, and the call is Ok.",
+		"A process in a folder inside two given workspace paths reports the inner one, a process in none reports no workspace, each names its parent, and the call is Ok.",
 		"controls",
 	),
 	c(
@@ -368,6 +387,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"controls",
 	),
 	c("app", "health", "health is Ok", "health() returns Ok when the shell is up."),
+	c(
+		"app",
+		"database-free-bytes",
+		"databaseFreeBytes answers the space free on the database's disk",
+		"databaseFreeBytes is Ok with a whole number of bytes: on a real disk above zero, and with a free space set by the controls, that number (D132).",
+	),
 	c(
 		"app",
 		"write-log-never-throws",
@@ -558,6 +583,13 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	),
 	c(
 		"conductorImport",
+		"history-reads",
+		"a chat's history is read in pages of its rows' columns, then by rowid",
+		"read counts each chat's sent session_messages rows in messageRows; readMessageKeys gives a chat's sent rows after a rowid in rowid order, at most the limit, with the content's length and without the content; readMessages gives that chat's sent rows with these rowids, in rowid order, and no other chat's.",
+		"controls",
+	),
+	c(
+		"conductorImport",
 		"missing",
 		"copying a database that is not there is its own error",
 		"copy of a path with no file returns Err with conductor_import_missing.",
@@ -607,6 +639,8 @@ export interface ContractControls {
 	emitWindowFocus?(focused: boolean): void | Promise<void>;
 	emitNetworkChanged?(online: boolean): void | Promise<void>;
 	emitDeepLinkRejected?(rejection: { code: string; message: string }): void | Promise<void>;
+	/** The database connection goes away, as a crash or the app's exit would take it (D137). */
+	loseDatabaseConnection?(): void | Promise<void>;
 	/** Puts files on the clipboard, as if copied in Finder. */
 	setClipboardFilePaths?(paths: readonly string[]): void;
 	/** Adds a scripted Worker answer (CLOUD-03). */
@@ -621,10 +655,12 @@ export interface ContractControls {
 	setProcesses?(
 		processes: readonly {
 			pid: number;
-			name: string;
+			ppid?: number;
+			label: string;
 			cpuPercent: number;
 			memoryBytes: number;
 			cwd: string;
+			terminalId?: string;
 		}[],
 	): void;
 	/**
@@ -637,6 +673,8 @@ export interface ContractControls {
 	): void | Promise<void>;
 	/** The size, modified time and bytes of every file beside the database at `path`, as one text. */
 	conductorFingerprint?(path: string): string | Promise<string>;
+	/** Sets what `app.databaseFreeBytes` answers, for a stand-in with no disk of its own (D132). */
+	setDatabaseFreeBytes?(bytes: number): void;
 	/** What the layer below the platform last received. */
 	readonly dockBadge?: number | null;
 	readonly clipboardText?: string | null;
@@ -691,6 +729,11 @@ function expectErr<T>(ctx: ContractContext, result: Result<T>, what: string): Ap
 		throw new Error(`${what} should have returned Err`);
 	}
 	return result.error;
+}
+
+/** Whether something is at `path`; a refused check fails the case. */
+async function existsAt(ctx: ContractContext, path: string): Promise<boolean> {
+	return expectOk(ctx, await ctx.platform.fs.exists(path), `exists ${path}`);
 }
 
 /** Waits for a real event. The timeout only catches a hang, it never paces the test. */
@@ -765,6 +808,26 @@ const STEPS: Record<string, ContractStep> = {
 		);
 	},
 
+	"fs.write-missing-folder": async (ctx) => {
+		const folder = ctx.path("not-made-yet/inner");
+		const text = expectErr(
+			ctx,
+			await ctx.platform.fs.writeTextAtomic(joinPath(folder, "settings.toml"), "a = 1\n"),
+			"writeTextAtomic into a missing folder",
+		);
+		ctx.assert(text.code === "fs_not_found", `writeTextAtomic's error code was ${text.code}`);
+		const bytes = expectErr(
+			ctx,
+			await ctx.platform.fs.writeBytes(joinPath(folder, "data.bin"), Uint8Array.of(1, 2, 3)),
+			"writeBytes into a missing folder",
+		);
+		ctx.assert(bytes.code === "fs_not_found", `writeBytes's error code was ${bytes.code}`);
+		ctx.assert(
+			!(await existsAt(ctx, ctx.path("not-made-yet"))),
+			"a failed write made the missing folder",
+		);
+	},
+
 	"fs.missing-file": async (ctx) => {
 		const result = await ctx.platform.fs.readText(ctx.path("no-such-file.txt"));
 		const error = expectErr(ctx, result, "readText of a missing file");
@@ -778,9 +841,9 @@ const STEPS: Record<string, ContractStep> = {
 		const text = "abcdef";
 		expectOk(ctx, await ctx.platform.fs.mkdirp(folder), "mkdirp");
 		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(file, text), "writeTextAtomic");
-		ctx.assert(await ctx.platform.fs.exists(file), "exists is true for a file");
-		ctx.assert(await ctx.platform.fs.exists(folder), "exists is true for a folder");
-		ctx.assert(!(await ctx.platform.fs.exists(ctx.path("absent"))), "exists is false elsewhere");
+		ctx.assert(await existsAt(ctx, file), "exists is true for a file");
+		ctx.assert(await existsAt(ctx, folder), "exists is true for a folder");
+		ctx.assert(!(await existsAt(ctx, ctx.path("absent"))), "exists is false elsewhere");
 		const fileStat = expectOk(ctx, await ctx.platform.fs.stat(file), "stat file");
 		ctx.assert(!fileStat.isDirectory, "a file is not a directory");
 		ctx.assert(
@@ -791,11 +854,27 @@ const STEPS: Record<string, ContractStep> = {
 		ctx.assert(folderStat.isDirectory, "a folder reports isDirectory");
 	},
 
+	"fs.exists-refused": async (ctx) => {
+		const outside = joinPath(ctx.outside, "program");
+		const refused = expectErr(
+			ctx,
+			await ctx.platform.fs.exists(outside),
+			"exists outside the file scope",
+		);
+		ctx.assert(refused.code === "fs_out_of_scope", `the error code was ${refused.code}`);
+		const missing = expectOk(
+			ctx,
+			await ctx.platform.fs.exists(ctx.path("not-there")),
+			"exists of a missing path",
+		);
+		ctx.assert(missing === false, `exists of a missing path was ${String(missing)}`);
+	},
+
 	"fs.mkdirp-idempotent": async (ctx) => {
 		const nested = ctx.path("deep/a/b");
 		expectOk(ctx, await ctx.platform.fs.mkdirp(nested), "first mkdirp");
 		expectOk(ctx, await ctx.platform.fs.mkdirp(nested), "second mkdirp");
-		ctx.assert(await ctx.platform.fs.exists(nested), "the nested folder exists");
+		ctx.assert(await existsAt(ctx, nested), "the nested folder exists");
 	},
 
 	"fs.read-dir": async (ctx) => {
@@ -825,11 +904,11 @@ const STEPS: Record<string, ContractStep> = {
 		const spelled = joinPath(folder, "inner/./../note.txt");
 		const resolved = joinPath(folder, "note.txt");
 		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(spelled, "dots"), "writeTextAtomic");
-		ctx.assert(await ctx.platform.fs.exists(resolved), "the file is at the resolved path");
+		ctx.assert(await existsAt(ctx, resolved), "the file is at the resolved path");
 		const read = expectOk(ctx, await ctx.platform.fs.readText(resolved), "readText");
 		ctx.assert(read === "dots", `readText returned ${JSON.stringify(read)}`);
 		ctx.assert(
-			!(await ctx.platform.fs.exists(joinPath(folder, "inner/note.txt"))),
+			!(await existsAt(ctx, joinPath(folder, "inner/note.txt"))),
 			"the file landed inside inner",
 		);
 	},
@@ -869,7 +948,7 @@ const STEPS: Record<string, ContractStep> = {
 		expectOk(ctx, await ctx.platform.fs.mkdirp(ctx.path("trash")), "mkdirp");
 		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(path, "bye"), "writeTextAtomic");
 		expectOk(ctx, await ctx.platform.fs.trash(path), "trash");
-		ctx.assert(!(await ctx.platform.fs.exists(path)), "trash removed the file from its folder");
+		ctx.assert(!(await existsAt(ctx, path)), "trash removed the file from its folder");
 	},
 
 	"db.roundtrip": async (ctx) => {
@@ -986,6 +1065,34 @@ const STEPS: Record<string, ContractStep> = {
 		await ctx.platform.db.execute(`DELETE FROM contract_fk_parent WHERE id = $1`, [1]);
 		const rows = await ctx.platform.db.select(`SELECT id FROM contract_fk_child`);
 		ctx.assert(rows.length === 0, "deleting the parent did not cascade");
+	},
+
+	"db.one-connection": async (ctx) => {
+		const lose = ctx.controls?.loseDatabaseConnection;
+		ctx.assert(lose !== undefined, "the controls do not expose loseDatabaseConnection");
+		if (lose === undefined) return;
+		const table = "contract_one_connection";
+		await ctx.platform.db.execute(`CREATE TABLE ${table} (id INTEGER PRIMARY KEY)`);
+		const outcome = (promise: Promise<unknown>): Promise<"ran" | "refused"> =>
+			promise.then(
+				() => "ran",
+				() => "refused",
+			);
+		const seen: { second: "ran" | "refused" | "not reached" } = { second: "not reached" };
+		const transaction = await outcome(
+			ctx.platform.db.transaction(async (tx) => {
+				await tx.execute(`INSERT INTO ${table} (id) VALUES ($1)`, [1]);
+				await lose();
+				seen.second = await outcome(tx.execute(`INSERT INTO ${table} (id) VALUES ($1)`, [2]));
+			}),
+		);
+		ctx.assert(
+			seen.second === "refused",
+			`the second insert ${seen.second} after the connection was lost`,
+		);
+		ctx.assert(transaction === "refused", "the transaction committed on a lost connection");
+		const after = await outcome(ctx.platform.db.select(`SELECT id FROM ${table}`));
+		ctx.assert(after === "refused", "a statement after the loss ran on a new connection");
 	},
 
 	"shell.run-stdout": async (ctx) => {
@@ -1603,8 +1710,8 @@ const STEPS: Record<string, ContractStep> = {
 		const outer = ctx.path("workspaces");
 		const inner = ctx.path("workspaces/oslo");
 		ctx.controls?.setProcesses?.([
-			{ pid: 11, name: "node", cpuPercent: 1.5, memoryBytes: 2048, cwd: `${inner}/web` },
-			{ pid: 12, name: "zsh", cpuPercent: 0, memoryBytes: 1024, cwd: ctx.path("elsewhere") },
+			{ pid: 11, ppid: 12, label: "node", cpuPercent: 1.5, memoryBytes: 2048, cwd: `${inner}/web` },
+			{ pid: 12, label: "zsh", cpuPercent: 0, memoryBytes: 1024, cwd: ctx.path("elsewhere") },
 		]);
 		const rows = expectOk(
 			ctx,
@@ -1614,6 +1721,7 @@ const STEPS: Record<string, ContractStep> = {
 		const node = rows.find((row) => row.pid === 11);
 		const zsh = rows.find((row) => row.pid === 12);
 		ctx.assert(node?.workspacePath === inner, `node was placed in ${String(node?.workspacePath)}`);
+		ctx.assert(node?.ppid === 12, `node named ${String(node?.ppid)} as its parent`);
 		ctx.assert(
 			zsh !== undefined && zsh.workspacePath === undefined,
 			`zsh was placed in ${String(zsh?.workspacePath)}`,
@@ -1647,6 +1755,21 @@ const STEPS: Record<string, ContractStep> = {
 
 	"app.health": async (ctx) => {
 		expectOk(ctx, await ctx.platform.app.health(), "health");
+	},
+
+	"app.database-free-bytes": async (ctx) => {
+		const set = ctx.controls?.setDatabaseFreeBytes;
+		if (set !== undefined) {
+			set(12_345_678);
+			const told = expectOk(ctx, await ctx.platform.app.databaseFreeBytes(), "free bytes");
+			ctx.assert(told === 12_345_678, `databaseFreeBytes answered ${told}, not the set 12345678`);
+			return;
+		}
+		const free = expectOk(ctx, await ctx.platform.app.databaseFreeBytes(), "free bytes");
+		ctx.assert(
+			Number.isSafeInteger(free) && free > 0,
+			`databaseFreeBytes answered ${String(free)}, not a whole number of bytes above zero`,
+		);
 	},
 
 	"app.write-log-never-throws": async (ctx) => {
@@ -1905,7 +2028,7 @@ const STEPS: Record<string, ContractStep> = {
 			"resizeImage",
 		);
 		ctx.assert(file.path === destination, `resizeImage returned ${file.path}`);
-		ctx.assert(await ctx.platform.fs.exists(destination), "the resized copy is missing");
+		ctx.assert(await existsAt(ctx, destination), "the resized copy is missing");
 	},
 
 	"programs.install-status": async (ctx) => {
@@ -2064,6 +2187,100 @@ const STEPS: Record<string, ContractStep> = {
 			!served.ok && served.error.code === "visualization_too_large",
 			"a document over the store's size was not visualization_too_large",
 		);
+	},
+
+	"conductorImport.history-reads": async (ctx) => {
+		const seed = ctx.controls?.seedConductorDatabase;
+		ctx.assert(seed !== undefined, "the controls seed no database");
+		if (seed === undefined) return;
+		const source = `${ctx.outside}/conductor/conductor.db`;
+		const message = (id: string, chat: string, content: string | null, sent: string | null) => ({
+			id,
+			session_id: chat,
+			role: "user",
+			content,
+			created_at: "2026-01-02 03:04:05",
+			sent_at: sent,
+			turn_id: "turn-1",
+		});
+		await seed(source, {
+			session_messages: [
+				message("m-1", "chat-a", "Hello", "2026-01-02 03:04:05"),
+				message("m-2", "chat-b", "Elsewhere", "2026-01-02 03:04:06"),
+				message("m-3", "chat-a", "Again", "2026-01-02 03:04:07"),
+				message("m-4", "chat-a", "Queued", null),
+				message("m-5", "chat-a", null, "2026-01-02 03:04:09"),
+			],
+		});
+		const { conductorImport } = ctx.platform;
+		const copy = expectOk(ctx, await conductorImport.copy(source), "copy");
+		const snapshot = expectOk(ctx, await conductorImport.read(copy.copyPath), "read");
+		ctx.assert(
+			JSON.stringify(snapshot.messageRows) === JSON.stringify({ "chat-a": 3, "chat-b": 1 }) ||
+				JSON.stringify(snapshot.messageRows) === JSON.stringify({ "chat-b": 1, "chat-a": 3 }),
+			`messageRows read ${JSON.stringify(snapshot.messageRows)}`,
+		);
+		const first = expectOk(
+			ctx,
+			await conductorImport.readMessageKeys(copy.copyPath, "chat-a", 0, 2),
+			"first page",
+		);
+		ctx.assert(
+			JSON.stringify(first) ===
+				JSON.stringify([
+					{
+						rowid: 1,
+						role: "user",
+						turn_id: "turn-1",
+						sent_at: "2026-01-02 03:04:05",
+						created_at: "2026-01-02 03:04:05",
+						chars: 5,
+					},
+					{
+						rowid: 3,
+						role: "user",
+						turn_id: "turn-1",
+						sent_at: "2026-01-02 03:04:07",
+						created_at: "2026-01-02 03:04:05",
+						chars: 5,
+					},
+				]),
+			`the first page read ${JSON.stringify(first)}`,
+		);
+		const second = expectOk(
+			ctx,
+			await conductorImport.readMessageKeys(copy.copyPath, "chat-a", 3, 2),
+			"second page",
+		);
+		ctx.assert(
+			second.length === 1 && second[0]?.rowid === 5 && second[0]?.chars === 0,
+			`the second page read ${JSON.stringify(second)}`,
+		);
+		const end = expectOk(
+			ctx,
+			await conductorImport.readMessageKeys(copy.copyPath, "chat-a", 5, 2),
+			"past the end",
+		);
+		ctx.assert(end.length === 0, `past the end read ${JSON.stringify(end)}`);
+		const rows = expectOk(
+			ctx,
+			await conductorImport.readMessages(copy.copyPath, "chat-a", [5, 2, 1, 4]),
+			"rows",
+		);
+		ctx.assert(
+			JSON.stringify(rows.map((row) => [row.rowid, row.id, row.content])) ===
+				JSON.stringify([
+					[1, "m-1", "Hello"],
+					[5, "m-5", null],
+				]),
+			`readMessages gave ${JSON.stringify(rows)}`,
+		);
+		const outside = await conductorImport.readMessageKeys(source, "chat-a", 0, 2);
+		ctx.assert(
+			!outside.ok && outside.error.code === "conductor_import_bad_copy",
+			"readMessageKeys opened a file the import did not copy",
+		);
+		expectOk(ctx, await conductorImport.discardCopies(), "discard");
 	},
 
 	"conductorImport.missing": async (ctx) => {
@@ -2247,8 +2464,10 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"fs.write-read": ["fs.mkdirp", "fs.writeTextAtomic", "fs.readText"],
 	"fs.bytes-round-trip": ["fs.mkdirp", "fs.writeBytes", "fs.readBytes"],
 	"fs.atomic-no-partial": ["fs.writeTextAtomic", "fs.mkdirp", "fs.readText", "fs.readDir"],
+	"fs.write-missing-folder": ["fs.writeTextAtomic", "fs.writeBytes", "fs.exists"],
 	"fs.missing-file": ["fs.readText"],
 	"fs.exists-stat": ["fs.writeTextAtomic", "fs.mkdirp", "fs.exists", "fs.stat"],
+	"fs.exists-refused": ["fs.exists"],
 	"fs.mkdirp-idempotent": ["fs.mkdirp", "fs.exists"],
 	"fs.read-dir": ["fs.mkdirp", "fs.writeTextAtomic", "fs.readDir"],
 	"fs.dot-segments": ["fs.mkdirp", "fs.writeTextAtomic", "fs.exists", "fs.readText"],
@@ -2261,6 +2480,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"db.transaction-rollback": ["db.execute", "db.transaction", "db.select"],
 	"db.transaction-serialised": ["db.execute", "db.transaction"],
 	"db.foreign-keys": ["db.execute", "db.select"],
+	"db.one-connection": ["db.execute", "db.transaction", "db.select"],
 	"shell.run-stdout": ["shell.run"],
 	"shell.run-nonzero": ["shell.run"],
 	"shell.run-cwd-env-stdin": ["fs.mkdirp", "shell.run"],
@@ -2314,6 +2534,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"clipboard.write-text": ["clipboard.writeText"],
 	"clipboard.read-file-paths": ["clipboard.readFilePaths"],
 	"app.health": ["app.health"],
+	"app.database-free-bytes": ["app.databaseFreeBytes"],
 	"app.deep-link-rejected": ["app.onDeepLinkRejected"],
 	"app.resource-usage": ["app.resourceUsage"],
 	"app.write-log-never-throws": ["app.writeLog"],
@@ -2369,6 +2590,13 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 		"conductorImport.find",
 		"conductorImport.copy",
 		"conductorImport.read",
+		"conductorImport.discardCopies",
+	],
+	"conductorImport.history-reads": [
+		"conductorImport.copy",
+		"conductorImport.read",
+		"conductorImport.readMessageKeys",
+		"conductorImport.readMessages",
 		"conductorImport.discardCopies",
 	],
 	"conductorImport.missing": ["conductorImport.copy"],
@@ -2441,6 +2669,8 @@ export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
 	"http.download.cancel": "Cancels the Rust download task by id; the Rust download tests own it.",
 	"cloud.deploy":
 		"Runs wrangler against the user's own Cloudflare account; cloud.rs's tests drive the real command path with a stand-in program.",
+	"cloud.onDeployEvent":
+		"Only fires while cloud.deploy runs in the shell; cloud.rs's tests prove each step and the deploy service test proves the store.",
 	"cloud.uninstall":
 		"Runs wrangler against the user's own Cloudflare account; cloud.rs's tests drive the real command path with a stand-in program.",
 };

@@ -88,6 +88,47 @@ describe("PLAT-02 Tauri platform contract run", () => {
 		}
 	});
 
+	// conductor_import.rs opens the copy for each read and drops the connection when it answers.
+	// A stand-in that kept each one open held 6 GB and 3,000 files after 3,000 reads (issue #556).
+	it("APP-18 reads of Conductor's copy leave no connection open, as conductor_import.rs drops each", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "conducted-contract-"));
+		const run = createNodeTauriBindings(dir);
+		try {
+			const tauri = await createTauriPlatform(run.bindings);
+			if (!tauri.ok) throw new Error(tauri.error.message);
+			const { conductorImport } = tauri.value;
+			const source = join(dir, "outside", "conductor.db");
+			await run.controls.seedConductorDatabase?.(source, {
+				session_messages: [
+					{
+						id: "m",
+						session_id: "s",
+						role: "user",
+						content: "hi",
+						sent_at: "2026-01-01",
+						created_at: "2026-01-01",
+						turn_id: "t",
+					},
+				],
+			});
+			const copy = await conductorImport.copy(source);
+			if (!copy.ok) throw new Error(copy.error.message);
+			const openFiles = (): number => readdirSync("/dev/fd").length;
+			const before = openFiles();
+			for (let read = 0; read < 40; read++) {
+				expect((await conductorImport.read(copy.value.copyPath)).ok).toBe(true);
+				expect((await conductorImport.readMessageKeys(copy.value.copyPath, "s", 0, 10)).ok).toBe(
+					true,
+				);
+				expect((await conductorImport.readMessages(copy.value.copyPath, "s", [1])).ok).toBe(true);
+			}
+			expect(openFiles() - before).toBeLessThan(5);
+		} finally {
+			await run.dispose();
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
 	it("builds the same methods in every group as the in-memory stand-in", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "conducted-contract-"));
 		const run = createNodeTauriBindings(dir);
@@ -182,7 +223,9 @@ describe("PLAT-02 the Platform's error codes are one list", () => {
 
 	it("lists every code a Rust command can return", () => {
 		const missing: string[] = [];
-		for (const file of readdirSync(RUST_SRC).filter((name) => name.endsWith(".rs"))) {
+		// Every Rust source, those in a module's own folder (binaries/follow.rs) too.
+		const sources = readdirSync(RUST_SRC, { recursive: true, encoding: "utf8" });
+		for (const file of sources.filter((name) => name.endsWith(".rs"))) {
 			const codes = rustErrorCodes(readFileSync(join(RUST_SRC, file), "utf8"));
 			for (const code of codes) if (!known.has(code)) missing.push(`${file}: ${code}`);
 		}

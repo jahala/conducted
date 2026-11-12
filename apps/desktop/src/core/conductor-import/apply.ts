@@ -88,18 +88,24 @@ export async function applyImportPlan(
 		return err(appError(IMPORT_FAILED, message, cause));
 	};
 	for (const file of plan.files) {
-		if (await deps.fs.exists(file.path)) {
+		const appeared = await deps.fs.exists(file.path);
+		if (!appeared.ok) return undo(appeared.error);
+		if (appeared.value) {
 			return undo(appError("import_changed", `${file.path} appeared since the dry run.`));
 		}
 		const folder = file.path.slice(0, file.path.lastIndexOf("/"));
-		if (!(await deps.fs.exists(folder))) {
+		const hasFolder = await deps.fs.exists(folder);
+		if (!hasFolder.ok) return undo(hasFolder.error);
+		if (!hasFolder.value) {
 			const madeFolder = await deps.fs.mkdirp(folder);
 			if (!madeFolder.ok) return undo(madeFolder.error);
 			files.push(folder);
 		}
 		const made = await deps.writeSettingsFile(file);
-		// A write that failed after the file appeared still leaves a file to take back.
-		if (await deps.fs.exists(file.path)) files.push(file.path);
+		// A write that failed after the file appeared still leaves a file to take back. A file the
+		// check cannot see is listed too, so the undo tries it and reports it if it fails.
+		const written = await deps.fs.exists(file.path);
+		if (!written.ok || written.value) files.push(file.path);
 		if (!made.ok) return undo(made.error);
 	}
 	const stored = await deps.withPorts(plan.rows.workspaces.length, (ports) =>
@@ -308,7 +314,7 @@ async function checkRows(
 }
 
 /** JSON with sorted keys, so two equal rows compare equal whatever order their fields are in. */
-function stable(value: unknown): string {
+export function stable(value: unknown): string {
 	return JSON.stringify(value, (_key, inner: unknown) =>
 		inner !== null && typeof inner === "object" && !Array.isArray(inner)
 			? Object.fromEntries(
@@ -337,7 +343,14 @@ async function checkSamples(
 		if (!read.ok) return read;
 		const active = rows.activeSessions.find((entry) => entry.workspaceId === workspace.id);
 		const { setupLogPath: _setupLogPath, ...model } = workspace;
-		const expected = { ...model, port: ports[0], activeSessionId: active?.sessionId ?? null };
+		// An imported workspace is on this Mac, so it has no mirror and its Sync files switch is
+		// stored off (migration 0019), as Conductor stores it for one.
+		const expected = {
+			...model,
+			port: ports[0],
+			activeSessionId: active?.sessionId ?? null,
+			remoteFileSyncEnabled: false,
+		};
 		if (stable(read.value) !== stable(expected)) return mismatch("workspace");
 	}
 	const session = rows.sessions[0];

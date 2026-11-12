@@ -12,7 +12,7 @@ import type { WorkspaceId } from "@conducted/shared";
 import { useState } from "react";
 import type { DiffScope } from "../../../core/api.ts";
 import { IconButton } from "../../../ui/IconButton.tsx";
-import { FileTextIcon, FolderIcon, SearchIcon } from "../../../ui/icons.tsx";
+import { CloseIcon, FileTextIcon, FolderIcon, SearchIcon } from "../../../ui/icons.tsx";
 import { DiffScopeMenu } from "./DiffScopeMenu.tsx";
 
 export interface ChangesToolbarProps {
@@ -58,6 +58,19 @@ export function ChangesToolbar({
 						aria-label="Filter changed files"
 						className="w-full bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"
 					/>
+					{/* Conductor's close button in the filter box (renderApp @2623645). */}
+					<button
+						type="button"
+						aria-label="Close filter"
+						title="Close filter"
+						onClick={() => {
+							onFilterChange("");
+							setSearching(false);
+						}}
+						className="-mr-1.5 shrink-0 rounded-sm p-1.5 text-fg-muted hover:text-fg"
+					>
+						<CloseIcon className="size-3" />
+					</button>
 				</div>
 			) : (
 				<>

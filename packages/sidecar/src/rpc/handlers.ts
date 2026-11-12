@@ -1,6 +1,7 @@
 /**
  * @feature SIDE-02 JSON-RPC over a Unix socket
  * @feature SIDE-22 Slash command cache that works before a chat starts
+ * @feature APP-18 Chat history from Conductor
  * Owns: wiring the method tables to the modules that implement them. This is the one place that
  * knows which module answers which request. For `listSlashCommands`, a request with no
  * `workspacePath` answers from the saved list, and a request with one refreshes it (SIDE-22).
@@ -8,7 +9,8 @@
  * setup function on each connection).
  * eventPersisted acknowledges the event in the write-ahead log (outbox/); setLogLevel changes the
  * root logger; setAgentPrograms replaces the program paths chosen in Settings and detects the agents
- * again when they changed (SIDE-21); compact asks the session manager to start a Codex `/compact` turn (AGENT-14).
+ * again when they changed (SIDE-21); compact asks the session manager to start a Codex `/compact` turn (AGENT-14);
+ * the three Conductor history methods go to the history import's mapping (APP-18).
  * Must handle: every key of appToSidecarRequests and appToSidecarNotifications has a handler (the
  * type enforces it), a module's Result error is passed through so the peer can answer with its
  * JSON-RPC code, and a session request goes straight to the session manager, which decides whether
@@ -17,6 +19,7 @@
  */
 import { agentProviders } from "@conducted/protocol";
 import { err, ok } from "@conducted/shared";
+import type { ConductorHistoryImports } from "../import/history-imports.ts";
 import type { Logger } from "../logging/logger.ts";
 import type { AgentDetector } from "../models/agent-detection.ts";
 import type { AgentProgramChoices } from "../models/agent-programs.ts";
@@ -44,6 +47,8 @@ export interface HandlerDeps {
 	usage: UsageReader;
 	shellEnv: ShellEnvProvider;
 	utilityPrompt: UtilityPromptRunner;
+	/** The chat history import's mapping (APP-18). */
+	conductorHistory: ConductorHistoryImports;
 	/** Applies setLogLevel to the root logger. */
 	setLogLevel(level: "error" | "warn" | "info" | "debug"): void;
 	logger: Logger;
@@ -139,6 +144,9 @@ export function buildHandlers(deps: HandlerDeps): {
 				return ok({ shell: captured.value.shell, path: captured.value.path });
 			},
 			runUtilityPrompt: (params) => deps.utilityPrompt.run(params),
+			indexConductorHistory: async (params) => deps.conductorHistory.index(params),
+			mapConductorHistory: async (params) => deps.conductorHistory.map(params),
+			closeConductorHistory: async (params) => deps.conductorHistory.close(params),
 			getGoal: (params) => deps.sessions.getGoal(params),
 			setGoal: (params) => deps.sessions.setGoal(params),
 			changeGoal: (params) => deps.sessions.changeGoal(params),

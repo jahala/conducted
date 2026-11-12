@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ModelInfo } from "@conducted/protocol";
 import { ok } from "@conducted/shared";
+import { ConductorHistoryImports } from "../import/history-imports.ts";
 import { createLogger } from "../logging/logger.ts";
 import { AgentProgramChoices } from "../models/agent-programs.ts";
 import { buildHandlers, type HandlerDeps } from "./handlers.ts";
@@ -73,6 +74,7 @@ const deps = (): HandlerDeps => ({
 		refresh: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {}, providerSecrets: {} }),
 	},
 	utilityPrompt: { run: async () => ok({ text: "" }) },
+	conductorHistory: new ConductorHistoryImports(),
 	setLogLevel: () => {},
 	logger: testLogger,
 });

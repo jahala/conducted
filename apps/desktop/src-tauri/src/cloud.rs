@@ -38,6 +38,9 @@
 //!   token never reaches the web view, is never logged, and is never printed. It reads the
 //!   Worker's resource names from its config's caller, creates the bucket only when it is
 //!   missing, and pairs this Mac with the URL wrangler printed.
+//! - While the deploy runs it emits `cloud://deploy` at each step it takes (issue #490), so the
+//!   page can say what it is waiting for. One `wrangler deploy` call builds the image, uploads the
+//!   Worker and sets the secret, so the shell names those three as one step rather than guessing.
 //! - The uninstall deletes the Worker, then its container application and images, then the bucket,
 //!   and unpairs. A resource the account does not have is skipped, so a second uninstall succeeds.
 //! - The SSH tunnel URL (CLOUD-12) is `wss://<worker>/w/<name>/ssh`, with no port query: the route
@@ -74,6 +77,8 @@ use crate::keychain;
 pub const EVENT_LINE: &str = "cloud://line";
 /// Event fired once when a relay ends. Payload: `RelayClosed`.
 pub const EVENT_CLOSED: &str = "cloud://closed";
+/// Event carrying one step of a running deploy. Payload: `DeployStep`.
+pub const EVENT_DEPLOY: &str = "cloud://deploy";
 /// The Keychain item that holds the Worker's pairing token (CLOUD-07).
 pub const PAIRING_TOKEN_KEY: &str = "cloud-pairing-token";
 /// The Keychain item that holds the URL of the Worker this token belongs to (CLOUD-07).
@@ -117,6 +122,13 @@ pub struct RelayLine {
 pub struct RelayClosed {
     pub relay_id: String,
     pub reason: String,
+}
+
+/// One step of a running deploy, named by the shell (CLOUD-08, issue #490).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeployStep {
+    pub step: String,
 }
 
 /// The bundled deploy folder inside the app's resources, and the file its build wrote.
@@ -769,14 +781,25 @@ fn require_wrangler_version(wrangler: &Wrangler, cwd: &Path) -> CommandResult<()
     Ok(())
 }
 
-/// The writable temp folder one deploy uses for its config and secret file.
-fn deploy_temp_folder() -> CommandResult<PathBuf> {
+/// A name part no other temp path of this process shares: the process id, the time and a count.
+/// The time alone repeats: macOS clocks tick in microseconds, and two deploys or tests started in
+/// the same tick took the same folder.
+fn unique_temp_part() -> String {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|elapsed| elapsed.as_nanos())
         .unwrap_or_default();
-    let folder =
-        std::env::temp_dir().join(format!("conducted-deploy-{}-{nanos}", std::process::id()));
+    format!(
+        "{}-{nanos}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    )
+}
+
+/// The writable temp folder one deploy uses for its config and secret file, under `temp_root`.
+fn deploy_temp_folder(temp_root: &Path) -> CommandResult<PathBuf> {
+    let folder = temp_root.join(format!("conducted-deploy-{}", unique_temp_part()));
     std::fs::create_dir_all(&folder).map_err(|error| {
         refused(
             "cloud_wrangler_failed",
@@ -952,16 +975,9 @@ fn ensure_bucket(wrangler: &Wrangler, source: &Path, bucket: &str) -> CommandRes
 
 /// Writes the pairing token to a mode-600 file `wrangler deploy --secrets-file` reads, and returns
 /// its path so the caller removes it whatever happens.
-fn write_secret_file(token: &str) -> CommandResult<PathBuf> {
+fn write_secret_file(temp_root: &Path, token: &str) -> CommandResult<PathBuf> {
     use std::os::unix::fs::OpenOptionsExt as _;
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_nanos())
-        .unwrap_or_default();
-    let path = std::env::temp_dir().join(format!(
-        "conducted-deploy-{}-{nanos}.json",
-        std::process::id()
-    ));
+    let path = temp_root.join(format!("conducted-deploy-{}.json", unique_temp_part()));
     let mut file = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -992,17 +1008,29 @@ pub fn deploy_worker(
     resources: &Path,
     worker: &str,
     token: &str,
+    progress: &dyn Fn(&str),
 ) -> CommandResult<String> {
-    deploy_worker_with(wrangler, resources, worker, token, require_docker)
+    deploy_worker_with(
+        wrangler,
+        resources,
+        worker,
+        token,
+        &std::env::temp_dir(),
+        require_docker,
+        progress,
+    )
 }
 
-/// The deploy's steps with the Docker check passed in, so a test can run them without Docker.
+/// The deploy's steps with the temp root and the Docker check passed in, so a test can run them
+/// without Docker and check what it left in a folder of its own.
 fn deploy_worker_with<F>(
     wrangler: &Wrangler,
     resources: &Path,
     worker: &str,
     token: &str,
+    temp_root: &Path,
     docker: F,
+    progress: &dyn Fn(&str),
 ) -> CommandResult<String>
 where
     F: FnOnce() -> CommandResult<()>,
@@ -1029,10 +1057,12 @@ where
     }
     require_wrangler_version(wrangler, resources)?;
     // The docs build a Dockerfile image at deploy time; say so before anything is created.
+    progress("Checking Docker");
     docker()?;
     // wrangler writes its own state under the working folder; use the deploy's temp folder so the
     // app bundle is never written to.
-    let folder = deploy_temp_folder()?;
+    let folder = deploy_temp_folder(temp_root)?;
+    progress("Creating the bucket");
     ensure_bucket(wrangler, &folder, worker)?;
     let config = folder.join("wrangler.jsonc");
     if let Err(error) = std::fs::write(
@@ -1045,7 +1075,7 @@ where
             format!("The deploy config could not be written: {error}"),
         ));
     }
-    let secrets = match write_secret_file(token) {
+    let secrets = match write_secret_file(temp_root, token) {
         Ok(path) => path,
         Err(error) => {
             let _ = std::fs::remove_dir_all(&folder);
@@ -1054,6 +1084,9 @@ where
     };
     let config = config.to_string_lossy().into_owned();
     let secrets_arg = secrets.to_string_lossy().into_owned();
+    // One wrangler call builds the sandbox image, uploads the Worker and sets the secret, so the
+    // shell names that whole step rather than guessing where wrangler is inside it.
+    progress("Building the image and uploading the Worker");
     let result = run_checked(
         wrangler,
         &[
@@ -1104,8 +1137,17 @@ pub async fn cloud_deploy(
     let token = make_pairing_token()?;
     let wrangler = Wrangler::new();
     let with_token = token.clone();
+    let progress_app = app.clone();
     let url = blocking("cloud_deploy_failed", move || {
-        deploy_worker(&wrangler, &resources, &worker, &with_token)
+        let progress = |step: &str| {
+            let _ = progress_app.emit(
+                EVENT_DEPLOY,
+                DeployStep {
+                    step: step.to_string(),
+                },
+            );
+        };
+        deploy_worker(&wrangler, &resources, &worker, &with_token, &progress)
     })
     .await?;
     let base = checked_worker_url(&url)?;
@@ -1119,6 +1161,12 @@ pub async fn cloud_deploy(
             )
         })?;
     let pair_url = route_url(&base, PAIR_PATH)?;
+    let _ = app.emit(
+        EVENT_DEPLOY,
+        DeployStep {
+            step: String::from("Pairing this Mac"),
+        },
+    );
     ask_worker_for_pairing(&client, &pair_url, &token).await?;
     write_pairing(&base, &token).await?;
     Ok(CloudDeployPayload {
@@ -1702,13 +1750,9 @@ mod tests {
 
     impl TestFolder {
         fn new() -> Self {
-            let nanos = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|elapsed| elapsed.as_nanos())
-                .unwrap_or_default();
             let path = std::env::temp_dir().join(format!(
-                "conducted-deploy-test-{}-{nanos}",
-                std::process::id()
+                "conducted-deploy-test-{}",
+                super::unique_temp_part()
             ));
             std::fs::create_dir_all(&path).expect("a temp folder");
             Self(path)
@@ -1787,12 +1831,16 @@ mod tests {
              exit 1\n",
         );
         let resources = resources_folder(&folder);
+        // The deploy's own temp root, so another test's deploy running alongside is never counted.
+        let temp = TestFolder::new();
         let url = deploy_worker_with(
             &wrangler,
             &resources,
             "conducted-dev-c08-test",
             "the-token",
+            temp.path(),
             || Ok(()),
+            &|_step| {},
         )
         .expect("a deploy");
         assert_eq!(url, "https://conducted-dev-c08-test.example.workers.dev");
@@ -1821,17 +1869,54 @@ mod tests {
         // The token reaches the deploy's secret file and nothing else.
         assert!(calls.contains("\"PAIRING_TOKEN\":\"the-token\""));
         // The temp folder and the secret file are gone when the deploy returns.
-        let leftovers = std::fs::read_dir(std::env::temp_dir())
+        let leftovers = std::fs::read_dir(temp.path())
             .expect("the temp folder")
             .filter_map(|entry| entry.ok())
             .filter(|entry| {
                 entry
                     .file_name()
                     .to_string_lossy()
-                    .starts_with(&format!("conducted-deploy-{}-", std::process::id()))
+                    .starts_with("conducted-deploy-")
             })
             .count();
         assert_eq!(leftovers, 0);
+    }
+
+    #[test]
+    fn a_deploy_reports_the_steps_it_is_on() {
+        let (folder, wrangler, _record) = fake_wrangler(
+            "#!/bin/sh\n\
+             case \"$1\" in\n\
+             --version) echo \"4.158.0\"; exit 0 ;;\n\
+             r2) exit 0 ;;\n\
+             deploy) echo \"  https://conducted-dev-c08-steps.example.workers.dev\"; exit 0 ;;\n\
+             esac\n\
+             exit 1\n",
+        );
+        let resources = resources_folder(&folder);
+        let steps = std::cell::RefCell::new(Vec::new());
+        let progress = |step: &str| steps.borrow_mut().push(step.to_string());
+        let temp = TestFolder::new();
+        deploy_worker_with(
+            &wrangler,
+            &resources,
+            "conducted-dev-c08-steps",
+            "the-token",
+            temp.path(),
+            || Ok(()),
+            &progress,
+        )
+        .expect("a deploy");
+        // The shell names each step it takes; wrangler's image build and upload are one step
+        // because one `wrangler deploy` call does both (issue #490).
+        assert_eq!(
+            steps.into_inner(),
+            vec![
+                String::from("Checking Docker"),
+                String::from("Creating the bucket"),
+                String::from("Building the image and uploading the Worker"),
+            ]
+        );
     }
 
     #[test]

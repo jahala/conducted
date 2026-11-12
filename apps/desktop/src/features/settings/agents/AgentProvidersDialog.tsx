@@ -15,6 +15,9 @@
  * chosen provider, the Bedrock region, the Vertex project and the models the picker shows,
  * useActions().agents.setProviderKey and removeProviderKey, and Actions.settings for the Bedrock
  * region, the Vertex project and the model filter.
+ * Every save, removal or import says Conductor's "Restart workspaces to pick up new agent
+ * credentials." beside the toast, and a saved subscription token reads "Connected with a setup
+ * token." (renderApp @10921095, @11570230).
  * Must handle: a key already saved (shown as configured, never its value), saving over one key,
  * an OpenCode variable two providers share (shown as saved under both, one value for both),
  * removing a key, "use the key from this Mac" (the sidecar reads it from the login shell), a missing
@@ -52,6 +55,11 @@ import {
 	providerSettingKey,
 	workspaceIdEnvVarFor,
 } from "./provider-forms.ts";
+
+/** Conductor adds this line to every provider-credential success toast (renderApp @10921095). */
+const PROVIDER_TOAST = {
+	description: "Restart workspaces to pick up new agent credentials.",
+} as const;
 
 interface KeyRef {
 	agent: AgentKind;
@@ -163,11 +171,13 @@ function KeyForm({
 			</div>
 			{saved ? (
 				<p className="text-xs text-fg-muted">
-					{saved.source === "this_mac"
-						? "Using the key from this Mac's environment."
-						: saved.provider === provider
-							? "A key is saved for this provider."
-							: `A key saved for another provider fills ${envVar}, so it is used here too.`}
+					{label === "Claude Code subscription" && saved.source !== "this_mac"
+						? "Connected with a setup token."
+						: saved.source === "this_mac"
+							? "Using the key from this Mac's environment."
+							: saved.provider === provider
+								? "A key is saved for this provider."
+								: `A key saved for another provider fills ${envVar}, so it is used here too.`}
 				</p>
 			) : null}
 		</div>
@@ -693,7 +703,7 @@ export function AgentProvidersDialog({
 			toastError("Couldn't save the API key", result.error);
 			return;
 		}
-		toast(fromMac ? "API key imported from env" : "API key saved");
+		toast(fromMac ? "API key imported from env" : "API key saved", PROVIDER_TOAST);
 	};
 
 	const removeKey = async (key: KeyRef): Promise<void> => {
@@ -702,7 +712,7 @@ export function AgentProvidersDialog({
 			toastError("Couldn't remove the API key", result.error);
 			return;
 		}
-		toast("API key removed");
+		toast("API key removed", PROVIDER_TOAST);
 	};
 
 	/** Saves each entry in order and stops at the first failure, which it shows. */
@@ -736,7 +746,7 @@ export function AgentProvidersDialog({
 	};
 
 	const removeMany = async (provider: string, envVars: readonly string[]): Promise<void> => {
-		if (await removeEach(provider, envVars)) toast("API key removed");
+		if (await removeEach(provider, envVars)) toast("API key removed", PROVIDER_TOAST);
 	};
 
 	/** Saves the Bedrock credentials, removes the stale ones, then the region. Stops at the first failure. */
@@ -751,7 +761,7 @@ export function AgentProvidersDialog({
 			(await removeEach("bedrock", remove)) &&
 			(await saveSetting("bedrock_region", region, "Couldn't save the Bedrock region"));
 		setBusy(false);
-		if (saved) toast("API key saved");
+		if (saved) toast("API key saved", PROVIDER_TOAST);
 		return saved;
 	};
 
@@ -765,7 +775,7 @@ export function AgentProvidersDialog({
 				]))) &&
 			(await saveSetting("vertex_project_id", project, "Couldn't save the Vertex project"));
 		setBusy(false);
-		if (saved) toast("Vertex settings saved");
+		if (saved) toast("Vertex settings saved", PROVIDER_TOAST);
 	};
 
 	const saveSetting = async (key: string, value: string, failure: string): Promise<boolean> => {
@@ -808,7 +818,7 @@ export function AgentProvidersDialog({
 			return;
 		}
 		setBusy(false);
-		toast("API key saved");
+		toast("API key saved", PROVIDER_TOAST);
 	};
 
 	const customOnly = !isAcp && choice === "custom";
@@ -862,8 +872,8 @@ export function AgentProvidersDialog({
 							acpAgent={acpAgent}
 							provider={providerIdFor(agent, "subscription")}
 							envVar={keyEnvVarFor(agent, "subscription")}
-							label="Claude Code subscription token"
-							description="Paste the token from claude setup-token. It is stored in the Keychain."
+							label="Claude Code subscription"
+							description="Run claude setup-token in a terminal and paste the token you get back here."
 							keys={saved}
 							onSave={saveKey}
 							onRemove={removeKey}

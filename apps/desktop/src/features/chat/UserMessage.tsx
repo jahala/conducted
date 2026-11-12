@@ -2,8 +2,8 @@
  * @feature CHAT-06 User message
  * @feature CHAT-29 Attachment and image viewer: copy, save, open
  * Owns: The user's message in a turn: text, mention chips, attachments and the hover actions.
- * Behaviour: ui-map.md 3.3 (user message: attachments, mention chips, 'Sent via' or 'Sent from
- * another session'; hover actions include revert; 'Message not sent' with Retry and Discard).
+ * Behaviour: ui-map.md 3.3 (user message: attachments, a video's 'Video attachment' label, mention
+ * chips, 'Sent via' or 'Sent from another session'; hover actions include revert; 'Message not sent' with Retry and Discard).
  * A chat image has a menu with Save image and Copy image (inventory toast rows 535 to 537), and a
  * click opens the attachment viewer (inventory label rows 343 and 462).
  * Must handle: Not sent (the `failed` prop draws the error state with Retry and Discard, and offers no Revert,
@@ -30,10 +30,10 @@ import type { ChatTurn } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
 import { FileIcon, PullRequestIcon } from "../../ui/icons.tsx";
+import { toastError } from "../../ui/Toast.tsx";
 import { AttachmentViewer } from "../file-viewer/AttachmentViewer.tsx";
 import { useAttachmentActions } from "../file-viewer/use-attachment-actions.ts";
 import { ResetChatDialog } from "./ResetChatDialog.tsx";
-import { reportFailure } from "./report-failure.ts";
 import { fileNameOf } from "./tools/ToolCardFrame.tsx";
 import { useWorkspaceLinks } from "./workspace-links.ts";
 
@@ -82,9 +82,10 @@ function AttachmentItem({ path }: { path: string }) {
 					type="button"
 					onClick={() => setViewerOpen(true)}
 					aria-label={`Open ${name}`}
-					className="shrink-0 rounded-sm text-fg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+					className="flex shrink-0 items-center gap-1 rounded-sm text-fg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
 				>
 					<FileIcon />
+					<span className="text-2xs">Video attachment</span>
 				</button>
 			) : (
 				<FileIcon className="text-fg-muted" />
@@ -188,6 +189,7 @@ export function UserMessage({
 			: message.sender.kind === "claude_ai"
 				? "Sent via Claude"
 				: "Sent from another session";
+	const senderPrefix = message.sender?.kind === "claude_ai" ? "Sent via" : "Sent from";
 
 	return (
 		<div className="group relative flex flex-col items-end gap-1">
@@ -195,7 +197,9 @@ export function UserMessage({
 				items={
 					<ContextMenuItem
 						onSelect={() => {
-							void reportFailure(actions.app.copyText(message.text), "Couldn't copy the message");
+							void actions.app.copyText(message.text).then((result) => {
+								if (!result.ok) toastError("Failed to copy message", result.error);
+							});
 						}}
 					>
 						Copy message
@@ -234,7 +238,11 @@ export function UserMessage({
 					Revert
 				</button>
 			) : null}
-			{sender ? <span className="text-2xs text-fg-muted">{sender}</span> : null}
+			{sender ? (
+				<span className="text-2xs text-fg-muted" title={senderPrefix}>
+					{sender}
+				</span>
+			) : null}
 			{failed !== null ? (
 				<div className="flex flex-wrap items-center justify-end gap-2 rounded-md border border-danger bg-surface px-2 py-1.5 text-xs">
 					<span className="font-medium text-danger">{failed.message}</span>

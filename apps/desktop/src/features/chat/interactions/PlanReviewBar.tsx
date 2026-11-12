@@ -19,25 +19,39 @@
  * not approved, with no feedback, so its agent stops waiting (claude-runner 3.5: a cancelled plan
  * review is a plain denial). Approving first turns the chat's stored plan mode off and only then
  * answers, so a turn that starts right after the approval cannot run on the old plan-mode config.
- * Cmd+Shift+Enter approves. The shortcut is a chat-card command, so Approve takes focus when the
- * bar opens, as the question card does.
+ * The bar shows only while plan mode is on, as Conductor's does (renderApp @9314918). A plan
+ * that waits while plan mode is off has no bar; the composer still takes its adjustments.
+ * Our design choice: once the user has acted on the bar, it stays until the plan is answered.
+ * Approving turns plan mode off before it answers, so without this an answer that fails would
+ * leave no bar to show the error on.
+ * Approve, from the button or Cmd+Shift+Enter, sends the composer's text as the plan's adjustments
+ * when it holds any, and approves an empty composer, as Conductor's one action does (renderApp
+ * @9313268, the button at @9315041). The button reaches the composer through the chat pane
+ * (composer/plan-adjustments.tsx). The key works wherever focus is, as in Conductor, whose chat
+ * pane registers it beside the composer's commands (renderApp @9295497), and only in plan mode.
+ * Focus stays in the composer. The composer handles the key first; with an empty composer the key
+ * reaches this bar. Only the chat on screen takes it, so a second chat beside it in a split pane
+ * keeps its plan.
  * Must handle: plan file path present (a link to open the file); the interaction is
  * withdrawn; Approve sets plan mode off before it answers, and a failed config write keeps the bar
- * open with the error; a hand-off whose closing answer fails says so.
+ * open with the error; an answer that fails after plan mode went off keeps the bar and its error;
+ * a hand-off whose closing answer fails says so.
  * Test first: Approve calls sessions.answer with kind plan_approval and approved true; text sent
- * from the composer while the plan waits is the feedback.
+ * from the composer while the plan waits is the feedback; no plan bar while plan mode is off.
  */
 
 import type { Interaction, InteractionAnswer, SessionConfig } from "@conducted/protocol";
 import { type InteractionId, ok, type Result, type SessionId } from "@conducted/shared";
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useCommandHandler } from "../../../app/command-dispatcher.ts";
+import { useServices } from "../../../core/context.tsx";
 import { useActions, useChat, useLiveShortcut, useSessions } from "../../../core/hooks.ts";
 import type { Session } from "../../../core/model.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { CopyButton } from "../../../ui/CopyButton.tsx";
 import { Select } from "../../../ui/Select.tsx";
 import { Tooltip } from "../../../ui/Tooltip.tsx";
+import { useSendPlanAdjustments } from "../../composer/plan-adjustments.tsx";
 import { FileLink } from "../tools/ToolCardFrame.tsx";
 
 export interface PlanReviewBarProps {
@@ -76,17 +90,16 @@ function PlanReviewForm({
 	session,
 }: PlanReviewBarProps & { session: Session }) {
 	const actions = useActions();
+	const { services } = useServices();
 	const listed = useSessions(session.workspaceId);
 	const [target, setTarget] = useState<string>(NEW_CHAT);
 	const [pending, setPending] = useState<"approve" | "handOff" | null>(null);
 	const [failure, setFailure] = useState<string | null>(null);
 	const [chosen, setChosen] = useState<string | null>(null);
 	const busy = useRef(false);
-	/** Approve takes focus when the bar opens, so Cmd+Shift+Enter reaches the bar's handler. */
-	const focusOnMount = useCallback((node: HTMLButtonElement | null) => {
-		node?.focus();
-	}, []);
 	const approveShortcut = useLiveShortcut("chat.approvePlan");
+	const sendAdjustments = useSendPlanAdjustments();
+	const planMode = session.config.planMode;
 
 	const chats =
 		listed.state === "ready"
@@ -155,20 +168,32 @@ function PlanReviewForm({
 		}
 	}
 
+	/** Approve, from the button: the composer's text goes as the plan's adjustments, if it has any. */
+	function approveOrAdjust(): void {
+		if (sendAdjustments() !== "none") return;
+		void approve();
+	}
+
 	function submitShortcut(): boolean {
+		if (services.sessions.store.getState().viewingSessionId !== sessionId) return false;
+		if (!planMode) return false;
 		if (busy.current || chosen !== null) return false;
 		void approve();
 		return true;
 	}
 
-	useCommandHandler("chat.approvePlan", "area", submitShortcut);
+	// Below the composer's handler (area), which takes the key when it holds plan adjustments.
+	useCommandHandler("chat.approvePlan", "base", submitShortcut);
 
 	const disabled = pending !== null || chosen !== null;
+	// Shown while plan mode is on, as Conductor does. Once the user has acted, it stays until the
+	// plan is answered, so an answer that fails after plan mode went off is still seen.
+	const acted = pending !== null || failure !== null || chosen !== null;
+	if (!planMode && !acted) return null;
 
 	return (
 		<fieldset
 			aria-label="Plan review"
-			data-command-scope="chat-card"
 			className="m-0 flex flex-col gap-2 rounded-xl border border-border bg-surface px-4 py-2"
 		>
 			<div className="flex flex-wrap items-center gap-3">
@@ -220,10 +245,9 @@ function PlanReviewForm({
 						</Tooltip>
 						<Tooltip content="Execute plan in current chat">
 							<Button
-								ref={focusOnMount}
 								size="xs"
 								className="px-3"
-								onClick={() => void approve()}
+								onClick={approveOrAdjust}
 								loading={pending === "approve"}
 								disabled={disabled}
 							>

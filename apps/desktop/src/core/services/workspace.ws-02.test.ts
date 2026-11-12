@@ -105,7 +105,7 @@ function makeHarness(options: HarnessOptions = {}) {
 			return ok(undefined);
 		},
 		async exists() {
-			return false;
+			return ok(false);
 		},
 		async stat() {
 			return err(appError("fs_not_found", "missing"));
@@ -174,6 +174,7 @@ function makeHarness(options: HarnessOptions = {}) {
 				path: input.path,
 				branch: input.branch,
 				branchIsPlaceholder: input.branchIsPlaceholder,
+				remoteFileSyncEnabled: false,
 				host: { kind: "local" },
 				displayName: null,
 				targetBranch: input.targetBranch,

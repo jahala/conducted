@@ -160,7 +160,7 @@ export function ChecksTab({ workspaceId, onGitAction, title, description }: Chec
 
 	const addCommentsToChat = (ids: CommentId[]) => {
 		if (ids.length === 0) return;
-		void runAction("Couldn't add the comments to the chat", () =>
+		void runAction("Failed to add comments to chat", () =>
 			actions.comments.sendToChat(workspaceId, ids),
 		);
 	};

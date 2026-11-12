@@ -19,9 +19,11 @@
  * Must handle: no actions (empty state), loading, the picked action disappearing (falls back to the
  * default), a run starting while setup is running (button says Waiting for setup), a stop that is
  * not confirmed (the error is shown, the retained outcome stays in view, and the button returns to
- * Run), a saved history that could not be read (the reason is shown), a process that exits by itself
- * (output stays, button back to Run again), exclusive mode stopping another workspace's run (the
- * service does it), and an archived workspace.
+ * Run), a saved history that could not be read (the reason is shown), a start whose workspace or
+ * project is gone (Conductor's "Unable to start: workspace or repository not found"), a config that
+ * cannot be read ("Couldn't load actions." with Retry), a process that exits by itself (output stays,
+ * button back to Run again), exclusive mode stopping another workspace's run (the service does it),
+ * and an archived workspace.
  * RUN-02: with "Use spotlight testing" on, the list has the synthetic Spotlight entry and it is
  * picked first, so the button reads "Start spotlight" or "Stop spotlight"; while Spotlight runs a
  * line says the root's branch points at the workspace's changes, and a failed restore of the root
@@ -35,11 +37,22 @@ import { useStore } from "zustand";
 import { useCommandHandler } from "../../../app/command-dispatcher.ts";
 import { RunTerminalSlot, useRunSurfaceTerminal } from "../../../app/surface-registry.tsx";
 import { useServices } from "../../../core/context.tsx";
-import { PREVIEW_MIRROR_UNAVAILABLE_MESSAGE } from "../../../core/file-sync-view.ts";
-import { useActions, useRepoConfig, useRunState, useWorkspace } from "../../../core/hooks.ts";
+import {
+	LOCAL_TERMINAL_UNAVAILABLE_LABEL,
+	localTerminalDescription,
+	PREVIEW_MIRROR_UNAVAILABLE_MESSAGE,
+} from "../../../core/file-sync-view.ts";
+import {
+	useActions,
+	useFileSyncStatus,
+	useRepoConfig,
+	useRunState,
+	useWorkspace,
+} from "../../../core/hooks.ts";
 import { defaultRunAction } from "../../../core/run-scripts.ts";
 import { SPOTLIGHT_ACTION_ID, SPOTLIGHT_BRANCH_NOTICE } from "../../../core/spotlight.ts";
 import { isArchivedWorkspace } from "../../../core/status/archived.ts";
+import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
@@ -94,9 +107,16 @@ function RunPreview({
 	const cloudFileSync = useServices().services.cloudFileSync;
 	const openPreview = (url: string): void => {
 		void (async () => {
-			if (localVariant && !(await cloudFileSync.mirrorReady(workspaceId))) {
-				toast(PREVIEW_MIRROR_UNAVAILABLE_MESSAGE);
-				return;
+			if (localVariant) {
+				const ready = await cloudFileSync.mirrorReady(workspaceId);
+				if (!ready.ok) {
+					toastError(PREVIEW_MIRROR_UNAVAILABLE_MESSAGE, ready.error);
+					return;
+				}
+				if (!ready.value) {
+					toast(PREVIEW_MIRROR_UNAVAILABLE_MESSAGE);
+					return;
+				}
 			}
 			open.preview(url);
 		})();
@@ -139,6 +159,7 @@ function RunPreview({
 export function RunTab({ workspaceId }: RunTabProps) {
 	const run = useRunState(workspaceId);
 	const workspace = useWorkspace(workspaceId);
+	const fileSync = useFileSyncStatus(workspaceId);
 	const actions = useActions();
 	const navigate = useNavigate();
 	const services = useServices().services;
@@ -220,6 +241,16 @@ export function RunTab({ workspaceId }: RunTabProps) {
 							: await actions.run.stopSpotlight(workspaceId);
 			if (forSpotlight) setSpotlightBusy(false);
 			if (!result.ok) {
+				if (result.error.code === "workspace_unknown" || result.error.code === "repo_unknown") {
+					toast.error("Unable to start: workspace or repository not found");
+					return;
+				}
+				if (result.error.code === "run_local_mirror_unavailable") {
+					toastError(LOCAL_TERMINAL_UNAVAILABLE_LABEL, {
+						message: localTerminalDescription(fileSync),
+					});
+					return;
+				}
 				const title =
 					effect === "start_spotlight"
 						? "Couldn't start Spotlight"
@@ -247,7 +278,24 @@ export function RunTab({ workspaceId }: RunTabProps) {
 		);
 	}
 	if (run.state === "error") {
-		return <EmptyState title="Run is unavailable" body={run.error.message} tone="failed" />;
+		return (
+			<EmptyState
+				title="Couldn't load actions."
+				body={run.error.message}
+				tone="failed"
+				action={
+					workspace.state === "ready" ? (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => void services.repo.loadConfig(workspace.data.repoId)}
+						>
+							Retry
+						</Button>
+					) : null
+				}
+			/>
+		);
 	}
 	if (workspace.state === "error") {
 		return <EmptyState title="Run is unavailable" body={workspace.error.message} tone="failed" />;

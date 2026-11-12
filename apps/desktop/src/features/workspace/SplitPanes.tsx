@@ -8,7 +8,13 @@
  * tree is in tab-layout.ts. The split panes read their tabs from the live chat and terminal stores,
  * so closing a chat removes its pane. The tabs a split pane owns are left out of the main strip.
  * Splitting the active tab moves the URL to its neighbour. A tab dropped on another group's strip
- * moves there; a tab dropped on a group's content splits that group at the nearest edge.
+ * moves there; a tab dropped on a group's content splits that group at the nearest edge. The drag
+ * is the tab drag the centre shares with the bottom panel (tab-drag.tsx), whose ghost follows the
+ * pointer, as in Conductor. A panel terminal dropped here moves to the centre and lands where it
+ * was dropped, and a tab dropped on the main strip opens (renderApp @10209498: Conductor moves the
+ * terminal, places its tab at the drop, and navigates to it). A centre terminal dropped on the
+ * panel leaves the centre; if it was the open tab, the strip's first tab opens, as Conductor's tab
+ * removal makes a group's first tab active.
  * Must handle: dropping on any edge (left, right, top, bottom); Cmd+D with fewer than two tabs
  * refuses without claiming the command; closing the split returns to one group; a workspace with
  * the setting off ignores any split; switching workspaces clears the split.
@@ -16,22 +22,32 @@
  * the new one.
  */
 import type { WorkspaceId } from "@conducted/shared";
-import { type DragEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
-import { useSessions, useSetting, useTerminals, useWorkspace } from "../../core/hooks.ts";
+import {
+	useActions,
+	useSessions,
+	useSetting,
+	useTerminals,
+	useWorkspace,
+} from "../../core/hooks.ts";
 import type { DiffComment } from "../../core/model.ts";
 import { CloseIcon } from "../../ui/icons.tsx";
+import type { PointerDragHit } from "../../ui/pointer-drag.ts";
+import { toastError } from "../../ui/Toast.tsx";
 import { activeTabFromDescriptor, resolveActiveTab, searchPatchFor, tabRef } from "./active-tab.ts";
 import { TabContent } from "./TabContent.tsx";
 import { TabItem } from "./TabItem.tsx";
 import { buildTabs, TabStrip } from "./TabStrip.tsx";
+import { type TabDragPayload, useTabDrag, useTabDropTarget } from "./tab-drag.tsx";
 import {
 	activeTabOf,
 	applyTabAction,
 	closeGroup,
 	findTabGroup,
+	inOrder,
 	listGroups,
 	neighbourAfterClose,
 	pruneLayout,
@@ -50,22 +66,29 @@ export interface SplitPanesProps {
 }
 
 type Edge = "left" | "right" | "top" | "bottom";
-type DragSource = "application/x-conducted-tab";
 
-const DRAG_TYPE: DragSource = "application/x-conducted-tab";
+/** Where a dragged tab lands: among a group's tabs, at its end, or on an edge that splits it. */
+type TabDropTarget =
+	| { kind: "tabs"; groupId: string; index: number }
+	| { kind: "center"; groupId: string }
+	| { kind: "edge"; groupId: string; edge: Edge };
+
 const MAIN_GROUP = "group-main";
 const NO_COMMENTS: readonly DiffComment[] = [];
+/** Conductor's edge band: a point within 15% of a group's width or height splits there. */
+const EDGE_BAND = 0.15;
 
-function isDrag(event: DragEvent<HTMLDivElement>): boolean {
-	return event.dataTransfer.types.includes(DRAG_TYPE);
+function contains(rect: DOMRect, point: { x: number; y: number }): boolean {
+	return (
+		point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
+	);
 }
 
-/** The nearest edge of the drop target, or right when the target has no measured size. */
-export function edgeFromEvent(event: DragEvent<HTMLElement>): Edge {
-	const rect = event.currentTarget.getBoundingClientRect();
+/** The nearest edge when the point is within the edge band, else undefined (Conductor's centre). */
+function edgeAt(point: { x: number; y: number }, rect: DOMRect): Edge | undefined {
 	if (rect.width === 0 && rect.height === 0) return "right";
-	const x = (event.clientX - rect.left) / rect.width;
-	const y = (event.clientY - rect.top) / rect.height;
+	const x = (point.x - rect.left) / rect.width;
+	const y = (point.y - rect.top) / rect.height;
 	const distances: { edge: Edge; distance: number }[] = [
 		{ edge: "left", distance: x },
 		{ edge: "right", distance: 1 - x },
@@ -73,12 +96,56 @@ export function edgeFromEvent(event: DragEvent<HTMLElement>): Edge {
 		{ edge: "bottom", distance: 1 - y },
 	];
 	distances.sort((left, right) => left.distance - right.distance);
-	return distances[0]?.edge ?? "right";
+	const nearest = distances[0];
+	return nearest !== undefined && nearest.distance <= EDGE_BAND ? nearest.edge : undefined;
+}
+
+/**
+ * The tab target under the point, as Conductor finds it: a strip's tab at the pointer's half, the
+ * strip's end past the tabs, or a group's body at an edge (split) or its centre (move to the end).
+ */
+function tabTargetAt(
+	root: HTMLElement | null,
+	point: { x: number; y: number },
+): PointerDragHit<TabDropTarget> | undefined {
+	if (root === null) return undefined;
+	for (const strip of root.querySelectorAll<HTMLElement>("[data-tab-strip]")) {
+		const rect = strip.getBoundingClientRect();
+		if (!contains(rect, point)) continue;
+		const groupId = strip.dataset.tabStrip ?? MAIN_GROUP;
+		const nodes = [...strip.querySelectorAll<HTMLElement>("[data-tab-ref]")];
+		let index = nodes.length;
+		let element: Element = strip;
+		for (const [position, node] of nodes.entries()) {
+			const tabRect = node.getBoundingClientRect();
+			if (!contains(tabRect, point)) continue;
+			index = point.x < tabRect.left + tabRect.width / 2 ? position : position + 1;
+			element = node;
+			break;
+		}
+		return { target: { kind: "tabs", groupId, index }, element };
+	}
+	const bodies = [root, ...root.querySelectorAll<HTMLElement>("[data-tab-group]")].filter(
+		(element) => element.matches("[data-tab-group]"),
+	);
+	for (const body of bodies) {
+		const rect = body.getBoundingClientRect();
+		if (!contains(rect, point)) continue;
+		const groupId = body.dataset.tabGroup ?? MAIN_GROUP;
+		const edge = edgeAt(point, rect);
+		return {
+			target: edge === undefined ? { kind: "center", groupId } : { kind: "edge", groupId, edge },
+			element: body,
+		};
+	}
+	return undefined;
 }
 
 export function SplitPanes({ workspaceId, search, onSearchChange }: SplitPanesProps) {
 	const splitEnabled = useSetting<boolean>("experimental_configurable_center_panel");
 	const services = useServices();
+	const actions = useActions();
+	const tabDrag = useTabDrag();
 	const sessions = useSessions(workspaceId);
 	const terminals = useTerminals(workspaceId);
 	const workspace = useWorkspace(workspaceId);
@@ -90,6 +157,7 @@ export function SplitPanes({ workspaceId, search, onSearchChange }: SplitPanesPr
 	);
 	const [layout, setLayout] = useState<TabGroupNode | null>(null);
 	const previousWorkspace = useRef(workspaceId);
+	const centreRef = useRef<HTMLDivElement | null>(null);
 
 	useEffect(() => {
 		if (previousWorkspace.current === workspaceId) return;
@@ -123,6 +191,12 @@ export function SplitPanes({ workspaceId, search, onSearchChange }: SplitPanesPr
 	const splitGroups =
 		effective === null ? [] : listGroups(effective).filter((group) => group.id !== MAIN_GROUP);
 	const hiddenRefs = new Set(splitGroups.flatMap((group) => group.tabs.map((tab) => tab.ref)));
+	const mainOrder =
+		effective === null
+			? undefined
+			: listGroups(effective)
+					.find((group) => group.id === MAIN_GROUP)
+					?.tabs.map((tab) => tab.ref);
 
 	/** The tab a split group shows. Chats and terminals must still exist; a file-like tab can stay. */
 	const descriptorFor = (group: TabGroup): TabDescriptor | null => {
@@ -134,9 +208,14 @@ export function SplitPanes({ workspaceId, search, onSearchChange }: SplitPanesPr
 		return model;
 	};
 
+	// The main strip's tabs in the order it shows them, so a drop index means the same tab here.
+	const mainTabs = inOrder(
+		tabs.filter((tab) => !hiddenRefs.has(tab.ref)),
+		mainOrder,
+	);
+
 	/** The tree with the main group's tabs brought up to date, so a move can find a new tab. */
 	const currentTree = (): TabGroupNode => {
-		const mainTabs = tabs.filter((tab) => !hiddenRefs.has(tab.ref));
 		const base = effective ?? {
 			kind: "group" as const,
 			id: MAIN_GROUP,
@@ -166,16 +245,27 @@ export function SplitPanes({ workspaceId, search, onSearchChange }: SplitPanesPr
 		return true;
 	};
 
-	const move = (tab: TabDescriptor, toGroupId: string): boolean => {
+	const move = (tab: TabDescriptor, toGroupId: string, index?: number): boolean => {
 		const base = currentTree();
-		if (findTabGroup(base, tab.ref)?.id === toGroupId) return false;
+		const source = findTabGroup(base, tab.ref);
+		const target = listGroups(base).find((group) => group.id === toGroupId);
+		if (source === null || target === undefined) return false;
+		const sameGroup = source.id === toGroupId;
+		const from = source.tabs.findIndex((candidate) => candidate.ref === tab.ref);
+		// Conductor removes the tab before inserting it, so a move to the right lands one place left.
+		const at =
+			index === undefined
+				? target.tabs.length
+				: sameGroup && from !== -1 && from < index
+					? index - 1
+					: index;
 		const next = applyTabAction({
 			layout: base,
-			action: { type: "move", ref: tab.ref, toGroupId, index: 0 },
+			action: { type: "move", ref: tab.ref, toGroupId, index: at },
 		});
 		if (next === base) return false;
 		setLayout(next);
-		moveAwayFromActive(tab.ref);
+		if (!sameGroup) moveAwayFromActive(tab.ref);
 		return true;
 	};
 
@@ -184,38 +274,86 @@ export function SplitPanes({ workspaceId, search, onSearchChange }: SplitPanesPr
 		return split(active, "right");
 	});
 
-	const dropOnGroup = (event: DragEvent<HTMLDivElement>) => {
-		event.preventDefault();
-		const ref = event.dataTransfer.getData(DRAG_TYPE);
-		const tab = tabs.find((candidate) => candidate.ref === ref);
-		if (tab === undefined) return;
-		split(tab, edgeFromEvent(event));
-	};
-
-	const dropOnStrip = (event: DragEvent<HTMLDivElement>, groupId: string) => {
-		event.preventDefault();
-		const ref = event.dataTransfer.getData(DRAG_TYPE);
-		const tab = tabs.find((candidate) => candidate.ref === ref);
-		if (tab === undefined) return;
-		move(tab, groupId);
-	};
-
-	const dragStart = (tab: TabDescriptor) => (event: DragEvent<HTMLDivElement>) => {
-		event.dataTransfer.setData(DRAG_TYPE, tab.ref);
-		event.dataTransfer.effectAllowed = "move";
-		if (typeof event.dataTransfer.setDragImage === "function") {
-			const ghost = document.createElement("div");
-			ghost.dataset.testid = "center-panel-drag-ghost";
-			ghost.textContent = tab.title;
-			ghost.className =
-				"rounded-md border border-border bg-surface px-2 py-1 text-sm text-fg shadow-dialog";
-			ghost.style.position = "fixed";
-			ghost.style.top = "-1000px";
-			ghost.style.left = "-1000px";
-			document.body.appendChild(ghost);
-			event.dataTransfer.setDragImage(ghost, 0, 0);
-			window.setTimeout(() => ghost.remove(), 0);
+	/**
+	 * A panel terminal's tab lands where it was dropped: among a strip's tabs, at a group's end, or
+	 * split off at an edge. A tab placed on the main strip opens there. A split pane shows its own
+	 * tab, and the URL names the main strip's, so a tab placed in a split pane does not.
+	 */
+	const place = (tab: TabDescriptor, target: TabDropTarget): void => {
+		const placed = applyTabAction({
+			layout: currentTree(),
+			action: {
+				type: "place",
+				tab,
+				toGroupId: target.groupId,
+				...(target.kind === "tabs" ? { index: target.index } : {}),
+			},
+		});
+		const next =
+			target.kind === "edge"
+				? applyTabAction({
+						layout: placed,
+						action: { type: "split", ref: tab.ref, groupId: target.groupId, edge: target.edge },
+					})
+				: placed;
+		setLayout(next);
+		if (target.kind !== "edge" && target.groupId === MAIN_GROUP) {
+			onSearchChange(searchPatchFor(activeTabFromDescriptor(tab)));
 		}
+	};
+
+	/** A centre terminal moved to the panel: an open tab gives way to the strip's first tab. */
+	const leave = (ref: string): void => {
+		if (ref !== activeRef) return;
+		const first = mainTabs.find((tab) => tab.ref !== ref);
+		onSearchChange(
+			searchPatchFor(first === undefined ? { kind: "none" } : activeTabFromDescriptor(first)),
+		);
+	};
+
+	// The drop and the leaving tab act after the move resolves, on the newest render's tabs.
+	const latest = useRef({ place, leave });
+	latest.current = { place, leave };
+
+	const moveInFromPanel = async (payload: TabDragPayload, target: TabDropTarget) => {
+		const terminalId = payload.tab.terminalId;
+		if (terminalId === undefined) return;
+		const moved = await actions.terminals.move(workspaceId, terminalId, "centre");
+		if (!moved.ok) {
+			toastError("Couldn't move the terminal", moved.error);
+			return;
+		}
+		latest.current.place(payload.tab, target);
+		payload.onMovedOut?.();
+	};
+
+	useTabDropTarget((point) => {
+		const hit = tabTargetAt(centreRef.current, point);
+		if (hit === undefined) return undefined;
+		const target = hit.target;
+		return {
+			element: hit.element,
+			drop: (payload) => {
+				if (payload.source === "right-terminal") {
+					void moveInFromPanel(payload, target);
+					return;
+				}
+				if (target.kind === "edge") split(payload.tab, target.edge, target.groupId);
+				else move(payload.tab, target.groupId, target.kind === "tabs" ? target.index : undefined);
+			},
+		};
+	});
+
+	/** A centre tab starts the shared drag; a terminal's says how the centre lets it go. */
+	const tabPointer = {
+		start: (event: Parameters<typeof tabDrag.start>[0], tab: TabDescriptor) =>
+			tabDrag.start(event, {
+				tab,
+				source: "center-tab",
+				label: tab.title,
+				...(tab.kind === "terminal" ? { onMovedOut: () => latest.current.leave(tab.ref) } : {}),
+			}),
+		consumeClick: tabDrag.consumeClick,
 	};
 
 	const mainPaneBody = (
@@ -225,6 +363,9 @@ export function SplitPanes({ workspaceId, search, onSearchChange }: SplitPanesPr
 				search={search}
 				onSearchChange={onSearchChange}
 				excludeRefs={hiddenRefs}
+				pointer={tabPointer}
+				group={MAIN_GROUP}
+				order={mainOrder}
 			/>
 			<div className="min-h-0 flex-1">
 				<TabContent workspaceId={workspaceId} search={search} onSearchChange={onSearchChange} />
@@ -232,21 +373,26 @@ export function SplitPanes({ workspaceId, search, onSearchChange }: SplitPanesPr
 		</div>
 	);
 
+	const singleGroup = !splitEnabled || effective === null || splitGroups.length === 0;
+
 	const mainPane = splitEnabled ? (
-		// biome-ignore lint/a11y/noStaticElementInteractions: the group is the drop target for a tab dragged from its strip.
 		<div
+			ref={singleGroup ? centreRef : undefined}
 			data-testid="split-centre"
+			data-tab-group={MAIN_GROUP}
 			className="flex h-full min-w-0 flex-1 flex-col"
-			onDragOver={(event) => {
-				if (isDrag(event)) event.preventDefault();
-			}}
-			onDrop={dropOnGroup}
 		>
 			{mainPaneBody}
 		</div>
 	) : (
 		// h-full as well as flex-1: with one group the parent (WorkspaceLayout) is a block, not a flex row.
-		<div className="flex h-full min-w-0 flex-1 flex-col">{mainPaneBody}</div>
+		<div
+			ref={singleGroup ? centreRef : undefined}
+			data-tab-group={MAIN_GROUP}
+			className="flex h-full min-w-0 flex-1 flex-col"
+		>
+			{mainPaneBody}
+		</div>
 	);
 
 	const renderGroup = (group: TabGroup): ReactNode => {
@@ -256,26 +402,25 @@ export function SplitPanes({ workspaceId, search, onSearchChange }: SplitPanesPr
 		return (
 			<section
 				aria-label={`Split pane: ${tab.title}`}
+				data-tab-group={group.id}
 				className="flex min-w-0 flex-1 flex-col border-l border-separator"
 			>
-				{/* biome-ignore lint/a11y/noStaticElementInteractions: the strip is the drop target that moves a tab into this group. */}
 				<div
 					data-testid={`split-group-${group.id}`}
+					data-tab-strip={group.id}
 					className="flex h-10 shrink-0 items-center gap-1 border-b border-separator bg-surface px-2"
-					onDragOver={(event) => {
-						if (isDrag(event)) event.preventDefault();
-					}}
-					onDrop={(event) => dropOnStrip(event, group.id)}
 				>
 					<TabItem
 						tab={tab}
 						active
+						data-tab-ref={tab.ref}
 						onSelect={() => {}}
 						onClose={() => {
 							const base = currentTree();
 							setLayout(closeGroup(base, group.id));
 						}}
-						onDragStart={dragStart(tab)}
+						onPointerDown={(event) => tabPointer.start(event, tab)}
+						onClickCapture={tabPointer.consumeClick}
 					/>
 					<button
 						type="button"
@@ -308,7 +453,11 @@ export function SplitPanes({ workspaceId, search, onSearchChange }: SplitPanesPr
 				? "flex h-full min-h-0 w-full"
 				: "flex h-full min-h-0 w-full flex-col";
 		return (
-			<div className={direction} data-direction={node.direction}>
+			<div
+				ref={node === effective ? centreRef : undefined}
+				className={direction}
+				data-direction={node.direction}
+			>
 				{node.children.map((child) => (
 					<div key={child.id} className="flex min-h-0 min-w-0 flex-1">
 						{renderNode(child)}
@@ -318,10 +467,7 @@ export function SplitPanes({ workspaceId, search, onSearchChange }: SplitPanesPr
 		);
 	};
 
-	const body =
-		!splitEnabled || effective === null || splitGroups.length === 0
-			? mainPane
-			: renderNode(effective);
+	const body = singleGroup ? mainPane : renderNode(effective);
 
 	return <NewTabProvider>{body}</NewTabProvider>;
 }

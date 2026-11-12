@@ -9,10 +9,10 @@
 	},
 	"tooltip:M2690256": {
 		"status": "matched",
-		"state": "git-checks-deployments",
+		"state": "chat-tool-cards-plan-mode",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(6) > div > span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(3) > div > button > span:nth-of-type(2) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"tooltip:R1717507": {
@@ -32,28 +32,28 @@
 		"owner": "hand"
 	},
 	"tooltip:R5588285": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "Remote file sync status for cloud workspaces.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "cloud-actions-pause",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > div:nth-of-type(3) > button",
+		"by": "seed"
 	},
 	"tooltip:R5591578": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "Remote file sync status for cloud workspaces.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "cloud-sync-error",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > div:nth-of-type(4) > div:nth-of-type(1) > button",
+		"by": "seed"
 	},
 	"tooltip:R5592527": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "Remote file sync status for cloud workspaces.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "cloud-sync-error",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(5) > div:nth-of-type(4) > div:nth-of-type(2) > button",
+		"by": "seed"
 	},
 	"tooltip:R5608488": {
 		"status": "decided",
@@ -76,12 +76,12 @@
 		"by": "hand"
 	},
 	"tooltip:R8800031": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-12",
-		"item": "Conductor shows \"Copy plan\" (tooltip, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-tool-cards-plan-mode",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > span",
+		"by": "seed"
 	},
 	"tooltip:R8821619": {
 		"status": "matched",
@@ -92,12 +92,9 @@
 		"by": "seed"
 	},
 	"tooltip:R8843427": {
-		"status": "matched",
-		"state": "git-diff",
-		"via": "aria-label",
-		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > button:nth-of-type(1)",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Composer"
 	},
 	"tooltip:R8922004": {
 		"status": "decided",
@@ -150,13 +147,12 @@
 		"by": "seed"
 	},
 	"tooltip:R9642788": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Chat view",
-		"backlog": "REV-08",
-		"item": "File header copy button's tooltip reads 'Copy file contents' (ours says 'Copy file contents to clipboard')",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "git-diff",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"tooltip:R10033594": {
 		"status": "matched",
@@ -173,11 +169,12 @@
 		"by": "hand"
 	},
 	"tooltip:R11579984": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-03",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-agents-claude-login",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > div > button > span",
+		"by": "seed"
 	},
 	"tooltip:R11916650": {
 		"status": "decided",

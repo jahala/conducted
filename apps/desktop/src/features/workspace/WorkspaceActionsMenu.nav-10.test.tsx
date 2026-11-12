@@ -53,6 +53,7 @@ vi.mock("../../core/hooks.ts", () => ({
 	useLiveShortcut: () => null,
 	useWorkspace: () => state.workspace,
 	useSessions: () => state.sessions,
+	useSections: () => ({ state: "ready", data: state.snapshot.sections }),
 	usePortForwards: () => ({
 		forwardingEnabled: false,
 		autoForwardEnabled: false,

@@ -20,6 +20,7 @@ import { WithSurfaces } from "../../test/surfaces.tsx";
 import { ScriptsPanel } from "../scripts-panel/ScriptsPanel.tsx";
 import { TabContent } from "./TabContent.tsx";
 import { TabStrip } from "./TabStrip.tsx";
+import { TabDragProvider } from "./tab-drag.tsx";
 import type { WorkspaceSearch } from "./workspace-search.ts";
 
 const must = <T,>(result: { ok: true; value: T } | { ok: false; error: unknown }): T => {
@@ -50,21 +51,23 @@ function Harness({ workspaceId, sessionId }: { workspaceId: WorkspaceId; session
 	const [search, setSearch] = useState<WorkspaceSearch>({ tab: "session", sessionId });
 	return (
 		<CommandDispatcher>
-			<div data-testid="centre">
-				<TabStrip
-					workspaceId={workspaceId}
-					search={search}
-					onSearchChange={(patch) => setSearch((current) => ({ ...current, ...patch }))}
-				/>
-				<TabContent
-					workspaceId={workspaceId}
-					search={search}
-					onSearchChange={(patch) => setSearch((current) => ({ ...current, ...patch }))}
-				/>
-			</div>
-			<div data-testid="panel">
-				<ScriptsPanel workspaceId={workspaceId} />
-			</div>
+			<TabDragProvider>
+				<div data-testid="centre">
+					<TabStrip
+						workspaceId={workspaceId}
+						search={search}
+						onSearchChange={(patch) => setSearch((current) => ({ ...current, ...patch }))}
+					/>
+					<TabContent
+						workspaceId={workspaceId}
+						search={search}
+						onSearchChange={(patch) => setSearch((current) => ({ ...current, ...patch }))}
+					/>
+				</div>
+				<div data-testid="panel">
+					<ScriptsPanel workspaceId={workspaceId} />
+				</div>
+			</TabDragProvider>
 		</CommandDispatcher>
 	);
 }
@@ -81,6 +84,8 @@ async function mount(): Promise<{
 	await test.database.execute("UPDATE workspaces SET state = 'ready' WHERE id = $1", [
 		workspace.id,
 	]);
+	// The app loads settings before any screen shows; a new terminal waits for them.
+	must(await test.container.services.settings.start());
 	must(await test.container.services.workspace.start());
 	const chat = must(await test.container.services.sessions.create(workspace.id, CONFIG));
 	must(await test.container.services.sessions.start());

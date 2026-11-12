@@ -24,12 +24,12 @@
 		"owner": "hand"
 	},
 	"test_id:R5587249": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-11",
-		"item": "Remote file sync status for cloud workspaces.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "cloud-actions-pause",
+		"via": "testid",
+		"role": "switch",
+		"selector": "[data-testid=\"remote-file-sync-button\"]",
+		"by": "seed"
 	},
 	"test_id:R8915522": {
 		"status": "matched",
@@ -54,13 +54,12 @@
 		"by": "hand"
 	},
 	"test_id:R10139472": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Workspaces",
-		"class": "wording",
-		"backlog": "NAV-10",
-		"owner": "hand",
-		"note": "Ours now carries Conductor's test id; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "workspace-tab-drag-ghost",
+		"via": "testid",
+		"role": "div",
+		"selector": "[data-testid=\"center-panel-drag-ghost\"]",
+		"by": "hand"
 	},
 	"test_id:R10242215": {
 		"status": "gap",

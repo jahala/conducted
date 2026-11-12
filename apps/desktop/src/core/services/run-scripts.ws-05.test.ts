@@ -24,6 +24,7 @@ const workspace: Workspace = {
 	path: "/worktrees/oslo",
 	branch: "feature/oslo",
 	branchIsPlaceholder: false,
+	remoteFileSyncEnabled: false,
 	host: { kind: "local" },
 	displayName: null,
 	targetBranch: "main",
@@ -62,7 +63,7 @@ function makeFs(): FileSystem {
 			return ok(undefined);
 		},
 		async exists() {
-			return false;
+			return ok(false);
 		},
 		async stat() {
 			return err(appError("fs_not_found", "missing"));

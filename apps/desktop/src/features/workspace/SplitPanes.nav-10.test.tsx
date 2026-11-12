@@ -46,6 +46,8 @@ const session = (id: string, title: string): TabDescriptor => ({
 });
 
 vi.mock("../../core/hooks.ts", () => ({
+	// No test here drops a panel terminal, so no action is called.
+	useActions: () => ({}),
 	useSetting: () => state.split,
 	useSessions: () => state.sessions,
 	useTerminals: () => state.terminals,
@@ -62,7 +64,24 @@ vi.mock("../../core/context.tsx", () => ({
 }));
 
 vi.mock("./TabStrip.tsx", () => ({
-	TabStrip: () => <p>strip</p>,
+	TabStrip: ({
+		pointer,
+	}: {
+		pointer?: { start: (event: unknown, tab: TabDescriptor) => void };
+	}) => (
+		<>
+			<p>strip</p>
+			{state.tabs.map((tab) => (
+				<span
+					key={tab.ref}
+					data-tab-ref={tab.ref}
+					onPointerDown={(event) => pointer?.start(event, tab)}
+				>
+					{tab.title}
+				</span>
+			))}
+		</>
+	),
 	buildTabs: () => state.tabs,
 }));
 
@@ -82,10 +101,21 @@ vi.mock("./TabContent.tsx", () => ({
 }));
 
 vi.mock("./TabItem.tsx", () => ({
-	TabItem: ({ tab }: { tab: TabDescriptor }) => <span>{tab.title}</span>,
+	TabItem: ({
+		tab,
+		onPointerDown,
+	}: {
+		tab: TabDescriptor;
+		onPointerDown?: (event: unknown) => void;
+	}) => (
+		<span data-tab-ref={tab.ref} onPointerDown={onPointerDown}>
+			{tab.title}
+		</span>
+	),
 }));
 
 const { SplitPanes } = await import("./SplitPanes.tsx");
+const { TabDragProvider } = await import("./tab-drag.tsx");
 
 const workspaceId = "w1" as WorkspaceId;
 
@@ -107,8 +137,9 @@ const renderPanes = ({
 		search,
 		onSearchChange: vi.fn(),
 	});
+	const dragged = createElement(TabDragProvider, null, element);
 	const rendered = render(
-		withRegistry ? createElement(CommandRegistryProvider, { registry }, element) : element,
+		withRegistry ? createElement(CommandRegistryProvider, { registry }, dragged) : dragged,
 	);
 	return { ...rendered, registry };
 };
@@ -118,20 +149,29 @@ const dropOn = (
 	ref: string,
 	coords: { clientX?: number; clientY?: number } = {},
 ) => {
-	// jsdom has no DragEvent, so the drop carries its coordinates on a MouseEvent instead.
-	const event = new MouseEvent("drop", {
-		bubbles: true,
-		cancelable: true,
-		clientX: coords.clientX ?? 0,
-		clientY: coords.clientY ?? 0,
-	});
-	Object.defineProperty(event, "dataTransfer", {
-		value: {
-			getData: () => ref,
-			types: ["application/x-conducted-tab"],
-		},
-	});
-	fireEvent(element, event);
+	const source = document.querySelector<HTMLElement>(`[data-tab-ref="${ref}"]`);
+	if (source === null) throw new Error(`No tab ${ref} is mounted.`);
+	let rect = element.getBoundingClientRect();
+	if (rect.width === 0 && rect.height === 0) {
+		vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+			left: 0,
+			top: 0,
+			width: 100,
+			height: 100,
+			right: 100,
+			bottom: 100,
+			x: 0,
+			y: 0,
+			toJSON: () => ({}),
+		});
+		rect = element.getBoundingClientRect();
+	}
+	// Without coordinates, drop on the right edge, the window a drop with no measured target took.
+	const x = coords.clientX ?? rect.left + rect.width * 0.99;
+	const y = coords.clientY ?? rect.top + rect.height / 2;
+	fireEvent.pointerDown(source, { button: 0, pointerId: 1, clientX: 0, clientY: 0 });
+	fireEvent.pointerMove(document, { pointerId: 1, clientX: x, clientY: y });
+	fireEvent.pointerUp(document, { pointerId: 1, clientX: x, clientY: y });
 };
 
 /** True when `first` comes before `second` in the page. */
@@ -246,14 +286,22 @@ describe("NAV-10 SplitPanes", () => {
 		const { rerender } = renderPanes();
 		dropOn(screen.getByTestId("split-centre"), "session:two");
 		state.tabs = [session("one", "One")];
-		rerender(<SplitPanes workspaceId={workspaceId} search={{}} onSearchChange={vi.fn()} />);
+		rerender(
+			<TabDragProvider>
+				<SplitPanes workspaceId={workspaceId} search={{}} onSearchChange={vi.fn()} />
+			</TabDragProvider>,
+		);
 		expect(screen.queryByRole("region", { name: "Split pane: Two" })).toBeNull();
 	});
 
 	it("clears the split when the workspace changes", async () => {
 		const { rerender } = renderPanes();
 		dropOn(screen.getByTestId("split-centre"), "session:two");
-		rerender(<SplitPanes workspaceId={"w2" as WorkspaceId} search={{}} onSearchChange={vi.fn()} />);
+		rerender(
+			<TabDragProvider>
+				<SplitPanes workspaceId={"w2" as WorkspaceId} search={{}} onSearchChange={vi.fn()} />
+			</TabDragProvider>,
+		);
 		await waitFor(() =>
 			expect(screen.queryByRole("region", { name: "Split pane: Two" })).toBeNull(),
 		);

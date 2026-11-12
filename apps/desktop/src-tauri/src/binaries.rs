@@ -53,7 +53,10 @@
 //!   downloaded file is removed after unpacking, and a failed unpack leaves no program behind.
 //! - A second install of a program already installing: joined, no second download.
 //! - Install of a program whose pinned version is installed and still matches its metadata: Ready
-//!   at once, no download. Re-download always downloads.
+//!   at once, no download. Re-download always downloads. For Claude Code the followed version its
+//!   bin link names counts too, while it is newer than the floor and lists the SDK (D133).
+//! - A download whose size or SHA-256 is not the release's: refused before it lands, and a version
+//!   folder made for it is removed.
 //! - Remove while an install runs: the install is cancelled and the remove waits until it has
 //!   stopped, so nothing is written after the folder goes to the Trash and Missing is the last
 //!   state.
@@ -68,7 +71,10 @@
 //! bin link as the managed copy only when it points in there.
 //! Not built: an update feed that announces the next versions before an app update (A9's
 //! `UpcomingAgentBinaries`): the app's own update feed carries no programs yet, so each app version
-//! uses the versions its release feed pins. ACP provider downloads (OpenCode) are not in the feed.
+//! uses the versions its release feed pins, except Claude Code, which follows its newest release
+//! that lists the sidecar's SDK (`binaries/follow.rs`, D133). Versions that were ready during this
+//! run stay on disk until the next launch, so a running chat keeps its program. ACP provider
+//! downloads (OpenCode) are not in the feed.
 //! Our design choice: five attempts, one second after the first failure and doubling after each
 //! further one (`RetryPolicy::APP`). The research shows the retry state, not its numbers.
 //! Our design choice: the release feed is `programs/release-feed.json`, shipped in the app's
@@ -140,7 +146,7 @@
 //! Test first: a chosen `claude` path becomes a link in a 16-hex shim folder whose name depends on
 //! the path.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fmt;
 use std::fs;
 use std::io::Read;
@@ -161,6 +167,9 @@ use tokio_util::sync::CancellationToken;
 use crate::error::{CommandError, CommandResult};
 use crate::files;
 use crate::process_group;
+
+mod follow;
+pub use follow::{ClaudeReleases, FollowCheck, FollowNote};
 
 /// Event that carries the programs which failed the launch check.
 pub const EVENT_VERIFICATION_ERRORS: &str = "programs://verification-errors";
@@ -621,10 +630,7 @@ pub fn stage_path_overrides(
         hasher.update(path.to_string_lossy().as_bytes());
         hasher.update([0u8]);
     }
-    let hash: String = format!("{:x}", hasher.finalize())
-        .chars()
-        .take(16)
-        .collect();
+    let hash: String = lower_hex(&hasher.finalize()).chars().take(16).collect();
     let root = app_data.join("bin-overrides");
     let shim_dir = root.join(&hash);
     fs::create_dir_all(&shim_dir).map_err(|error| CommandError::Failed {
@@ -715,8 +721,8 @@ pub const EVENT_PROGRAM_STATUS: &str = "programs://status";
 /// watchexec). The release feed shipped with the app must serve them.
 pub fn pinned_version(program: ManagedProgram) -> &'static str {
     match program {
-        ManagedProgram::Claude => "2.1.308",
-        ManagedProgram::Codex => "0.164.0",
+        ManagedProgram::Claude => "2.1.322",
+        ManagedProgram::Codex => "0.167.1",
         ManagedProgram::Gh => "2.100.0",
         ManagedProgram::Watchexec => "2.3.2",
         // The latest @cursor/sdk on registry.npmjs.org on 2026-11-06, which the owner ruled is
@@ -755,6 +761,8 @@ pub struct ProgramStatus {
     pub next_attempt_at: Option<u64>,
     pub error: Option<String>,
     pub path: Option<String>,
+    /// Claude Code only: which copy runs and why (D133). None for every other program.
+    pub follow: Option<FollowNote>,
 }
 
 impl ProgramStatus {
@@ -769,6 +777,7 @@ impl ProgramStatus {
             next_attempt_at: None,
             error: None,
             path: None,
+            follow: None,
         }
     }
 
@@ -1003,7 +1012,11 @@ fn retry_can_fix(error: &CommandError) -> bool {
     match error {
         CommandError::Failed { code, .. } => matches!(
             *code,
-            "http_timeout" | "http_request_failed" | "http_status" | "http_checksum_mismatch"
+            "http_timeout"
+                | "http_request_failed"
+                | "http_status"
+                | "http_checksum_mismatch"
+                | "http_size_mismatch"
         ),
         _ => false,
     }
@@ -1050,6 +1063,9 @@ pub struct InstallContext {
     pub stall_timeout: Duration,
     pub retry: RetryPolicy,
     pub trash: Trash,
+    /// Where Claude Code follows its newest compatible release (D133). None: Claude Code stays on
+    /// the feed's version, as every other program does.
+    pub claude_releases: Option<ClaudeReleases>,
 }
 
 impl InstallContext {
@@ -1075,6 +1091,7 @@ impl InstallContext {
             stall_timeout: Duration::from_millis(crate::http::DOWNLOAD_STALL_TIMEOUT_MS),
             retry: RetryPolicy::APP,
             trash: Arc::new(files::trash_path),
+            claude_releases: Some(ClaudeReleases::app()),
         })
     }
 }
@@ -1093,6 +1110,13 @@ struct ProgramsInner {
     /// One lock per program. An install holds it for its whole run and a remove holds it while it
     /// removes, so the two never write the program's files or status at the same time.
     slots: Mutex<HashMap<ManagedProgram, Arc<tokio::sync::Mutex<()>>>>,
+    /// Every version that was a program's ready copy during this run. A chat started on one keeps
+    /// its path, so these stay on disk until the next launch (D133).
+    used: Mutex<HashMap<ManagedProgram, BTreeSet<String>>>,
+    /// Claude Code's note on which copy runs and why. Every status sent for it carries the note.
+    notes: Mutex<HashMap<ManagedProgram, FollowNote>>,
+    /// Cancelled when the app exits, so the daily check stops.
+    stopping: CancellationToken,
 }
 
 /// The program manager's state, shared by the commands and the background installs.
@@ -1113,24 +1137,105 @@ impl ProgramsState {
 
     /// One program's status. A program with no record is missing.
     pub fn status(&self, program: ManagedProgram) -> ProgramStatus {
-        self.inner
+        let status = self
+            .inner
             .statuses
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .get(&program)
             .cloned()
-            .unwrap_or_else(|| ProgramStatus::missing(program))
+            .unwrap_or_else(|| ProgramStatus::missing(program));
+        ProgramStatus {
+            follow: self.note(program),
+            ..status
+        }
     }
 
     /// Stores a status and sends it. The store is updated first, so the command can read back
-    /// every state the window was told about. A send that fails is returned to the caller.
+    /// every state the window was told about. A send that fails is returned to the caller. The
+    /// program's note goes with it, and a ready version is remembered for this run.
     fn publish(&self, sink: &dyn StatusSink, status: ProgramStatus) -> CommandResult<()> {
+        let status = ProgramStatus {
+            follow: self.note(status.program),
+            ..status
+        };
+        if status.state == ProgramState::Ready
+            && let Some(version) = status.version.as_ref()
+        {
+            self.inner
+                .used
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .entry(status.program)
+                .or_default()
+                .insert(version.clone());
+        }
         self.inner
             .statuses
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .insert(status.program, status.clone());
         sink.send(&status)
+    }
+
+    /// The versions that were the program's ready copy during this run.
+    fn used(&self, program: ManagedProgram) -> BTreeSet<String> {
+        self.inner
+            .used
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&program)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    fn note(&self, program: ManagedProgram) -> Option<FollowNote> {
+        self.inner
+            .notes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&program)
+            .cloned()
+    }
+
+    /// Gives the program a note, unless it has one.
+    fn start_note(&self, program: ManagedProgram, note: FollowNote) {
+        self.inner
+            .notes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .entry(program)
+            .or_insert(note);
+    }
+
+    /// Records what the last look at the release host found, without sending it.
+    fn note_check(&self, program: ManagedProgram, check: FollowCheck) {
+        if let Some(note) = self
+            .inner
+            .notes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get_mut(&program)
+        {
+            note.check = Some(check);
+        }
+    }
+
+    /// Records what the last look at the release host found and sends the program's status with
+    /// it. The status itself does not change.
+    fn set_follow_check(
+        &self,
+        sink: &dyn StatusSink,
+        program: ManagedProgram,
+        check: FollowCheck,
+    ) -> CommandResult<()> {
+        self.note_check(program, check);
+        self.publish(sink, self.status(program))
+    }
+
+    /// The token the daily check stops on.
+    fn stopping(&self) -> CancellationToken {
+        self.inner.stopping.clone()
     }
 
     /// Adds an error a background install could not send to the program's stored status, after
@@ -1212,6 +1317,7 @@ impl ProgramsState {
     /// Stops every running install, including one waiting out its retry delay. `lib.rs` calls it
     /// when the app exits.
     pub fn cancel_all(&self) {
+        self.inner.stopping.cancel();
         for run in self
             .inner
             .runs
@@ -1317,7 +1423,7 @@ fn sha256_of_file(path: &Path) -> CommandResult<String> {
         }
         hasher.update(&buffer[..read]);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(lower_hex(&hasher.finalize()))
 }
 
 fn modified_ms(path: &Path) -> CommandResult<u64> {
@@ -1420,13 +1526,16 @@ fn point_link(link: &Path, target: &Path) -> CommandResult<()> {
     })
 }
 
-/// Removes every version of a program except the one in use, through the given Trash.
+/// Removes every version of a program except those in `keep`, through the given Trash, and the
+/// install record of each one it removes.
 fn prune_versions(
-    program_dir: &Path,
-    keep: &str,
+    dirs: &ProgramDirs,
+    program: ManagedProgram,
+    keep: &BTreeSet<String>,
     trash: &dyn Fn(&Path) -> CommandResult<()>,
 ) -> CommandResult<()> {
-    let entries = match fs::read_dir(program_dir) {
+    let program_dir = dirs.program(program);
+    let entries = match fs::read_dir(&program_dir) {
         Ok(entries) => entries,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => {
@@ -1451,8 +1560,14 @@ fn prune_versions(
                 program_dir.display()
             ),
         })?;
-        if is_dir.is_dir() && entry.file_name().to_string_lossy() != keep {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if is_dir.is_dir() && !keep.contains(&name) {
             trash(&entry.path())?;
+            remove_if_present(
+                &dirs.metadata(program, &name),
+                "program_prune_failed",
+                |record| remove_link(record, "program_prune_failed"),
+            )?;
         }
     }
     Ok(())
@@ -1482,29 +1597,109 @@ fn metadata_matches(binary: &Path, metadata_path: &Path) -> bool {
     actual_size == size && actual_mtime == verified_mtime
 }
 
-/// The installed copy of the pinned version, when its metadata still matches the file on disk.
-fn installed_copy(dirs: &ProgramDirs, program: ManagedProgram) -> Option<(&'static str, PathBuf)> {
-    let version = pinned_version(program);
-    let binary = dirs.binary(program, version);
-    metadata_matches(&binary, &dirs.metadata(program, version)).then_some((version, binary))
+/// The installed copy to run, when its metadata still matches the file on disk: the pinned
+/// version, or for Claude Code with `claude` set the version its bin link points at, when that is
+/// newer than the floor and its install record lists the SDK (D133). A followed version that no
+/// longer qualifies, after an app update moved the floor or the SDK, gives way to the floor.
+fn installed_copy(
+    dirs: &ProgramDirs,
+    program: ManagedProgram,
+    claude: Option<&ClaudeReleases>,
+) -> Option<(String, PathBuf)> {
+    let floor = match (program, claude) {
+        (ManagedProgram::Claude, Some(releases)) => {
+            if let Some(followed) = followed_copy(dirs, releases) {
+                return Some(followed);
+            }
+            releases.floor.clone()
+        }
+        _ => pinned_version(program).to_string(),
+    };
+    let binary = dirs.binary(program, &floor);
+    metadata_matches(&binary, &dirs.metadata(program, &floor)).then_some((floor, binary))
 }
 
-/// Marks an installed pinned program ready, so a restart shows the copy on disk. A program that
-/// already has a state, or is installing, is left alone.
+/// The installed copy to run, as `installed_copy` finds it, with Claude Code's bin link pointed at
+/// it. A followed copy that no longer qualifies leaves the link on it, and the floor that runs
+/// instead must be the copy a new chat finds.
+fn ready_copy(
+    dirs: &ProgramDirs,
+    program: ManagedProgram,
+    claude: Option<&ClaudeReleases>,
+) -> CommandResult<Option<(String, PathBuf)>> {
+    let Some((version, binary)) = installed_copy(dirs, program, claude) else {
+        return Ok(None);
+    };
+    if program == ManagedProgram::Claude
+        && claude.is_some()
+        && fs::read_link(dirs.shim(program)).ok().as_deref() != Some(binary.as_path())
+    {
+        install_bin_shim(&dirs.bin, program, &binary)?;
+    }
+    Ok(Some((version, binary)))
+}
+
+/// The followed Claude Code the bin link points at, when it still qualifies.
+fn followed_copy(dirs: &ProgramDirs, releases: &ClaudeReleases) -> Option<(String, PathBuf)> {
+    let program = ManagedProgram::Claude;
+    let target = fs::read_link(dirs.shim(program)).ok()?;
+    let version = target
+        .strip_prefix(dirs.program(program))
+        .ok()?
+        .parent()?
+        .to_str()?
+        .to_string();
+    if follow::parse_version(&version)? <= follow::parse_version(&releases.floor)? {
+        return None;
+    }
+    let binary = dirs.binary(program, &version);
+    if target != binary {
+        return None;
+    }
+    let metadata_path = dirs.metadata(program, &version);
+    let record: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&metadata_path).ok()?).ok()?;
+    let lists_sdk = record["sdkCompat"]
+        .as_array()?
+        .iter()
+        .any(|tested| tested.as_str() == Some(releases.sdk.as_str()));
+    (lists_sdk && metadata_matches(&binary, &metadata_path)).then_some((version, binary))
+}
+
+/// Marks an installed program ready, so a restart shows the copy on disk. A program that already
+/// has a state, or is installing, is left alone. Claude Code gets its note when it follows.
 fn hydrate_from_disk(
     dirs: &ProgramDirs,
+    claude: Option<&ClaudeReleases>,
     state: &ProgramsState,
     sink: &dyn StatusSink,
 ) -> CommandResult<()> {
+    if let Some(releases) = claude {
+        state.start_note(ManagedProgram::Claude, FollowNote::new(releases));
+    }
     for program in ManagedProgram::ALL {
         if state.status(program).state != ProgramState::Missing || state.is_installing(program) {
             continue;
         }
-        if let Some((version, binary)) = installed_copy(dirs, program) {
-            state.publish(sink, ProgramStatus::installed(program, version, &binary))?;
+        if let Some((version, binary)) = ready_copy(dirs, program, claude)? {
+            state.publish(sink, ProgramStatus::installed(program, &version, &binary))?;
         }
     }
     Ok(())
+}
+
+/// Moves to the Trash, at launch, every version of a ready program but the one that runs. A
+/// version kept for a chat of the last run is no longer in use. A program that is installing is
+/// left to its install, which prunes when it finishes.
+fn prune_unused(ctx: &InstallContext, state: &ProgramsState) {
+    for program in ManagedProgram::ALL {
+        if state.status(program).state != ProgramState::Ready || state.is_installing(program) {
+            continue;
+        }
+        if let Err(error) = prune_versions(&ctx.dirs, program, &state.used(program), &*ctx.trash) {
+            state.keep_error(program, &error);
+        }
+    }
 }
 
 /// What `finish_install` did besides installing. The new version is in place and usable either
@@ -1514,8 +1709,18 @@ pub struct Installed {
     pub prune_error: Option<CommandError>,
 }
 
+/// What an install keeps and records besides the version itself.
+#[derive(Debug, Clone, Default)]
+pub struct InstallExtras {
+    /// Versions that stay on disk besides the new one: those a chat of this run may still run.
+    pub keep: BTreeSet<String>,
+    /// For a followed Claude Code, the SDK versions its manifest tested (D133).
+    pub sdk_compat: Option<Vec<String>>,
+}
+
 /// Makes a downloaded file the program's current version: checks it against the feed's SHA-256,
-/// clears quarantine, records its metadata, points the PATH shim at it and removes older versions.
+/// clears quarantine, records its metadata, points the PATH shim at it and removes older versions
+/// except those `extras` keeps.
 pub fn finish_install(
     program: ManagedProgram,
     version: &str,
@@ -1523,6 +1728,7 @@ pub fn finish_install(
     sha256: &str,
     dirs: &ProgramDirs,
     trash: &dyn Fn(&Path) -> CommandResult<()>,
+    extras: &InstallExtras,
 ) -> CommandResult<Installed> {
     use std::os::unix::fs::PermissionsExt;
 
@@ -1540,21 +1746,32 @@ pub fn finish_install(
             message: format!("Could not make {} runnable: {error}", binary.display()),
         }
     })?;
-    write_metadata(dirs, program, version, binary, sha256)?;
+    write_metadata(
+        dirs,
+        program,
+        version,
+        binary,
+        sha256,
+        extras.sdk_compat.as_deref(),
+    )?;
     install_bin_shim(&dirs.bin, program, binary)?;
+    let mut keep = extras.keep.clone();
+    keep.insert(version.to_string());
     Ok(Installed {
-        prune_error: prune_versions(&dirs.program(program), version, trash).err(),
+        prune_error: prune_versions(dirs, program, &keep, trash).err(),
     })
 }
 
 /// Records an installed version: the SHA-256 it was checked against, and the size and modified
-/// time of the file it is known by, so a later launch can tell the file has not changed.
+/// time of the file it is known by, so a later launch can tell the file has not changed. A
+/// followed Claude Code also records the SDK versions its manifest tested.
 fn write_metadata(
     dirs: &ProgramDirs,
     program: ManagedProgram,
     version: &str,
     binary: &Path,
     sha256: &str,
+    sdk_compat: Option<&[String]>,
 ) -> CommandResult<()> {
     let metadata_path = dirs.metadata(program, version);
     if let Some(metadata_dir) = metadata_path.parent() {
@@ -1569,12 +1786,15 @@ fn write_metadata(
             code: "program_metadata_failed",
             message: format!("Could not read {}: {error}", binary.display()),
         })?;
-    let metadata = serde_json::json!({
+    let mut metadata = serde_json::json!({
         "sha256": sha256,
         "size": size,
         "downloadedAtUnixMs": now_ms(),
         "verifiedMtimeUnixMs": modified_ms(binary)?,
     });
+    if let Some(tested) = sdk_compat {
+        metadata["sdkCompat"] = serde_json::json!(tested);
+    }
     fs::write(&metadata_path, metadata.to_string()).map_err(|error| CommandError::Failed {
         code: "program_metadata_failed",
         message: format!("Could not write {}: {error}", metadata_path.display()),
@@ -1707,7 +1927,7 @@ impl<'a> HashedFile<'a> {
         self.file
             .sync_all()
             .map_err(|error| unpack_failed(self.source, &error))?;
-        Ok(format!("{:x}", self.hasher.finalize()))
+        Ok(lower_hex(&self.hasher.finalize()))
     }
 }
 
@@ -1823,8 +2043,10 @@ fn more_than_one(source: &Path, name: &str) -> CommandError {
 }
 
 /// One attempt: reads the feed, downloads the pinned version with progress, unpacks the program
-/// when the release file is compressed, and installs it. Returns the Ready status. `status`
-/// carries the attempt count into each status it sends.
+/// when the release file is compressed, and installs it. Claude Code, when it follows, fetches
+/// the newest release that lists the SDK instead, or the pinned floor when none newer does or the
+/// release host cannot be read (D133). Returns the Ready status. `status` carries the attempt
+/// count into each status it sends.
 async fn download_and_finish(
     ctx: &InstallContext,
     state: &ProgramsState,
@@ -1844,7 +2066,14 @@ async fn download_and_finish(
             code: "program_release_missing",
             message: format!("The release feed has no {program} program."),
         })?;
-    let pinned = pinned_version(program);
+    let claude = match program {
+        ManagedProgram::Claude => ctx.claude_releases.as_ref(),
+        _ => None,
+    };
+    let pinned = claude.map_or_else(
+        || pinned_version(program).to_string(),
+        |releases| releases.floor.clone(),
+    );
     if release.version != pinned {
         return Err(CommandError::Failed {
             code: "program_version_not_pinned",
@@ -1854,79 +2083,170 @@ async fn download_and_finish(
             ),
         });
     }
-    let asset = asset_for(release);
-    let target = ctx.dirs.binary(program, pinned);
-    // A raw release file is the program, so it downloads straight to its place. A compressed one
-    // downloads beside it and is unpacked after its SHA-256 matched.
-    let downloaded = match asset.format {
-        AssetFormat::Raw => target.clone(),
-        _ => ctx.dirs.download(program, pinned),
+    let (target, check) = match claude {
+        Some(releases) => {
+            let (target, check) = follow::install_target(ctx, releases, release, cancel).await;
+            (target, Some(check))
+        }
+        None => (follow::FollowTarget::from_feed(release), None),
     };
-    if let Some(target_dir) = target.parent() {
-        fs::create_dir_all(target_dir).map_err(|error| CommandError::Failed {
-            code: "program_install_failed",
-            message: format!("Could not make {}: {error}", target_dir.display()),
-        })?;
-    }
 
-    let mut downloading = ProgramStatus {
+    let downloading = ProgramStatus {
         state: ProgramState::Downloading,
-        version: Some(pinned.to_string()),
+        version: Some(target.version.clone()),
         bytes_downloaded: 0,
-        bytes_total: Some(asset.size),
+        bytes_total: Some(target.asset.size),
         next_attempt_at: None,
         error: None,
         ..status.clone()
     };
     state.publish(sink, downloading.clone())?;
-    let outcome = crate::http::download_request(
-        ctx.allowed_hosts,
-        &asset.url,
-        &downloaded,
-        Some(asset.sha256.as_str()),
-        ctx.stall_timeout,
-        cancel.clone(),
+    let extras = InstallExtras {
+        keep: state.used(program),
+        sdk_compat: target.sdk_compat.clone(),
+    };
+    let progress = Mutex::new(downloading);
+    let fetched = fetch_release(
+        ctx,
+        program,
+        &target,
+        &extras,
+        cancel,
         |received, total| {
+            let mut downloading = progress.lock().unwrap_or_else(PoisonError::into_inner);
             downloading.bytes_downloaded = received;
-            downloading.bytes_total = total.or(Some(asset.size));
+            downloading.bytes_total = total.or(Some(target.asset.size));
             state.publish(sink, downloading.clone())
+        },
+        |size_bytes| {
+            let verifying = ProgramStatus {
+                state: ProgramState::Verifying,
+                bytes_downloaded: size_bytes,
+                ..progress
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .clone()
+            };
+            state.publish(sink, verifying)
         },
     )
     .await?;
-
-    let verifying = ProgramStatus {
-        state: ProgramState::Verifying,
-        bytes_downloaded: outcome.size_bytes,
-        ..downloading
-    };
-    state.publish(sink, verifying)?;
-
-    let dirs = ctx.dirs.clone();
-    let trash = Arc::clone(&ctx.trash);
-    let format = asset.format;
-    let checked = asset.sha256.clone();
-    let binary = target.clone();
-    // Unpacking and hashing a program of a few hundred MB blocks, so it runs off the async workers.
-    let installed = crate::error::blocking("program_install_failed", move || {
-        let expected = match format {
-            AssetFormat::Raw => checked,
-            _ => unpack_downloaded(format, &downloaded, program, &binary)?,
-        };
-        finish_install(program, pinned, &binary, &expected, &dirs, &*trash)
-    })
-    .await?;
-
+    if let Some(check) = check {
+        state.note_check(program, check);
+    }
     Ok(ProgramStatus {
         program,
         state: ProgramState::Ready,
-        version: Some(pinned.to_string()),
-        bytes_downloaded: outcome.size_bytes,
-        bytes_total: Some(outcome.size_bytes),
+        version: Some(target.version.clone()),
+        bytes_downloaded: fetched.size_bytes,
+        bytes_total: Some(fetched.size_bytes),
         attempt: 0,
         next_attempt_at: None,
-        error: installed.prune_error.map(|error| error.to_string()),
-        path: Some(target.to_string_lossy().into_owned()),
+        error: fetched.installed.prune_error.map(|error| error.to_string()),
+        path: Some(fetched.binary.to_string_lossy().into_owned()),
+        follow: None,
     })
+}
+
+/// A release that was downloaded, checked and made the program's current version.
+struct Fetched {
+    installed: Installed,
+    binary: PathBuf,
+    size_bytes: u64,
+}
+
+/// Downloads one release file with the size and SHA-256 its release states, unpacks it when it is
+/// compressed, and installs it (`finish_install`). The bin link moves only after every check
+/// passed, so a refused or cut-off download leaves the copy that runs as it was. A version folder
+/// this call made is removed again when the install fails. `downloaded` hears the size once the
+/// file arrived and matched, before it is unpacked and installed.
+async fn fetch_release(
+    ctx: &InstallContext,
+    program: ManagedProgram,
+    target: &follow::FollowTarget,
+    extras: &InstallExtras,
+    cancel: &CancellationToken,
+    progress: impl FnMut(u64, Option<u64>) -> CommandResult<()>,
+    downloaded: impl FnOnce(u64) -> CommandResult<()>,
+) -> CommandResult<Fetched> {
+    let version = target.version.clone();
+    let asset = &target.asset;
+    let binary = ctx.dirs.binary(program, &version);
+    // A raw release file is the program, so it downloads straight to its place. A compressed one
+    // downloads beside it and is unpacked after its SHA-256 matched.
+    let download = match asset.format {
+        AssetFormat::Raw => binary.clone(),
+        _ => ctx.dirs.download(program, &version),
+    };
+    let folder = ctx.dirs.program(program).join(&version);
+    let made_folder = !folder.exists();
+    fs::create_dir_all(&folder).map_err(|error| CommandError::Failed {
+        code: "program_install_failed",
+        message: format!("Could not make {}: {error}", folder.display()),
+    })?;
+    let installed = async {
+        let outcome = crate::http::download_request(
+            ctx.allowed_hosts,
+            &asset.url,
+            &download,
+            crate::http::Expected {
+                sha256: Some(asset.sha256.as_str()),
+                size: Some(asset.size),
+            },
+            ctx.stall_timeout,
+            cancel.clone(),
+            progress,
+        )
+        .await?;
+        downloaded(outcome.size_bytes)?;
+        let dirs = ctx.dirs.clone();
+        let trash = Arc::clone(&ctx.trash);
+        let format = asset.format;
+        let checked = asset.sha256.clone();
+        let binary = binary.clone();
+        let version = version.clone();
+        let extras = extras.clone();
+        // Unpacking and hashing a program of a few hundred MB blocks, so it runs off the async
+        // workers.
+        let installed = crate::error::blocking("program_install_failed", move || {
+            let expected = match format {
+                AssetFormat::Raw => checked,
+                _ => unpack_downloaded(format, &download, program, &binary)?,
+            };
+            finish_install(
+                program, &version, &binary, &expected, &dirs, &*trash, &extras,
+            )
+        })
+        .await?;
+        Ok::<_, CommandError>((installed, outcome.size_bytes))
+    }
+    .await;
+    if installed.is_err() && made_folder {
+        remove_failed_folder(&folder, &*ctx.trash);
+    }
+    let (installed, size_bytes) = installed?;
+    Ok(Fetched {
+        installed,
+        binary,
+        size_bytes,
+    })
+}
+
+/// Removes a version folder an install made and could not finish: at once when it is empty, the
+/// usual case, since a refused download leaves no file; through the Trash when a file is left.
+fn remove_failed_folder(folder: &Path, trash: &dyn Fn(&Path) -> CommandResult<()>) {
+    let empty = fs::read_dir(folder).is_ok_and(|mut entries| entries.next().is_none());
+    let removed = if empty {
+        fs::remove_dir(folder).map_err(CommandError::Io)
+    } else {
+        trash(folder)
+    };
+    if let Err(error) = removed {
+        eprintln!(
+            "could not remove the unfinished version folder {}: {error}",
+            folder.display()
+        );
+    }
 }
 
 /// Refuses a package name that is not `name` or `@scope/name`, so a feed entry cannot point a
@@ -2137,7 +2457,10 @@ async fn download_tree_and_finish(
                 ctx.allowed_hosts,
                 &tarball.url,
                 &downloaded,
-                Some(tarball.sha256.as_str()),
+                crate::http::Expected {
+                    sha256: Some(tarball.sha256.as_str()),
+                    size: None,
+                },
                 ctx.stall_timeout,
                 cancel.clone(),
                 |received, _total| {
@@ -2203,6 +2526,7 @@ async fn download_tree_and_finish(
                 .to_string_lossy()
                 .into_owned(),
         ),
+        follow: None,
     })
 }
 
@@ -2245,10 +2569,12 @@ fn finish_tree_install(
         version,
         &dirs.binary(program, version),
         sha256,
+        None,
     )?;
     point_link(&dirs.shim(program), &target)?;
     Ok(Installed {
-        prune_error: prune_versions(&dirs.program(program), version, trash).err(),
+        prune_error: prune_versions(dirs, program, &BTreeSet::from([version.to_string()]), trash)
+            .err(),
     })
 }
 
@@ -2265,9 +2591,10 @@ pub async fn run_install(
     cancel: &CancellationToken,
 ) -> CommandResult<()> {
     if mode == InstallMode::Install
-        && let Some((version, binary)) = installed_copy(&ctx.dirs, program)
+        && let Some((version, binary)) =
+            ready_copy(&ctx.dirs, program, ctx.claude_releases.as_ref())?
     {
-        return state.publish(sink, ProgramStatus::installed(program, version, &binary));
+        return state.publish(sink, ProgramStatus::installed(program, &version, &binary));
     }
     let mut status = ProgramStatus {
         attempt: 0,
@@ -2364,7 +2691,12 @@ fn prefetch(
     state: &ProgramsState,
     sink: Arc<dyn StatusSink>,
 ) -> CommandResult<Vec<tauri::async_runtime::JoinHandle<()>>> {
-    hydrate_from_disk(&ctx.dirs, state, sink.as_ref())?;
+    hydrate_from_disk(
+        &ctx.dirs,
+        ctx.claude_releases.as_ref(),
+        state,
+        sink.as_ref(),
+    )?;
     let mut started = Vec::new();
     for program in ManagedProgram::ALL {
         if !program.installs_at_launch() || state.status(program).state == ProgramState::Ready {
@@ -2385,11 +2717,17 @@ fn prefetch(
 
 /// Prepares the agent programs at launch (A2: `lib.rs` prepares the agent binaries at startup).
 /// Called from `setup` in `lib.rs`; the installs run in the background. It never stops the app
-/// from starting: a failure is kept on each agent's status, where the Agents page reads it.
+/// from starting: a failure is kept on each agent's status, where the Agents page reads it. No
+/// chat runs yet, so the versions kept for the last run's chats go to the Trash, and Claude Code
+/// starts following its newest compatible release (D133).
 pub fn prepare_on_launch<R: Runtime>(app: &AppHandle<R>) {
     let state = app.state::<ProgramsState>();
-    let prepared = InstallContext::for_app(app)
-        .and_then(|ctx| prefetch(&ctx, state.inner(), Arc::new(app.clone())).map(|_| ()));
+    let prepared = InstallContext::for_app(app).and_then(|ctx| {
+        prefetch(&ctx, state.inner(), Arc::new(app.clone()))?;
+        prune_unused(&ctx, state.inner());
+        follow::start_following(app, ctx, state.inner().clone());
+        Ok(())
+    });
     keep_launch_error(prepared, state.inner());
 }
 
@@ -2410,7 +2748,7 @@ pub fn programs_state(
     state: State<'_, ProgramsState>,
 ) -> CommandResult<Vec<ProgramStatus>> {
     let ctx = InstallContext::for_app(&app)?;
-    hydrate_from_disk(&ctx.dirs, state.inner(), &app)?;
+    hydrate_from_disk(&ctx.dirs, ctx.claude_releases.as_ref(), state.inner(), &app)?;
     Ok(state.snapshot())
 }
 
@@ -2465,12 +2803,24 @@ pub async fn program_remove(
 
 /// Downloads, in the background, the managed programs that are not ready. Until an update feed
 /// carries the next versions (PLAT-28's update manifest item), these are the versions this app
-/// pins.
+/// pins, and for Claude Code its newest release that lists the SDK (D133).
 #[tauri::command]
 pub fn programs_prefetch(app: AppHandle, state: State<'_, ProgramsState>) -> CommandResult<()> {
     let ctx = InstallContext::for_app(&app)?;
     prefetch(&ctx, state.inner(), Arc::new(app.clone()))?;
     Ok(())
+}
+
+/// A digest as lowercase hex, two characters a byte. sha2 0.11's digests no longer format with
+/// `{:x}` themselves, so every hash the shell prints or compares goes through this one place.
+fn lower_hex(bytes: &[u8]) -> String {
+    use std::fmt::Write as _;
+    bytes
+        .iter()
+        .fold(String::with_capacity(bytes.len() * 2), |mut out, byte| {
+            let _ = write!(out, "{byte:02x}");
+            out
+        })
 }
 
 #[cfg(test)]
@@ -3106,7 +3456,13 @@ mod tests {
                 .map(|release| release.version.as_str()),
             Some("2.1.308")
         );
-        assert_eq!(pinned_version(ManagedProgram::Claude), "2.1.308");
+        assert_eq!(
+            pinned_version(ManagedProgram::Claude),
+            shipped_feed()
+                .release(ManagedProgram::Claude)
+                .expect("Claude is pinned")
+                .version
+        );
         assert_eq!(pinned_version(ManagedProgram::Gh), "2.100.0");
     }
 
@@ -3241,6 +3597,7 @@ mod tests {
                     .into_owned();
                 fs::rename(path, trash.join(name)).map_err(CommandError::Io)
             },
+            &InstallExtras::default(),
         )
         .expect("install");
         assert!(
@@ -3291,6 +3648,7 @@ mod tests {
                     .into_owned();
                 fs::rename(path, trash.join(name)).map_err(CommandError::Io)
             },
+            &InstallExtras::default(),
         )
         .expect("install");
         let metadata = dirs.binaries.join(".meta").join("claude-2.1.308.json");
@@ -3506,8 +3864,17 @@ mod tests {
         (format!("http://{address}/program"), server)
     }
 
+    #[test]
+    fn a_digest_prints_as_the_published_sha256_hex() {
+        // FIPS 180-2's test vector for "abc".
+        assert_eq!(
+            sha_hex(b"abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
+
     fn sha_hex(bytes: &[u8]) -> String {
-        format!("{:x}", Sha256::digest(bytes))
+        super::lower_hex(&Sha256::digest(bytes))
     }
 
     fn claude_version() -> &'static str {
@@ -3529,6 +3896,7 @@ mod tests {
             stall_timeout: Duration::from_secs(10),
             retry,
             trash: trash_into(folder.folder("trash")),
+            claude_releases: None,
         }
     }
 
@@ -3600,6 +3968,7 @@ mod tests {
             &sha_hex(body),
             &ctx.dirs,
             &*ctx.trash,
+            &InstallExtras::default(),
         )
         .expect("install on disk");
         binary
@@ -3748,7 +4117,8 @@ mod tests {
             .error
             .expect("the refusal is shown");
         assert!(
-            error.contains("offers claude 2.1.307") && error.contains("pins 2.1.308"),
+            error.contains("offers claude 2.1.307")
+                && error.contains(&format!("pins {}", pinned_version(ManagedProgram::Claude))),
             "{error}"
         );
         assert!(!ctx.dirs.program(ManagedProgram::Claude).exists());
@@ -3780,10 +4150,14 @@ mod tests {
         );
         let binary = ctx.dirs.binary(ManagedProgram::Claude, claude_version());
         assert!(!binary.exists(), "the refused file is not installed");
-        let left: Vec<_> = fs::read_dir(binary.parent().expect("the version folder"))
-            .expect("list the version folder")
-            .collect();
-        assert!(left.is_empty(), "no partial file is left: {left:?}");
+        // The version folder the install made goes with the refused download, so no partial
+        // file can be left in it.
+        let folder = binary.parent().expect("the version folder");
+        assert!(
+            !folder.exists(),
+            "the version folder is left: {}",
+            folder.display()
+        );
         assert!(fs::symlink_metadata(ctx.dirs.shim(ManagedProgram::Claude)).is_err());
         assert!(
             !recorder
@@ -3834,7 +4208,7 @@ mod tests {
             ]
         );
         assert_eq!(fs::read(&binary).expect("the new program"), b"new");
-        assert!(installed_copy(&ctx.dirs, ManagedProgram::Claude).is_some());
+        assert!(installed_copy(&ctx.dirs, ManagedProgram::Claude, None).is_some());
     }
 
     #[test]
@@ -4127,7 +4501,7 @@ mod tests {
         let (recorder, _arrivals) = Recorder::new();
         let state = ProgramsState::default();
 
-        hydrate_from_disk(&ctx.dirs, &state, recorder.as_ref()).expect("hydrate");
+        hydrate_from_disk(&ctx.dirs, None, &state, recorder.as_ref()).expect("hydrate");
 
         let claude = state.status(ManagedProgram::Claude);
         assert_eq!(claude.state, ProgramState::Ready);
@@ -4154,7 +4528,7 @@ mod tests {
         let (recorder, _arrivals) = Recorder::new();
         let state = ProgramsState::default();
 
-        hydrate_from_disk(&ctx.dirs, &state, recorder.as_ref()).expect("hydrate");
+        hydrate_from_disk(&ctx.dirs, None, &state, recorder.as_ref()).expect("hydrate");
 
         // Only an install the manager recorded is ready. A same-named file in the bin folder, and
         // any copy on the user's PATH, is not one (D088).
@@ -4483,15 +4857,16 @@ mod tests {
         );
 
         assert_eq!(status.state, ProgramState::Ready, "{:?}", status.error);
-        let binary = ctx.dirs.binary(ManagedProgram::Codex, "0.164.0");
+        let pinned = pinned_version(ManagedProgram::Codex);
+        let binary = ctx.dirs.binary(ManagedProgram::Codex, pinned);
         assert_eq!(fs::read(&binary).expect("the program"), program);
         assert_eq!(
             version_folder_names(&ctx, ManagedProgram::Codex),
             vec!["codex".to_string()],
             "the downloaded file is gone"
         );
-        let metadata = fs::read_to_string(ctx.dirs.metadata(ManagedProgram::Codex, "0.164.0"))
-            .expect("metadata");
+        let metadata =
+            fs::read_to_string(ctx.dirs.metadata(ManagedProgram::Codex, pinned)).expect("metadata");
         let metadata: serde_json::Value = serde_json::from_str(&metadata).expect("metadata json");
         assert_eq!(
             metadata["sha256"],
@@ -4514,7 +4889,11 @@ mod tests {
 
         assert_eq!(status.state, ProgramState::Ready, "{:?}", status.error);
         assert_eq!(
-            fs::read(ctx.dirs.binary(ManagedProgram::Codex, "0.164.0")).expect("the program"),
+            fs::read(
+                ctx.dirs
+                    .binary(ManagedProgram::Codex, pinned_version(ManagedProgram::Codex))
+            )
+            .expect("the program"),
             b"#!/bin/sh\necho codex-cli 0.164.0\n"
         );
     }
@@ -5174,5 +5553,538 @@ mod tests {
             *trashed.lock().unwrap_or_else(PoisonError::into_inner),
             vec![first]
         );
+    }
+
+    // ------------------------------------------------- PLAT-28 Claude Code follows its releases
+
+    /// Claude Code 2.1.322's manifest as its release host published it
+    /// (https://downloads.claude.ai/claude-code-releases/2.1.322/manifest.json). It lists SDK 0.3.321.
+    const MANIFEST_2_1_322: &str =
+        include_str!("../../../../scripts/programs/samples/claude-manifest.json");
+    /// Claude Code 2.1.311's manifest, saved the same way. Its newest tested SDK is 0.3.306.
+    const MANIFEST_2_1_311: &str =
+        include_str!("../../../../scripts/programs/samples/claude-manifest-2.1.311.json");
+    /// The SDK the sidecar pinned when the manifests were saved.
+    const SDK: &str = "0.3.321";
+
+    fn releases(base: &str, floor: &str) -> ClaudeReleases {
+        ClaudeReleases {
+            base: base.trim_end_matches("/program").to_string(),
+            floor: floor.to_string(),
+            sdk: SDK.to_string(),
+        }
+    }
+
+    /// A saved manifest whose file for this Mac carries `checksum` and `size` in place of the
+    /// published ones, so a test can serve a few bytes for it. `None` keeps the published value.
+    /// Every field the manifest has stays as the host published it.
+    fn manifest_for_body(
+        manifest: &str,
+        checksum: Option<String>,
+        size: Option<u64>,
+    ) -> &'static [u8] {
+        let mut value: serde_json::Value =
+            serde_json::from_str(manifest).expect("a saved manifest");
+        let entry = &mut value["platforms"][follow::platform()];
+        assert!(entry.is_object(), "the saved manifest has this Mac's file");
+        if let Some(checksum) = checksum {
+            entry["checksum"] = serde_json::json!(checksum);
+        }
+        if let Some(size) = size {
+            entry["size"] = serde_json::json!(size);
+        }
+        served(serde_json::to_vec(&value).expect("serialise the manifest"))
+    }
+
+    fn follow_context(folder: &TempDir, base: &str, floor: &str) -> InstallContext {
+        InstallContext {
+            claude_releases: Some(releases(base, floor)),
+            ..install_context(folder, NO_WAIT)
+        }
+    }
+
+    /// Puts `body` on disk as Claude Code `version`, linked as the copy that runs, the way a
+    /// finished install leaves it.
+    fn install_version_on_disk(
+        ctx: &InstallContext,
+        version: &str,
+        body: &[u8],
+        sdk_compat: Option<Vec<String>>,
+    ) -> PathBuf {
+        let binary = ctx.dirs.binary(ManagedProgram::Claude, version);
+        fs::create_dir_all(binary.parent().expect("a version folder"))
+            .expect("make the version folder");
+        fs::write(&binary, body).expect("write the program");
+        finish_install(
+            ManagedProgram::Claude,
+            version,
+            &binary,
+            &sha_hex(body),
+            &ctx.dirs,
+            &*ctx.trash,
+            &InstallExtras {
+                keep: BTreeSet::new(),
+                sdk_compat,
+            },
+        )
+        .expect("install on disk");
+        binary
+    }
+
+    /// The state after a launch: the copy on disk is ready, with Claude Code's note.
+    fn launched(ctx: &InstallContext, recorder: &Recorder) -> ProgramsState {
+        let state = ProgramsState::default();
+        hydrate_from_disk(&ctx.dirs, ctx.claude_releases.as_ref(), &state, recorder)
+            .expect("hydrate");
+        state
+    }
+
+    fn follow(ctx: &InstallContext, state: &ProgramsState, sink: &dyn StatusSink) {
+        let ran = tauri::async_runtime::block_on(follow::follow_once(ctx, state, sink))
+            .expect("every status was sent");
+        assert!(ran, "no install of Claude Code was running");
+    }
+
+    fn check_of(state: &ProgramsState) -> Option<FollowCheck> {
+        state
+            .status(ManagedProgram::Claude)
+            .follow
+            .and_then(|note| note.check)
+    }
+
+    /// The version folders Claude Code has on disk.
+    fn version_folders(ctx: &InstallContext) -> Vec<String> {
+        let Ok(entries) = fs::read_dir(ctx.dirs.program(ManagedProgram::Claude)) else {
+            return Vec::new();
+        };
+        let mut names: Vec<String> = entries
+            .map(|entry| entry.expect("read an entry"))
+            .filter(|entry| entry.path().is_dir())
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn plat_28_claude_code_moves_to_the_newest_release_that_lists_the_sdk() {
+        let folder = TempDir::new();
+        let body = b"claude 2.1.322";
+        let (url, server) = serve(vec![
+            Answer::Body(200, b"2.1.322"),
+            Answer::Body(
+                200,
+                manifest_for_body(
+                    MANIFEST_2_1_322,
+                    Some(sha_hex(body)),
+                    Some(body.len() as u64),
+                ),
+            ),
+            Answer::Body(200, body),
+        ]);
+        let ctx = follow_context(&folder, &url, "2.1.311");
+        let old = install_version_on_disk(&ctx, "2.1.311", b"claude 2.1.311", None);
+        let (recorder, _arrivals) = Recorder::new();
+        let state = launched(&ctx, &recorder);
+
+        follow(&ctx, &state, recorder.as_ref());
+
+        assert_eq!(server.join().expect("the server ends"), 3);
+        let status = state.status(ManagedProgram::Claude);
+        let new = ctx.dirs.binary(ManagedProgram::Claude, "2.1.322");
+        assert_eq!(status.state, ProgramState::Ready);
+        assert_eq!(status.version.as_deref(), Some("2.1.322"));
+        assert_eq!(status.path.as_deref(), new.to_str());
+        assert_eq!(fs::read(&new).expect("the new program"), body);
+        // A new chat resolves the bin link, which now names the new version.
+        assert_eq!(
+            fs::read_link(ctx.dirs.shim(ManagedProgram::Claude)).expect("the bin link"),
+            new
+        );
+        assert_eq!(
+            check_of(&state),
+            Some(FollowCheck::Newest {
+                latest: "2.1.322".to_string()
+            })
+        );
+        // The program stayed ready the whole time, so no chat was held while it downloaded.
+        assert_eq!(
+            recorder.states(ManagedProgram::Claude),
+            vec![ProgramState::Ready]
+        );
+        // A chat that started on 2.1.311 keeps its path until the next launch.
+        assert_eq!(
+            fs::read(&old).expect("the old program stays"),
+            b"claude 2.1.311"
+        );
+        let record: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(ctx.dirs.metadata(ManagedProgram::Claude, "2.1.322"))
+                .expect("the install record"),
+        )
+        .expect("a JSON record");
+        assert!(
+            record["sdkCompat"]
+                .as_array()
+                .expect("the tested SDKs")
+                .contains(&serde_json::json!(SDK))
+        );
+
+        // The next launch runs the followed copy and moves the old version to the Trash.
+        let (recorder, _arrivals) = Recorder::new();
+        let relaunched = launched(&ctx, &recorder);
+        assert_eq!(
+            relaunched.status(ManagedProgram::Claude).version.as_deref(),
+            Some("2.1.322")
+        );
+        prune_unused(&ctx, &relaunched);
+        assert_eq!(version_folders(&ctx), vec!["2.1.322".to_string()]);
+        assert!(folder.path().join("trash").join("2.1.311").exists());
+        assert!(
+            !ctx.dirs
+                .metadata(ManagedProgram::Claude, "2.1.311")
+                .exists(),
+            "the old version's install record goes with it"
+        );
+    }
+
+    #[test]
+    fn plat_28_a_newer_release_whose_manifest_does_not_list_the_sdk_is_skipped() {
+        let folder = TempDir::new();
+        let (url, server) = serve(vec![
+            Answer::Body(200, b"2.1.311"),
+            Answer::Body(200, MANIFEST_2_1_311.as_bytes()),
+        ]);
+        let ctx = follow_context(&folder, &url, "2.1.308");
+        let old = install_version_on_disk(&ctx, "2.1.308", b"claude 2.1.308", None);
+        let (recorder, _arrivals) = Recorder::new();
+        let state = launched(&ctx, &recorder);
+
+        follow(&ctx, &state, recorder.as_ref());
+
+        // Two reads, the pointer and the manifest, and no download.
+        assert_eq!(server.join().expect("the server ends"), 2);
+        let status = state.status(ManagedProgram::Claude);
+        assert_eq!(status.state, ProgramState::Ready);
+        assert_eq!(status.version.as_deref(), Some("2.1.308"));
+        assert_eq!(
+            check_of(&state),
+            Some(FollowCheck::Untested {
+                latest: "2.1.311".to_string()
+            })
+        );
+        assert_eq!(
+            fs::read_link(ctx.dirs.shim(ManagedProgram::Claude)).expect("the bin link"),
+            old
+        );
+        assert_eq!(version_folders(&ctx), vec!["2.1.308".to_string()]);
+    }
+
+    #[test]
+    fn plat_28_a_release_of_another_checksum_or_size_than_its_manifest_is_refused() {
+        let body: &'static [u8] = b"claude 2.1.322";
+        // The published checksum with this body's size, then this body's checksum with the
+        // published size.
+        let cases = [
+            (None, Some(body.len() as u64), "SHA-256"),
+            (Some(sha_hex(body)), None, "bytes"),
+        ];
+        for (checksum, size, named) in cases {
+            let folder = TempDir::new();
+            let (url, server) = serve(vec![
+                Answer::Body(200, b"2.1.322"),
+                Answer::Body(200, manifest_for_body(MANIFEST_2_1_322, checksum, size)),
+                Answer::Body(200, body),
+            ]);
+            let ctx = follow_context(&folder, &url, "2.1.311");
+            let old = install_version_on_disk(&ctx, "2.1.311", b"claude 2.1.311", None);
+            let (recorder, _arrivals) = Recorder::new();
+            let state = launched(&ctx, &recorder);
+
+            follow(&ctx, &state, recorder.as_ref());
+
+            assert_eq!(server.join().expect("the server ends"), 3);
+            let status = state.status(ManagedProgram::Claude);
+            assert_eq!(status.state, ProgramState::Ready, "{named}");
+            assert_eq!(status.version.as_deref(), Some("2.1.311"), "{named}");
+            assert_eq!(
+                fs::read_link(ctx.dirs.shim(ManagedProgram::Claude)).expect("the bin link"),
+                old,
+                "{named}"
+            );
+            // Neither the new version nor a temporary file is left.
+            assert_eq!(
+                version_folders(&ctx),
+                vec!["2.1.311".to_string()],
+                "{named}"
+            );
+            let left: Vec<_> = fs::read_dir(old.parent().expect("the version folder"))
+                .expect("list the version folder")
+                .map(|entry| entry.expect("an entry").file_name())
+                .collect();
+            assert_eq!(left, vec![std::ffi::OsString::from("claude")], "{named}");
+            match check_of(&state) {
+                Some(FollowCheck::Failed { error }) => {
+                    assert!(error.contains("2.1.322"), "{error}");
+                    assert!(error.contains(named), "{error}");
+                }
+                other => panic!("expected a refused release, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn plat_28_without_the_release_host_claude_code_stays_on_the_floor() {
+        let folder = TempDir::new();
+        let (url, server) = serve(vec![Answer::Body(503, b"")]);
+        let ctx = follow_context(&folder, &url, "2.1.322");
+        install_version_on_disk(&ctx, "2.1.322", b"claude 2.1.322", None);
+        let (recorder, _arrivals) = Recorder::new();
+        let state = launched(&ctx, &recorder);
+
+        follow(&ctx, &state, recorder.as_ref());
+
+        assert_eq!(server.join().expect("the server ends"), 1);
+        let status = state.status(ManagedProgram::Claude);
+        assert_eq!(status.state, ProgramState::Ready);
+        assert_eq!(status.version.as_deref(), Some("2.1.322"));
+        match check_of(&state) {
+            Some(FollowCheck::Failed { error }) => assert!(error.contains("503"), "{error}"),
+            other => panic!("expected a failed check, got {other:?}"),
+        }
+        let note = status.follow.expect("Claude Code's note");
+        assert_eq!(note.shipped, "2.1.322");
+        assert_eq!(note.sdk, SDK);
+    }
+
+    #[test]
+    fn plat_28_a_first_install_fetches_the_newest_compatible_release_and_offline_the_floor() {
+        // The host answers: the newest release lists the SDK, so the first install takes it.
+        let folder = TempDir::new();
+        let body: &'static [u8] = b"claude 2.1.322";
+        let (url, server) = serve(vec![
+            Answer::Body(200, b"2.1.322"),
+            Answer::Body(
+                200,
+                manifest_for_body(
+                    MANIFEST_2_1_322,
+                    Some(sha_hex(body)),
+                    Some(body.len() as u64),
+                ),
+            ),
+            Answer::Body(200, body),
+        ]);
+        let ctx = follow_context(&folder, &url, "2.1.311");
+        write_feed(&ctx, "2.1.311", &url, b"claude 2.1.311");
+        let (recorder, _arrivals) = Recorder::new();
+        let state = launched(&ctx, &recorder);
+
+        install_claude(&ctx, &state, recorder.as_ref(), InstallMode::Install);
+
+        assert_eq!(server.join().expect("the server ends"), 3);
+        assert_eq!(
+            state.status(ManagedProgram::Claude).version.as_deref(),
+            Some("2.1.322")
+        );
+        assert_eq!(version_folders(&ctx), vec!["2.1.322".to_string()]);
+
+        // The host is out of reach, but the feed's file is served: the floor is installed.
+        let folder = TempDir::new();
+        let (url, server) = serve(vec![
+            Answer::Body(503, b""),
+            Answer::Body(200, b"claude 2.1.311"),
+        ]);
+        let ctx = follow_context(&folder, &url, "2.1.311");
+        write_feed(&ctx, "2.1.311", &url, b"claude 2.1.311");
+        let (recorder, _arrivals) = Recorder::new();
+        let state = launched(&ctx, &recorder);
+
+        install_claude(&ctx, &state, recorder.as_ref(), InstallMode::Install);
+
+        assert_eq!(server.join().expect("the server ends"), 2);
+        let status = state.status(ManagedProgram::Claude);
+        assert_eq!(status.state, ProgramState::Ready);
+        assert_eq!(status.version.as_deref(), Some("2.1.311"));
+        assert!(matches!(check_of(&state), Some(FollowCheck::Failed { .. })));
+    }
+
+    #[test]
+    fn plat_28_a_followed_copy_runs_after_a_restart_only_while_it_still_qualifies() {
+        let folder = TempDir::new();
+        let ctx = follow_context(&folder, "http://127.0.0.1:9", "2.1.308");
+        let floor = install_version_on_disk(&ctx, "2.1.308", b"claude 2.1.308", None);
+        let kept = InstallExtras {
+            keep: BTreeSet::from(["2.1.308".to_string()]),
+            sdk_compat: Some(vec![SDK.to_string()]),
+        };
+        let followed = ctx.dirs.binary(ManagedProgram::Claude, "2.1.311");
+        fs::create_dir_all(followed.parent().expect("a folder")).expect("make the folder");
+        fs::write(&followed, b"claude 2.1.311").expect("write the program");
+        finish_install(
+            ManagedProgram::Claude,
+            "2.1.311",
+            &followed,
+            &sha_hex(b"claude 2.1.311"),
+            &ctx.dirs,
+            &*ctx.trash,
+            &kept,
+        )
+        .expect("install the followed copy");
+        let copy = |releases: ClaudeReleases| {
+            installed_copy(&ctx.dirs, ManagedProgram::Claude, Some(&releases))
+                .map(|(version, _)| version)
+        };
+
+        // The link names 2.1.311, which is newer than the floor and lists the SDK.
+        assert_eq!(copy(releases("", "2.1.308")).as_deref(), Some("2.1.311"));
+        // An app update moved the SDK: the followed copy no longer qualifies; the floor runs.
+        let moved_sdk = ClaudeReleases {
+            sdk: "0.3.999".to_string(),
+            ..releases("", "2.1.308")
+        };
+        assert_eq!(copy(moved_sdk.clone()).as_deref(), Some("2.1.308"));
+        // A launch then points the bin link at the floor, so a new chat finds the copy that runs.
+        let relaunch = InstallContext {
+            claude_releases: Some(moved_sdk),
+            ..follow_context(&folder, "http://127.0.0.1:9", "2.1.308")
+        };
+        let (recorder, _arrivals) = Recorder::new();
+        let state = launched(&relaunch, &recorder);
+        assert_eq!(
+            state.status(ManagedProgram::Claude).version.as_deref(),
+            Some("2.1.308")
+        );
+        assert_eq!(
+            fs::read_link(ctx.dirs.shim(ManagedProgram::Claude)).expect("the bin link"),
+            floor
+        );
+        install_bin_shim(&ctx.dirs.bin, ManagedProgram::Claude, &followed).expect("relink");
+        // An app update raised the floor above it: the new floor must be installed first.
+        assert_eq!(copy(releases("", "2.1.322")), None);
+        // Without following, the pinned version alone counts.
+        assert_eq!(
+            installed_copy(&ctx.dirs, ManagedProgram::Claude, None).map(|(version, _)| version),
+            None
+        );
+        // A followed copy changed on disk is not trusted.
+        fs::write(&followed, b"changed").expect("change the program");
+        assert_eq!(copy(releases("", "2.1.308")).as_deref(), Some("2.1.308"));
+        assert!(floor.exists());
+    }
+
+    #[test]
+    fn plat_28_choose_reads_this_macs_file_from_the_published_manifest() {
+        let releases = releases(
+            "https://downloads.claude.ai/claude-code-releases",
+            "2.1.311",
+        );
+        let choice = follow::choose(
+            "2.1.322",
+            MANIFEST_2_1_322,
+            "2.1.311",
+            &releases,
+            "darwin-arm64",
+        )
+        .expect("a manifest the app reads");
+        let follow::FollowChoice::Install(target) = choice else {
+            panic!("2.1.322 lists the SDK and is newer");
+        };
+        assert_eq!(target.version, "2.1.322");
+        assert_eq!(
+            target.asset.url,
+            "https://downloads.claude.ai/claude-code-releases/2.1.322/darwin-arm64/claude"
+        );
+        // The same file the shipped feed pins for 2.1.322, from the same manifest.
+        let feed = shipped_feed();
+        let pinned = feed.claude.expect("the feed pins Claude Code");
+        if pinned.version == "2.1.322" {
+            assert_eq!(target.asset.sha256, pinned.darwin_arm64.sha256);
+            assert_eq!(target.asset.size, pinned.darwin_arm64.size);
+            assert_eq!(target.asset.url, pinned.darwin_arm64.url);
+        }
+        assert_eq!(target.asset.format, AssetFormat::Raw);
+
+        let stays = |pointer: &str, running: &str| {
+            follow::choose(pointer, MANIFEST_2_1_322, running, &releases, "darwin-x64")
+        };
+        assert!(matches!(
+            stays("2.1.322", "2.1.322"),
+            Ok(follow::FollowChoice::Stay(FollowCheck::Newest { .. }))
+        ));
+        assert!(matches!(
+            stays("2.1.322", "2.1.330"),
+            Ok(follow::FollowChoice::Stay(FollowCheck::Newest { .. }))
+        ));
+        // A pointer that is not a version, or that names another release than the manifest.
+        assert!(stays("<html>", "2.1.311").is_err());
+        assert!(stays("2.1.323-beta", "2.1.311").is_err());
+        assert!(stays("2.1.323", "2.1.311").is_err());
+        // A manifest without this Mac's file.
+        assert!(
+            follow::choose(
+                "2.1.322",
+                MANIFEST_2_1_322,
+                "2.1.311",
+                &releases,
+                "darwin-riscv"
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn plat_28_a_check_is_due_at_launch_and_once_a_day_after() {
+        assert!(follow::check_due(None, 5));
+        assert!(!follow::check_due(
+            Some(1_000),
+            1_000 + follow::CHECK_EVERY_MS - 1
+        ));
+        assert!(follow::check_due(
+            Some(1_000),
+            1_000 + follow::CHECK_EVERY_MS
+        ));
+    }
+
+    #[test]
+    fn plat_28_the_follow_note_serialises_the_way_the_platform_reads_it() {
+        let state = ProgramsState::default();
+        state.start_note(
+            ManagedProgram::Claude,
+            FollowNote::new(&releases("", "2.1.322")),
+        );
+        state.note_check(
+            ManagedProgram::Claude,
+            FollowCheck::Untested {
+                latest: "2.1.330".to_string(),
+            },
+        );
+
+        let value = serde_json::to_value(state.status(ManagedProgram::Claude)).expect("serialise");
+
+        assert_eq!(
+            value["follow"],
+            serde_json::json!({
+                "shipped": "2.1.322",
+                "sdk": SDK,
+                "check": { "kind": "untested", "latest": "2.1.330" },
+            })
+        );
+        let codex = serde_json::to_value(state.status(ManagedProgram::Codex)).expect("serialise");
+        assert_eq!(codex["follow"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn plat_28_the_app_follows_the_sdk_the_sidecar_pins() {
+        let package: serde_json::Value =
+            serde_json::from_str(include_str!("../../../../packages/sidecar/package.json"))
+                .expect("the sidecar's package.json");
+        assert_eq!(
+            package["dependencies"]["@anthropic-ai/claude-agent-sdk"],
+            serde_json::json!(follow::CLAUDE_AGENT_SDK)
+        );
+        assert_eq!(
+            ClaudeReleases::app().floor,
+            pinned_version(ManagedProgram::Claude)
+        );
+        assert_eq!(ClaudeReleases::app().base, follow::CLAUDE_RELEASES);
     }
 }

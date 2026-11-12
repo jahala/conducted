@@ -190,7 +190,13 @@ export function ContextWheel({ sessionId }: ContextWheelProps) {
 				if (open && usageAgent !== null) void readPlanUsage();
 			}}
 			trigger={
-				<Button variant="ghost" size="xs" className="px-0" aria-label="Context usage">
+				<Button
+					variant="ghost"
+					size="xs"
+					className="px-0"
+					aria-label="Context usage"
+					title="Context usage"
+				>
 					<span className={toneFor(percent)}>
 						<RadialProgress percent={percent} />
 					</span>
@@ -205,9 +211,12 @@ export function ContextWheel({ sessionId }: ContextWheelProps) {
 				</div>
 				{unavailable === null ? null : <p className="text-xs text-fg-muted">{unavailable}</p>}
 				{usedTokens === null || windowTokens === null ? null : (
-					<p className="text-xs text-fg-muted">
-						Window used: {formatTokens(usedTokens)} of {formatTokens(windowTokens)} tokens
-					</p>
+					<div className="flex justify-between gap-2 text-xs text-fg-muted">
+						<span>Window used</span>
+						<span>
+							{formatTokens(usedTokens)} of {formatTokens(windowTokens)} tokens
+						</span>
+					</div>
 				)}
 				<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
 					{usage === null ? null : (
@@ -245,6 +254,9 @@ export function ContextWheel({ sessionId }: ContextWheelProps) {
 						</>
 					) : null}
 				</dl>
+				{planUsage.loading && planUsage.answer === null ? (
+					<p className="text-xs text-fg-muted">Loading details…</p>
+				) : null}
 				{usageAgent === null ? null : (
 					<UsageAccountRows
 						agent={usageAgent}

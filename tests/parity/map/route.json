@@ -161,12 +161,10 @@
 		"by": "seed"
 	},
 	"route:R1714453": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-01",
-		"item": "Conductor shows \"/repository/$repositoryId/workspace/$localWorkspaceId\" (route, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D086",
+		"note": "The workspace route. Ours is the same address, /repository/$repositoryId/workspace/$workspaceId, with another name for its last parameter; every workspace state opens it with real ids. The harness matches routes by exact text, so a parameterised address cannot be seeded.",
+		"by": "hand"
 	},
 	"route:R1715305": {
 		"status": "matched",
@@ -180,12 +178,9 @@
 		"by": "rule:team-route"
 	},
 	"route:R1960039": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03",
-		"item": "Conductor shows \"/settings/user/account\" (route, inventory-ui-text Projects and workspaces); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "/settings/user/account",
+		"by": "seed"
 	},
 	"route:R2049956": {
 		"status": "matched",
@@ -193,36 +188,28 @@
 		"by": "seed"
 	},
 	"route:R2960849": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "NAV-02",
-		"item": "Repo settings routes '/settings/repos/$repoId/$page'",
-		"owner": "rule:quote"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A parent route with no page; our repository settings live at /settings/repos/$repoId/$page.",
+		"by": "hand"
 	},
 	"route:R2960925": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "NAV-02",
-		"item": "Conductor shows \"/settings/repos/$repoId/scripts\" (route, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D086",
+		"note": "The same route with a repository id in place of $repoId; catalogue state settings-repo-scripts opens it. The harness matches routes by exact text, so a parameterised address cannot be seeded.",
+		"by": "hand"
 	},
 	"route:R2961215": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "NAV-02",
-		"item": "Conductor shows \"/settings/repos/$repoId/actions\" (route, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D086",
+		"note": "The same route with a repository id in place of $repoId; catalogue state settings-repo-actions opens it. The harness matches routes by exact text, so a parameterised address cannot be seeded.",
+		"by": "hand"
 	},
 	"route:R2983757": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "WS-01",
-		"item": "Conductor shows \"/settings/user/providers\" (route, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D086",
+		"note": "The address of Conductor's Agents settings page. Ours is /settings/user/agents; an address is not wording the app shows, and the page itself is matched by its title and rows.",
+		"by": "hand"
 	},
 	"route:R2986285": {
 		"status": "decided",
@@ -237,22 +224,15 @@
 		"by": "rule:hosted-backend-route"
 	},
 	"route:R5008856": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-07",
-		"owner": "hand",
-		"note": "Conductor's full route is `/settings/repos/$repoId/misc`; our router serves it through `/settings/repos/$repoId/$page` (app/router.tsx). The seed compares the parameterised spec text with a state's literal route, so it cannot match."
+		"status": "decided",
+		"decision": "D086",
+		"note": "The same route with a repository id in place of $repoId; catalogue state settings-repo-preview-urls opens it. The harness matches routes by exact text, so a parameterised address cannot be seeded.",
+		"by": "hand"
 	},
 	"route:R9253487": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-02",
-		"owner": "hand",
-		"note": "Our user settings pages live under `/settings/<page>`, with the page id `default-models`; Conductor's is `/settings/user/models`. The same page opens, but the route identifier differs."
+		"status": "matched",
+		"ours": "/settings/user/models",
+		"by": "seed"
 	},
 	"route:R9524664": {
 		"status": "decided",
@@ -261,12 +241,9 @@
 		"by": "rule:team-route"
 	},
 	"route:R9542870": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-06",
-		"item": "Conductor shows \"/settings/user/general\" (route, inventory-controls Chat view); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "/settings/user/general",
+		"by": "seed"
 	},
 	"route:R10181173": {
 		"status": "matched",
@@ -326,13 +303,9 @@
 		"by": "rule:team-route"
 	},
 	"route:R11298182": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"class": "wording",
-		"backlog": "SET-02",
-		"owner": "hand",
-		"note": "Our user settings pages live under `/settings/<page>`; Conductor's is `/settings/user/git`. The same page opens, but the route identifier differs."
+		"status": "matched",
+		"ours": "/settings/user/git",
+		"by": "seed"
 	},
 	"route:R11312381": {
 		"status": "decided",
@@ -353,13 +326,9 @@
 		"by": "hand"
 	},
 	"route:R11732135": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-02",
-		"owner": "hand",
-		"note": "Our user settings pages live under `/settings/<page>`; Conductor's is `/settings/user/experimental`. The same page opens, but the route identifier differs."
+		"status": "matched",
+		"ours": "/settings/user/experimental",
+		"by": "seed"
 	},
 	"route:R11736341": {
 		"status": "decided",
@@ -380,12 +349,10 @@
 		"by": "rule:team-route"
 	},
 	"route:R11779761": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "PRJ-03",
-		"item": "Conductor shows \"/settings/user/account\" (route, inventory-ui-text Projects and workspaces); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:quote"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's settings landing address. Ours redirects it to /settings/user/general, as Conductor's own index redirects, so no distinct screen opens it.",
+		"by": "hand"
 	},
 	"route:R11783496": {
 		"status": "gap",
@@ -401,22 +368,16 @@
 		"by": "hand"
 	},
 	"route:R11783949": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-09",
-		"owner": "hand",
-		"note": "Our provider setup is a dialog on `/settings/agents` (AgentProvidersDialog.tsx), not a page route. Conductor's `/providers` page has no route in ours."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A route object's child path segment under /settings/user, not an address a state opens. Its full route, /settings/user/providers, is Conductor's Agents page and is its own entry (route:R2983757); ours is /settings/user/agents.",
+		"by": "hand"
 	},
 	"route:R11784032": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-04",
-		"owner": "hand",
-		"note": "This is Conductor's child path segment under `/settings/user`; our full route is `/settings/environment`. A segment cannot equal a state's full route."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A route object's child path segment under /settings/user, not an address a state opens; our full route is /settings/user/environment, which catalogue state settings-environment-edit-variable opens.",
+		"by": "hand"
 	},
 	"route:R11784112": {
 		"status": "decided",
@@ -431,13 +392,9 @@
 		"by": "hand"
 	},
 	"route:R11784222": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-02",
-		"owner": "hand",
-		"note": "Our user settings pages live under `/settings/<page>`; Conductor's is `/settings/user/connections`. The same page opens, but the route identifier differs."
+		"status": "matched",
+		"ours": "/settings/user/connections",
+		"by": "seed"
 	},
 	"route:R11784338": {
 		"status": "decided",
@@ -446,79 +403,58 @@
 		"by": "hand"
 	},
 	"route:R11784428": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "NAV-09",
-		"owner": "hand",
-		"note": "This is Conductor's child path segment under `/settings/user`; our full route is `/settings/key-bindings`. A segment cannot equal a state's full route."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A route object's child path segment under /settings/user, not an address a state opens; our full route is /settings/user/key-bindings, which catalogue state settings-key-bindings opens.",
+		"by": "hand"
 	},
 	"route:R11784537": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "NAV-02",
-		"owner": "rule:neighbour"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A user-settings sub-page address; our settings pages all live under /settings/user/$page (app/router.tsx), and the Big terminal block is on the Experimental page.",
+		"by": "hand"
 	},
 	"route:R11784600": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "NAV-02",
-		"owner": "rule:neighbour"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's internal-only settings page (internalOnly in renderApp @11784542); staff tools stay out.",
+		"by": "hand"
 	},
 	"route:R11785462": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "NAV-02",
-		"item": "Conductor shows \"/repos\" (route, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A redirect route: with no repository it goes to /settings/user/general, else to that repository's settings page (renderApp @11785714). Our router opens repository settings at /settings/repos/$repoId/$page and has no /repos redirect.",
+		"by": "hand"
 	},
 	"route:R11785714": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "NAV-02",
-		"item": "Repo settings routes '/settings/repos/$repoId/$page'",
-		"owner": "rule:quote"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A parent route with no page; its index redirects to the repository's settings page (renderApp @11785714). Our route is /settings/repos/$repoId/$page.",
+		"by": "hand"
 	},
 	"route:R11785937": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-07",
-		"owner": "hand",
-		"note": "This is Conductor's child path segment under `/settings/repos/$repoId`; our router serves that full path through `/settings/repos/$repoId/$page`. A segment cannot equal a state's full route."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A route object's child path segment under /settings/repos/$repoId, not an address a state opens; our router serves /settings/repos/$repoId/git through /settings/repos/$repoId/$page (app/router.tsx), and catalogue state settings-repo-git opens it.",
+		"by": "hand"
 	},
 	"route:R11785995": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-07",
-		"owner": "hand",
-		"note": "This is Conductor's child path segment under `/settings/repos/$repoId`; our router serves that full path through `/settings/repos/$repoId/$page`. A segment cannot equal a state's full route."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A route object's child path segment under /settings/repos/$repoId, not an address a state opens; our router serves /settings/repos/$repoId/scripts through /settings/repos/$repoId/$page (app/router.tsx), and catalogue state settings-repo-scripts opens it.",
+		"by": "hand"
 	},
 	"route:R11786057": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-07",
-		"owner": "hand",
-		"note": "This is Conductor's child path segment under `/settings/repos/$repoId`; our router serves that full path through `/settings/repos/$repoId/$page`. A segment cannot equal a state's full route."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A route object's child path segment under /settings/repos/$repoId, not an address a state opens; our router serves /settings/repos/$repoId/actions through /settings/repos/$repoId/$page (app/router.tsx), and catalogue state settings-repo-add-action opens it.",
+		"by": "hand"
 	},
 	"route:R11786119": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-07",
-		"owner": "hand",
-		"note": "This is Conductor's child path segment under `/settings/repos/$repoId`; our router serves that full path through `/settings/repos/$repoId/$page`. A segment cannot equal a state's full route."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A route object's child path segment under /settings/repos/$repoId, not an address a state opens; our router serves /settings/repos/$repoId/misc through /settings/repos/$repoId/$page (app/router.tsx), and catalogue state settings-repo-preview-urls opens it.",
+		"by": "hand"
 	},
 	"route:R11786178": {
 		"status": "decided",
@@ -545,12 +481,10 @@
 		"by": "rule:team-route"
 	},
 	"route:R11786604": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "COMP-06",
-		"item": "Slash '/mcp', '/agents', '/hooks', '/memory', '/permissions', '/plugins' open the embedded terminal",
-		"owner": "rule:quote"
+		"status": "decided",
+		"decision": "D018",
+		"note": "An organisation settings route under /settings/organization (renderApp @11786609); organisations stay out.",
+		"by": "hand"
 	},
 	"route:R11786662": {
 		"status": "decided",
@@ -565,20 +499,16 @@
 		"by": "rule:team-route"
 	},
 	"route:R11786789": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "COMP-06",
-		"item": "Conductor shows \"/prompts\" (route, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D018",
+		"note": "An organisation settings route under /settings/organization (renderApp @11786794); organisations stay out.",
+		"by": "hand"
 	},
 	"route:R11786851": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "COMP-06",
-		"item": "Conductor shows \"/repositories/$owner/$repo\" (route, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D018",
+		"note": "An organisation settings route under /settings/organization (renderApp @11786856); organisations stay out.",
+		"by": "hand"
 	},
 	"route:R11929822": {
 		"status": "decided",

@@ -39,6 +39,7 @@ const workspace: Workspace = {
 	path: "/workspaces/w1",
 	branch: "branch-w1",
 	branchIsPlaceholder: true,
+	remoteFileSyncEnabled: false,
 	host: { kind: "local" },
 	displayName: null,
 	targetBranch: "main",
@@ -129,7 +130,7 @@ function harness(listed: ListeningPort[] = [], options: { exitCode?: number } = 
 			return ok(undefined);
 		},
 		async exists() {
-			return true;
+			return ok(true);
 		},
 		paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" },
 	} as unknown as Pick<FileSystem, "writeTextAtomic" | "mkdirp" | "exists"> & {

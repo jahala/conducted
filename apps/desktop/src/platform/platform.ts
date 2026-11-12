@@ -15,6 +15,7 @@
  * Rust shell, the Tauri bridge and the in-memory stand-in. The contract test reads the Rust
  * sources, so a code the shell returns without being listed fails the test.
  */
+import type { ConductorMessageKey, ConductorPlacedRow } from "@conducted/protocol";
 import { type AppError, appError, type ManagedProgram, type Result } from "@conducted/shared";
 
 // ---------------------------------------------------------------- error codes
@@ -70,10 +71,15 @@ export const PLATFORM_ERROR_CODES = [
 	"cloud_url_not_allowed",
 	"cloud_vm_id_invalid",
 	"db_check_failed",
+	"db_close_failed",
+	"db_closed",
+	"db_free_space_failed",
 	"db_migration_failed",
+	"db_not_open",
 	"db_open_failed",
 	"db_path_unavailable",
 	"db_read_failed",
+	"db_statement_failed",
 	"db_version_unreadable",
 	"deep_link_too_long",
 	"deep_link_unavailable",
@@ -123,6 +129,7 @@ export const PLATFORM_ERROR_CODES = [
 	"http_invalid_url",
 	"http_progress_failed",
 	"http_response_too_large",
+	"http_size_mismatch",
 	"http_state_poisoned",
 	"http_status",
 	"http_unscripted",
@@ -172,6 +179,7 @@ export const PLATFORM_ERROR_CODES = [
 	"program_bin_shim_failed",
 	"program_checksum_mismatch",
 	"program_data_dir_failed",
+	"program_follow_invalid",
 	"program_install_failed",
 	"program_metadata_failed",
 	"program_prune_failed",
@@ -272,7 +280,7 @@ export interface SqlResult {
 	lastInsertId?: number;
 }
 
-/** conducted.db through tauri-plugin-sql. Parameters use `$1, $2, ...`. */
+/** conducted.db on the Rust shell's one connection (database.rs). Parameters use `$1, $2, ...`. */
 export interface Database {
 	execute(sql: string, params?: readonly unknown[]): Promise<SqlResult>;
 	select<Row>(sql: string, params?: readonly unknown[]): Promise<Row[]>;
@@ -342,11 +350,19 @@ export interface FileSystem {
 	 * limit as `readText` applies.
 	 */
 	readBytes(path: string): Promise<Result<Uint8Array>>;
-	/** Writes to a temp file and renames it into place, so readers never see half a file. */
+	/**
+	 * Writes to a temp file and renames it into place, so readers never see half a file. The
+	 * folder must exist: a missing one is an Err with `fs_not_found`, and `mkdirp` makes it.
+	 */
 	writeTextAtomic(path: string, text: string): Promise<Result<void>>;
-	/** Writes bytes atomically, for a binary file the mirror keeps (CLOUD-11). */
+	/** Writes bytes atomically, for a binary file the mirror keeps (CLOUD-11). Same folder rule. */
 	writeBytes(path: string, bytes: Uint8Array): Promise<Result<void>>;
-	exists(path: string): Promise<boolean>;
+	/**
+	 * Whether anything is at `path`: Ok(false) when nothing is there. A path the file commands may
+	 * not reach is an Err with `fs_out_of_scope`, never false, so a refusal never reads as a missing
+	 * file (issue #601).
+	 */
+	exists(path: string): Promise<Result<boolean>>;
 	stat(path: string): Promise<Result<FileStat>>;
 	mkdirp(path: string): Promise<Result<void>>;
 	readDir(path: string): Promise<Result<FileStat[]>>;
@@ -501,7 +517,17 @@ export interface Dialogs {
 	pickFiles(options: { title: string; multiple: boolean }): Promise<string[]>;
 	/** The system save dialog. Null when the user cancels. */
 	pickSavePath(options: { title: string; defaultPath?: string }): Promise<string | null>;
-	confirm(options: { title: string; message: string; okLabel: string }): Promise<boolean>;
+	/**
+	 * The system question dialog; true when the user chooses the OK button. `cancelLabel` and `kind`
+	 * (the icon macOS shows) are the dialog plugin's own; left out, the plugin uses its defaults.
+	 */
+	confirm(options: {
+		title: string;
+		message: string;
+		okLabel: string;
+		cancelLabel?: string;
+		kind?: "info" | "warning" | "error";
+	}): Promise<boolean>;
 }
 
 export interface Opener {
@@ -560,13 +586,22 @@ export interface Updater {
 	installedUpdate(): Promise<Result<{ version: string; notes: string } | null>>;
 }
 
+/** One of the app's processes. Mirrors `ProcessUsage` in resource_usage.rs. */
 export interface ProcessUsage {
 	pid: number;
-	name: string;
+	/** The parent's pid, or 0 when the process table names none. */
+	ppid: number;
+	/**
+	 * What the resources popover calls it: "Main" for the app, "Sidecar", "Renderer" and other
+	 * WebKit helpers by name, otherwise the program's base name. Never carries arguments.
+	 */
+	label: string;
 	cpuPercent: number;
 	memoryBytes: number;
 	/** The workspace the process belongs to, when known. */
 	workspacePath?: string;
+	/** The terminal it runs in: the terminal's shell or a program started from it. */
+	terminalId?: string;
 }
 
 export interface AppInfo {
@@ -579,6 +614,13 @@ export interface AppInfo {
 	 * stops with a "database is newer than this app" screen (PLAT-17).
 	 */
 	dbVersionWarning(): Promise<Result<{ databaseVersion: number; appVersion: number } | null>>;
+	/**
+	 * The bytes free to this user on the disk that holds Conducted's database: `statfs`'s available
+	 * blocks, as `df` shows them. The import checks it before it writes chat history (D132). The
+	 * app's folder not known is `db_path_unavailable`; a disk that cannot be asked is
+	 * `db_free_space_failed`.
+	 */
+	databaseFreeBytes(): Promise<Result<number>>;
 	onDeepLink(listener: (url: string) => void): Unsubscribe;
 	/**
 	 * A link the Rust shell refused before the UI's parser saw it, such as one over 64 KiB
@@ -725,6 +767,33 @@ export interface ProgramStatus {
 	error: string | null;
 	/** Where the managed copy is. Null until one is installed. */
 	path: string | null;
+	/** Claude Code only: which copy runs and why (D133). Null for every other program. */
+	follow: ProgramFollow | null;
+}
+
+/**
+ * What the last look at Claude Code's release host found. Mirrors `FollowCheck` in
+ * binaries/follow.rs.
+ */
+export type ProgramFollowCheck =
+	| { kind: "checking" }
+	/** The copy that runs is the newest release; `latest` is the host's newest version. */
+	| { kind: "newest"; latest: string }
+	/** A newer release is out, but its manifest does not list the SDK, so it is skipped. */
+	| { kind: "untested"; latest: string }
+	/** A newer release is downloading for new chats. */
+	| { kind: "downloading"; latest: string }
+	/** The host could not be read, or the newer release was refused. */
+	| { kind: "failed"; error: string };
+
+/** Which Claude Code runs and why. Mirrors `FollowNote` in binaries/follow.rs. */
+export interface ProgramFollow {
+	/** The version the app ships with: the oldest it runs, and the answer when offline. */
+	shipped: string;
+	/** The Claude Agent SDK a release's manifest must list before the app moves to it. */
+	sdk: string;
+	/** What the last look at the release host found. Null before the first one. */
+	check: ProgramFollowCheck | null;
 }
 
 /** binaries.rs: downloads official releases, checks their checksums, keeps one version of each. */
@@ -732,7 +801,11 @@ export interface Programs {
 	statuses(): Promise<Result<ProgramStatus[]>>;
 	/** Fires on every change of one program's status, including download progress. */
 	onStatus(listener: (status: ProgramStatus) => void): Unsubscribe;
-	/** Downloads and installs the version this app pins. Also the Retry after a failure. */
+	/**
+	 * Downloads and installs the version this app pins; for Claude Code, its newest release that
+	 * lists the sidecar's SDK, or the pinned one when none does or the host is out of reach (D133).
+	 * Also the Retry after a failure.
+	 */
 	install(program: ManagedProgram): Promise<Result<void>>;
 	/** Downloads the current version again, replacing the installed copy. */
 	redownload(program: ManagedProgram): Promise<Result<void>>;
@@ -819,6 +892,11 @@ export interface CloudDeployResult {
 	url: string;
 }
 
+/** The step a running deploy is on, as the Rust shell reports it (CLOUD-08). */
+export interface CloudDeployEvent {
+	step: string;
+}
+
 /** What an uninstall overrides: the same optional name a deploy used. */
 export type CloudUninstallInput = CloudDeployInput;
 
@@ -854,6 +932,11 @@ export interface Cloud {
 	 * this Mac (CLOUD-08). The token is made in Rust and never reaches the web view.
 	 */
 	deploy(input?: CloudDeployInput): Promise<Result<CloudDeployResult>>;
+	/**
+	 * The step a deploy is on while it runs, reported by the shell (CLOUD-08). The deploy is one
+	 * command, so a listener stays subscribed for the app's lifetime and filters by `deploying`.
+	 */
+	onDeployEvent(listener: (event: CloudDeployEvent) => void): Unsubscribe;
 	/**
 	 * Deletes what the deploy made, in the order that stops billing: the Worker, its container
 	 * application and images, then the R2 bucket. It also removes this Mac's pairing (CLOUD-08).
@@ -975,10 +1058,13 @@ export interface ConductorCopy {
  * The tables the import maps, read from a copy, as rows keyed by column name, and the row counts
  * of the tables it leaves behind. A table Conductor's schema does not have is `null`. `env_vars`
  * rows carry `has_value` in place of their value, which never leaves the Rust shell.
+ * `messageRows` counts each chat's sent `session_messages` rows, its history (APP-18); `null`
+ * when the copy has no such table.
  */
 export interface ConductorSnapshot {
 	tables: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[] | null>>;
 	counts: Readonly<Record<string, number | null>>;
+	messageRows: Readonly<Record<string, number>> | null;
 }
 
 /** One environment variable value to move from the copy into the app's Keychain service. */
@@ -1004,6 +1090,23 @@ export interface ConductorImport {
 	copy(sourcePath: string): Promise<Result<ConductorCopy>>;
 	/** Reads a copy this import made. Any other path: `conductor_import_bad_copy`. */
 	read(copyPath: string): Promise<Result<ConductorSnapshot>>;
+	/**
+	 * APP-18, a chat history's first read: up to `limit` sent `session_messages` rows of one chat
+	 * after `afterRowid`, in rowid order, without their content. The next page starts after the
+	 * last rowid given; an empty page is the end.
+	 */
+	readMessageKeys(
+		copyPath: string,
+		sessionId: string,
+		afterRowid: number,
+		limit: number,
+	): Promise<Result<ConductorMessageKey[]>>;
+	/** APP-18, the second read: the sent rows of one chat with these rowids, in rowid order. */
+	readMessages(
+		copyPath: string,
+		sessionId: string,
+		rowids: readonly number[],
+	): Promise<Result<ConductorPlacedRow[]>>;
 	/**
 	 * Moves each value from the copy into the Keychain, all or nothing, and returns the keys it
 	 * wrote. A key the Keychain already holds is `conductor_import_secret_exists`.

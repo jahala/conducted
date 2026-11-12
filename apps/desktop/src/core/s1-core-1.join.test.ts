@@ -191,13 +191,13 @@ describe("s1-core-1 join", () => {
 			const fs = test.memory.platform.fs;
 			const file = draftFile(fs.paths, "old-chat");
 			now = START - 31 * DAY;
-			must(await fs.writeTextAtomic(file, "{}"));
+			test.memory.controls.addFile(file, "{}");
 			now = START;
 
 			startForLifetime(test);
 			expect((await test.container.start()).ok).toBe(true);
 
-			expect(await fs.exists(file)).toBe(false);
+			expect(await fs.exists(file)).toEqual(ok(false));
 		} finally {
 			await test.container.stop();
 			test.close();
@@ -257,6 +257,7 @@ describe("s1-core-1 join", () => {
 					path: "/code/join-archive/old",
 					branch: "jahala/old",
 					branchIsPlaceholder: true,
+					remoteFileSyncEnabled: false,
 					host: { kind: "local" },
 					targetBranch: "origin/main",
 					port: 55_101,
@@ -537,7 +538,7 @@ describe("s1-core-1 join", () => {
 				await test.container.platform.fs.exists(
 					prInfoCacheFile(test.container.platform.fs.paths, workspace.id),
 				),
-			).toBe(true);
+			).toEqual(ok(true));
 		} finally {
 			await test.container.stop();
 			test.close();

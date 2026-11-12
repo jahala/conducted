@@ -13,6 +13,7 @@
  */
 import { type Host, idleLiveState } from "@conducted/protocol";
 import type { WorkspaceId } from "@conducted/shared";
+import { ok } from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Database, FileSystem } from "../../platform/platform.ts";
 import { openTestDatabase } from "../../test/sqlite.ts";
@@ -80,6 +81,7 @@ async function seed(host: Host, name: string, port: number): Promise<WorkspaceId
 			port,
 			linkedPaths: [],
 			setupLogPath: null,
+			remoteFileSyncEnabled: false,
 			host,
 		}),
 	);
@@ -183,7 +185,7 @@ describe("CLOUD-13 cloud rows kept apart by host", () => {
 		must(
 			await runStartupRepair({
 				db: database,
-				fs: { exists: async () => false } as unknown as FileSystem,
+				fs: { exists: async () => ok(false) } as unknown as FileSystem,
 				clock: { now: () => 2000 },
 				ids: { uuid: () => `repair-${++nextId}` },
 			}),

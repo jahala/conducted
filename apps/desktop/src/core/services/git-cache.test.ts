@@ -1,4 +1,5 @@
 import type { WorkspaceId } from "@conducted/shared";
+import { ok } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import { createMemoryPlatform } from "../../platform/memory.ts";
 import { createTestIds } from "../../test/ids.ts";
@@ -98,6 +99,7 @@ function createCache(options: { changesMaxBytes?: number; prInfoMaxBytes?: numbe
 	const fs = memory.platform.fs;
 	return {
 		fs,
+		controls: memory.controls,
 		advance: (ms: number) => {
 			now += ms;
 		},
@@ -185,54 +187,54 @@ describe("DATA-07 cached workspace changes", () => {
 		const loaded = await cache.loadChanges("w1" as WorkspaceId, "feature");
 
 		expect(loaded.ok ? loaded.value : "failed").toBeNull();
-		expect(await fs.exists(changesCacheFile(fs.paths, "w1"))).toBe(true);
+		expect(await fs.exists(changesCacheFile(fs.paths, "w1"))).toEqual(ok(true));
 	});
 
 	it("treats a damaged file as a miss and moves it to the Trash", async () => {
-		const { cache, fs } = createCache();
+		const { cache, fs, controls } = createCache();
 		const file = changesCacheFile(fs.paths, "w1");
-		expect((await fs.writeTextAtomic(file, "{ not json")).ok).toBe(true);
+		controls.addFile(file, "{ not json");
 
 		const loaded = await cache.loadChanges("w1" as WorkspaceId, "main");
 
 		expect(loaded.ok ? loaded.value : "failed").toBeNull();
-		expect(await fs.exists(file)).toBe(false);
+		expect(await fs.exists(file)).toEqual(ok(false));
 	});
 
 	it("treats a file from another version as a miss and moves it to the Trash", async () => {
-		const { cache, fs } = createCache();
+		const { cache, fs, controls } = createCache();
 		const file = changesCacheFile(fs.paths, "w1");
 		const stale = { ...changesEntry("w1", "main", 100, "one"), version: 2 };
-		expect((await fs.writeTextAtomic(file, JSON.stringify(stale))).ok).toBe(true);
+		controls.addFile(file, JSON.stringify(stale));
 
 		const loaded = await cache.loadChanges("w1" as WorkspaceId, "main");
 
 		expect(loaded.ok ? loaded.value : "failed").toBeNull();
-		expect(await fs.exists(file)).toBe(false);
+		expect(await fs.exists(file)).toEqual(ok(false));
 	});
 
 	it("treats an entry for another workspace as a damaged file", async () => {
-		const { cache, fs } = createCache();
+		const { cache, fs, controls } = createCache();
 		const file = changesCacheFile(fs.paths, "w1");
 		const wrong = changesEntry("w2", "main", 100, "one");
-		expect((await fs.writeTextAtomic(file, JSON.stringify(wrong))).ok).toBe(true);
+		controls.addFile(file, JSON.stringify(wrong));
 
 		const loaded = await cache.loadChanges("w1" as WorkspaceId, "main");
 
 		expect(loaded.ok ? loaded.value : "failed").toBeNull();
-		expect(await fs.exists(file)).toBe(false);
+		expect(await fs.exists(file)).toEqual(ok(false));
 	});
 
 	it("treats a file with no value as a miss and moves it to the Trash", async () => {
-		const { cache, fs } = createCache();
+		const { cache, fs, controls } = createCache();
 		const file = changesCacheFile(fs.paths, "w1");
 		const empty = { ...changesEntry("w1", "main", 100, "one"), value: null };
-		expect((await fs.writeTextAtomic(file, JSON.stringify(empty))).ok).toBe(true);
+		controls.addFile(file, JSON.stringify(empty));
 
 		const loaded = await cache.loadChanges("w1" as WorkspaceId, "main");
 
 		expect(loaded.ok ? loaded.value : "failed").toBeNull();
-		expect(await fs.exists(file)).toBe(false);
+		expect(await fs.exists(file)).toEqual(ok(false));
 	});
 
 	it("skips a write whose content equals the stored content", async () => {
@@ -297,7 +299,7 @@ describe("DATA-07 cached workspace changes", () => {
 
 		expect(saved.ok).toBe(false);
 		if (!saved.ok) expect(saved.error.code).toBe("cache_too_large");
-		expect(await fs.exists(changesCacheFile(fs.paths, "w1"))).toBe(false);
+		expect(await fs.exists(changesCacheFile(fs.paths, "w1"))).toEqual(ok(false));
 	});
 
 	it("moves the oldest other workspace out before a write goes over the limit", async () => {
@@ -310,8 +312,8 @@ describe("DATA-07 cached workspace changes", () => {
 		advance(1);
 		expect((await cache.saveChanges(second)).ok).toBe(true);
 
-		expect(await fs.exists(changesCacheFile(fs.paths, "w1"))).toBe(false);
-		expect(await fs.exists(changesCacheFile(fs.paths, "w2"))).toBe(true);
+		expect(await fs.exists(changesCacheFile(fs.paths, "w1"))).toEqual(ok(false));
+		expect(await fs.exists(changesCacheFile(fs.paths, "w2"))).toEqual(ok(true));
 	});
 
 	it("uses the 25 MB limit by default", async () => {
@@ -327,10 +329,10 @@ describe("DATA-07 cached workspace changes", () => {
 
 		expect((await cache.remove("w1" as WorkspaceId)).ok).toBe(true);
 
-		expect(await fs.exists(changesCacheFile(fs.paths, "w1"))).toBe(false);
-		expect(await fs.exists(prInfoCacheFile(fs.paths, "w1"))).toBe(false);
-		expect(await fs.exists(changesCacheFile(fs.paths, "w2"))).toBe(true);
-		expect(await fs.exists(prInfoCacheFile(fs.paths, "w2"))).toBe(true);
+		expect(await fs.exists(changesCacheFile(fs.paths, "w1"))).toEqual(ok(false));
+		expect(await fs.exists(prInfoCacheFile(fs.paths, "w1"))).toEqual(ok(false));
+		expect(await fs.exists(changesCacheFile(fs.paths, "w2"))).toEqual(ok(true));
+		expect(await fs.exists(prInfoCacheFile(fs.paths, "w2"))).toEqual(ok(true));
 	});
 });
 
@@ -377,7 +379,7 @@ describe("DATA-07 cached pull request info", () => {
 
 		expect(saved.ok).toBe(false);
 		if (!saved.ok) expect(saved.error.code).toBe("cache_too_large");
-		expect(await fs.exists(prInfoCacheFile(fs.paths, "w1"))).toBe(false);
+		expect(await fs.exists(prInfoCacheFile(fs.paths, "w1"))).toEqual(ok(false));
 	});
 
 	it("moves the oldest other workspace out before a write goes over the limit", async () => {
@@ -390,8 +392,8 @@ describe("DATA-07 cached pull request info", () => {
 		advance(1);
 		expect((await cache.savePrInfo(second)).ok).toBe(true);
 
-		expect(await fs.exists(prInfoCacheFile(fs.paths, "w1"))).toBe(false);
-		expect(await fs.exists(prInfoCacheFile(fs.paths, "w2"))).toBe(true);
+		expect(await fs.exists(prInfoCacheFile(fs.paths, "w1"))).toEqual(ok(false));
+		expect(await fs.exists(prInfoCacheFile(fs.paths, "w2"))).toEqual(ok(true));
 	});
 
 	it("uses the 5 MB limit by default", async () => {

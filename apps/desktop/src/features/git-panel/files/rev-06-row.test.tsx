@@ -27,15 +27,22 @@ describe("REV-06 file tree row", () => {
 		expect(screen.queryByRole("img", { name: "Changed" })).toBeNull();
 	});
 
-	it("chooses the file icon from the file type", () => {
+	// #534: a kind in Conductor's brand table draws its tinted glyph; the rest keep Material's image.
+	it("chooses Conductor's tinted glyph or the Material Icon Theme's icon from the file name", () => {
 		const view = render(<FileTreeRow {...row()} />);
-		const icon = view.container.querySelector("[data-file-icon]");
-		expect(icon?.getAttribute("data-kind")).toBe("code");
+		const glyph = view.container.querySelector("svg[data-file-icon]");
+		expect(glyph?.getAttribute("data-file-icon")).toBe("typescript");
+		expect(glyph?.getAttribute("class")).toContain("text-file-blue-600");
 
-		view.rerender(<FileTreeRow {...row({ name: "README.md", path: "README.md" })} />);
-		expect(view.container.querySelector("[data-file-icon]")?.getAttribute("data-kind")).toBe(
-			"document",
-		);
+		view.rerender(<FileTreeRow {...row({ name: "package.json", path: "web/package.json" })} />);
+		expect(
+			view.container.querySelector("svg[data-file-icon]")?.getAttribute("data-file-icon"),
+		).toBe("nodejs");
+
+		view.rerender(<FileTreeRow {...row({ name: "init.lua", path: "src/init.lua" })} />);
+		const image = view.container.querySelector("img[data-file-icon]");
+		expect(image?.getAttribute("data-file-icon")).toBe("lua");
+		expect(image?.getAttribute("src")).toBeTruthy();
 	});
 
 	// Conductor opens a file on one click (renderApp @2530991); this test asserted double click.

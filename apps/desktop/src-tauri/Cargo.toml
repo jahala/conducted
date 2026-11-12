@@ -16,8 +16,17 @@ edition = "2024"
 name = "conducted_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+# The end-to-end test build (`pnpm test:e2e`, issue #564) turns this on, and nothing else does. It
+# compiles in an embedded WebDriver server, which lets any local process drive the window, so a
+# release must never carry it: `verifyBundle` in `release/bundle.ts` fails a bundle that does.
+# `tauri/custom-protocol` makes the build serve the built UI from `dist`, as a release does, so the
+# test build needs no dev server.
+e2e = ["dep:tauri-plugin-wdio-webdriver", "tauri/custom-protocol"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+serde_json = "1"
 
 [dependencies]
 tauri = { version = "2", features = ["devtools", "protocol-asset"] }
@@ -26,8 +35,12 @@ muda = { version = "0.20", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
-tauri-plugin-sql = { version = "2.6.0", features = ["sqlite"] }
+# The app's one connection to conducted.db and its migrations (PLAT-02, D137). tauri-plugin-sql
+# ran on the same sqlx, but its pool closes connections under an open transaction (#616).
+sqlx = { version = "0.8.6", default-features = false, features = ["sqlite", "runtime-tokio", "migrate"] }
 rusqlite = { version = "0.32", default-features = false }
+# `statfs` for the free space on the database's disk (D132): its struct differs by platform.
+libc = "0.2"
 tauri-plugin-shell = "2.6.0"
 tauri-plugin-fs = "2.7.1"
 tauri-plugin-dialog = "2.8.4"
@@ -37,8 +50,8 @@ tauri-plugin-deep-link = "2.6.3"
 tauri-plugin-window-state = "2.5.0"
 thiserror = "2.0.21"
 security-framework = "3.7.0"
-system-configuration = "0.7"
-core-foundation = "0.9"
+system-configuration = "0.8"
+core-foundation = "0.10"
 portable-pty = "0.9.0"
 alacritty_terminal = "0.26.0"
 globset = "0.4"
@@ -52,7 +65,7 @@ reqwest = { version = "0.13", default-features = false, features = ["native-tls"
 futures-util = "0.3"
 # The Rust shell owns the cloud WebSocket because the web view cannot set its headers (CLOUD-03).
 tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
-sha2 = "0.10"
+sha2 = "0.11"
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 sysinfo = { version = "0.40.1", default-features = false, features = ["system"] }
@@ -72,6 +85,10 @@ flate2 = "1"
 # AES-256-GCM for saved terminal scrollback (PLAT-08, D087). Already in the tree for the test that
 # checks minisign signatures, so the lockfile does not change.
 ring = "0.17"
+# The embedded W3C WebDriver server the end-to-end tests drive the real window with, only under the
+# `e2e` feature (issue #564). It is how WebdriverIO reaches WKWebView on macOS. Licence checked
+# (D010): MIT.
+tauri-plugin-wdio-webdriver = { version = "=2.0.0-next.0", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"

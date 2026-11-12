@@ -86,7 +86,7 @@ const harness = (overrides: Partial<SessionsServiceDeps> = {}): Harness => {
 		repositories: () => repositories,
 		repositoriesOn: () => repositories,
 		fs: {
-			exists: async () => true,
+			exists: async () => ok(true),
 			trash: async () => ok(undefined),
 		},
 		sidecar: {
@@ -163,6 +163,7 @@ async function seedChat(): Promise<{ workspaceId: WorkspaceId }> {
 		path: "/code/workspace",
 		branch: "jahala/workspace",
 		branchIsPlaceholder: true,
+		remoteFileSyncEnabled: false,
 		host: { kind: "local" },
 		targetBranch: "origin/main",
 		port: 55_000,

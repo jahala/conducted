@@ -183,7 +183,7 @@ import {
 	planTitleOf,
 	searchHistory,
 } from "./transcript.ts";
-import { buildTurns, classifyTurnsChange, type StoredEvent } from "./turn-builder.ts";
+import { buildTurns, reuseUnchangedTurns, type StoredEvent } from "./turn-builder.ts";
 
 /**
  * How the git and GitHub services ask the agent to do work. The text lands in the workspace's
@@ -476,29 +476,6 @@ WHERE s.workspace_id = $1
     WHERE json_extract(item.value, '$.kind') = 'tool_call'
       AND json_extract(item.value, '$.tool') = 'exit_plan_mode')
 ORDER BY e.received_at DESC`;
-
-/**
- * Reuses the turns that did not change, so a memoised list item sees the same object while a
- * reply streams. The differ names the first turn that differs.
- */
-function reuseTurns(previous: ChatView["turns"], next: ChatView["turns"]): ChatView["turns"] {
-	const change = classifyTurnsChange(previous, next);
-	switch (change.kind) {
-		case "same":
-			return [...previous];
-		case "initial":
-			return [...next];
-		case "cleared":
-			return [];
-		case "appended":
-		case "tail_changed":
-			return [...previous.slice(0, change.fromIndex), ...next.slice(change.fromIndex)];
-		case "inserted":
-			return [...previous.slice(0, change.atIndex), ...next.slice(change.atIndex)];
-		case "truncated":
-			return [...previous.slice(0, change.toLength)];
-	}
-}
 
 export class SessionsService implements AgentMessenger {
 	readonly store: StoreApi<SessionsState>;
@@ -2209,7 +2186,7 @@ export class SessionsService implements AgentMessenger {
 		}));
 		const fresh = buildTurns(state.events[sessionId] ?? [], liveState, pending);
 		const previous = this.#turns.get(sessionId);
-		const turns = previous === undefined ? fresh : reuseTurns(previous, fresh);
+		const turns = previous === undefined ? fresh : reuseUnchangedTurns(previous, fresh);
 		this.#turns.set(sessionId, turns);
 
 		const open = state.openInteractions[sessionId];

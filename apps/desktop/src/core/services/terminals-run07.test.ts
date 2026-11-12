@@ -37,6 +37,7 @@ const workspace: Workspace = {
 	path: "/ws/oslo",
 	branch: "feature/oslo",
 	branchIsPlaceholder: false,
+	remoteFileSyncEnabled: false,
 	host: { kind: "local" },
 	displayName: null,
 	targetBranch: "origin/main",
@@ -107,7 +108,7 @@ function serviceWith(input: {
 				spawn: input.spawn ?? (async () => ok(fakeHandle())),
 				loadHistory: async () => ok(new Uint8Array()),
 			},
-			fs: { exists: async () => true },
+			fs: { exists: async () => ok(true) },
 		},
 		repos: {
 			workspaces: { get: async () => ok(workspace) },

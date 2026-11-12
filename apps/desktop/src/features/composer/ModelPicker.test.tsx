@@ -1,5 +1,5 @@
 import type { ModelInfo, SessionConfig } from "@conducted/protocol";
-import { ok, type SessionId, type WorkspaceId } from "@conducted/shared";
+import { appError, ok, type SessionId, type WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +8,7 @@ import { ServicesProvider } from "../../core/context.tsx";
 import type { FavoriteModel } from "../../core/favorite-model.ts";
 import type { Session } from "../../core/model.ts";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
+import { clickPointer } from "../../test/pointer-drag.ts";
 import { Toaster, toast } from "../../ui/Toast.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
 
@@ -73,6 +74,8 @@ interface HarnessOptions {
 	keybindings?: string;
 	/** Loading another agent's models waits until the test resolves it. */
 	lateModels?: boolean;
+	/** The chat's models failed to load. */
+	modelsError?: boolean;
 }
 
 const harness = (options: HarnessOptions = {}) => {
@@ -138,7 +141,10 @@ const harness = (options: HarnessOptions = {}) => {
 				},
 			],
 		},
-		models: { claude: { state: "ready", data: modelList } },
+		models:
+			options.modelsError === true
+				? { claude: { state: "error", error: appError("models_failed", "No answer.") } }
+				: { claude: { state: "ready", data: modelList } },
 		slashCommands: {},
 	});
 	vi.spyOn(services.agentCatalog, "loadModels").mockImplementation(async () => {
@@ -172,9 +178,13 @@ const harness = (options: HarnessOptions = {}) => {
 	return { sessions, favoriteModels, updateConfig, create, wrapper, loadModelsLater };
 };
 
-/** Models and agents sit in flyouts, as in Conductor's model menu, so a test opens the flyout first. */
-const openFlyout = async (name: "Agent" | "Model") => {
-	fireEvent.click(await screen.findByRole("button", { name }));
+/**
+ * Models, agents and efforts sit in flyouts, as in Conductor's model menu, so a test opens the flyout
+ * first. It presses like a pointer: a flyout that closes because another opened would otherwise hand
+ * focus back to its row, and that focus closes the new flyout (issue #609).
+ */
+const openFlyout = async (name: "Agent" | "Model" | "Effort") => {
+	clickPointer(await screen.findByRole("button", { name }));
 };
 
 const openPicker = async () => {
@@ -312,7 +322,7 @@ describe("COMP-02 model picker", () => {
 		render(<ModelPicker sessionId={sessionId} />, { wrapper });
 		await openPicker();
 		// Effort is a row with a submenu, as in Conductor's picker; its choices open under it.
-		fireEvent.click(screen.getByRole("button", { name: /^Effort/ }));
+		await openFlyout("Effort");
 		expect(await screen.findByText("Not supported for this model")).toBeTruthy();
 	});
 
@@ -427,5 +437,87 @@ describe("COMP-02 model picker", () => {
 		await openFlyout("Agent");
 		expect(screen.getByRole("button", { name: "OpenCode" })).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Pi" })).toBeTruthy();
+	});
+
+	it("says Conductor's mid-chat model warning when the model changes in a started chat", async () => {
+		const { wrapper } = harness();
+		test.container.services.sessions.store.setState((state) => ({
+			sessions: {
+				...state.sessions,
+				[sessionId]: { ...state.sessions[sessionId]!, lastUserMessageAt: 1 },
+			},
+		}));
+		render(
+			<>
+				<ModelPicker sessionId={sessionId} />
+				<Toaster />
+			</>,
+			{ wrapper },
+		);
+		const modelTwo = await openPicker();
+		fireEvent.click(modelTwo);
+		expect(
+			await screen.findByText(
+				"FYI: When you switch models mid-chat, your next response will be slower and use more tokens.",
+			),
+		).toBeTruthy();
+	});
+
+	it("a click on the Effort row while the Model flyout is open opens the Effort flyout", async () => {
+		const { wrapper } = harness();
+		render(<ModelPicker sessionId={sessionId} />, { wrapper });
+		await openPicker();
+		await openFlyout("Effort");
+		expect(await screen.findByRole("button", { name: "Low" })).toBeTruthy();
+		expect(screen.queryByRole("button", { name: /Model Two/ })).toBeNull();
+	});
+
+	it("says Conductor's mid-chat effort warning when the effort changes", async () => {
+		const { wrapper } = harness();
+		test.container.services.sessions.store.setState((state) => ({
+			sessions: {
+				...state.sessions,
+				[sessionId]: { ...state.sessions[sessionId]!, lastUserMessageAt: 1 },
+			},
+		}));
+		render(
+			<>
+				<ModelPicker sessionId={sessionId} />
+				<Toaster />
+			</>,
+			{ wrapper },
+		);
+		await openPicker();
+		await openFlyout("Effort");
+		fireEvent.click(await screen.findByRole("button", { name: "Low" }));
+		expect(
+			await screen.findByText(
+				"FYI: When you switch effort mid-chat with Claude, your next response will be slower and use more tokens.",
+			),
+		).toBeTruthy();
+	});
+
+	it("marks a row that opens a new chat with Conductor's 'Opens in new chat'", async () => {
+		const { wrapper } = harness();
+		test.container.services.sessions.store.setState((state) => ({
+			sessions: {
+				...state.sessions,
+				[sessionId]: { ...state.sessions[sessionId]!, lastUserMessageAt: 1 },
+			},
+		}));
+		render(<ModelPicker sessionId={sessionId} />, { wrapper });
+		await openPicker();
+		await openFlyout("Agent");
+		expect(
+			(await screen.findAllByRole("img", { name: "Opens in new chat" })).length,
+		).toBeGreaterThan(0);
+	});
+
+	it("says 'Could not load models.' when the model list fails", async () => {
+		const { wrapper } = harness({ modelsError: true });
+		render(<ModelPicker sessionId={sessionId} />, { wrapper });
+		fireEvent.click(screen.getByRole("button", { name: "Model picker" }));
+		await openFlyout("Model");
+		expect(await screen.findByText("Could not load models.")).toBeTruthy();
 	});
 });

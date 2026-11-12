@@ -1,24 +1,27 @@
 /**
  * @feature test support Node-backed Tauri bindings for the Platform contract
  * Owns: `createNodeTauriBindings`, a `TauriBindings` whose commands run on Node instead of Rust:
- * files on node:fs, the database on node:sqlite, shell commands as real child processes in their
- * own process group, a loopback echo child as the sidecar, an in-process event emitter in
- * place of Tauri's event bus, and the import's copies of a Conductor database made from its bytes
- * and read back with node:sqlite (APP-17), and the visualization pages kept in a map with
- * visualization.rs's limits (CHAT-22). `createTauriPlatform` runs over it unchanged.
- * Behaviour: docs/plans/tauri-commands.md for the command names and payloads; files.rs and
- * shell.rs for what each command promises.
+ * files on node:fs, the database commands on one node:sqlite connection, shell commands as real
+ * child processes in their own process group, a loopback echo child as the sidecar, an in-process
+ * event emitter in place of Tauri's event bus, and the import's copies of a Conductor database made
+ * from its bytes and read back with node:sqlite (APP-17), and the visualization pages kept in a map
+ * with visualization.rs's limits (CHAT-22). `createTauriPlatform` runs over it unchanged.
+ * Behaviour: docs/plans/tauri-commands.md for the command names and payloads; files.rs and shell.rs
+ * for what each command promises.
  * Must handle: a command answers as Rust does where the contract looks (an absent path stats as
  * null, a timeout is `shell_timeout`, a cancel is `shell_cancelled`, a send before the sidecar
- * started is `sidecar_not_started`, a file path outside the default roots and the registered ones is
- * `fs_out_of_scope`); a command Rust owns and Node cannot do honestly (Trash,
- * pty, keychain, the ignore and regex crates, macOS facts) is not answered, and the contract run
- * skips those cases by name. `dispose` stops every process, closes every database and drops
- * every listener, even when a case failed.
+ * started is `sidecar_not_started`, a file path outside the default roots and the registered ones
+ * is `fs_out_of_scope`, a write into a missing folder is `fs_not_found`, the database has one
+ * connection from the first `db_open`, and once it is lost every database command is `db_closed`
+ * and nothing opens another, as database.rs does); a command Rust owns and Node cannot do honestly
+ * (Trash, pty, keychain, the ignore and regex crates, macOS facts) is not answered, and the
+ * contract run skips those cases by name. `dispose` stops every process, closes every database and
+ * drops every listener, even when a case failed.
  * Test first: a shell command that outlives its timeout ends with `shell_timeout`.
  */
 import { type ChildProcess, spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
+import { constants as fsConstants } from "node:fs";
 import {
 	copyFile,
 	lstat,
@@ -28,6 +31,7 @@ import {
 	rename,
 	rm,
 	stat,
+	statfs,
 	writeFile,
 } from "node:fs/promises";
 import { constants as osConstants } from "node:os";
@@ -46,6 +50,7 @@ import {
 	VISUALIZATION_MAX_PAGES,
 	VISUALIZATION_MAX_STORE_BYTES,
 } from "../platform/platform.ts";
+import type { SqlDatabase } from "../platform/queued-database.ts";
 import { COMMANDS, EVENTS, type TauriBindings } from "../platform/tauri.ts";
 import { createNodeSqlDatabase } from "./node-sql.ts";
 import type { ContractControls } from "./platform-contract.ts";
@@ -228,7 +233,7 @@ async function fileFacts(path: string): Promise<[number, number] | null> {
 
 const SIDE_FILES = ["", "-wal", "-journal"] as const;
 
-/** conductor_import.rs `copy_database`: bytes in, three tries, then the copy opened and settled. */
+/** conductor_import.rs `copy_database`: cloned in, three tries, then the copy opened and settled. */
 async function copyConductorDatabase(source: string, folder: string): Promise<unknown> {
 	const found = isAbsolute(source) ? await stat(source).catch(() => null) : null;
 	if (found?.isFile() !== true) {
@@ -239,7 +244,10 @@ async function copyConductorDatabase(source: string, folder: string): Promise<un
 		const destination = join(folder, `conductor-${Date.now()}-${process.pid}-${attempt}.db`);
 		const before = await Promise.all(SIDE_FILES.map((side) => fileFacts(`${source}${side}`)));
 		for (const [index, side] of SIDE_FILES.entries()) {
-			if (before[index] !== null) await copyFile(`${source}${side}`, `${destination}${side}`);
+			// As Rust's `std::fs::copy`: a clone on APFS, which takes no space; bytes elsewhere.
+			if (before[index] !== null) {
+				await copyFile(`${source}${side}`, `${destination}${side}`, fsConstants.COPYFILE_FICLONE);
+			}
 		}
 		const after = await Promise.all(SIDE_FILES.map((side) => fileFacts(`${source}${side}`)));
 		if (JSON.stringify(before) !== JSON.stringify(after)) {
@@ -265,45 +273,98 @@ async function copyConductorDatabase(source: string, folder: string): Promise<un
 }
 
 /** conductor_import.rs `read_snapshot`, for a copy directly inside the import's folder. */
-async function readConductorCopy(
-	copyPath: string,
-	folder: string,
-	databases: DatabaseSync[],
-): Promise<unknown> {
+async function readConductorCopy(copyPath: string, folder: string): Promise<unknown> {
 	const found = await stat(copyPath).catch(() => null);
 	if (dirname(copyPath) !== folder || found?.isFile() !== true) {
 		return fail("conductor_import_bad_copy", `${copyPath} is not a copy this import made.`);
 	}
+	// As conductor_import.rs drops its connection, each read closes the copy when it answers.
 	const db = new DatabaseSync(copyPath, { readOnly: true });
-	databases.push(db);
-	const exists = (table: string): boolean =>
-		db
-			.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?")
-			.get(table)?.n !== 0;
-	const tables: Record<string, unknown> = {};
-	for (const table of CONDUCTOR_READ_TABLES) {
-		if (!exists(table)) {
-			tables[table] = null;
-			continue;
+	try {
+		const exists = (table: string): boolean =>
+			db
+				.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?")
+				.get(table)?.n !== 0;
+		const tables: Record<string, unknown> = {};
+		for (const table of CONDUCTOR_READ_TABLES) {
+			if (!exists(table)) {
+				tables[table] = null;
+				continue;
+			}
+			tables[table] =
+				table === "env_vars"
+					? db
+							.prepare("SELECT key, scope, context, value IS NOT NULL AS has_value FROM env_vars")
+							.all()
+							.map((row) => ({ ...row, has_value: row.has_value !== 0 }))
+					: db
+							.prepare(`SELECT * FROM "${table}"`)
+							.all()
+							.map((row) => ({ ...row }));
 		}
-		tables[table] =
-			table === "env_vars"
-				? db
-						.prepare("SELECT key, scope, context, value IS NOT NULL AS has_value FROM env_vars")
+		const counts: Record<string, unknown> = {};
+		for (const table of CONDUCTOR_COUNTED_TABLES) {
+			counts[table] = exists(table)
+				? Number(db.prepare(`SELECT COUNT(*) AS n FROM "${table}"`).get()?.n)
+				: null;
+		}
+		const messageRows = exists("session_messages")
+			? Object.fromEntries(
+					db
+						.prepare(
+							`SELECT session_id, COUNT(*) AS n FROM session_messages
+						WHERE sent_at IS NOT NULL AND session_id IS NOT NULL GROUP BY session_id`,
+						)
 						.all()
-						.map((row) => ({ ...row, has_value: row.has_value !== 0 }))
-				: db
-						.prepare(`SELECT * FROM "${table}"`)
-						.all()
-						.map((row) => ({ ...row }));
-	}
-	const counts: Record<string, unknown> = {};
-	for (const table of CONDUCTOR_COUNTED_TABLES) {
-		counts[table] = exists(table)
-			? Number(db.prepare(`SELECT COUNT(*) AS n FROM "${table}"`).get()?.n)
+						.map((row) => [String(row.session_id), Number(row.n)]),
+				)
 			: null;
+		return { tables, counts, messageRows };
+	} finally {
+		db.close();
 	}
-	return { tables, counts };
+}
+
+/** conductor_import.rs `read_message_keys` and `read_messages`, for a copy the import made. */
+async function readConductorMessages(
+	args: Record<string, unknown>,
+	folder: string,
+	keys: boolean,
+): Promise<unknown> {
+	const copyPath = String(args.copyPath);
+	const found = await stat(copyPath).catch(() => null);
+	if (dirname(copyPath) !== folder || found?.isFile() !== true) {
+		return fail("conductor_import_bad_copy", `${copyPath} is not a copy this import made.`);
+	}
+	// As conductor_import.rs drops its connection, each read closes the copy when it answers.
+	const db = new DatabaseSync(copyPath, { readOnly: true });
+	try {
+		const exists =
+			db
+				.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?")
+				.get("session_messages")?.n !== 0;
+		if (!exists) return [];
+		const sessionId = String(args.sessionId);
+		const rows = keys
+			? db
+					.prepare(
+						`SELECT rowid, role, turn_id, sent_at, created_at, COALESCE(length(content), 0) AS chars
+					FROM session_messages WHERE session_id = ? AND sent_at IS NOT NULL AND rowid > ?
+					ORDER BY rowid LIMIT ?`,
+					)
+					.all(sessionId, Number(args.afterRowid), Math.max(1, Number(args.limit)))
+			: db
+					.prepare(
+						`SELECT rowid, id, role, content, sent_at, created_at, turn_id FROM session_messages
+					WHERE session_id = ? AND sent_at IS NOT NULL
+						AND rowid IN (SELECT value FROM json_each(?))
+					ORDER BY rowid`,
+					)
+					.all(sessionId, JSON.stringify(args.rowids ?? []));
+		return rows.map((row) => ({ ...row }));
+	} finally {
+		db.close();
+	}
 }
 
 /** `dir` is a folder the caller made and removes. Everything the bindings create lives in it. */
@@ -322,7 +383,28 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 		requireInScope(requirePath(args), [...defaultFileRoots(paths), ...registeredRoots]);
 	const events = createEmitter();
 	const windowEvents = createEmitter();
-	const databases: DatabaseSync[] = [];
+	/** database.rs: the one connection, from the first `db_open` until it closes for good. */
+	let connection: DatabaseSync | "unopened" | "closed" = "unopened";
+	const openConnection = (): DatabaseSync => {
+		if (connection === "unopened") return fail("db_not_open", "The database is not open yet.");
+		if (connection === "closed") {
+			return fail("db_closed", "The database connection has closed. Quit and reopen Conducted.");
+		}
+		return connection;
+	};
+	const closeConnection = (): void => {
+		if (connection instanceof DatabaseSync) connection.close();
+		connection = "closed";
+	};
+	/** Runs one statement on the connection; SQLite's refusal keeps its message, as in Rust. */
+	const onConnection = async <T>(statement: (sql: SqlDatabase) => Promise<T>): Promise<T> => {
+		const sql = createNodeSqlDatabase(openConnection());
+		try {
+			return await statement(sql);
+		} catch (error) {
+			throw new CommandFailure("db_statement_failed", (error as Error).message);
+		}
+	};
 	const running = new Map<string, RunningProcess>();
 	/** CHAT-22: the pages visualization.rs keeps, by id, oldest first, with their byte sizes. */
 	const visualizationPages = new Map<string, number>();
@@ -351,6 +433,7 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 			nextAttemptAt: null,
 			error: null,
 			path: null,
+			follow: null,
 		};
 
 	const setProgramStatus = (status: ProgramStatus): void => {
@@ -390,6 +473,10 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 			await rename(temp, path);
 		} catch (error) {
 			await rm(temp, { force: true });
+			// files.rs: a missing folder is fs_not_found, and the write never makes it (issue #600).
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+				throw new CommandFailure("fs_not_found", `${dirname(path)} does not exist.`);
+			}
 			throw new CommandFailure("fs_io", (error as Error).message);
 		}
 	};
@@ -408,6 +495,26 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				return undefined;
 			case COMMANDS.fsPaths:
 				return paths;
+			case COMMANDS.dbOpen:
+				if (connection === "unopened") connection = new DatabaseSync(":memory:");
+				openConnection();
+				return undefined;
+			case COMMANDS.dbExecute:
+				return onConnection((sql) =>
+					sql.execute(String(args.query), (args.values ?? []) as unknown[]),
+				);
+			case COMMANDS.dbSelect:
+				return onConnection((sql) =>
+					sql.select(String(args.query), (args.values ?? []) as unknown[]),
+				);
+			case COMMANDS.dbFreeBytes: {
+				// db.rs `free_bytes`: statfs's available blocks on the disk of the app's folder. The
+				// run's folder holds that folder, which a run may not have made yet.
+				const disk = await statfs(dir).catch((error: Error) => {
+					throw new CommandFailure("db_free_space_failed", error.message);
+				});
+				return disk.bavail * disk.bsize;
+			}
 			case COMMANDS.logWrite:
 				return undefined;
 			case COMMANDS.httpFetch: {
@@ -465,6 +572,8 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 			case COMMANDS.attachmentWriteBytes: {
 				const destination = String(args.destinationPath);
 				const bytes = Buffer.from(String(args.data), "base64");
+				// attachments.rs makes the destination's folder, unlike the plain file write.
+				await mkdir(dirname(destination), { recursive: true });
 				await writeAtomic(destination, bytes.toString("utf8"));
 				return {
 					path: destination,
@@ -486,6 +595,7 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				const text = await readFile(source, "utf8").catch((error: Error) =>
 					fail("attachment_missing", error.message),
 				);
+				await mkdir(dirname(destination), { recursive: true });
 				await writeAtomic(destination, text);
 				return {
 					path: destination,
@@ -621,7 +731,11 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 			case COMMANDS.conductorImportCopy:
 				return copyConductorDatabase(String(args.source), conductorFolder);
 			case COMMANDS.conductorImportRead:
-				return readConductorCopy(String(args.copyPath), conductorFolder, databases);
+				return readConductorCopy(String(args.copyPath), conductorFolder);
+			case COMMANDS.conductorImportReadMessageKeys:
+				return readConductorMessages(args, conductorFolder, true);
+			case COMMANDS.conductorImportReadMessages:
+				return readConductorMessages(args, conductorFolder, false);
 			case COMMANDS.conductorImportDiscard: {
 				const names = await readdir(conductorFolder).catch(() => [] as string[]);
 				for (const name of names) await rm(join(conductorFolder, name), { force: true });
@@ -675,13 +789,6 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 		webview: {
 			setZoom: async (_factor) => {},
 		},
-		sql: {
-			load: async () => {
-				const db = new DatabaseSync(":memory:");
-				databases.push(db);
-				return createNodeSqlDatabase(db);
-			},
-		},
 		dialog: {
 			open: async (options) => {
 				if (options.directory === true) return folderAnswers.shift() ?? null;
@@ -730,6 +837,7 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 		emitDeepLinkRejected: (rejection) => {
 			events.emit(EVENTS.deepLinkRejected, rejection);
 		},
+		loseDatabaseConnection: closeConnection,
 		get dockBadge() {
 			return dockBadge;
 		},
@@ -799,7 +907,7 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				child.kill("SIGKILL");
 			}
 			await Promise.all(ending);
-			for (const db of databases) db.close();
+			closeConnection();
 			events.clear();
 			windowEvents.clear();
 		},

@@ -128,20 +128,16 @@
 		"owner": "rule:name"
 	},
 	"tauri_event:remote-file-sync-direct-info-request": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-11",
-		"owner": "hand",
-		"note": "File sync of a cloud workspace."
+		"status": "decided",
+		"decision": "D018",
+		"note": "CLOUD-11's sync runs over the Worker's file routes through the Host interface, which D018 put in place of Conductor's native file-sync commands and events.",
+		"by": "hand"
 	},
 	"tauri_event:remote-file-sync-status": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-11",
-		"owner": "hand",
-		"note": "File sync of a cloud workspace."
+		"status": "decided",
+		"decision": "D018",
+		"note": "CLOUD-11's sync runs over the Worker's file routes through the Host interface, which D018 put in place of Conductor's native file-sync commands and events.",
+		"by": "hand"
 	},
 	"tauri_event:agent_binary_progress": {
 		"status": "gap",

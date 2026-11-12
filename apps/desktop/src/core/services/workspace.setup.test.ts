@@ -18,15 +18,14 @@ import type { GitRunner } from "../git/runner.ts";
 import type { Repo, Workspace } from "../model.ts";
 import { SETUP_FAILED_MESSAGE } from "../workspace-helpers.ts";
 import type { SetupRunResult } from "./run-scripts.ts";
+import { WorkspaceService, type WorkspaceServiceDeps } from "./workspace.ts";
 import {
 	COPY_FILE_SIZE_LIMIT,
 	DEFAULT_COPY_FILES,
 	matchesCopyPattern,
 	parseWorktreeInclude,
 	selectIncludedPaths,
-	WorkspaceService,
-	type WorkspaceServiceDeps,
-} from "./workspace.ts";
+} from "./workspace-creation.ts";
 
 const repo: Repo = {
 	id: "r1" as RepoId,
@@ -48,6 +47,7 @@ const workspace = (overrides: Partial<Workspace> = {}): Workspace => ({
 	path: "/workspaces/oslo",
 	branch: "oslo",
 	branchIsPlaceholder: true,
+	remoteFileSyncEnabled: false,
 	host: { kind: "local" },
 	displayName: null,
 	targetBranch: "main",
@@ -175,7 +175,7 @@ function harness(runSetup: () => Promise<Result<SetupRunResult>>, options: Harne
 					return ok(undefined);
 				},
 				async exists(path: string) {
-					return options.logExists?.(path) ?? false;
+					return ok(options.logExists?.(path) ?? false);
 				},
 				async stat() {
 					return err(appError("fs_not_found", "missing"));

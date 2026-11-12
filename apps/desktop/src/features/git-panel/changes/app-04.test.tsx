@@ -18,10 +18,10 @@ describe("APP-04 ChangesEmpty", () => {
 		expect(screen.getByRole("heading", { name: "No file changes yet" })).toBeTruthy();
 	});
 
-	it("names the git operation that is holding changes back", () => {
-		render(<ChangesEmpty reason="operation_in_progress" operation="rebase" />);
-		expect(screen.getByRole("heading", { name: "Finish the rebase" })).toBeTruthy();
-		expect(screen.getByText("Changes appear here once the rebase finishes.")).toBeTruthy();
+	it("asks the user to finish a rebase or merge first", () => {
+		render(<ChangesEmpty reason="operation_in_progress" />);
+		expect(screen.getByRole("heading", { name: "No git status" })).toBeTruthy();
+		expect(screen.getByText("Finish rebasing or merging to see changes")).toBeTruthy();
 	});
 
 	it("keeps the list visible when only a note about untracked files is due", () => {

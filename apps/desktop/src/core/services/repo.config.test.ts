@@ -74,7 +74,7 @@ function makeService(
 			return ok(undefined);
 		},
 		async exists(path: string) {
-			return files.has(path);
+			return ok(files.has(path));
 		},
 		async stat() {
 			return err(appError("fs_stat", "not used"));
@@ -197,6 +197,10 @@ function makeService(
 		settings,
 		removal: { removeWorkspacesOf: async () => ok(undefined), releaseBacklogOf: () => {} },
 		ids: createTestIds(),
+		// No setting save fails in these tests, so a report would be a defect.
+		reportSettingSaveFailed: (error) => {
+			throw new Error(`Unexpected failed setting save: ${error.message}`);
+		},
 	});
 
 	return {
@@ -746,5 +750,34 @@ describe("CLOUD-04 a cloud repo's shared clone", () => {
 
 		expect(config.setupScript).toBe("local checkout setup");
 		expect(calls).toEqual([]);
+	});
+});
+
+describe("SET-07 files-to-copy preview", () => {
+	it("returns the ignored files the copy patterns and .worktreeinclude match", async () => {
+		const git = {
+			async run(command: { args: readonly string[] }) {
+				const ignored = command.args.includes("--ignored");
+				return ok({
+					exitCode: 0,
+					stdout: ignored ? "a.env\0secret/key.txt\0README.md\0" : "",
+					stderr: "",
+				});
+			},
+		} as unknown as GitRunner;
+		const ctx = makeService({ git });
+		write(ctx.files, sharedPath, { file_include_globs: ["*.env"] });
+		ctx.files.set(`${rootPath}/.worktreeinclude`, "secret/\n");
+
+		expect(must(await ctx.service.copyPreview(repoId))).toEqual(["a.env", "secret/key.txt"]);
+	});
+
+	it("does not ask git when there is nothing to copy", async () => {
+		const run = vi.fn();
+		const ctx = makeService({ git: { run } as unknown as GitRunner });
+		write(ctx.files, sharedPath, { file_include_globs: [] });
+
+		expect(must(await ctx.service.copyPreview(repoId))).toEqual([]);
+		expect(run).not.toHaveBeenCalled();
 	});
 });

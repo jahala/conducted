@@ -1,25 +1,40 @@
 /**
  * @feature CHAT-07 Turn builder: stored events to chat turns
  * Owns: grouping a chat's events into turns for the chat list, pairing tool calls with their
- * results, nesting sub-agent calls, and telling the list how the turns changed.
- * Behaviour: frontend.md 5 (turn building, sub-agent buckets, incremental differ), sessions.md 5
- * (event types), sessions-and-chats.md "How chats are stored".
+ * results, nesting sub-agent work under the call that started it, and keeping each unchanged turn
+ * the same object between builds.
+ * Behaviour: frontend.md 5 (turn building, sub-agent buckets), sessions.md 5 (event types),
+ * sessions-and-chats.md "How chats are stored".
  * Must handle: events arrive in `idx` order but a tool result may arrive in a later event than
- * its call; a call without a result yet is shown as running; a sub-agent's calls carry
- * `parentToolUseId` and nest under that call at any depth, while a call whose parent chain loops
- * stays at the top level; events with `reverted_at` set are left out of the turns (the revert
+ * its call; a call without a result yet is shown as running; a sub-agent's messages and calls
+ * carry `parentToolUseId` and nest under that call at any depth, while a call whose parent chain
+ * loops stays at the top level; a background helper's work that arrives in a later turn than the
+ * call that started it goes inside that call's card, after what the card already holds, and a
+ * late result goes to its call (D129); work whose parent call never arrived stays at the top level
+ * of the turn it arrives in; events with `reverted_at` set are left out of the turns (the revert
  * hides them) and mark the turn reverted; a tool result whose call never arrived shows a notice;
  * a steer message belongs to the turn it steered and shows `consumed` once the live state no
  * longer lists it as pending; a turn without a `turn_ended` event while the chat is idle is shown
  * as interrupted; usage items add up per turn; text and thinking items of one message stay in
- * order; unknown item kinds are skipped with a notice block, never a crash. Only tool calls carry
- * `parentToolUseId` in the protocol, so a sub-agent's text and thinking stay at the top level.
+ * order; unknown item kinds are skipped with a notice block, never a crash; a Claude message of
+ * text only that repeats a sign-in error is hidden when the turn's result shows the sign-in view
+ * (renderApp kpa @9558460).
  * Our design choice: the builder is a pure function of events and live state. Every call walks the
- * stored events and rebuilds the turns; the differ fingerprints the turns so the list reuses the
- * unchanged ones and only the changed tail re-renders.
+ * stored events and rebuilds the turns, in time linear in the events: turns are finished in order,
+ * and each finished turn's calls go into one index that later turns look up. Conductor builds each
+ * turn from its own rows only and shows a sub-agent's work from a later turn nowhere (main `wp`
+ * @1423850, `_mt` @1427823); we show it in the card that started it, by the owner's ruling (D129).
+ * Because a past turn can change, `reuseUnchangedTurns` matches turns by id and fingerprint, so the
+ * list redraws every turn that changed and no other.
  * Test first: a tool_call event followed later by its tool_result yields one tool block with both.
  */
-import type { AgentItem, LiveState, SessionEvent } from "@conducted/protocol";
+import {
+	AGENT_ERROR_CODES,
+	type AgentItem,
+	isClaudeSignInErrorText,
+	type LiveState,
+	type SessionEvent,
+} from "@conducted/protocol";
 import type { MessageId } from "@conducted/shared";
 import type { ChatBlock, ChatTurn, ToolCallView } from "../model.ts";
 
@@ -48,7 +63,15 @@ export interface PendingSend {
 	delivery?: "new_turn" | "steer";
 }
 
-type Entry = { kind: "block"; block: ChatBlock } | { kind: "tool"; call: ToolCallView };
+type Entry =
+	| {
+			kind: "block";
+			block: ChatBlock;
+			parent: string | undefined;
+			/** Text of a Claude message that only repeats a sign-in error (see `isSignInEcho`). */
+			signInEcho?: true;
+	  }
+	| { kind: "tool"; call: ToolCallView; parent: string | undefined };
 
 interface TurnDraft {
 	turnId: ChatTurn["turnId"];
@@ -57,6 +80,8 @@ interface TurnDraft {
 	entries: Entry[];
 	/** Every call in the turn, by tool-use id, whether top-level or nested. */
 	calls: Map<string, ToolCallView>;
+	/** The call each nested call belongs to, by tool-use id. */
+	parents: Map<string, string>;
 	/** Results seen before their call could be paired with it. */
 	results: Map<string, ToolResultItem>;
 	usage: Usage | null;
@@ -68,6 +93,8 @@ interface TurnDraft {
 	/** Events that still count, after the reverted ones were skipped. */
 	liveEvents: number;
 	reverted: boolean;
+	/** A Claude result in this turn shows the sign-in view. */
+	claudeSignInResult: boolean;
 }
 
 function emptyDraft(turnId: ChatTurn["turnId"], at: number): TurnDraft {
@@ -77,6 +104,7 @@ function emptyDraft(turnId: ChatTurn["turnId"], at: number): TurnDraft {
 		steers: [],
 		entries: [],
 		calls: new Map(),
+		parents: new Map(),
 		results: new Map(),
 		usage: null,
 		startCheckpointId: null,
@@ -86,6 +114,7 @@ function emptyDraft(turnId: ChatTurn["turnId"], at: number): TurnDraft {
 		startedAt: at,
 		liveEvents: 0,
 		reverted: false,
+		claudeSignInResult: false,
 	};
 }
 
@@ -104,34 +133,46 @@ function addUsage(current: Usage | null, item: UsageItem): Usage {
 	};
 }
 
-function applyItem(draft: TurnDraft, item: AgentItem): void {
+function applyItem(draft: TurnDraft, item: AgentItem, parent: string | undefined): void {
 	switch (item.kind) {
 		case "text":
-			draft.entries.push({ kind: "block", block: { kind: "text", text: item.text } });
+			draft.entries.push({
+				kind: "block",
+				block: { kind: "text", text: item.text },
+				parent,
+			});
 			return;
 		case "thinking":
 			draft.entries.push({
 				kind: "block",
 				block: { kind: "thinking", text: item.text, summarized: item.summarized },
+				parent,
 			});
 			return;
 		case "tool_call": {
-			const call: ToolCallView = { toolUseId: item.toolUseId, item, result: null, children: [] };
+			const owner = item.parentToolUseId ?? parent;
+			const call: ToolCallView = {
+				toolUseId: item.toolUseId,
+				item,
+				result: null,
+				blocks: [],
+			};
 			draft.calls.set(item.toolUseId, call);
-			draft.entries.push({ kind: "tool", call });
+			if (owner !== undefined) draft.parents.set(item.toolUseId, owner);
+			draft.entries.push({ kind: "tool", call, parent: owner });
 			return;
 		}
 		case "tool_result":
 			draft.results.set(item.toolUseId, item);
 			return;
 		case "todo":
-			draft.entries.push({ kind: "block", block: { kind: "todo", item } });
+			draft.entries.push({ kind: "block", block: { kind: "todo", item }, parent });
 			return;
 		case "notice":
-			draft.entries.push({ kind: "block", block: { kind: "notice", item } });
+			draft.entries.push({ kind: "block", block: { kind: "notice", item }, parent });
 			return;
 		case "error":
-			draft.entries.push({ kind: "block", block: { kind: "error", item } });
+			draft.entries.push({ kind: "block", block: { kind: "error", item }, parent });
 			return;
 		case "usage":
 			draft.usage = addUsage(draft.usage, item);
@@ -145,24 +186,40 @@ function applyItem(draft: TurnDraft, item: AgentItem): void {
 					kind: "notice",
 					item: { kind: "notice", notice: "info", text: `Unsupported message item${kind}` },
 				},
+				parent,
 			});
 		}
 	}
 }
 
+/**
+ * True for a Claude message of text only whose text is a sign-in error. Conductor hides such a
+ * message when the turn's result shows the sign-in view (renderApp kpa @9558460, CQi @9517683),
+ * so the error is not said twice. The Claude translator gives the sign-in code only to a result.
+ */
+function isSignInEcho(message: Extract<SessionEvent, { type: "agent" }>["message"]): boolean {
+	if (message.agent !== "claude" || message.items.length === 0) return false;
+	const texts: string[] = [];
+	for (const item of message.items) {
+		if (item.kind !== "text") return false;
+		texts.push(item.text);
+	}
+	return isClaudeSignInErrorText(texts.join("\n"));
+}
+
 function applyEvent(draft: TurnDraft, event: SessionEvent, liveState: LiveState): void {
 	switch (event.type) {
 		case "user_message":
-			if (event.delivery === "new_turn") {
-				if (draft.userMessage === null) {
-					draft.userMessage = {
-						messageId: event.messageId,
-						text: event.text,
-						attachmentPaths: event.attachmentPaths,
-						at: event.at,
-						sender: event.sender ?? null,
-					};
-				}
+			// The first user message starts the turn; Conductor shows every later one as a steer,
+			// whichever kind of event carried it.
+			if (event.delivery === "new_turn" && draft.userMessage === null) {
+				draft.userMessage = {
+					messageId: event.messageId,
+					text: event.text,
+					attachmentPaths: event.attachmentPaths,
+					at: event.at,
+					sender: event.sender ?? null,
+				};
 				return;
 			}
 			draft.steers.push({
@@ -172,9 +229,28 @@ function applyEvent(draft: TurnDraft, event: SessionEvent, liveState: LiveState)
 				consumed: !liveState.pendingSteerIds.includes(event.messageId),
 			});
 			return;
-		case "agent":
-			for (const item of event.message.items) applyItem(draft, item);
+		case "agent": {
+			const message = event.message;
+			const echo = isSignInEcho(message);
+			const first = draft.entries.length;
+			for (const item of message.items) {
+				applyItem(draft, item, message.parentToolUseId);
+			}
+			if (echo) {
+				for (const entry of draft.entries.slice(first)) {
+					if (entry.kind === "block") entry.signInEcho = true;
+				}
+			}
+			if (
+				message.agent === "claude" &&
+				message.items.some(
+					(item) => item.kind === "error" && item.code === AGENT_ERROR_CODES.authRequired,
+				)
+			) {
+				draft.claudeSignInResult = true;
+			}
 			return;
+		}
 		case "checkpoint":
 			if (event.phase === "start") {
 				draft.startCheckpointId = event.checkpointId ?? null;
@@ -190,55 +266,90 @@ function applyEvent(draft: TurnDraft, event: SessionEvent, liveState: LiveState)
 }
 
 /**
- * The call that should hold `call`, or undefined when it belongs at the top level. A missing
- * parent, a call that names itself, and a parent chain that loops all keep the call at the top
- * level, so no call disappears from the chat.
+ * The calls of the turns finalised so far, by tool-use id, with the call each one belongs to. A
+ * later turn looks here for the card a background helper's late work belongs in (D129).
  */
-function parentCall(
-	calls: Map<string, ToolCallView>,
-	call: ToolCallView,
+interface EarlierCalls {
+	calls: Map<string, ToolCallView>;
+	parents: Map<string, string>;
+}
+
+/** Adds a finalised turn's calls to the index. A later call with the same id replaces the earlier. */
+function rememberCalls(earlier: EarlierCalls, draft: TurnDraft): void {
+	for (const [toolUseId, call] of draft.calls) {
+		earlier.calls.set(toolUseId, call);
+		const parent = draft.parents.get(toolUseId);
+		if (parent === undefined) earlier.parents.delete(toolUseId);
+		else earlier.parents.set(toolUseId, parent);
+	}
+}
+
+/**
+ * The call that should hold an entry, or undefined when it belongs at the top level. A call in the
+ * same turn comes first, then one in an earlier turn. A missing parent, an entry that names itself,
+ * and a parent chain that loops (within a turn or across turns) all keep it at the top level, so
+ * nothing disappears from the chat.
+ */
+function holderCall(
+	draft: TurnDraft,
+	earlier: EarlierCalls,
+	parentId: string,
+	selfId: string | undefined,
 ): ToolCallView | undefined {
-	const parentId = call.item.parentToolUseId;
-	if (parentId === undefined || parentId === call.toolUseId) return undefined;
-	const parent = calls.get(parentId);
+	if (selfId !== undefined && parentId === selfId) return undefined;
+	const parent = draft.calls.get(parentId) ?? earlier.calls.get(parentId);
 	if (parent === undefined) return undefined;
 
-	const seen = new Set<string>([call.toolUseId]);
-	let current: ToolCallView | undefined = parent;
+	const parentOf = (id: string): string | undefined =>
+		draft.calls.has(id) ? draft.parents.get(id) : earlier.parents.get(id);
+	const seen = new Set<string>(selfId === undefined ? [] : [selfId]);
+	let current: string | undefined = parentId;
 	while (current !== undefined) {
-		if (seen.has(current.toolUseId)) return undefined;
-		seen.add(current.toolUseId);
-		const next: string | undefined = current.item.parentToolUseId;
-		current = next === undefined ? undefined : calls.get(next);
+		if (seen.has(current)) return undefined;
+		seen.add(current);
+		current = parentOf(current);
 	}
 	return parent;
 }
 
-function finalize(draft: TurnDraft, liveState: LiveState, isLast: boolean): ChatTurn {
+function finalize(
+	draft: TurnDraft,
+	earlier: EarlierCalls,
+	liveState: LiveState,
+	isLast: boolean,
+): ChatTurn {
 	for (const [toolUseId, call] of draft.calls) {
 		const result = draft.results.get(toolUseId);
 		if (result !== undefined) call.result = result;
 	}
 
-	// Nest a sub-agent call under the call that started it. A call whose parent is missing or
-	// whose parent chain loops stays at the top level, so every call still renders.
+	// Keep a sub-agent's blocks and calls inside the call that started it, in this turn or an
+	// earlier one; late work lands after what the card already holds. An entry whose parent is
+	// missing or whose parent chain loops stays at the top level, so every call still renders.
 	const blocks: ChatBlock[] = [];
 	for (const entry of draft.entries) {
-		if (entry.kind === "block") {
-			blocks.push(entry.block);
-			continue;
-		}
-		const parent = parentCall(draft.calls, entry.call);
+		if (entry.kind === "block" && entry.signInEcho === true && draft.claudeSignInResult) continue;
+		const selfId = entry.kind === "tool" ? entry.call.toolUseId : undefined;
+		const parent =
+			entry.parent === undefined ? undefined : holderCall(draft, earlier, entry.parent, selfId);
 		if (parent === undefined) {
-			blocks.push({ kind: "tool", call: entry.call });
+			blocks.push(entry.kind === "block" ? entry.block : { kind: "tool", call: entry.call });
+		} else if (entry.kind === "block") {
+			parent.blocks.push(entry.block);
 		} else {
-			parent.children.push(entry.call);
+			parent.blocks.push({ kind: "tool", call: entry.call });
 		}
 	}
 
-	// A result whose call never arrived would otherwise be dropped without a trace.
-	for (const toolUseId of draft.results.keys()) {
+	// A result for a call of an earlier turn (a background helper's call finishing late) goes to
+	// that call. A result whose call never arrived would otherwise be dropped without a trace.
+	for (const [toolUseId, result] of draft.results) {
 		if (draft.calls.has(toolUseId)) continue;
+		const earlierCall = earlier.calls.get(toolUseId);
+		if (earlierCall !== undefined) {
+			earlierCall.result = result;
+			continue;
+		}
 		blocks.push({
 			kind: "notice",
 			item: {
@@ -306,9 +417,12 @@ export function buildTurns(
 	}
 
 	const liveTurns = order.filter((draft) => draft.liveEvents > 0);
-	const turns = liveTurns.map((draft, index) =>
-		finalize(draft, liveState, index === liveTurns.length - 1),
-	);
+	const earlier: EarlierCalls = { calls: new Map(), parents: new Map() };
+	const turns = liveTurns.map((draft, index) => {
+		const turn = finalize(draft, earlier, liveState, index === liveTurns.length - 1);
+		rememberCalls(earlier, draft);
+		return turn;
+	});
 
 	for (const send of pendingSends) {
 		if (storedMessageIds.has(send.messageId)) continue;
@@ -348,18 +462,9 @@ export function buildTurns(
 	return turns;
 }
 
-export type TurnsChange =
-	| { kind: "initial" }
-	| { kind: "same" }
-	| { kind: "appended"; fromIndex: number }
-	| { kind: "tail_changed"; fromIndex: number }
-	| { kind: "truncated"; toLength: number }
-	| { kind: "inserted"; atIndex: number }
-	| { kind: "cleared" };
-
 /**
  * A stable text fingerprint of everything a turn shows. Two builds of the same settled turn
- * produce the same string, so the differ can skip it.
+ * produce the same string, so the view keeps the earlier object.
  */
 function fingerprint(turn: ChatTurn): string {
 	return JSON.stringify({
@@ -380,37 +485,20 @@ function fingerprint(turn: ChatTurn): string {
 	});
 }
 
-/** Compares two builds of the turn list so the list view can re-render only what changed. */
-export function classifyTurnsChange(
+/**
+ * The turn list for the view. Each turn that shows the same as in the last build is that build's
+ * object, so a memoised list item skips it; a changed or new turn is the new object. Turns are
+ * matched by id rather than by position from the start, because a past turn changes when a
+ * background helper's late work reaches its card (D129), while the turns after it stay as they were.
+ */
+export function reuseUnchangedTurns(
 	previous: readonly ChatTurn[],
 	next: readonly ChatTurn[],
-): TurnsChange {
-	if (previous.length === 0) {
-		return next.length === 0 ? { kind: "same" } : { kind: "initial" };
-	}
-	if (next.length === 0) return { kind: "cleared" };
-
-	let common = 0;
-	const shared = Math.min(previous.length, next.length);
-	while (common < shared) {
-		const before = previous[common];
-		const after = next[common];
-		if (before === undefined || after === undefined) break;
-		if (fingerprint(before) !== fingerprint(after)) break;
-		common += 1;
-	}
-
-	if (common === previous.length && common === next.length) return { kind: "same" };
-	if (common === previous.length && next.length > previous.length) {
-		return { kind: "appended", fromIndex: common };
-	}
-	if (common === next.length && previous.length > next.length) {
-		return { kind: "truncated", toLength: next.length };
-	}
-	if (previous.length === next.length) {
-		return { kind: "tail_changed", fromIndex: common };
-	}
-	// The turn list is neither an extension nor a shortening from the end. Re-render from the
-	// first turn that differs.
-	return { kind: "inserted", atIndex: common };
+): ChatTurn[] {
+	if (previous.length === 0) return [...next];
+	const before = new Map(previous.map((turn) => [turn.turnId, turn]));
+	return next.map((turn) => {
+		const old = before.get(turn.turnId);
+		return old !== undefined && fingerprint(old) === fingerprint(turn) ? old : turn;
+	});
 }

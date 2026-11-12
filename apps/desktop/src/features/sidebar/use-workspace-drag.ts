@@ -1,76 +1,27 @@
 /**
  * @feature NAV-04 Workspace drag and drop
- * Owns: The drag and drop behaviour for sidebar rows: dragging a workspace into Pinned or a
- * section, and reordering when manual order is on.
+ * Owns: The drop rules for sidebar rows: dragging a workspace into Pinned or a section, and
+ * reordering when manual order is on, plus the reorder commands for sections and project groups.
  * Behaviour: ui-map.md 4 ('Drag and drop: workspaces drag into sections, Pinned, or reorder when
  * Arrange workspaces manually is on'; while dragging the cursor is 'grabbing' and link pointer
  * events are off).
- * Our design choice: No drag and drop library is installed. This hook starts on the browser's
- * native drag events and turns a drop into one of the caller's actions. The caller names the
- * action for each target, so the same hook serves Pinned, a user section and the main list.
+ * Our design choice: No drag and drop library is installed. The pointer gesture and the shared drag
+ * live in workspace-drag-context.tsx; this hook turns the target a list hit-tests into one of the
+ * caller's actions. The caller names the action for each target, so the same hook serves Pinned, a
+ * user section and the main list.
  * Must handle: Escape cancels a drag; a drop outside any target changes nothing; a drop on the
  * row being dragged changes nothing; a row dropped from another list lands at that row's
  * position; only the newest drop reports its failure; the grabbing cursor and the disabled link
- * pointer events exist only while a drag runs; a drag started in one list is visible to the others
- * (`useWorkspaceDragActive`).
+ * pointer events exist only while a drag runs.
  * Test first: Dropping row A after row B in manual order calls the order action with A after B
  * and not before.
  */
 
 import type { Result, SectionId, WorkspaceId } from "@conducted/shared";
 import { messageOf } from "@conducted/shared";
-import { type DragEvent, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { fireAndForget } from "../../core/async/fire-and-forget.ts";
 import { createLatestWins } from "../../core/async/latest-wins.ts";
-
-/** The data a drag carries, so a drop target in another list can name the workspace. */
-export const WORKSPACE_DRAG_MIME = "application/x-conducted-workspace";
-
-/** A section header drag uses its own type, so workspace drop targets can ignore it. */
-export const SECTION_DRAG_MIME = "application/x-conducted-section";
-
-/** The section id a header drag carries, or null when the drag is not a section. */
-export function draggedSection(event: DragEvent): string | null {
-	const value = event.dataTransfer?.getData(SECTION_DRAG_MIME) ?? "";
-	return value === "" ? null : value;
-}
-
-/**
- * The workspace id a drag carries. `fallback` names the row being dragged when the browser gives
- * no data, which jsdom and some drop targets do.
- */
-export function draggedWorkspace(
-	event: DragEvent,
-	fallback: WorkspaceId | null = null,
-): WorkspaceId | null {
-	const value =
-		event.dataTransfer?.getData(WORKSPACE_DRAG_MIME) ||
-		event.dataTransfer?.getData("text/plain") ||
-		fallback ||
-		"";
-	return value === "" ? null : (value as WorkspaceId);
-}
-
-const DRAG_ATTRIBUTE = "data-workspace-drag";
-
-/**
- * True while any list is dragging a workspace. Every list marks the page while its drag runs, so a drop target
- * in another list, such as an empty Pinned, can show itself without sharing state with the list that started it.
- */
-export function useWorkspaceDragActive(): boolean {
-	const [active, setActive] = useState(() => document.documentElement.hasAttribute(DRAG_ATTRIBUTE));
-	useEffect(() => {
-		const read = () => setActive(document.documentElement.hasAttribute(DRAG_ATTRIBUTE));
-		const observer = new MutationObserver(read);
-		observer.observe(document.documentElement, {
-			attributes: true,
-			attributeFilter: [DRAG_ATTRIBUTE],
-		});
-		read();
-		return () => observer.disconnect();
-	}, []);
-	return active;
-}
 
 export interface WorkspaceDragState {
 	draggingId: WorkspaceId | null;

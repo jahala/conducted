@@ -138,6 +138,14 @@ describe("CHAT-06 user message", () => {
 		expect(image.getAttribute("src")).toBe("asset://localhost/%2Ftmp%2Fmy%20shot.png");
 	});
 
+	it("labels a video attachment and opens it in the viewer", async () => {
+		renderWithServices(
+			<UserMessage turn={turn({ attachmentPaths: ["/tmp/clip.mp4"] })} sessionId={sessionId} />,
+		);
+		expect(await screen.findByText("Video attachment")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Open clip.mp4" })).toBeTruthy();
+	});
+
 	it("shows Retry and Discard after a failed send", async () => {
 		const onRetry = vi.fn();
 		const onDiscard = vi.fn();
@@ -164,14 +172,16 @@ describe("CHAT-06 user message", () => {
 				sessionId={sessionId}
 			/>,
 		);
-		expect(await screen.findByText("Sent from another session")).toBeTruthy();
+		const line = await screen.findByText("Sent from another session");
+		expect(line.getAttribute("title")).toBe("Sent from");
 	});
 
 	it("marks a message sent from Claude", async () => {
 		renderWithServices(
 			<UserMessage turn={turn({ sender: { kind: "claude_ai" } })} sessionId={sessionId} />,
 		);
-		expect(await screen.findByText("Sent via Claude")).toBeTruthy();
+		const line = await screen.findByText("Sent via Claude");
+		expect(line.getAttribute("title")).toBe("Sent via");
 	});
 
 	it("copies the message from the right-click menu", async () => {
@@ -241,7 +251,7 @@ describe("CHAT-06 user message", () => {
 		fireEvent.contextMenu(await screen.findByText("Hello there"));
 		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy message" }));
 		await waitFor(() =>
-			expect(state.toastError).toHaveBeenCalledWith("Couldn't copy the message", error),
+			expect(state.toastError).toHaveBeenCalledWith("Failed to copy message", error),
 		);
 	});
 });

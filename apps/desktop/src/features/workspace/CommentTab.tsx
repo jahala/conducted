@@ -107,7 +107,7 @@ export function CommentTab({ workspaceId, commentId, onOpenComment }: CommentTab
 	const edit = async (body: string): Promise<boolean> => {
 		const result = await actions.comments.edit(comment.id, body);
 		if (!result.ok) {
-			toastError("Couldn't edit the comment", result.error);
+			toastError("Failed to save comment", result.error);
 			return false;
 		}
 		setEditing(false);
@@ -123,7 +123,7 @@ export function CommentTab({ workspaceId, commentId, onOpenComment }: CommentTab
 	};
 	const send = async () => {
 		const result = await actions.comments.sendToChat(workspaceId, [comment.id]);
-		if (!result.ok) toastError("Couldn't add the comment to the chat", result.error);
+		if (!result.ok) toastError("Failed to add comment to chat", result.error);
 	};
 
 	return (

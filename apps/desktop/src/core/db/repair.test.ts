@@ -2,9 +2,13 @@
 import type { DatabaseSync } from "node:sqlite";
 import { idleLiveState, type SessionEvent } from "@conducted/protocol";
 import type { MessageId, SessionId, WorkspaceId } from "@conducted/shared";
+import { ok } from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createMemoryPlatform } from "../../platform/memory.ts";
 import type { Database, FileSystem } from "../../platform/platform.ts";
 import { failingOnSelect } from "../../test/failing-database.ts";
+import { createTestIds } from "../../test/ids.ts";
+import { unusedDatabase } from "../../test/memory-platform.ts";
 import { openTestDatabase } from "../../test/sqlite.ts";
 import { QUEUED_MESSAGES_SQL, queuedMessageToParams } from "./queued-messages.ts";
 import { idleLiveStateJson, REPAIR_SQL, runStartupRepair } from "./repair.ts";
@@ -46,7 +50,10 @@ let existingPaths: Set<string>;
 
 const deps = () => ({
 	db: database,
-	fs: { exists: async (path: string) => existingPaths.has(path) } as FileSystem,
+	fs: {
+		exists: async (path: string) => ok(existingPaths.has(path)),
+		registerRoot: async () => ok(undefined),
+	} as unknown as FileSystem,
 	clock: { now: () => now },
 	ids: { uuid: () => `generated-${++nextId}` },
 });
@@ -368,6 +375,26 @@ describe("DATA-03 startup repair keeps half-built workspaces", () => {
 
 		const second = must(await runStartupRepair(deps()));
 		expect(second.workspacesFailed).toBe(0);
+	});
+
+	// Repair runs before the workspace service registers the folders it loads. A folder outside
+	// the default file scope was refused, read as gone, and its workspace marked archived.
+	it("finds an archiving workspace's folder outside the default file scope (issue #601)", async () => {
+		seedCrash();
+		const memory = createMemoryPlatform({
+			clock: { now: () => now },
+			ids: createTestIds(),
+			database: unusedDatabase,
+			enforceFileScope: true,
+		});
+		memory.controls.addFolder("/code/workspaces/archiving");
+
+		const report = must(await runStartupRepair({ ...deps(), fs: memory.platform.fs }));
+
+		expect(report.archivingWorkspaces.map((row) => [row.id, row.folderExists])).toEqual([
+			["archiving", true],
+			["archiving-gone", false],
+		]);
 	});
 });
 

@@ -1,8 +1,8 @@
 /**
  * @feature PLAT-02 Tauri implementation of the Platform interface
  * Owns: the one place that talks to Tauri. Every `Platform` group is built here from the command
- * names in docs/plans/tauri-commands.md and from the Tauri plugins (sql, dialog, clipboard,
- * deep-link, opener, notification). Only this folder may import `@tauri-apps/*`.
+ * names in docs/plans/tauri-commands.md and from the Tauri plugins (dialog, clipboard, deep-link,
+ * opener, notification). Only this folder may import `@tauri-apps/*`.
  * Behaviour: services-map.md 1.1 (Conductor's Platform object: the only code that touches
  * Tauri), native-and-sidecar-map.md A2 (the commands behind each group), docs/plans/
  * tauri-commands.md (command names, camelCase arguments, `Result<T, CommandError>`).
@@ -10,23 +10,24 @@
  * an Error; both become `AppError` values for every method that returns a `Result`. The methods
  * whose interface type has no `Result` throw the `AppError` instead (`shell.loginEnv`, the `pty`
  * handle's `write`, `resize`, `kill` and `screenText`, `sidecar.logPath`) or let the plugin's
- * rejection through (`dialogs`, `opener.openUrl`, `clipboard`). `fs.exists` answers false when
- * the command fails. Binary data (terminal output, images) crosses as base64 strings or a
+ * rejection through (`dialogs`, `opener.openUrl`, `clipboard`). `fs.exists` answers false only
+ * when `fs_stat` finds nothing; a refused path is its Err (issue #601). Binary data (terminal output, images) crosses as base64 strings or a
  * Channel, never as number arrays; event listeners return an unsubscribe function that can be
  * called twice, and one called before the listen call resolves releases the listener as soon as
  * it does; a listen call that fails leaves the subscription silent, because the interface has no
  * way to report it; `pty.spawn` passes a Channel for streamed output and listens for the exit
  * event before it spawns, so a command that ends at once still reports its exit; a command that is slower
  * than its `timeoutMs` is the Rust side's job (it kills the process group); the database opens
- * `sqlite:conducted.db` through the sql plugin and must run `PRAGMA journal_mode = WAL` and
- * `PRAGMA foreign_keys = ON` on its connection before the first statement; the database opens on
- * its first statement so the startup version check runs before the migrator; `Database.transaction`
- * must serialise: every statement goes through one queue, and a transaction holds it from
- * BEGIN IMMEDIATE to COMMIT or ROLLBACK, so only one statement uses the plugin's pool at a time
- * and the lazily grown pool does not open a second connection while the transaction is open.
- * An explicit pool pin is PLAT-27. A write also clears merged selects that were in flight, so a
- * read asked for after it cannot get a pre-write result. The handle a transaction passes to its
- * work rejects with `transaction_closed` once the transaction has ended.
+ * with `db_open`, which migrates `conducted.db` and holds the app's one connection to it
+ * (database.rs, D137), and must run `PRAGMA journal_mode = WAL` and `PRAGMA foreign_keys = ON` on
+ * that connection before the first statement; the database opens on its first statement so the
+ * startup version check runs before the migrator; `Database.transaction` must serialise: every
+ * statement goes through one queue, and a transaction holds it from BEGIN IMMEDIATE to COMMIT or
+ * ROLLBACK. Every statement runs on the one connection, which is never replaced while the app
+ * runs, so no statement of a transaction can save on its own (#616). A write also clears merged
+ * selects that were in flight, so a read asked for after it cannot get a pre-write result. The
+ * handle a transaction passes to its work rejects with `transaction_closed` once the transaction
+ * has ended. A rejected database command becomes an `AppError`, keeping SQLite's message.
  * Our design choice: the group builders take a `TauriBindings` value instead of importing `invoke`
  * themselves, so the helpers below can be tested without a webview. `realTauriBindings` is the
  * only place that holds the real functions. The argument names of each command are listed in
@@ -35,6 +36,7 @@
  * and a plain string into code `tauri_error`.
  */
 
+import type { ConductorMessageKey, ConductorPlacedRow } from "@conducted/protocol";
 import {
 	type AppError,
 	appError,
@@ -58,7 +60,6 @@ import {
 	save as saveDialog,
 } from "@tauri-apps/plugin-dialog";
 import { openUrl as openUrlInDefaultApp } from "@tauri-apps/plugin-opener";
-import Sql from "@tauri-apps/plugin-sql";
 import type {
 	AppInfo,
 	AppMenu,
@@ -67,6 +68,7 @@ import type {
 	AttachmentFiles,
 	Clipboard,
 	Cloud,
+	CloudDeployEvent,
 	CloudDeployResult,
 	CloudPairing,
 	CloudRelay,
@@ -121,9 +123,6 @@ import {
 
 // ---------------------------------------------------------------- bindings
 
-/** The database handle tauri-plugin-sql returns. It lives in `queued-database.ts`. */
-export type { SqlDatabase };
-
 export interface TauriDialogBindings {
 	open(options: {
 		title?: string;
@@ -132,7 +131,15 @@ export interface TauriDialogBindings {
 		multiple?: boolean;
 	}): Promise<string | string[] | null>;
 	save(options: { title?: string; defaultPath?: string }): Promise<string | null>;
-	ask(message: string, options?: { title?: string; okLabel?: string }): Promise<boolean>;
+	ask(
+		message: string,
+		options?: {
+			title?: string;
+			okLabel?: string;
+			cancelLabel?: string;
+			kind?: "info" | "warning" | "error";
+		},
+	): Promise<boolean>;
 }
 
 export interface TauriClipboardBindings {
@@ -171,8 +178,6 @@ export interface TauriBindings {
 	window?: TauriWindowBindings;
 	/** The current webview, for its zoom. */
 	webview?: TauriWebviewBindings;
-	/** tauri-plugin-sql, present on the real bindings and in a test that opens a database. */
-	sql?: { load(path: string): Promise<SqlDatabase> };
 	/** tauri-plugin-dialog. */
 	dialog?: TauriDialogBindings;
 	/** tauri-plugin-clipboard-manager. */
@@ -220,7 +225,6 @@ export const realTauriBindings: TauriBindings = {
 	webview: {
 		setZoom: (factor) => getCurrentWebview().setZoom(factor),
 	},
-	sql: { load: (path) => Sql.load(path) as Promise<SqlDatabase> },
 	dialog: {
 		open: (options) => openDialog(options) as Promise<string | string[] | null>,
 		save: (options) => saveDialog(options),
@@ -337,6 +341,10 @@ export const COMMANDS = {
 	windowSetTrafficLights: "window_set_traffic_lights",
 	windowToggleInspector: "window_toggle_inspector",
 	dbVersionCheck: "db_version_check",
+	dbFreeBytes: "db_free_bytes", // APP-18
+	dbOpen: "db_open",
+	dbExecute: "db_execute",
+	dbSelect: "db_select",
 	shellRun: "shell_run",
 	shellStart: "shell_start",
 	shellCancel: "shell_cancel",
@@ -373,6 +381,8 @@ export const COMMANDS = {
 	conductorImportFind: "conductor_import_find", // APP-17
 	conductorImportCopy: "conductor_import_copy", // APP-17
 	conductorImportRead: "conductor_import_read", // APP-17
+	conductorImportReadMessageKeys: "conductor_import_read_message_keys", // APP-18
+	conductorImportReadMessages: "conductor_import_read_messages", // APP-18
 	conductorImportMoveSecrets: "conductor_import_move_secrets", // APP-17
 	conductorImportDiscard: "conductor_import_discard", // APP-17
 	visualizationServe: "visualization_serve", // CHAT-22
@@ -443,6 +453,7 @@ export const EVENTS = {
 	programsVerificationErrors: "programs://verification-errors",
 	cloudLine: "cloud://line", // CLOUD-03
 	cloudClosed: "cloud://closed", // CLOUD-03
+	cloudDeployStep: "cloud://deploy", // CLOUD-08
 	portForwardEvent: "port-forward-event", // CLOUD-10
 } as const;
 
@@ -506,7 +517,7 @@ interface DbVersionCheck {
 	message: string | null;
 }
 
-/** `app_info` -> `{ version, channel }`; `app_quit`; `resource_usage { workspacePaths }`; `log_write`; `log_set_level { level }`; `logs_export`; `set_quit_handler_ready`; `db_version_check`; `deep_link_launch`. Events: quit, deep link, refused deep link. */
+/** `app_info` -> `{ version, channel }`; `app_quit`; `resource_usage { workspacePaths }`; `log_write`; `log_set_level { level }`; `logs_export`; `set_quit_handler_ready`; `db_version_check`; `db_free_bytes`; `deep_link_launch`. Events: quit, deep link, refused deep link. */
 export function createTauriAppInfo(
 	bindings: TauriBindings,
 	info: { version: string; channel: "dev" | "release" },
@@ -540,6 +551,7 @@ export function createTauriAppInfo(
 			}
 			return ok(null);
 		},
+		databaseFreeBytes: () => invokeResult<number>(bindings, COMMANDS.dbFreeBytes),
 		onDeepLink: (listener) =>
 			onLaunchAndEvent<string>(
 				bindings,
@@ -632,33 +644,34 @@ export function createAppLogSink(app: Pick<AppInfo, "writeLog">) {
 
 export type TauriDatabaseOptions = QueuedDatabaseOptions;
 
-const DATABASE_URL = "sqlite:conducted.db";
+/** `db_execute { query, values }` and `db_select { query, values }`, on the connection `db_open` made. */
+function commandSqlDatabase(bindings: Pick<TauriBindings, "invoke">): SqlDatabase {
+	const call = async <T>(command: string, query: string, values: unknown[] = []): Promise<T> => {
+		try {
+			return await bindings.invoke<T>(command, { query, values });
+		} catch (error) {
+			throw toAppError(error);
+		}
+	};
+	return {
+		execute: (query, values) =>
+			call<{ rowsAffected: number; lastInsertId: number }>(COMMANDS.dbExecute, query, values),
+		select: <Rows>(query: string, values?: unknown[]) =>
+			call<Rows>(COMMANDS.dbSelect, query, values),
+	};
+}
 
 /**
- * tauri-plugin-sql: `Database.load("sqlite:conducted.db")`, then the pragmas named in the header,
- * then the statement queue from `queued-database.ts`, which the test database runs too.
+ * `db_open`, then the pragmas named in the header, then the statement queue from
+ * `queued-database.ts`, which the test database runs too.
  */
 export async function createTauriDatabase(
-	bindings: Pick<TauriBindings, "sql"> = realTauriBindings,
+	bindings: Pick<TauriBindings, "invoke">,
 	options: TauriDatabaseOptions = {},
 ): Promise<Result<Database>> {
-	const plugin = bindings.sql;
-	if (plugin === undefined) {
-		return err(
-			platformError(
-				"tauri_binding_missing",
-				"The Tauri SQL plugin binding is required to open the database.",
-			),
-		);
-	}
-
-	let raw: SqlDatabase;
-	try {
-		raw = await plugin.load(DATABASE_URL);
-	} catch (error) {
-		return err(toAppError(error));
-	}
-
+	const opened = await invokeResult<void>(bindings, COMMANDS.dbOpen);
+	if (!opened.ok) return opened;
+	const raw = commandSqlDatabase(bindings);
 	try {
 		for (const pragma of DATABASE_PRAGMAS) await raw.execute(pragma);
 	} catch (error) {
@@ -674,7 +687,7 @@ export async function createTauriDatabase(
  * and is then forgotten, so the next statement (after the startup screen's Retry) loads again.
  */
 export function createLazyTauriDatabase(
-	bindings: Pick<TauriBindings, "sql"> = realTauriBindings,
+	bindings: Pick<TauriBindings, "invoke"> = realTauriBindings,
 	options: TauriDatabaseOptions = {},
 ): Database {
 	let opened: Promise<Result<Database>> | null = null;
@@ -822,7 +835,7 @@ export function createTauriFileSystem(
 			}),
 		exists: async (path) => {
 			const result = await invokeResult<FileStat | null>(bindings, COMMANDS.fsStat, { path });
-			return result.ok && result.value !== null;
+			return result.ok ? ok(result.value !== null) : result;
 		},
 		stat: async (path) => {
 			const result = await invokeResult<FileStat | null>(bindings, COMMANDS.fsStat, { path });
@@ -1127,6 +1140,8 @@ export function createTauriDialogs(bindings: TauriBindings = realTauriBindings):
 			requireBinding(bindings.dialog, "dialog").ask(options.message, {
 				title: options.title,
 				okLabel: options.okLabel,
+				...(options.cancelLabel === undefined ? {} : { cancelLabel: options.cancelLabel }),
+				...(options.kind === undefined ? {} : { kind: options.kind }),
 			}),
 	};
 }
@@ -1391,6 +1406,8 @@ export function createTauriCloud(bindings: TauriBindings): Cloud {
 		// Tauri's deserializer needs for the `Option` field.
 		deploy: (input) =>
 			invokeResult<CloudDeployResult>(bindings, COMMANDS.cloudDeploy, { input: input ?? {} }),
+		onDeployEvent: (listener) =>
+			onEvent<CloudDeployEvent>(bindings, EVENTS.cloudDeployStep, listener),
 		uninstall: (input) =>
 			invokeResult<void>(bindings, COMMANDS.cloudUninstall, { input: input ?? {} }),
 		request: (request: CloudRequest) =>
@@ -1503,7 +1520,9 @@ interface FsPathsPayload {
 
 /**
  * `conductor_import_find { source }`, `conductor_import_copy { source }`, `conductor_import_read { copyPath }`,
- * `conductor_import_move_secrets { copyPath, moves }`, `conductor_import_discard` (APP-17).
+ * `conductor_import_move_secrets { copyPath, moves }`, `conductor_import_discard` (APP-17);
+ * `conductor_import_read_message_keys { copyPath, sessionId, afterRowid, limit }` and
+ * `conductor_import_read_messages { copyPath, sessionId, rowids }` (APP-18).
  */
 export function createTauriConductorImport(bindings: TauriBindings): ConductorImport {
 	return {
@@ -1513,6 +1532,19 @@ export function createTauriConductorImport(bindings: TauriBindings): ConductorIm
 			invokeResult<ConductorCopy>(bindings, COMMANDS.conductorImportCopy, { source: sourcePath }),
 		read: (copyPath) =>
 			invokeResult<ConductorSnapshot>(bindings, COMMANDS.conductorImportRead, { copyPath }),
+		readMessageKeys: (copyPath, sessionId, afterRowid, limit) =>
+			invokeResult<ConductorMessageKey[]>(bindings, COMMANDS.conductorImportReadMessageKeys, {
+				copyPath,
+				sessionId,
+				afterRowid,
+				limit,
+			}),
+		readMessages: (copyPath, sessionId, rowids) =>
+			invokeResult<ConductorPlacedRow[]>(bindings, COMMANDS.conductorImportReadMessages, {
+				copyPath,
+				sessionId,
+				rowids: [...rowids],
+			}),
 		moveSecrets: (copyPath, moves) =>
 			invokeResult<string[]>(bindings, COMMANDS.conductorImportMoveSecrets, {
 				copyPath,

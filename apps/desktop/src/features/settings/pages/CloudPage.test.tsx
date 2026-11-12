@@ -4,10 +4,11 @@
  * refuses, and the page's own message when the Worker cannot be reached.
  * Test first: a refused name keeps the add panel open and shows the Worker's reason.
  */
-import { ok } from "@conducted/shared";
+import { ok, type Result } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
+import type { CloudDeployResult } from "../../../platform/platform.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
 import { Toaster } from "../../../ui/Toast.tsx";
 import { CloudPage } from "./CloudPage.tsx";
@@ -87,10 +88,106 @@ async function mountImport(settings: { current: ImportSettings }): Promise<TestC
 }
 
 describe("CLOUD-17 CloudPage", () => {
-	it("says how to pair a Mac that has no Worker", async () => {
+	it("offers Deploy and Pair on an unpaired Mac, without sending it to Connections", async () => {
 		await mountPage(null);
-		expect(await screen.findByText("No Worker is paired")).toBeTruthy();
-		expect(screen.getByText(/Connections page/)).toBeTruthy();
+		expect(await screen.findByText("Not paired")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Deploy to Cloudflare" })).toBeTruthy();
+		expect(screen.getByLabelText("Worker URL")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Pair" })).toBeTruthy();
+		expect(screen.queryByText(/Connections page/)).toBeNull();
+	});
+
+	it("pairs with a Worker URL and a token, then unpairs", async () => {
+		const test = await mountPage(null);
+		fireEvent.change(screen.getByLabelText("Worker URL"), {
+			target: { value: "https://conducted.example.workers.dev/" },
+		});
+		fireEvent.change(screen.getByLabelText("Pairing token"), {
+			target: { value: "32-random-bytes" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Pair" }));
+
+		expect(
+			await screen.findByText("Paired with https://conducted.example.workers.dev."),
+		).toBeTruthy();
+		expect((await test.container.platform.cloud.status()).ok).toBe(true);
+
+		fireEvent.click(screen.getByRole("button", { name: "Unpair" }));
+		expect(await screen.findByText("Not paired")).toBeTruthy();
+	});
+
+	it("shows why a Worker URL was refused and does not pair", async () => {
+		const test = await mountPage(null);
+		fireEvent.change(screen.getByLabelText("Worker URL"), {
+			target: { value: "http://conducted.example.workers.dev" },
+		});
+		fireEvent.change(screen.getByLabelText("Pairing token"), {
+			target: { value: "32-random-bytes" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Pair" }));
+
+		expect(await screen.findByText("A Worker URL must be https and name a host.")).toBeTruthy();
+		const status = await test.container.platform.cloud.status();
+		expect(status.ok && status.value.paired).toBe(false);
+	});
+
+	// Issue #490: the deploy keeps running and its state lives in the deploy service, so a page
+	// that is left and mounted again shows the spinner, the step the shell reports, and the result.
+	it("keeps a running deploy across a remount, with its step and its result", async () => {
+		const settings = { current: { gitIdentity: null, envVars: {} } };
+		const mounted = await mountPage(settings);
+		let finish: (result: Result<CloudDeployResult>) => void = () => {};
+		mounted.memory.controls.scriptCloudDeploy(
+			() =>
+				new Promise<Result<CloudDeployResult>>((resolve) => {
+					finish = resolve;
+				}),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Deploy to Cloudflare" }));
+
+		await vi.waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Deploy to Cloudflare" }).getAttribute("aria-busy"),
+			).toBe("true"),
+		);
+		expect(screen.getByRole("button", { name: "Remove deployment" }).hasAttribute("disabled")).toBe(
+			true,
+		);
+		mounted.memory.controls.emitCloudDeployStep("Building the image and uploading the Worker");
+		expect(
+			await screen.findByText("Deploying… Building the image and uploading the Worker"),
+		).toBeTruthy();
+
+		cleanup();
+		render(
+			<ServicesProvider container={mounted.container}>
+				<CloudPage />
+			</ServicesProvider>,
+		);
+		expect(
+			await screen.findByText("Deploying… Building the image and uploading the Worker"),
+		).toBeTruthy();
+		expect(
+			screen.getByRole("button", { name: "Deploy to Cloudflare" }).getAttribute("aria-busy"),
+		).toBe("true");
+
+		finish(ok({ url: "https://conducted-cloud.example.workers.dev" }));
+		expect(
+			await screen.findByText(
+				"Deployed and paired with https://conducted-cloud.example.workers.dev.",
+			),
+		).toBeTruthy();
+	});
+
+	it("deploys the app's Worker and pairs this Mac", async () => {
+		const test = await mountPage(null);
+		fireEvent.click(screen.getByRole("button", { name: "Deploy to Cloudflare" }));
+
+		expect(
+			await screen.findByText("Paired with https://conducted-cloud.example.workers.dev."),
+		).toBeTruthy();
+		expect(test.memory.controls.cloudDeploys).toEqual([{}]);
+		expect((await test.container.platform.cloud.status()).ok).toBe(true);
 	});
 
 	it("lists the Worker's personal variables and saves a new one", async () => {

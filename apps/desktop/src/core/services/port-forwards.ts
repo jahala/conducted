@@ -508,7 +508,7 @@ export class PortForwardsService {
 		}
 		this.#patch(workspaceId, {
 			detectedPorts: ports.sort((left, right) => left.port - right.port),
-			waiting: false,
+			waiting: ports.length === 0,
 			error: null,
 		});
 		await this.#reconcile(workspace.value, ports);

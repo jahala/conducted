@@ -8,7 +8,9 @@
  * is saved.
  * Behaviour: ui-map.md 6, "Advanced" and "Agents"; the warning is Conductor's (renderApp @10971526).
  * Must handle: an empty value (the bundled program, no warning and no check), a path that does not
- * exist (refused with its reason, and the field shows the stored value again), a cancelled picker
+ * exist (refused with its reason, and the field shows the stored value again), a program outside the
+ * app's file folders (accepted when `which` finds it, issue #601), a check that cannot run (its
+ * reason, never "no program"), a cancelled picker
  * (nothing changes), a picker that cannot open (a toast), and a setting that is not a program path
  * (left alone by the check).
  * As Conductor does (renderApp QFa and $Gt), each row looks its program up on the login shell's
@@ -18,6 +20,9 @@
  * the lookup only offers it.
  * Our design choice: a lookup that fails offers no button, as a program not found does; it is an
  * offer, not a value the user relies on.
+ * Our design choice: Conductor saves a typed path with no check (renderApp $Gt @11003437); ours
+ * refuses a path where `which` finds no program, and asks `which` rather than the file commands,
+ * which reach only the app's own folders (issue #601).
  * Test first: AdvancedPage.test.tsx, a path that does not exist is refused and not saved.
  */
 import { type ReactNode, useEffect, useState } from "react";
@@ -29,6 +34,7 @@ import {
 	type SettingDef,
 	type SettingValue,
 } from "../../core/registries/settings.ts";
+import type { Shell } from "../../platform/platform.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Input } from "../../ui/Input.tsx";
 import { CloseIcon, FolderIcon, TriangleAlertIcon } from "../../ui/icons.tsx";
@@ -38,13 +44,21 @@ import { SettingRow, useSettingSaves } from "./SettingRow.tsx";
 
 const isProgramPath = (def: SettingDef): boolean => def.key.endsWith("_executable_path");
 
-/** Refuses a program path that does not exist; any other value passes. */
-function programPathCheck(exists: (path: string) => Promise<boolean>) {
+/**
+ * Refuses a program path with no program at it; any other value passes. `which` decides, as it does
+ * for the row's system lookup, because the file commands reach only the app's own folders and a
+ * program elsewhere would be refused, not found (issue #601). A check that cannot run says why.
+ */
+function programPathCheck(shell: Pick<Shell, "run">, cwd: string) {
 	return async (def: SettingDef, value: SettingValue): Promise<string | null> => {
 		if (!isProgramPath(def)) return null;
 		const text = typeof value === "string" ? value.trim() : "";
 		if (text === "") return null;
-		return (await exists(text)) ? null : `No program exists at ${text}.`;
+		const missing = `No program exists at ${text}.`;
+		if (!text.startsWith("/")) return missing;
+		const found = await shell.run({ program: "which", args: [text], cwd, timeoutMs: 5_000 });
+		if (!found.ok) return found.error.message;
+		return found.value.exitCode === 0 ? null : missing;
 	};
 }
 
@@ -116,7 +130,7 @@ export function ProgramPathRow({
 	const systemPath = useSystemProgramPath(binary);
 	useEffect(() => setText(stored), [stored]);
 	if (def === undefined) return null;
-	const check = programPathCheck((path) => platform.fs.exists(path));
+	const check = programPathCheck(platform.shell, platform.fs.paths.home);
 
 	const save = async (next: string) => {
 		setProblem(null);
@@ -147,7 +161,7 @@ export function ProgramPathRow({
 			description={pageDescriptionOf(def)}
 			disabledReason={null}
 			highlighted={focusSettingKey === settingKey}
-			saveError={problem ?? saves.errorOf(settingKey)}
+			saveError={problem}
 			stacked
 		>
 			<div className="flex w-full flex-col">

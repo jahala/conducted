@@ -1,8 +1,11 @@
 /**
  * @feature catalogue States of the cards an agent waits on, one per kind of request
  * Owns: a chat in arbor waiting on an edit, a sub-agent, a web search, a web fetch and a read of a
- * file outside the workspace, each with the card's title and choices for that kind of tool; and a
- * Codex chat asking for network access beyond its sandbox.
+ * file outside the workspace, and a command to run on this Mac, each with the card's title and
+ * choices for that kind of tool; a Codex
+ * chat asking for network access beyond its sandbox; an MCP server's form with a choice not made
+ * yet; a multi-select question's "Select other response"; and a question card after an answer that
+ * could not be sent.
  * Behaviour: ui-map.md 3.3 (approval titles by tool, the 'Network access' card);
  * features/chat/interactions/approval-tool.ts picks the title and the choices.
  * Test first: not applicable; the screenshot run opens every state.
@@ -11,7 +14,7 @@ import type { Interaction, SessionConfig } from "@conducted/protocol";
 import type { ToolUseId } from "@conducted/shared";
 import { animateCast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { shows } from "../dom.ts";
+import { click, clickOn, findFirst, shows } from "../dom.ts";
 import { openInteraction } from "../live.ts";
 import { addChat, addEvents, CLAUDE_CONFIG } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
@@ -60,6 +63,19 @@ const waitingState = (waiting: Waiting): CatalogueState => ({
 const toolUse = (id: string) => `${id}-tool` as ToolUseId;
 
 export const APPROVAL_STATES: CatalogueState[] = [
+	waitingState({
+		id: "chat-approval-local-command",
+		title: "Approval for a command the agent wants to run on this Mac",
+		chat: "Open the simulator",
+		ask: "Build the iOS app and open it in the simulator on my Mac.",
+		interaction: {
+			kind: "tool_approval",
+			toolUseId: toolUse("local-command"),
+			toolName: "mcp__conducted__RunLocalCommand",
+			input: { command: "xcrun simctl boot 'iPhone 17'" },
+		},
+		ready: "Yes for this session",
+	}),
 	waitingState({
 		id: "chat-approval-edit",
 		title: "Approval for an edit, with the choice to allow every edit in this chat",
@@ -154,4 +170,75 @@ export const APPROVAL_STATES: CatalogueState[] = [
 		},
 		ready: "Network access",
 	}),
+	waitingState({
+		id: "chat-mcp-form",
+		title: "An MCP server's form, its choice not made yet",
+		chat: "File the crash report",
+		ask: "File the crash in Linear so the platform team sees it.",
+		interaction: {
+			kind: "mcp_form",
+			server: "linear",
+			message: "Which team should own the new issue?",
+			schema: {
+				type: "object",
+				properties: { team: { type: "string", title: "Team", enum: ["Platform", "Billing"] } },
+				required: ["team"],
+			},
+		},
+		ready: "Select an option",
+	}),
+	waitingState({
+		id: "chat-question-multi",
+		title: "A multi-select question, with the Other answer selectable",
+		chat: "Pick the checks",
+		ask: "Add the missing checks to the release pipeline.",
+		interaction: {
+			kind: "question",
+			questions: [
+				{
+					question: "Which checks should run before a release?",
+					options: [
+						{ label: "Typecheck", description: "Runs tsc over the whole repository." },
+						{ label: "Unit tests", description: "The fast Vitest suite." },
+					],
+					multiSelect: true,
+				},
+			],
+		},
+		ready: "Which checks should run before a release?",
+	}),
+	{
+		id: "chat-question-answer-failed",
+		group: "Workspace chat",
+		title: "A question card after an answer that could not be sent",
+		seed: async (world: World): Promise<Scene> => {
+			const cast = await seedCast(world);
+			const chat = await addChat(world, cast.arbor, { title: "Pick the database" });
+			const talk = conversation("question-failed", CATALOGUE_NOW - 4 * MINUTE);
+			talk.user("Set up the local database for the new service.");
+			await addEvents(world, chat.id, talk.events);
+			world.failSidecar("answerInteraction");
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: async ({ app, document }) => {
+					await animateCast(world, cast, app);
+					await refreshGit(app, cast.arbor);
+					openInteraction(world, chat.id, "question-failed-ask", {
+						kind: "question",
+						questions: [
+							{
+								question: "Which database should the service use?",
+								options: [{ label: "SQLite", description: "One file, nothing to run." }],
+								multiSelect: false,
+							},
+						],
+					});
+					// The row's text starts with its aria-hidden number, so it is found by position.
+					clickOn(await findFirst(document, "[role=radio][data-question-option='0']"));
+					await click(document, "button", "Submit");
+				},
+				ready: (document) => shows(document, "Could not send answers. Try again."),
+			};
+		},
+	},
 ];

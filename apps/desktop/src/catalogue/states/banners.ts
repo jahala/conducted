@@ -2,7 +2,9 @@
  * @feature catalogue States of the chat's notices, errors and turn actions
  * Owns: a chat whose history was compacted, whose turn the user stopped, and whose next turn came
  * from another chat and ran into the session limit, with a notice's copy menu open; a chat whose
- * agent needs signing in and whose error had no words, with an error's copy menu open; a working
+ * agent needs signing in and whose error had no words, with an error's copy menu open; a chat whose
+ * API error shows its text and then Claude Code's error, and whose last turn hit the session limit; a
+ * turn refused for an image over 5 MB; a working
  * turn that is compacting, one that waits on a subagent and one that waits on a background task;
  * a finished turn's More actions menu and the Reset chat? dialog it opens; and a long chat read
  * from its top, with Scroll to bottom.
@@ -16,9 +18,10 @@ import type { SessionId } from "@conducted/shared";
 import type { Session, Workspace } from "../../core/model.ts";
 import { animateCast, type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { type Conversation, conversation } from "../conversation.ts";
-import { click, has, rightClick, shows } from "../dom.ts";
+import { click, findFirst, has, rightClick, shows } from "../dom.ts";
 import { deliverEvents, setLiveState } from "../live.ts";
-import { addChat, addEvents } from "../seeds.ts";
+import { addChat, addEvents, CLAUDE_CONFIG } from "../seeds.ts";
+import { nextFrame, waitFor } from "../settle.ts";
 import type { AfterContext, CatalogueState } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
 import type { World } from "../world.ts";
@@ -69,6 +72,12 @@ function noticesChat(): Conversation {
 	});
 	chat.agent(relayed, [{ kind: "notice", notice: "rate_limit", text: "" }]);
 	chat.end(relayed);
+
+	const remote = chat.user("The staging redirect still drops the page; check it too.", {
+		sender: { kind: "claude_ai" },
+	});
+	chat.text(remote, "Staging uses the same `safeNext`; its fix is in the same pull request.");
+	chat.end(remote);
 	return chat;
 }
 
@@ -92,6 +101,38 @@ function errorsChat(): Conversation {
 	return chat;
 }
 
+/**
+ * An API error (its text, then the result's error, as the Claude translator gives them), and a
+ * turn that ended on the session limit (Conductor's IQi view).
+ */
+function errorViewsChat(): Conversation {
+	const chat = conversation("error-views", CATALOGUE_NOW - 30 * MINUTE);
+	const apiError = "API Error: 500 Internal server error";
+	const failed = chat.user("Run the callback tests once more.");
+	chat.text(failed, apiError);
+	const shown = `Claude Code error: ${apiError}`;
+	chat.agent(failed, [{ kind: "error", code: "agent_error", message: shown, retryable: true }]);
+	chat.end(failed, undefined, "error", shown);
+
+	const limited = chat.user("Then fix the failing one.");
+	const resetsAt = Math.floor((CATALOGUE_NOW + 3 * 60 * MINUTE) / 1000);
+	chat.end(limited, undefined, "error", `Claude AI usage limit reached|${resetsAt}`);
+	return chat;
+}
+
+/** A turn the API refused because a pasted screenshot is over Claude Code's 5 MB limit. */
+function imageTooLargeChat(): Conversation {
+	const chat = conversation("image-too-large", CATALOGUE_NOW - 12 * MINUTE);
+	const turn = chat.user("Here is the full-page screenshot of the broken layout.");
+	chat.end(
+		turn,
+		undefined,
+		"error",
+		"API Error: 400 messages.0.content.1.image.source.base64: image exceeds 5 MB maximum",
+	);
+	return chat;
+}
+
 /** A turn that is still running, delivered once the app is up. */
 function runningTurn(
 	prefix: string,
@@ -104,24 +145,36 @@ function runningTurn(
 	return chat;
 }
 
-const nextFrame = (): Promise<void> =>
-	new Promise((resolve) => requestAnimationFrame(() => resolve()));
-
-/** Waits a bounded number of frames for `holds`, as the dom helpers wait for a control. */
-async function waitFor(holds: () => boolean): Promise<void> {
-	for (let frame = 0; frame < 300; frame++) {
-		if (holds()) return;
-		await nextFrame();
-	}
-	throw new Error("The screen never showed what the state waits for.");
-}
-
-async function waitForElement(document: Document, selector: string): Promise<HTMLElement> {
-	await waitFor(() => document.querySelector(selector) !== null);
-	const element = document.querySelector<HTMLElement>(selector);
-	if (element === null) throw new Error(`No ${selector} appeared.`);
-	return element;
-}
+/** A chat whose first turn ended because its agent needs signing in, worded as `message`. */
+const authChat = (
+	id: string,
+	title: string,
+	agent: "codex" | "cursor",
+	message: string,
+	ready: string,
+): CatalogueState => ({
+	id,
+	group: "Workspace chat",
+	title,
+	seed: async (world) => {
+		const cast = await seedCast(world);
+		const config = { ...CLAUDE_CONFIG, agent, model: agent === "codex" ? "gpt-5.5" : "default" };
+		const chat = await addChat(world, cast.arbor, { title, config });
+		const talk = conversation(id, CATALOGUE_NOW - 20 * MINUTE);
+		const turn = talk.user("Start on the next task.", { config });
+		talk.agent(turn, [{ kind: "error", code: "agent_auth_required", message, retryable: false }]);
+		talk.end(turn, undefined, "error");
+		await addEvents(world, chat.id, talk.events);
+		return {
+			route: chatRoute(cast.arbor, chat),
+			after: async ({ app }) => {
+				await animateCast(world, cast, app);
+				await refreshGit(app, cast.arbor);
+			},
+			ready: (document) => shows(document, ready),
+		};
+	},
+});
 
 /** A long finished chat: twelve turns of small questions about the code base. */
 function longChat(): Conversation {
@@ -178,6 +231,43 @@ export const BANNER_STATES: CatalogueState[] = [
 			async ({ document }) => {
 				await rightClick(document, "span", "This message could not be displayed.");
 			},
+		),
+	},
+	authChat(
+		"chat-errors-codex",
+		"Auth needed: Codex",
+		"codex",
+		"Codex authentication required. Sign in to Codex in the agent settings.",
+		"Please configure Codex authentication in Settings to use Codex.",
+	),
+	authChat(
+		"chat-errors-chatgpt",
+		"Auth expired: ChatGPT",
+		"codex",
+		"ChatGPT login expired. Sign in to ChatGPT in the agent settings.",
+		"Your ChatGPT login has expired. Reconnect ChatGPT, then send your message again.",
+	),
+	authChat(
+		"chat-errors-cursor",
+		"Auth needed: Cursor",
+		"cursor",
+		"Cursor API key is not configured",
+		"Add a Cursor API key in provider settings to use Cursor.",
+	),
+	{
+		id: "chat-error-image-too-large",
+		group: "Workspace chat",
+		title: "Error: an image over Claude Code's 5 MB limit",
+		seed: arborChat("Layout screenshot", () => imageTooLargeChat(), "Image too large"),
+	},
+	{
+		id: "chat-error-views",
+		group: "Workspace chat",
+		title: "Errors: an API error's text and Claude Code's error with Retry, the session limit",
+		seed: arborChat(
+			"Callback tests",
+			() => errorViewsChat(),
+			"Learn more about Claude Code limits",
 		),
 	},
 	{
@@ -271,7 +361,7 @@ export const BANNER_STATES: CatalogueState[] = [
 				after: async ({ app, document }) => {
 					await animateCast(world, cast, app);
 					await refreshGit(app, cast.arbor);
-					await click(document, "button", "More turn actions");
+					await click(document, "button", "Show message actions");
 				},
 				ready: (document) => shows(document, "Copy summary"),
 			};
@@ -288,7 +378,7 @@ export const BANNER_STATES: CatalogueState[] = [
 				after: async ({ app, document }) => {
 					await animateCast(world, cast, app);
 					await refreshGit(app, cast.arbor);
-					await click(document, "button", "More turn actions");
+					await click(document, "button", "Show message actions");
 					await click(document, "[role=menuitem]", "Reset chat");
 				},
 				ready: (document) => shows(document, "Later messages will be deleted."),
@@ -305,12 +395,14 @@ export const BANNER_STATES: CatalogueState[] = [
 			"Where is the session cookie set?",
 			async ({ document }) => {
 				// A reader scrolls back to the first question once the list has drawn its end.
-				const scroller = await waitForElement(document, "[data-testid=virtuoso-scroller]");
-				await waitFor(() => scroller.scrollTop > 0);
+				const scroller = await findFirst(document, "[data-testid=virtuoso-scroller]");
+				await waitFor("the chat never scrolled to its end", () => scroller.scrollTop > 0);
 				for (let frame = 0; frame < 30; frame++) await nextFrame();
 				scroller.scrollTop = 0;
 				scroller.dispatchEvent(new Event("scroll"));
-				await waitFor(() => has(document, "button", "Scroll to bottom"));
+				await waitFor("Scroll to bottom never showed", () =>
+					has(document, "button", "Scroll to bottom"),
+				);
 			},
 		),
 	},

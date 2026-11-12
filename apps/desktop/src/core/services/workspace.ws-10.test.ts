@@ -87,6 +87,7 @@ async function harness(
 				path: spec.path,
 				branch: spec.branch,
 				branchIsPlaceholder: spec.branchIsPlaceholder,
+				remoteFileSyncEnabled: false,
 				host: { kind: "local" },
 				targetBranch: spec.targetBranch,
 				port: spec.port,
@@ -168,7 +169,7 @@ async function harness(
 }
 
 const seedFolder = async (memory: ReturnType<typeof createMemoryPlatform>, path: string) => {
-	await memory.platform.fs.writeTextAtomic(`${path}/README.md`, "hello");
+	memory.controls.addFile(`${path}/README.md`, "hello");
 };
 
 describe("WS-10 delete a workspace", () => {
@@ -179,8 +180,8 @@ describe("WS-10 delete a workspace", () => {
 		await seedFolder(h.memory, h.repo.rootPath);
 		const setupLog = setupLogFile(h.memory.platform.fs.paths, workspace.id);
 		const viewed = viewedFilesFile(h.memory.platform.fs.paths, workspace.id);
-		await h.memory.platform.fs.writeTextAtomic(setupLog, "{}");
-		await h.memory.platform.fs.writeTextAtomic(viewed, "{}");
+		h.memory.controls.addFile(setupLog, "{}");
+		h.memory.controls.addFile(viewed, "{}");
 
 		const removed = await h.service.remove(workspace.id);
 
@@ -197,8 +198,8 @@ describe("WS-10 delete a workspace", () => {
 				sameArgs(command.args, ["update-ref", "-d", `refs/conducted/archive/${workspace.id}`]),
 			),
 		).toBe(true);
-		expect(await h.memory.platform.fs.exists(setupLog)).toBe(false);
-		expect(await h.memory.platform.fs.exists(viewed)).toBe(false);
+		expect(await h.memory.platform.fs.exists(setupLog)).toEqual(ok(false));
+		expect(await h.memory.platform.fs.exists(viewed)).toEqual(ok(false));
 		expect(h.deleteAll).toHaveBeenCalledWith(workspace.id);
 		expect(must(await h.repositories.workspaces.get(workspace.id))).toBeNull();
 		expect(h.clearRuns).toHaveBeenCalledWith(workspace.id);

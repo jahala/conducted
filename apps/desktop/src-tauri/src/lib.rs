@@ -44,6 +44,7 @@ pub mod attachments;
 pub mod binaries;
 pub mod cloud;
 pub mod conductor_import;
+pub mod database;
 pub mod db;
 pub mod deep_link;
 pub mod error;
@@ -658,6 +659,19 @@ fn window_toggle_inspector(app: AppHandle) -> CommandResult<()> {
     Ok(())
 }
 
+/// Adds the embedded WebDriver server the end-to-end tests drive the window with (issue #564). Only
+/// the test build turns on the `e2e` feature; it listens on 127.0.0.1 at `TAURI_WEBDRIVER_PORT`.
+#[cfg(feature = "e2e")]
+fn with_test_driver<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
+    builder.plugin(tauri_plugin_wdio_webdriver::init())
+}
+
+/// Every other build has no WebDriver server.
+#[cfg(not(feature = "e2e"))]
+fn with_test_driver<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
+    builder
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let context = tauri::generate_context!();
@@ -688,13 +702,8 @@ pub fn run() {
         eprintln!("could not raise the open-file limit: {error}");
     }
     let shell_state = prepare_shell_state();
-    tauri::Builder::default()
+    with_test_driver(tauri::Builder::default())
         .plugin(tauri_plugin_window_state::Builder::new().build())
-        .plugin(
-            tauri_plugin_sql::Builder::default()
-                .add_migrations(db::DB_URL, db::migrations())
-                .build(),
-        )
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -704,6 +713,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(instance_lock)
+        .manage(database::DatabaseState::default())
         .manage(shell_state)
         .manage(pty::PtyState::default())
         .manage(sidecar::SidecarState::default())
@@ -772,6 +782,10 @@ pub fn run() {
             window::window_set_vibrancy,
             window::window_set_traffic_lights,
             db::db_version_check,
+            db::db_free_bytes,
+            database::db_open,
+            database::db_execute,
+            database::db_select,
             logger::log_write,
             logger::log_set_level,
             logger::logs_export,
@@ -829,6 +843,8 @@ pub fn run() {
             conductor_import::conductor_import_find,
             conductor_import::conductor_import_copy,
             conductor_import::conductor_import_read,
+            conductor_import::conductor_import_read_message_keys,
+            conductor_import::conductor_import_read_messages,
             conductor_import::conductor_import_move_secrets,
             conductor_import::conductor_import_discard,
             visualization::visualization_serve,
@@ -901,6 +917,11 @@ pub fn run() {
                 // The app is closing, so only stderr is left to report a failed stop.
                 if let Err(error) = tauri::async_runtime::block_on(sidecar::shutdown(&state)) {
                     eprintln!("could not stop the sidecar on exit: {error}");
+                }
+                // Last, so SQLite folds its write-ahead log into the file (PLAT-02).
+                let database = app.state::<database::DatabaseState>();
+                if let Err(error) = tauri::async_runtime::block_on(database::close(&database)) {
+                    eprintln!("could not close the database on exit: {error}");
                 }
             }
         });

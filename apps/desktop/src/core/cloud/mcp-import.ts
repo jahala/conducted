@@ -37,7 +37,6 @@ export interface LocalMcpScan {
 /** The file commands the scan uses; all of them are the Platform's own. */
 export interface LocalFileSystem {
 	readText(path: string): Promise<Result<string>>;
-	exists(path: string): Promise<boolean>;
 	readDir(path: string): Promise<Result<FileStat[]>>;
 	registerRoot(path: string): Promise<Result<void>>;
 }

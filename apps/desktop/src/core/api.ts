@@ -36,6 +36,7 @@ import type {
 	WorkspaceId,
 } from "@conducted/shared";
 import type { CloudDeployResult, CloudPairInput, CloudPairing } from "../platform/platform.ts";
+import type { CloudDeployState } from "./cloud/deploy.ts";
 import type { LocalMcpScan } from "./cloud/mcp-import.ts";
 import type { CloudGitIdentity, CloudSettings } from "./cloud/settings.ts";
 import type { CloudWorkspaceResources } from "./cloud/state.ts";
@@ -424,8 +425,10 @@ export interface Queries {
 	useRepoNameCheck(owner: string, name: string): Loadable<RepoNameCheck>;
 	/** Whether a Linear key is set and accepted. */
 	useLinearAccess(): Loadable<LinearAccess>;
-	/** The Worker this Mac is paired with, for the Connections page (CLOUD-07). */
+	/** The Worker this Mac is paired with, for the Cloud page (CLOUD-07). */
 	useCloudPairing(): Loadable<CloudPairing>;
+	/** The deploy's state, for the Cloud page (CLOUD-08, issue #490). */
+	useCloudDeploy(): CloudDeployState;
 	/**
 	 * The organisation switcher's entries, this Mac and the paired Worker, and the active one
 	 * (CLOUD-19). Loading until the pairing has been read.
@@ -472,6 +475,8 @@ export interface Actions {
 		/** Saves the sidebar's project order by drag (NAV-04). */
 		reorder: Act<[orderedIds: RepoId[]]>;
 		updateConfig: Act<[repoId: RepoId, config: RepoConfig]>;
+		/** The gitignored files a new workspace would copy, for the Misc page's preview (SET-07). */
+		copyPreview: Act<[repoId: RepoId], string[]>;
 		setIcon: Act<[repoId: RepoId, icon: RepoIconChoice]>;
 		/** Drops this Mac's change to a shared run action, so the shared version applies again. */
 		resetRunAction: Act<[repoId: RepoId, actionId: string]>;
@@ -706,6 +711,15 @@ export interface Actions {
 		/** Runs a shell code block from the chat in a new terminal and returns it. */
 		runCommand: Act<[workspaceId: WorkspaceId, command: string], Terminal>;
 		close: Act<[id: TerminalId]>;
+		/**
+		 * Moves a terminal's tab between the centre strip and the bottom panel, keeping its live
+		 * shell and scrollback (#527). Refused for a terminal of another workspace, a script
+		 * terminal, and a terminal already in that strip.
+		 */
+		move: Act<
+			[workspaceId: WorkspaceId, id: TerminalId, placement: Terminal["placement"]],
+			Terminal
+		>;
 	};
 	files: {
 		/**
@@ -728,6 +742,8 @@ export interface Actions {
 		resolveConflicts: Act<
 			[workspaceId: WorkspaceId, path: string, choices: ConflictChoice[], seenText: string]
 		>;
+		/** Turns a cloud workspace's local mirror on or off, as its "Sync files" switch does. */
+		setSyncEnabled: Act<[workspaceId: WorkspaceId, enabled: boolean]>;
 		/**
 		 * Shows a workspace file selected in a Finder window. A cloud workspace's file is the
 		 * mirror's copy, or a download to Downloads (CLOUD-11); the result names the path shown.
@@ -873,7 +889,7 @@ export interface Actions {
 		find: Act<[], { bytes: number } | null>;
 		/** The dry run: copies Conductor's database and lists what would come over. */
 		preview: Act<[], ImportPreview>;
-		/** Imports what the last dry run showed, all or nothing. */
+		/** Imports what the last dry run showed, all or nothing, then each chat's history. */
 		run: Act<[], ImportOutcome>;
 		/** Drops the dry run and its copy. */
 		cancel: Act;
@@ -904,10 +920,14 @@ export interface Actions {
 	};
 }
 
-/** The import from Conductor's view types, for its screens (APP-17). */
+/** The import from Conductor's view types, for its screens (APP-17, APP-18). */
+export type { HistoryFailure, HistoryOutcome } from "./conductor-import/history.ts";
 export type {
+	HistoryCount,
+	HistoryPreview,
 	ImportKind,
 	ImportPreview,
+	ImportSpace,
 	KindCount,
 	LeftOut,
 	NotBrought,

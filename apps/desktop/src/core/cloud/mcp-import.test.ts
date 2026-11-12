@@ -20,7 +20,7 @@ const codec: Pick<TomlCodec, "parse"> = tomlCodec;
 function fakeFiles(files: Readonly<Record<string, string | null>>) {
 	const reads: string[] = [];
 	const registered: string[] = [];
-	const fs: Pick<LocalFileSystem, "readText" | "exists" | "readDir" | "registerRoot"> = {
+	const fs: LocalFileSystem = {
 		readText: async (path: string): Promise<Result<string>> => {
 			reads.push(path);
 			const text = files[path];
@@ -29,7 +29,6 @@ function fakeFiles(files: Readonly<Record<string, string | null>>) {
 			}
 			return ok(text);
 		},
-		exists: async (path: string) => files[path] !== undefined && files[path] !== null,
 		readDir: async (path: string): Promise<Result<FileStat[]>> => {
 			const prefix = path === "/" ? "/" : `${path}/`;
 			const entries = new Map<string, FileStat>();

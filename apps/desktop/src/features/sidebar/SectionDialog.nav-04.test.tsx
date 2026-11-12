@@ -4,15 +4,19 @@
  * Test first: Submitting 'Review' with no emoji calls sections.create('Review', null).
  */
 import { appError, err, ok, type SectionId } from "@conducted/shared";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { Section } from "../../core/model.ts";
 import { createTestContainer } from "../../test/container.ts";
+import { toast } from "../../ui/Toast.tsx";
 import { SectionDialog } from "./SectionDialog.tsx";
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	vi.restoreAllMocks();
+});
 
 const section: Section = {
 	id: "s1" as SectionId,
@@ -91,6 +95,56 @@ describe("NAV-04 SectionDialog", () => {
 			expect((screen.getByRole("button", { name: "Create" }) as HTMLButtonElement).disabled).toBe(
 				true,
 			);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("toasts Conductor's 'Couldn't create section' when a new section fails", async () => {
+		const test = createTestContainer();
+		try {
+			const reported = vi.spyOn(toast, "error").mockImplementation(() => "");
+			vi.spyOn(test.container.actions.sections, "create").mockResolvedValue(
+				err(appError("db", "The database is locked.")),
+			);
+			renderWith(test.container, <SectionDialog open onOpenChange={vi.fn()} section={null} />);
+			fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+				target: { value: "Review" },
+			});
+			fireEvent.click(screen.getByRole("button", { name: "Create" }));
+			await waitFor(() => expect(reported).toHaveBeenCalledWith("Couldn't create section"));
+		} finally {
+			test.close();
+		}
+	});
+
+	it("toasts 'Section no longer exists' when the renamed section vanished", async () => {
+		const test = createTestContainer();
+		try {
+			const reported = vi.spyOn(toast, "error").mockImplementation(() => "");
+			vi.spyOn(test.container.actions.sections, "rename").mockResolvedValue(
+				err(appError("section_unknown", "That section no longer exists.")),
+			);
+			renderWith(test.container, <SectionDialog open onOpenChange={vi.fn()} section={section} />);
+			fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+				target: { value: "In review" },
+			});
+			fireEvent.click(screen.getByRole("button", { name: "Save" }));
+			await waitFor(() => expect(reported).toHaveBeenCalledWith("Section no longer exists"));
+		} finally {
+			test.close();
+		}
+	});
+
+	it("says 'Section not found' when the section goes while the dialog is open", () => {
+		const test = createTestContainer();
+		try {
+			const store = test.container.services.sections.store;
+			store.setState({ loaded: true, sections: [section] });
+			renderWith(test.container, <SectionDialog open onOpenChange={vi.fn()} section={section} />);
+			expect(screen.queryByText("Section not found")).toBeNull();
+			act(() => store.setState({ loaded: true, sections: [] }));
+			expect(screen.getByText("Section not found")).toBeTruthy();
 		} finally {
 			test.close();
 		}

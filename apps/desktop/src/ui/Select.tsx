@@ -29,6 +29,8 @@ export interface SelectProps<T extends string> {
 	onValueChange: (value: T) => void;
 	/** Accessible name when no visible Label points at the trigger. */
 	"aria-label"?: string;
+	/** Shown when no option is chosen, as Conductor's "Select an owner" combobox does. */
+	placeholder?: string;
 	id?: string;
 	disabled?: boolean;
 	size?: "sm" | "md";
@@ -57,6 +59,7 @@ export function Select<T extends string>({
 	options,
 	onValueChange,
 	"aria-label": ariaLabel,
+	placeholder,
 	id,
 	disabled = false,
 	size = "md",
@@ -65,6 +68,8 @@ export function Select<T extends string>({
 	icon,
 }: SelectProps<T>) {
 	const selected = options.find((option) => option.value === value);
+	const shown =
+		selected?.label ?? (value === "" && placeholder !== undefined ? placeholder : value);
 	const item = (option: SelectOption<T>) => (
 		<Radix.Item
 			key={option.value}
@@ -114,8 +119,13 @@ export function Select<T extends string>({
 					)}
 				>
 					{icon}
-					<span className="truncate">
-						<Radix.Value>{selected?.label ?? value}</Radix.Value>
+					<span
+						className={cn(
+							"truncate",
+							selected === undefined && placeholder !== undefined ? "text-fg-subtle" : "",
+						)}
+					>
+						<Radix.Value>{shown}</Radix.Value>
 					</span>
 					<Radix.Icon asChild>
 						<ChevronDownIcon className="size-3 shrink-0" />
@@ -132,7 +142,7 @@ export function Select<T extends string>({
 						className,
 					)}
 				>
-					<Radix.Value>{selected?.label ?? value}</Radix.Value>
+					<Radix.Value>{shown}</Radix.Value>
 					<Radix.Icon asChild>
 						<ChevronsUpDownIcon className="size-3 shrink-0 text-fg-muted" />
 					</Radix.Icon>

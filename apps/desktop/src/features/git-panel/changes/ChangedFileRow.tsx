@@ -114,12 +114,15 @@ export function ChangedFileRow({
 			style={{ paddingLeft: 12 + depth * changesRowIndent }}
 		>
 			{onToggleViewed !== undefined ? (
-				<Checkbox
-					size="sm"
-					checked={file.viewed}
-					aria-label={`Viewed ${file.path}`}
-					onCheckedChange={(viewed) => onToggleViewed(viewed)}
-				/>
+				<span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-fg-muted">
+					<Checkbox
+						size="sm"
+						checked={file.viewed}
+						aria-label={`Viewed ${file.path}`}
+						onCheckedChange={(viewed) => onToggleViewed(viewed)}
+					/>
+					Viewed
+				</span>
 			) : null}
 			{hasMenu ? (
 				<FileRowMenu

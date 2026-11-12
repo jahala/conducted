@@ -6,7 +6,7 @@
  * Behaviour: ui-map.md 3.2, File tab ("Toggle file edit mode" is Cmd+E; "View options": "Hide
  * whitespace changes", "Wrap lines"; "Unified view", "Split view", "Entire file"). Measured from
  * Conductor 0.92.1 (renderApp @9633986, @9642796): the header is 8px top and bottom, 12px left and
- * 4px right on the canvas; the file chip at the left; at the right, 8px apart, "Copy file contents to clipboard"
+ * 4px right on the canvas; the file chip at the left; at the right, 8px apart, "Copy file contents"
  * as a 28px icon button, then one segmented group (32px tall, the muted fill, 2px inside) of 28px
  * icon toggles with 12px icons: the diff layouts when the file has changes, the whole file as
  * Entire file (raw), the editor, and the preview; then the vertical-dots "View options" menu.
@@ -25,6 +25,7 @@
 
 import { Button } from "../../ui/Button.tsx";
 import { CopyButton } from "../../ui/CopyButton.tsx";
+import { FileTypeIcon } from "../../ui/file-icon.tsx";
 import { EyeIcon, FileIcon, FileTextIcon } from "../../ui/icons.tsx";
 import { Spinner } from "../../ui/Spinner.tsx";
 import { TruncatedText } from "../../ui/TruncatedText.tsx";
@@ -50,7 +51,7 @@ export interface FileTabHeaderProps {
 	saving: boolean;
 	saveError: string | null;
 	onSave: () => void;
-	/** The file's text for "Copy file contents to clipboard"; null while it loads or when it is not text. */
+	/** The file's text for "Copy file contents"; null while it loads or when it is not text. */
 	copyText: string | null;
 	onCopy: (text: string) => unknown;
 	/** Width of the tab in pixels, so Split view can disable itself when too narrow. */
@@ -83,7 +84,7 @@ export function FileTabHeader({
 			<div className="flex min-w-0 items-center gap-2 py-2 pr-1 pl-3">
 				<div className="flex min-w-32 flex-1 items-center gap-2">
 					<span className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-sm border border-border px-1.5">
-						<FileTextIcon className="size-3.5 shrink-0 text-fg-muted" />
+						<FileTypeIcon path={path} className="size-3.5" />
 						<TruncatedText text={path} maxLength={80} className="text-sm text-fg" />
 					</span>
 					{oldPath === null ? null : (
@@ -109,7 +110,7 @@ export function FileTabHeader({
 						text={copyText ?? ""}
 						onCopy={onCopy}
 						iconOnly
-						label="Copy file contents to clipboard"
+						label="Copy file contents"
 						disabled={copyText === null}
 						size="sm"
 						className="w-7 px-0 text-sidebar-fg-muted [&_svg]:size-3"
@@ -176,9 +177,18 @@ export function FileTabHeader({
 				</p>
 			) : null}
 			{saveError === null ? null : (
-				<p role="alert" className="px-3 pb-1 text-xs text-danger">
-					{saveError}
-				</p>
+				<div className="px-3 pb-1">
+					{/* Conductor's failed-update control (renderApp @9637835). */}
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={onSave}
+						aria-label="Update failed. Retry"
+						className="w-24 shrink-0 text-xs text-danger"
+					>
+						Retry update
+					</Button>
+				</div>
 			)}
 		</div>
 	);

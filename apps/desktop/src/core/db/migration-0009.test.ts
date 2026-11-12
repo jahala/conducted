@@ -68,6 +68,7 @@ describe("CLOUD-01 migration 0009", () => {
 			port: 55101,
 			linkedPaths: [],
 			setupLogPath: null,
+			remoteFileSyncEnabled: false,
 			host,
 		});
 		if (!created.ok) throw new Error(created.error.message);

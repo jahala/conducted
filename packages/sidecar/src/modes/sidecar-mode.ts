@@ -103,6 +103,7 @@ import {
 import { runCheckpointer } from "../checkpoints/run-checkpointer.ts";
 import { parseSidecarConfig, type SidecarConfig } from "../config.ts";
 import { EXIT_START_FAILED, EXIT_USAGE } from "../exit-codes.ts";
+import { ConductorHistoryImports } from "../import/history-imports.ts";
 import { createLogger, type Logger, type LogSink, redactRecord } from "../logging/logger.ts";
 import { type AgentDetector, DefaultAgentDetector } from "../models/agent-detection.ts";
 import { AgentProgramChoices } from "../models/agent-programs.ts";
@@ -891,6 +892,7 @@ export function composeSidecar(
 		usage: new SessionUsageReader({ logger, sessions }),
 		shellEnv,
 		utilityPrompt,
+		conductorHistory: new ConductorHistoryImports(),
 		setLogLevel: (level) => logger.setLevel(level),
 		logger,
 	});

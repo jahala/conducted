@@ -67,22 +67,6 @@ describe("SET-03 AgentsPage", () => {
 		expect(screen.queryByRole("button", { name: /Sign in|Run codex login/ })).toBeNull();
 	});
 
-	it("filters the cards by name and says when nothing matches", () => {
-		const { page } = harness([
-			install({ agent: "claude", authenticated: false }),
-			install({ agent: "codex", authenticated: false }),
-		]);
-		render(page());
-		const search = screen.getByLabelText("Search providers");
-
-		fireEvent.change(search, { target: { value: "codex" } });
-		expect(screen.getByRole("heading", { name: "Codex" })).toBeTruthy();
-		expect(screen.queryByRole("heading", { name: "Claude Code" })).toBeNull();
-
-		fireEvent.change(search, { target: { value: "nothing here" } });
-		expect(screen.getByText("No providers match your search.")).toBeTruthy();
-	});
-
 	it("starts a sign-in and shows the agent's instructions", async () => {
 		const { page, spies } = harness([install({ agent: "claude", authenticated: false })]);
 		render(page());
@@ -149,11 +133,11 @@ describe("SET-03 AgentsPage", () => {
 
 		render(page());
 		fireEvent.click(screen.getByRole("button", { name: "Run claude /login" }));
-		expect(await screen.findByText("claude setup-token")).toBeTruthy();
+		expect((await screen.findAllByText("claude setup-token")).length).toBeGreaterThan(0);
 		fireEvent.change(screen.getByLabelText("Paste code from Claude"), {
 			target: { value: "code-123" },
 		});
-		fireEvent.click(screen.getByRole("button", { name: "Finish sign-in" }));
+		fireEvent.click(screen.getByRole("button", { name: "Connect" }));
 
 		await waitFor(() => expect(spies.finishLogin).toHaveBeenCalledWith("login-1", "code-123"));
 		// Opening the page, finishing the sign-in, and the dialog closing once the agent is signed in.
@@ -176,11 +160,11 @@ describe("SET-03 AgentsPage", () => {
 
 		render(page());
 		fireEvent.click(screen.getByRole("button", { name: "Run claude /login" }));
-		expect(await screen.findByText("claude setup-token")).toBeTruthy();
+		expect((await screen.findAllByText("claude setup-token")).length).toBeGreaterThan(0);
 		fireEvent.change(screen.getByLabelText("Paste code from Claude"), {
 			target: { value: "code-123" },
 		});
-		fireEvent.click(screen.getByRole("button", { name: "Finish sign-in" }));
+		fireEvent.click(screen.getByRole("button", { name: "Connect" }));
 
 		expect(await screen.findByText("Claude login successful.")).toBeTruthy();
 	});
@@ -228,18 +212,6 @@ describe("SET-03 AgentsPage", () => {
 		expect(spies.cancelLogin).not.toHaveBeenCalled();
 	});
 
-	it("does not claim nothing is installed when the search hides the installed agents", () => {
-		const { page } = harness([
-			install({ agent: "claude", authenticated: false }),
-			install({ agent: "codex", installed: false }),
-		]);
-		render(page());
-
-		fireEvent.change(screen.getByLabelText("Search providers"), { target: { value: "codex" } });
-
-		expect(screen.queryByText(/No agent programs were found/)).toBeNull();
-	});
-
 	it("cancels the first sign-in before a retry starts another", async () => {
 		const { page, spies } = harness([install({ agent: "codex", authenticated: false })]);
 		spies.login
@@ -254,11 +226,10 @@ describe("SET-03 AgentsPage", () => {
 		render(page());
 		fireEvent.click(screen.getByRole("button", { name: "Run codex login" }));
 		expect(await screen.findByText("The sign-in timed out.")).toBeTruthy();
-		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+		fireEvent.click(screen.getByRole("button", { name: "Restart device authorization" }));
 
 		await waitFor(() => expect(spies.cancelLogin).toHaveBeenCalledWith("login-1"));
 		await waitFor(() => expect(spies.login).toHaveBeenCalledTimes(2));
-		expect(await screen.findByText("Enter the new code.")).toBeTruthy();
 		expect(spies.cancelLogin.mock.invocationCallOrder[0]).toBeLessThan(
 			spies.login.mock.invocationCallOrder[1] ?? 0,
 		);

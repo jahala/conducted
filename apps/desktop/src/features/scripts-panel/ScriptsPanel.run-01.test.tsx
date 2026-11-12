@@ -8,12 +8,14 @@
  */
 import type { TerminalId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RunState } from "../../core/api.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { RepoConfig, RunAction, Workspace } from "../../core/model.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
 import { WithSurfaces } from "../../test/surfaces.tsx";
+import { toast } from "../../ui/Toast.tsx";
+import { TabDragProvider } from "../workspace/tab-drag.tsx";
 import { ScriptsPanel } from "./ScriptsPanel.tsx";
 
 const dev: RunAction = {
@@ -85,6 +87,44 @@ async function setup(runScripts: RunAction[] = [dev]): Promise<{
 }
 
 describe("RUN-01 scripts panel", () => {
+	it("warns while the terminal settings are still loading", async () => {
+		const warn = vi.spyOn(toast, "warning").mockImplementation(() => "toast-id");
+		const { test, workspace } = await setup();
+		test.container.services.settings.store.setState((state) => ({ ...state, loaded: false }));
+		render(
+			<ServicesProvider container={test.container}>
+				<WithSurfaces>
+					<TabDragProvider>
+						<ScriptsPanel workspaceId={workspace.id} />
+					</TabDragProvider>
+				</WithSurfaces>
+			</ServicesProvider>,
+		);
+		fireEvent.click(await screen.findByRole("button", { name: "New terminal" }));
+		expect(warn).toHaveBeenCalledWith("Terminal settings are still loading.");
+	});
+
+	it("says the terminal settings could not load", async () => {
+		const fail = vi.spyOn(toast, "error").mockImplementation(() => "toast-id");
+		const { test, workspace } = await setup();
+		test.container.services.settings.store.setState((state) => ({
+			...state,
+			loaded: true,
+			warnings: [{ code: "settings_load_failed", message: "The settings could not be read." }],
+		}));
+		render(
+			<ServicesProvider container={test.container}>
+				<WithSurfaces>
+					<TabDragProvider>
+						<ScriptsPanel workspaceId={workspace.id} />
+					</TabDragProvider>
+				</WithSurfaces>
+			</ServicesProvider>,
+		);
+		fireEvent.click(await screen.findByRole("button", { name: "New terminal" }));
+		expect(fail).toHaveBeenCalledWith("Failed to load terminal settings.");
+	});
+
 	it("shows the Stop button in the Run tab while its action runs", async () => {
 		const { test, workspace } = await setup();
 		const running: RunState = {
@@ -109,7 +149,9 @@ describe("RUN-01 scripts panel", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<WithSurfaces>
-					<ScriptsPanel workspaceId={workspace.id} />
+					<TabDragProvider>
+						<ScriptsPanel workspaceId={workspace.id} />
+					</TabDragProvider>
 				</WithSurfaces>
 			</ServicesProvider>,
 		);
@@ -134,7 +176,9 @@ describe("RUN-01 scripts panel", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<WithSurfaces>
-					<ScriptsPanel workspaceId={workspace.id} />
+					<TabDragProvider>
+						<ScriptsPanel workspaceId={workspace.id} />
+					</TabDragProvider>
 				</WithSurfaces>
 			</ServicesProvider>,
 		);
@@ -151,7 +195,9 @@ describe("RUN-01 scripts panel", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<WithSurfaces>
-					<ScriptsPanel workspaceId={workspace.id} />
+					<TabDragProvider>
+						<ScriptsPanel workspaceId={workspace.id} />
+					</TabDragProvider>
 				</WithSurfaces>
 			</ServicesProvider>,
 		);
@@ -166,7 +212,9 @@ describe("RUN-01 scripts panel", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<WithSurfaces>
-					<ScriptsPanel workspaceId={workspace.id} />
+					<TabDragProvider>
+						<ScriptsPanel workspaceId={workspace.id} />
+					</TabDragProvider>
 				</WithSurfaces>
 			</ServicesProvider>,
 		);
@@ -188,7 +236,9 @@ describe("RUN-01 scripts panel", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<WithSurfaces>
-					<ScriptsPanel workspaceId={workspace.id} />
+					<TabDragProvider>
+						<ScriptsPanel workspaceId={workspace.id} />
+					</TabDragProvider>
 				</WithSurfaces>
 			</ServicesProvider>,
 		);

@@ -21,6 +21,10 @@
  * here instead of running a copy on PATH (D088). A successful install toasts "Installed <name>.",
  * as Conductor does (renderApp @10982892); Re-download and Remove have no success toast there. The
  * programs themselves are downloaded and verified by the system service, not by this page.
+ *
+ * Claude Code's row also says which copy runs and why (D133): the version the app ships with,
+ * the newest release, or why a newer release is not in use (not tested with the app's Claude
+ * Agent SDK, still downloading, or refused or out of reach), from the note on its status.
  */
 import type { ManagedProgram, Result } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
@@ -32,7 +36,7 @@ import {
 	useHelperPrograms,
 	useSetting,
 } from "../../../core/hooks.ts";
-import type { AgentProgramView } from "../../../core/model.ts";
+import type { AgentProgramView, ProgramFollow } from "../../../core/model.ts";
 import { getSettingDef } from "../../../core/registries/settings.ts";
 import { PROGRAM_DISPLAY_NAMES } from "../../../core/system.ts";
 import { AlertDialog, AlertDialogContent } from "../../../ui/AlertDialog.tsx";
@@ -97,7 +101,7 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 				}
 				disabledReason={null}
 				highlighted={focusSettingKey === ROOT_PATH_KEY}
-				saveError={saves.errorOf(ROOT_PATH_KEY)}
+				saveError={null}
 				stacked
 			>
 				{/* Conductor's row: the path at full width, then "Browse" with a folder icon. */}
@@ -348,6 +352,7 @@ function AgentBinaryRow({
 					status.bytesDownloaded,
 					status.bytesTotal,
 					status.error,
+					status.follow,
 				);
 	const installed = status.state === "ready";
 
@@ -383,10 +388,12 @@ function describeProgramStatus(
 	downloaded: number,
 	total: number | null,
 	error: string | null,
+	follow: ProgramFollow | null,
 ): string {
 	switch (state) {
 		case "ready":
-			return version === null ? "Installed." : `Version ${version}.`;
+			if (version === null) return "Installed.";
+			return follow === null ? `Version ${version}.` : describeFollowedVersion(version, follow);
 		case "downloading":
 			return total === null
 				? `Downloading… ${formatBytes(downloaded)}`
@@ -401,6 +408,35 @@ function describeProgramStatus(
 			return "Waiting to download.";
 		case "missing":
 			return "Not downloaded yet.";
+	}
+}
+
+/**
+ * Which Claude Code runs and why (D133): the version the app ships with, the newest release, or
+ * the reason a newer one is not in use.
+ */
+function describeFollowedVersion(version: string, follow: ProgramFollow): string {
+	const opening =
+		version === follow.shipped
+			? `Version ${version}, the version this app ships with.`
+			: `Version ${version}.`;
+	const check = follow.check;
+	if (check === null) {
+		return version === follow.shipped
+			? opening
+			: `Version ${version}, a newer release tested with this app.`;
+	}
+	switch (check.kind) {
+		case "checking":
+			return `${opening} Checking for a newer version.`;
+		case "newest":
+			return `Version ${version}, the newest release.`;
+		case "untested":
+			return `${opening} Version ${check.latest} is newer, but it is not tested with this app's Claude Agent SDK ${follow.sdk}, so it is skipped.`;
+		case "downloading":
+			return `${opening} Downloading version ${check.latest} for new chats.`;
+		case "failed":
+			return `${opening} The check for a newer version failed: ${check.error}`;
 	}
 }
 

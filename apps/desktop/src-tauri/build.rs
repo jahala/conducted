@@ -3,7 +3,34 @@ use std::process::Command;
 
 fn main() {
     build_speech_bridge();
+    export_claude_agent_sdk();
     tauri_build::build();
+}
+
+/// Tells the program manager which Claude Agent SDK the sidecar pins, so Claude Code follows only
+/// releases whose manifest lists it (PLAT-28, D133). The one home of that version is the
+/// sidecar's package.json; this reads it there instead of keeping a copy.
+fn export_claude_agent_sdk() {
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("Cargo sets the manifest folder");
+    let package = Path::new(&manifest).join("../../../packages/sidecar/package.json");
+    println!("cargo:rerun-if-changed={}", package.display());
+    let text = std::fs::read_to_string(&package)
+        .unwrap_or_else(|error| panic!("could not read {}: {error}", package.display()));
+    let parsed: serde_json::Value = serde_json::from_str(&text)
+        .unwrap_or_else(|error| panic!("could not parse {}: {error}", package.display()));
+    let version = parsed["dependencies"]["@anthropic-ai/claude-agent-sdk"]
+        .as_str()
+        .unwrap_or_else(|| {
+            panic!(
+                "{} pins no exact @anthropic-ai/claude-agent-sdk",
+                package.display()
+            )
+        });
+    assert!(
+        !version.is_empty() && version.chars().all(|c| c.is_ascii_digit() || c == '.'),
+        "the sidecar pins @anthropic-ai/claude-agent-sdk {version}, not an exact x.y.z version"
+    );
+    println!("cargo:rustc-env=CONDUCTED_CLAUDE_AGENT_SDK={version}");
 }
 
 /// Builds the one Swift file that talks to Apple's speech stack and links it into the binary.

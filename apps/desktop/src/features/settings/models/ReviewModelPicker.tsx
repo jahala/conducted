@@ -19,7 +19,7 @@
  * Must handle: a search for the review agent, effort or fast mode (this row is highlighted), an
  * empty review model (the default model's name and effort are shown), an empty effort (the
  * default's), a default loadout that cannot be read (the new chat's own fallbacks from
- * core/services/workspace.ts, so the two rules have one home), the models still loading (the
+ * core/services/workspace-creation.ts, so the two rules have one home), the models still loading (the
  * trigger names the stored id), an agent that is not installed (its models are left out), and a
  * save that fails (the row's error line).
  * Test first: picks the review model, its effort and fast mode in one picker, as Conductor does.
@@ -203,14 +203,7 @@ export function ReviewModelRow({ focusSettingKey }: { focusSettingKey: string | 
 				focusSettingKey !== null &&
 				(focusSettingKey === KEY || IN_REVIEW_PICKER.includes(focusSettingKey))
 			}
-			saveError={
-				saves.errorOf(KEY) ??
-				saves.errorOf(AGENT_KEY) ??
-				saves.errorOf("review_claude_effort_level") ??
-				saves.errorOf("review_codex_thinking_level") ??
-				saves.errorOf("review_effort") ??
-				saves.errorOf("review_fast_mode")
-			}
+			saveError={null}
 		>
 			<Menu>
 				<MenuTrigger asChild>

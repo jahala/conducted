@@ -65,6 +65,7 @@ export const sampleWorkspace: Workspace & { setupLogPath: string | null } = {
 	path: "/code/workspaces/oslo",
 	branch: "jahala/oslo",
 	branchIsPlaceholder: true,
+	remoteFileSyncEnabled: false,
 	host: { kind: "local" },
 	displayName: null,
 	targetBranch: "origin/main",

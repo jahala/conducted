@@ -50,6 +50,7 @@ vi.mock("./TerminalSurface.tsx", () => ({
 		ended?: boolean;
 		onOpenLink?: (url: string) => void;
 		onCopy?: (text: string) => void;
+		onSelectionChange?: (text: string) => void;
 		ref?: { current: typeof state.surface } | null;
 	}) => {
 		if (props.ref) props.ref.current = state.surface;
@@ -69,6 +70,9 @@ vi.mock("./TerminalSurface.tsx", () => ({
 				</button>
 				<button type="button" onClick={() => props.onCopy?.("picked text")}>
 					copy-selection
+				</button>
+				<button type="button" onClick={() => props.onSelectionChange?.("picked text")}>
+					select-text
 				</button>
 			</div>
 		);
@@ -199,6 +203,20 @@ describe("RUN-06 terminal view buffering", () => {
 		buffered.dispose();
 		source.emit(new Uint8Array([6]));
 		expect(received).toHaveLength(1);
+	});
+
+	it("reads the history when it subscribes, so output another view took meanwhile is replayed", () => {
+		const source = fakeConnection();
+		let replay = new Uint8Array([1]);
+		Object.defineProperty(source, "history", { get: () => replay });
+		const buffered = new BufferedTerminalConnection(source);
+		// The strip the terminal is leaving still listens, and takes one more chunk (#527).
+		replay = new Uint8Array([1, 2]);
+
+		buffered.start();
+
+		expect([...buffered.history]).toEqual([1, 2]);
+		buffered.dispose();
 	});
 
 	it("subscribes again after a dispose, so StrictMode's second effect still gets output", () => {
@@ -452,10 +470,91 @@ describe("RUN-06 terminal view", () => {
 		renderView(
 			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
 		);
+		test.memory.controls.queueDialogAnswers({ confirm: true });
 		fireEvent.click(screen.getByRole("button", { name: "open-link" }));
-		fireEvent.click(screen.getByRole("button", { name: "Open" }));
 		await waitFor(() =>
 			expect(toastSpy).toHaveBeenCalledWith("Couldn't open the link", expect.anything()),
+		);
+	});
+
+	it("adds the selection to the workspace's chat as a terminal-selection file", async () => {
+		const session = {
+			id: "s1",
+			workspaceId,
+			title: "Fix the login redirect",
+			config: {},
+			agentSessionId: null,
+			forkResumeNativeMessageId: null,
+			unreadCount: 0,
+			contextUsedTokens: null,
+			queuePausedAt: null,
+			closedAt: null,
+			lastUserMessageAt: null,
+			createdAt: 0,
+			updatedAt: 0,
+		} as unknown as import("../../core/model.ts").Session;
+		test.container.services.sessions.store.setState((current) => ({
+			...current,
+			loaded: true,
+			sessions: { ...current.sessions, s1: session },
+			byWorkspace: { ...current.byWorkspace, [workspaceId]: [session.id] },
+		}));
+		const addText = vi
+			.spyOn(test.container.services.composer, "addText")
+			.mockResolvedValue(ok("/tmp/terminal-selection.txt"));
+		state.connection = { state: "ready", data: fakeConnection() };
+		renderView(
+			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "select-text" }));
+		fireEvent.click(screen.getByRole("button", { name: "Add to chat" }));
+		await waitFor(() =>
+			expect(addText).toHaveBeenCalledWith(
+				"s1",
+				expect.stringMatching(/^terminal-selection-/),
+				"picked text",
+			),
+		);
+		expect(screen.queryByRole("button", { name: "Add to chat" })).toBeNull();
+	});
+
+	it("reports a selection that could not be attached", async () => {
+		const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "toast-id");
+		const session = {
+			id: "s1",
+			workspaceId,
+			title: null,
+			config: {},
+			agentSessionId: null,
+			forkResumeNativeMessageId: null,
+			unreadCount: 0,
+			contextUsedTokens: null,
+			queuePausedAt: null,
+			closedAt: null,
+			lastUserMessageAt: null,
+			createdAt: 0,
+			updatedAt: 0,
+		} as unknown as import("../../core/model.ts").Session;
+		test.container.services.sessions.store.setState((current) => ({
+			...current,
+			loaded: true,
+			sessions: { ...current.sessions, s1: session },
+			byWorkspace: { ...current.byWorkspace, [workspaceId]: [session.id] },
+		}));
+		vi.spyOn(test.container.services.composer, "addText").mockResolvedValue(
+			err(appError("attachment_write_failed", "The file could not be written.")),
+		);
+		state.connection = { state: "ready", data: fakeConnection() };
+		renderView(
+			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "select-text" }));
+		fireEvent.click(screen.getByRole("button", { name: "Add to chat" }));
+		await waitFor(() =>
+			expect(toastSpy).toHaveBeenCalledWith(
+				"Failed to attach terminal selection",
+				expect.anything(),
+			),
 		);
 	});
 
@@ -497,7 +596,7 @@ describe("RUN-06 terminal view", () => {
 			);
 		});
 
-		it("shows 'Invalid pattern' and does not search for a broken regular expression", () => {
+		it("shows Conductor's 'Invalid regular expression' and does not search for a broken regular expression", () => {
 			state.connection = { state: "ready", data: fakeConnection() };
 			renderView(
 				<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
@@ -505,7 +604,7 @@ describe("RUN-06 terminal view", () => {
 			const input = openFind();
 			fireEvent.click(screen.getByRole("button", { name: "Use regular expression" }));
 			fireEvent.change(input, { target: { value: "[" } });
-			expect(screen.getByText("Invalid pattern")).toBeTruthy();
+			expect(screen.getByText("Invalid regular expression")).toBeTruthy();
 			expect(screen.queryByText("No results")).toBeNull();
 			expect(state.surface.find).not.toHaveBeenCalled();
 		});
@@ -552,18 +651,38 @@ describe("RUN-06 terminal view", () => {
 		});
 	});
 
-	it("asks before opening a terminal link", async () => {
+	// Conductor asks with the dialog plugin's system dialog (renderApp, title:R4363426): title "Open
+	// link?", "Open this terminal link?" then a blank line and the link, Open and Cancel, kind warning.
+	it("asks before opening a terminal link, in the system dialog as Conductor does", async () => {
+		const confirm = vi.spyOn(test.memory.platform.dialogs, "confirm");
+		test.memory.controls.queueDialogAnswers({ confirm: true });
 		state.connection = { state: "ready", data: fakeConnection() };
 		renderView(
 			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
 		);
 		fireEvent.click(screen.getByRole("button", { name: "open-link" }));
-		expect(screen.getByText("Open link?")).toBeTruthy();
-		expect(screen.getByText(/Open this terminal link\?/)).toBeTruthy();
-		expect(screen.getByText(/https:\/\/example\.com/)).toBeTruthy();
-		fireEvent.click(screen.getByRole("button", { name: "Open" }));
-		expect(state.openUrl).toHaveBeenCalledWith("https://example.com");
-		await waitFor(() => expect(screen.queryByText("Open link?")).toBeNull());
+		await waitFor(() => expect(state.openUrl).toHaveBeenCalledWith("https://example.com"));
+		expect(confirm).toHaveBeenCalledWith({
+			title: "Open link?",
+			message: "Open this terminal link?\n\nhttps://example.com",
+			okLabel: "Open",
+			cancelLabel: "Cancel",
+			kind: "warning",
+		});
+		expect(screen.queryByText("Open link?")).toBeNull();
+	});
+
+	it("opens nothing when the system dialog is cancelled", async () => {
+		test.memory.controls.queueDialogAnswers({ confirm: false });
+		const confirm = vi.spyOn(test.memory.platform.dialogs, "confirm");
+		state.connection = { state: "ready", data: fakeConnection() };
+		renderView(
+			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "open-link" }));
+		await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+		await confirm.mock.results[0]?.value;
+		expect(state.openUrl).not.toHaveBeenCalled();
 	});
 
 	it("shows a load error when the terminal cannot be found", () => {

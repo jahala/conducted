@@ -1,9 +1,12 @@
 /**
  * @feature APP-17 The import's plan: Conductor's rows in, our rows and what stays behind out
+ * @feature APP-18 Chat history from Conductor: which chats bring their history
  * Owns: `planConductorImport`, the pure step that turns a snapshot of Conductor's database, the
  * repository folders it names and the rows Conducted already has into the rows to write, the
  * values to move into the Keychain, the settings files to write and the dry run's lists;
- * `conductorDatabasePath`, where Conductor keeps its database.
+ * `conductorDatabasePath`, where Conductor keeps its database; and the dry run's disk space check
+ * (D132): `TablePages`, what chat history takes in SQLite's pages and indexes, and `importSpace`,
+ * what must be free for it.
  * Behaviour: docs/plans/migrate-from-conductor.md ("What comes over", safety rules 5 and 7);
  * services-map.md 2.4.1 (workspace states: Conductor deletes failed and unfinished local
  * workspaces at start and treats `setting_up` as ready; `manual_status ?? derived_status`, with an
@@ -17,6 +20,11 @@
  * repository's worktrees are left out, each with its reason; an archived workspace keeps its
  * archived state; a chat or comment whose workspace stays behind stays behind too; at most four
  * favourites, as the model picker keeps; a setting or variable Conducted already has is kept.
+ * Chat history (APP-18): a chat with sent messages brings them when its agent has a mapping
+ * (`CONDUCTOR_MAPPED_AGENTS`) and the chat is in Conducted after the import with no event of its
+ * own: one the import brings now, or one an earlier import brought without history. A chat that
+ * holds any event already has its history or turns of its own, and nothing is added. Chats of
+ * other agents, and chats that stay behind, are counted apart; a count is chats and their rows.
  * Our design choice: an imported branch is never a placeholder, so Conducted never renames a branch
  * Conductor's workspace still uses (D124). An imported workspace has no setup log path, because
  * Conductor's log lives in Conductor's folder and removing the workspace would remove it.
@@ -24,24 +32,28 @@
  * the reason.
  */
 import {
+	CONDUCTOR_MAPPED_AGENTS,
 	type Host,
 	LOCAL_HOST,
 	type SessionConfig,
 	zCodexPersonality,
 	zEffort,
 } from "@conducted/protocol";
-import type {
-	AgentKind,
-	CommentId,
-	RepoId,
-	SectionId,
-	SessionId,
-	WorkspaceId,
+import {
+	type AgentKind,
+	appError,
+	type CommentId,
+	type RepoId,
+	type SectionId,
+	type SessionId,
+	type WorkspaceId,
 } from "@conducted/shared";
 import type { ConductorSecretMove, ConductorSnapshot } from "../../platform/platform.ts";
 import { localSettingsFile, sharedSettingsFile } from "../app-paths.ts";
 import type { EnvVar } from "../db/env-vars.ts";
+import { SESSION_EVENT_INDEXES, type StoredEventBytes } from "../db/session-events.ts";
 import type { WorkspaceInsert } from "../db/workspaces.ts";
+import { noSpaceMessage } from "../disk-space.ts";
 import { type FavoriteModel, MAX_FAVORITES } from "../favorite-model.ts";
 import type { WorktreeEntry } from "../git/status.ts";
 import type {
@@ -60,12 +72,13 @@ import {
 	type SettingsFileContents,
 	validateEnvVarName,
 } from "../services/settings.ts";
-import { worktreeFolderFor } from "../services/workspace.ts";
+import { worktreeFolderFor } from "../services/workspace-creation.ts";
 import { isReservedEnvVarName } from "../settings-helpers.ts";
 import { NEW_CHAT_EFFORT_FALLBACK, NEW_CHAT_MODEL_FALLBACK } from "../workspace-helpers.ts";
 import {
 	type ConductorRepo,
 	type ConductorRows,
+	type ConductorSession,
 	type ConductorWorkspace,
 	conductorTime,
 	parseConductorRows,
@@ -147,9 +160,142 @@ export interface ScriptMention {
 	newName: string;
 }
 
-/** What the dry run shows. It holds names, counts and reasons, never a secret value. */
-export interface ImportPreview {
+/** Chats and the sent message rows they hold. */
+export interface HistoryCount {
+	chats: number;
+	rows: number;
+}
+
+/** What the dry run says of chat history (APP-18). */
+export interface HistoryPreview {
+	/** Chats whose history comes over: ones the import brings and ones here without history. */
+	comes: HistoryCount;
+	/** Chats here that already hold history or turns of their own; nothing is added to them. */
+	alreadyThere: HistoryCount;
+	/** Chats of agents with no mapping yet, by Conductor's agent; they come without history. */
+	notMapped: ({ agent: string } & HistoryCount)[];
+	/** Chats that stay behind, whose history stays with them. */
+	withChatsLeftOut: HistoryCount;
+}
+
+/** A chat whose history the import brings, with the config its user messages carry. */
+export interface HistoryChat {
+	sessionId: SessionId;
+	label: string;
+	agent: AgentKind;
+	config: SessionConfig;
+}
+
+/**
+ * SQLite's page: the app sets no page size, so it is SQLite's default. The other numbers are
+ * SQLite's file format (sqlite.org/fileformat2.html, "B-tree Pages"): a table
+ * leaf's header, the most and least of a row a leaf holds before the rest goes to overflow pages,
+ * and an overflow page's room.
+ */
+const PAGE_BYTES = 4096;
+const LEAF_HEADER_BYTES = 8;
+const MAX_LOCAL_BYTES = PAGE_BYTES - 35;
+const MIN_LOCAL_BYTES = Math.floor(((PAGE_BYTES - 12) * 32) / 255) - 23;
+const OVERFLOW_PAGE_BYTES = PAGE_BYTES - 4;
+/** A cell's own bytes beside its row: the row's record header, two varints, its pointer. */
+const CELL_BYTES = 20;
+
+/**
+ * An index entry's own bytes beside the text it repeats: its record header, the row's rowid, the
+ * idx where the index keeps it, the entry's size and its pointer on the page.
+ */
+const INDEX_ENTRY_BYTES = 13;
+/**
+ * How full the index pages are. On made-up chats whose message and turn ids are random UUIDs, as
+ * Conductor's are, they were 88% to 89% full: SQLite moves entries between sibling pages before it
+ * splits one. The estimate takes 85%, so it errs above (conductor-import.space.container.test.ts).
+ */
+const INDEX_FILL = 0.85;
+
+/**
+ * The pages a run of rows takes in the events table (D132). Rows are appended in rowid order, so
+ * SQLite fills each leaf page and starts the next when a row does not fit. A row larger than a
+ * leaf holds keeps a part on the leaf and fills overflow pages with the rest, full but the last.
+ */
+export class TablePages {
+	#leaves = 0;
+	#overflow = 0;
+	#used = 0;
+	#indexBytes = 0;
+
+	/** One event, as `storedEventBytes` counts it. */
+	add({ row: rowBytes, indexKeys }: StoredEventBytes): void {
+		this.#indexBytes += (indexKeys + SESSION_EVENT_INDEXES.length * INDEX_ENTRY_BYTES) / INDEX_FILL;
+		const local = rowBytes <= MAX_LOCAL_BYTES ? rowBytes : localPart(rowBytes);
+		this.#overflow += Math.ceil((rowBytes - local) / OVERFLOW_PAGE_BYTES);
+		const cell = local + CELL_BYTES + (local < rowBytes ? 4 : 0);
+		if (this.#leaves === 0 || this.#used + cell > PAGE_BYTES - LEAF_HEADER_BYTES) {
+			this.#leaves++;
+			this.#used = 0;
+		}
+		this.#used += cell;
+	}
+
+	/** The table's pages and the indexes' share. */
+	get diskBytes(): number {
+		return (this.#leaves + this.#overflow) * PAGE_BYTES + Math.ceil(this.#indexBytes);
+	}
+}
+
+/** SQLite's rule for the part of a large row its leaf keeps, so its overflow pages are full. */
+function localPart(rowBytes: number): number {
+	const kept = MIN_LOCAL_BYTES + ((rowBytes - MIN_LOCAL_BYTES) % OVERFLOW_PAGE_BYTES);
+	return kept <= MAX_LOCAL_BYTES ? kept : MIN_LOCAL_BYTES;
+}
+
+/** What the dry run measured of the history it brings (D132). */
+export interface HistorySize {
+	/** What the database grows by: `TablePages` over every event. */
+	diskBytes: number;
+	/** The same for the chat with the most, which one transaction writes. */
+	largestChatDiskBytes: number;
+}
+
+/** The free space the import leaves on the disk, so the Mac keeps working (D132). */
+export const SPACE_MARGIN_BYTES = 2 * 1024 ** 3;
+
+/** The disk space the import's chat history takes, and whether the disk has it (D132). */
+export interface ImportSpace {
+	/** What the database grows by: the history's rows in SQLite's pages and indexes. */
+	historyBytes: number;
+	/**
+	 * What must be free to start: the history, room for SQLite's journal to hold the largest
+	 * chat's transaction, room for that chat's staging (D136), and the margin.
+	 */
+	neededBytes: number;
+	/** Free on the disk that holds Conducted's database, when it was read. */
+	freeBytes: number;
+	fits: boolean;
+}
+
+/**
+ * The space check (D132). SQLite's journal holds a whole chat's transaction before its pages are
+ * copied into the database, and keeps that size until the app closes, and the chat is staged in
+ * a temporary database before that transaction copies it (D136). The staging holds the same rows
+ * without the chat's id and indexes, so it takes less than the chat does in the database. So the
+ * largest chat counts three times while the import runs. With nothing to write, the import leaves
+ * the disk as it found it, so no margin is asked.
+ */
+export function importSpace(size: HistorySize, freeBytes: number): ImportSpace {
+	const historyBytes = size.diskBytes;
+	const neededBytes =
+		historyBytes === 0 ? 0 : historyBytes + 2 * size.largestChatDiskBytes + SPACE_MARGIN_BYTES;
+	return { historyBytes, neededBytes, freeBytes, fits: neededBytes <= freeBytes };
+}
+
+/** The refusal when the disk cannot hold the import, with both numbers (D132). */
+export const noSpaceError = (space: ImportSpace) =>
+	appError("import_no_space", noSpaceMessage(space));
+
+/** What the plan shows before the dry run has measured the space. */
+export interface PlanPreview {
 	kinds: Record<ImportKind, KindCount>;
+	history: HistoryPreview;
 	leftOut: LeftOut[];
 	parts: PartNote[];
 	notBrought: NotBrought[];
@@ -157,6 +303,11 @@ export interface ImportPreview {
 	scriptMentions: ScriptMention[];
 	/** The settings files the import writes, each a new file. */
 	files: string[];
+}
+
+/** What the dry run shows. It holds names, counts and reasons, never a secret value. */
+export interface ImportPreview extends PlanPreview {
+	space: ImportSpace;
 }
 
 /** One settings file to write, as a new file, with the scripts it holds. */
@@ -188,9 +339,11 @@ export interface ImportRows {
 
 export interface ImportPlan {
 	rows: ImportRows;
+	/** The chats whose history comes over, written after the rows, one chat at a time. */
+	history: HistoryChat[];
 	secretMoves: ConductorSecretMove[];
 	files: SettingsFileWrite[];
-	preview: ImportPreview;
+	preview: PlanPreview;
 }
 
 /** A repository folder Conductor names, as the dry run found it on disk. */
@@ -223,6 +376,8 @@ export interface ConductedState {
 		state: WorkspaceState;
 	}[];
 	sessionIds: ReadonlySet<string>;
+	/** Chats that hold any event. */
+	sessionIdsWithEvents: ReadonlySet<string>;
 	commentIds: ReadonlySet<string>;
 	sectionIds: ReadonlySet<string>;
 	sectionCount: number;
@@ -351,6 +506,12 @@ function agentOf(type: string | null): AgentKind | { reason: string } {
 		};
 	}
 	return { reason: "Conductor names an agent Conducted does not know." };
+}
+
+/** A chat's agent for its history: Conductor's four, and "other" for a name it does not know. */
+function historyAgentOf(type: string | null): string {
+	if (type === null || type === "claude") return "claude";
+	return type === "codex" || type === "cursor" || type === "acp" ? type : "other";
 }
 
 const effortOf = (raw: string | null): SessionConfig["effort"] => {
@@ -596,15 +757,34 @@ export function planConductorImport(input: PlanInput): ImportPlan {
 	kinds.workspaces.toImport = newWorkspaces.length;
 
 	// ---- chats
-	const newSessions: Session[] = [];
-	for (const session of rows.sessions) {
-		kinds.chats.found++;
+	const titleOf = (session: ConductorSession): string | null =>
+		session.title === null || session.title === "Untitled" ? null : session.title;
+	const labelOf = (session: ConductorSession): string => {
 		const workspaceLabel =
 			session.workspace_id === null
 				? "no workspace"
 				: (conductorWorkspaceLabel.get(session.workspace_id) ?? session.workspace_id);
-		const title = session.title === null || session.title === "Untitled" ? null : session.title;
-		const label = title ?? `A chat in ${workspaceLabel}`;
+		return titleOf(session) ?? `A chat in ${workspaceLabel}`;
+	};
+	const configOf = (session: ConductorSession, agent: AgentKind): SessionConfig => {
+		const personality = zCodexPersonality.safeParse(session.agent_personality);
+		return {
+			...input.chatDefaults,
+			agent,
+			model: session.model ?? NEW_CHAT_MODEL_FALLBACK,
+			effort: effortOf(
+				agent === "codex" ? session.codex_thinking_level : session.claude_effort_level,
+			),
+			fastMode: session.fast_mode,
+			planMode: session.permission_mode === "plan",
+			...(agent === "codex" && personality.success ? { codexPersonality: personality.data } : {}),
+		};
+	};
+	const newSessions: Session[] = [];
+	for (const session of rows.sessions) {
+		kinds.chats.found++;
+		const title = titleOf(session);
+		const label = labelOf(session);
 		if (!SAFE_ID.test(session.id)) {
 			leave("chats", label, "Its id cannot be used as a Conducted id.");
 			continue;
@@ -628,18 +808,7 @@ export function planConductorImport(input: PlanInput): ImportPlan {
 			leave("chats", label, agent.reason);
 			continue;
 		}
-		const personality = zCodexPersonality.safeParse(session.agent_personality);
-		const config: SessionConfig = {
-			...input.chatDefaults,
-			agent,
-			model: session.model ?? NEW_CHAT_MODEL_FALLBACK,
-			effort: effortOf(
-				agent === "codex" ? session.codex_thinking_level : session.claude_effort_level,
-			),
-			fastMode: session.fast_mode,
-			planMode: session.permission_mode === "plan",
-			...(agent === "codex" && personality.success ? { codexPersonality: personality.data } : {}),
-		};
+		const config = configOf(session, agent);
 		const createdAt = timeOr(session.created_at, now);
 		const updatedAt = timeOr(session.updated_at, createdAt);
 		newSessions.push({
@@ -662,6 +831,49 @@ export function planConductorImport(input: PlanInput): ImportPlan {
 		});
 	}
 	kinds.chats.toImport = newSessions.length;
+
+	// ---- chat history (APP-18)
+	const mapped: ReadonlySet<string> = new Set(CONDUCTOR_MAPPED_AGENTS);
+	const bringing = new Set<string>(newSessions.map((session) => session.id));
+	const history: HistoryChat[] = [];
+	const historyPreview: HistoryPreview = {
+		comes: { chats: 0, rows: 0 },
+		alreadyThere: { chats: 0, rows: 0 },
+		notMapped: [],
+		withChatsLeftOut: { chats: 0, rows: 0 },
+	};
+	const add = (count: HistoryCount, rows: number): void => {
+		count.chats++;
+		count.rows += rows;
+	};
+	for (const session of rows.sessions) {
+		const messageRows = input.snapshot.messageRows?.[session.id] ?? 0;
+		if (messageRows === 0) continue;
+		const agent = historyAgentOf(session.agent_type);
+		if (!mapped.has(agent)) {
+			const known = historyPreview.notMapped.find((entry) => entry.agent === agent);
+			const entry = known ?? { agent, chats: 0, rows: 0 };
+			if (known === undefined) historyPreview.notMapped.push(entry);
+			add(entry, messageRows);
+			continue;
+		}
+		const here = bringing.has(session.id) || conducted.sessionIds.has(session.id);
+		if (!here) {
+			add(historyPreview.withChatsLeftOut, messageRows);
+			continue;
+		}
+		if (conducted.sessionIdsWithEvents.has(session.id)) {
+			add(historyPreview.alreadyThere, messageRows);
+			continue;
+		}
+		add(historyPreview.comes, messageRows);
+		history.push({
+			sessionId: session.id as SessionId,
+			label: labelOf(session),
+			agent: agent as AgentKind,
+			config: configOf(session, agent as AgentKind),
+		});
+	}
 	// A workspace Conductor marks unread shows unread here through its newest chat, as
 	// `markWorkspaceUnread` does.
 	for (const workspaceId of unreadWorkspaces) {
@@ -1045,10 +1257,10 @@ export function planConductorImport(input: PlanInput): ImportPlan {
 	};
 	notBrought.push(
 		{
-			what: "chat history",
-			count: sum("session_events", "session_messages"),
+			what: "Conductor's event log",
+			count: sum("session_events"),
 			reason:
-				"Chats come over without their messages; each one resumes from the agent's own transcript. The history comes over once a check on real data shows it maps whole (D100).",
+				"Conductor's chat is built from its stored messages, which come over, so the import does not read this log.",
 		},
 		{
 			what: "terminal tabs",
@@ -1063,7 +1275,7 @@ export function planConductorImport(input: PlanInput): ImportPlan {
 		{
 			what: "attachments",
 			count: sum("attachments"),
-			reason: "They belong to chat history, which stays behind.",
+			reason: "Imported chats show their messages without the files attached to them.",
 		},
 		{
 			what: "messages waiting to send",
@@ -1084,6 +1296,7 @@ export function planConductorImport(input: PlanInput): ImportPlan {
 	);
 
 	return {
+		history,
 		rows: {
 			repos: newRepos,
 			workspaces: newWorkspaces,
@@ -1099,6 +1312,7 @@ export function planConductorImport(input: PlanInput): ImportPlan {
 		files,
 		preview: {
 			kinds,
+			history: historyPreview,
 			leftOut,
 			parts,
 			notBrought,

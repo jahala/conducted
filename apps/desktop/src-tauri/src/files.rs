@@ -24,6 +24,8 @@
 //!   listing.
 //! - `fs_read_text`, `fs_read_dir` and `fs_trash` answer a missing path with `fs_not_found`, the
 //!   same code the in-memory Platform returns, so the UI has one "nothing there yet" branch.
+//! - `fs_write_text_atomic` and `fs_write_bytes_atomic` answer a missing folder with `fs_not_found`
+//!   and never make it; a caller that needs the folder calls `fs_mkdirp` first (issue #600).
 //! - `fs_trash` moves to the macOS Trash and never deletes for good. A missing path is an error.
 //! - Paths must be absolute. Relative paths fail with `fs_relative_path`.
 //! - `fs_read_text` refuses a file larger than `MAX_READ_BYTES`, so a huge file cannot exhaust the
@@ -503,11 +505,23 @@ where
         .ok()
         .map(|metadata| metadata.permissions());
     let temp = temp_path_for(&target)?;
+    // A missing folder is `fs_not_found`, as a missing file is for a read. The write never makes
+    // the folder: a caller that needs it calls `fs_mkdirp` first.
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp)
+        .map_err(|error| match error.kind() {
+            io::ErrorKind::NotFound => {
+                let folder = target.parent().unwrap_or_else(|| Path::new("/"));
+                CommandError::Failed {
+                    code: "fs_not_found",
+                    message: format!("{} does not exist.", folder.display()),
+                }
+            }
+            _ => CommandError::from(error),
+        })?;
     let result = (|| -> io::Result<()> {
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp)?;
         file.write_all(bytes)?;
         file.sync_all()?;
         drop(file);
@@ -1037,6 +1051,31 @@ mod tests {
             tauri::async_runtime::block_on(read_text_checked(path, roots)).expect("read"),
             "hello"
         );
+    }
+
+    #[test]
+    fn plat_05_write_into_a_missing_folder_is_fs_not_found_and_makes_nothing() {
+        let folder = TempDir::new();
+        let missing = folder.path().join("not-made-yet").join("inner");
+        let roots = vec![folder.path().to_path_buf()];
+
+        let text = tauri::async_runtime::block_on(write_text_atomic_checked(
+            as_string(&missing.join("settings.toml")),
+            "a = 1\n".to_string(),
+            roots.clone(),
+        ))
+        .expect_err("a text write into a missing folder fails");
+        assert_eq!(text.code(), "fs_not_found");
+        assert!(text.to_string().contains("not-made-yet"), "{text}");
+
+        let bytes = tauri::async_runtime::block_on(write_bytes_atomic_checked(
+            as_string(&missing.join("data.bin")),
+            "AQID".to_string(),
+            roots,
+        ))
+        .expect_err("a byte write into a missing folder fails");
+        assert_eq!(bytes.code(), "fs_not_found");
+        assert!(!folder.path().join("not-made-yet").exists());
     }
 
     #[test]

@@ -134,6 +134,18 @@ describe("CHAT-11 MCP form card", () => {
 		);
 	});
 
+	// Conductor's select shows "Select an option" only as its placeholder (renderApp @8202282,
+	// byte offset); its list holds the schema's options alone.
+	it("shows Select an option as the placeholder, never as an item to pick", async () => {
+		renderCard(mixedForm);
+
+		const select = screen.getByRole("combobox", { name: "Mode" });
+		expect(select.textContent).toContain("Select an option");
+		fireEvent.click(select);
+		const options = await screen.findAllByRole("option");
+		expect(options.map((option) => option.textContent)).toEqual(["fast", "slow"]);
+	});
+
 	it("shows a message under an invalid number and blocks Accept", () => {
 		renderCard(mixedForm);
 

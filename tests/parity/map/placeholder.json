@@ -4,23 +4,24 @@
 		"state": "create-project",
 		"via": "placeholder",
 		"role": "textbox",
-		"selector": "div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(2) > div > input",
+		"selector": "div:nth-of-type(5) > div > div:nth-of-type(1) > div:nth-of-type(2) > div > input",
 		"by": "seed"
 	},
 	"placeholder:R1898620": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "APP-04",
-		"item": "Conductor shows \"Search repositories...\" (placeholder, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "clone-github-dialog",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > label",
+		"by": "seed-unsure"
 	},
 	"placeholder:R1959277": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "PRJ-03",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "create-github-repo-no-owner",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div > div:nth-of-type(1) > button > span",
+		"by": "seed"
 	},
 	"placeholder:R2255965": {
 		"status": "matched",
@@ -40,19 +41,19 @@
 	},
 	"placeholder:R2623020": {
 		"status": "matched",
-		"state": "git-files",
+		"state": "git-file-row-menu",
 		"via": "aria-label",
 		"role": "textbox",
 		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(1) > input",
 		"by": "seed"
 	},
 	"placeholder:R2754036": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-01",
-		"item": "Diff scope: 'Target branch' with 'Select target branch...'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-target-branch",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R3015224": {
 		"status": "decided",
@@ -61,18 +62,19 @@
 		"by": "hand"
 	},
 	"placeholder:R4379343": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Terminal, run and files",
-		"backlog": "RUN-06",
-		"owner": "hand"
+		"status": "matched",
+		"state": "terminal-find",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div > search > input",
+		"by": "seed"
 	},
 	"placeholder:R4632855": {
 		"status": "matched",
 		"state": "settings-repo-add-action",
 		"via": "aria-label",
 		"role": "textbox",
-		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(4) > div:nth-of-type(2) > input",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(4) > div:nth-of-type(2) > input",
 		"by": "seed"
 	},
 	"placeholder:R4978748": {
@@ -80,7 +82,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div > div:nth-of-type(38) > article > div:nth-of-type(1) > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div > div:nth-of-type(39) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"placeholder:R4987113": {
@@ -88,41 +90,40 @@
 		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "label",
-		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > label",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > label",
 		"by": "seed"
 	},
 	"placeholder:R5444083": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-ports-popover",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "div:nth-of-type(2) > div > div > section:nth-of-type(3) > input",
+		"by": "seed"
 	},
 	"placeholder:R5533685": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Workspaces",
-		"backlog": "PR-10",
-		"item": "'Link pull request' dialog with 'PR URL or number' (internal menu in Conductor)",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "link-pull-request",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div > label",
+		"by": "seed"
 	},
 	"placeholder:R5645838": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "REV-07",
-		"owner": "hand",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "quick-open",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R5652247": {
 		"status": "matched",
-		"state": "settings-key-bindings",
-		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(3) > div > div:nth-of-type(12) > article > div:nth-of-type(1) > p",
-		"by": "seed-unsure"
+		"state": "search-in-files",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R5664306": {
 		"status": "matched",
@@ -133,11 +134,12 @@
 		"by": "seed"
 	},
 	"placeholder:R5685793": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-07",
-		"owner": "hand"
+		"status": "matched",
+		"state": "command-palette-workspaces",
+		"via": "aria-label",
+		"role": "combobox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R5692826": {
 		"status": "gap",
@@ -156,13 +158,13 @@
 		"by": "seed"
 	},
 	"placeholder:R8170318": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"class": "wording",
-		"backlog": "AGENT-08",
-		"owner": "hand",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it."
+		"status": "matched",
+		"state": "chat-mcp-form",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(1) > div > button > span",
+		"by": "hand",
+		"note": "Conductor's form select shows it as its placeholder (renderApp @8170318); ours shows it on the trigger while no choice is made."
 	},
 	"placeholder:R9000620": {
 		"status": "decided",
@@ -171,29 +173,28 @@
 		"by": "hand"
 	},
 	"placeholder:R9234039": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "COMP-02",
-		"item": "Model picker 'Model' submenu with 'Search models' and 'No models found'",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "composer-model-picker",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > label > input",
+		"by": "seed"
 	},
 	"placeholder:R9369318": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "COMP-10",
-		"item": "Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-goal-editing",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div > textarea",
+		"by": "seed"
 	},
 	"placeholder:R9420608": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-17",
-		"item": "Chat search 'Find in messages and thinking'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-find",
+		"via": "aria-label",
+		"role": "search",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > search",
+		"by": "seed"
 	},
 	"placeholder:R9730040": {
 		"status": "gap",
@@ -204,18 +205,19 @@
 		"owner": "rule:quote"
 	},
 	"placeholder:R9856436": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-08",
-		"owner": "hand"
+		"status": "matched",
+		"state": "file-edit-find",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > search > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"placeholder:R9856783": {
 		"status": "matched",
 		"state": "first-run",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > nav > button > span:nth-of-type(2)",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > nav > button:nth-of-type(2) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"placeholder:R10182992": {
@@ -223,7 +225,7 @@
 		"state": "first-run",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > nav > button > span:nth-of-type(2)",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > nav > button:nth-of-type(2) > span:nth-of-type(2)",
 		"by": "seed-unsure"
 	},
 	"placeholder:R10189388": {
@@ -243,11 +245,12 @@
 		"owner": "rule:quote"
 	},
 	"placeholder:R10669494": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "SET-06",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-appearance-custom-font",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(9) > input",
+		"by": "seed"
 	},
 	"placeholder:R10672939": {
 		"status": "matched",
@@ -258,21 +261,20 @@
 		"by": "seed"
 	},
 	"placeholder:R10680280": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-06",
-		"item": "Experimental: 'Big terminal mode' with preset and custom commands",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-big-terminal",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section > fieldset > div:nth-of-type(2) > input",
+		"by": "seed"
 	},
 	"placeholder:R10696051": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-04",
-		"item": "Variable value editor's placeholder reads 'Use an empty value to set this variable to an empty string.'",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "settings-environment-edit-variable",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div > div:nth-of-type(2) > div:nth-of-type(2) > textarea",
+		"by": "seed"
 	},
 	"placeholder:R10770889": {
 		"status": "decided",
@@ -299,12 +301,12 @@
 		"by": "hand"
 	},
 	"placeholder:R10944937": {
-		"status": "matched",
-		"state": "settings-agents",
-		"via": "aria-label",
-		"role": "textbox",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(2) > input",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Settings: Agents",
+		"backlog": "SET-10",
+		"item": "Providers dialog: 'Search providers' filters OpenCode's key providers by name or variable",
+		"owner": "hand"
 	},
 	"placeholder:R10958311": {
 		"status": "gap",
@@ -315,19 +317,19 @@
 		"owner": "rule:quote"
 	},
 	"placeholder:R10975212": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-12",
-		"item": "SSH door: make sure a key exists for cloud workspaces.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-advanced",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(5) > div > fieldset > div > div > input",
+		"by": "seed"
 	},
 	"placeholder:R11021601": {
 		"status": "matched",
 		"state": "settings-repo-add-action",
 		"via": "placeholder",
 		"role": "textbox",
-		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > input",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > input",
 		"by": "seed"
 	},
 	"placeholder:R11117637": {
@@ -344,15 +346,14 @@
 		"screen": "inventory-controls Settings: General",
 		"backlog": "GIT-08",
 		"item": "Git settings: the remote picker's placeholder reads 'Select remote...'",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"placeholder:R11133626": {
 		"status": "matched",
 		"state": "sidebar-section-edit",
 		"via": "text",
 		"role": "label",
-		"selector": "div:nth-of-type(3) > label",
+		"selector": "div:nth-of-type(3) > div > label",
 		"by": "seed"
 	},
 	"placeholder:R11133908": {
@@ -384,27 +385,28 @@
 		"by": "hand"
 	},
 	"placeholder:R11267721": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "RUN-02",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "settings-repo-general-prompt",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div:nth-of-type(6) > div > textarea",
+		"by": "seed"
 	},
 	"placeholder:R11281056": {
 		"status": "matched",
 		"state": "settings-repo-icon-picker",
 		"via": "aria-label",
 		"role": "textbox",
-		"selector": "div:nth-of-type(3) > div:nth-of-type(2) > input",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > input",
 		"by": "seed"
 	},
 	"placeholder:R11319420": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "NAV-08",
-		"item": "Palette workspace action 'Move to section' with sub-page 'Search sections...' and 'Remove from section'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "command-palette-move-to-section",
+		"via": "aria-label",
+		"role": "combobox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R11338494": {
 		"status": "decided",
@@ -419,19 +421,19 @@
 		"by": "hand"
 	},
 	"placeholder:R11389948": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "NAV-09",
-		"item": "'Keyboard shortcuts' dialog with 'Search shortcuts...'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "keyboard-shortcuts",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R11503912": {
 		"status": "matched",
 		"state": "new-workspace",
 		"via": "placeholder",
 		"role": "textbox",
-		"selector": "div:nth-of-type(3) > form > div > textarea",
+		"selector": "div:nth-of-type(3) > div > form > div > textarea",
 		"by": "seed"
 	},
 	"placeholder:R11515575": {
@@ -443,19 +445,19 @@
 		"by": "seed"
 	},
 	"placeholder:R11570753": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-03",
-		"item": "Conductor shows \"Paste here\" (placeholder, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-claude-login",
+		"via": "placeholder",
+		"role": "textbox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(2) > input",
+		"by": "seed"
 	},
 	"placeholder:R11656136": {
 		"status": "matched",
 		"state": "feedback-dialog",
 		"via": "placeholder",
 		"role": "textbox",
-		"selector": "div:nth-of-type(3) > form > div:nth-of-type(2) > input",
+		"selector": "div:nth-of-type(3) > div > form > div:nth-of-type(2) > input",
 		"by": "seed"
 	},
 	"placeholder:R11661267": {
@@ -481,7 +483,7 @@
 		"state": "settings-general",
 		"via": "aria-label",
 		"role": "textbox",
-		"selector": "[data-testid=\"settings-screen\"] > aside > div:nth-of-type(2) > div > div > input",
+		"selector": "[data-testid=\"settings-screen\"] > aside > div:nth-of-type(2) > div > input",
 		"by": "seed"
 	},
 	"placeholder:R11944793": {

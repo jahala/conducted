@@ -46,12 +46,14 @@ The header says what the file does now, not what the feature will do one day. Wh
 
 ## Tests
 
-| Kind                         | Tool                                  | Lives in                         | Runs                        |
-| ---------------------------- | ------------------------------------- | -------------------------------- | --------------------------- |
-| Unit, packages               | `bun test`                            | next to the code, `*.test.ts`    | `pnpm test`                 |
-| Unit and components, desktop | Vitest with jsdom and Testing Library | next to the code, `*.test.ts(x)` | `pnpm test`                 |
-| Rust                         | `cargo test`                          | inline `#[cfg(test)]` modules    | in `apps/desktop/src-tauri` |
-| Guards                       | `bun test`                            | `scripts/guards`                 | `pnpm guards`               |
+| Kind                         | Tool                                  | Lives in                            | Runs                              |
+| ---------------------------- | ------------------------------------- | ----------------------------------- | --------------------------------- |
+| Unit, packages               | `bun test`                            | next to the code, `*.test.ts`       | `pnpm test`                       |
+| Unit and components, desktop | Vitest with jsdom and Testing Library | next to the code, `*.test.ts(x)`    | `pnpm test`                       |
+| Desktop, needs macOS         | Vitest, project `macos`               | next to the code, `*.macos.test.ts` | `pnpm test:macos`, CI's macOS job |
+| Rust                         | `cargo test`                          | inline `#[cfg(test)]` modules       | in `apps/desktop/src-tauri`       |
+| End-to-end, the real app     | WebdriverIO, the app's own WebDriver  | `scripts/e2e`                       | `pnpm test:e2e`                   |
+| Guards                       | `bun test`                            | `scripts/guards`                    | `pnpm guards`                     |
 
 Rules every test follows:
 
@@ -62,7 +64,7 @@ Rules every test follows:
 - **The sidecar's stand-ins have one home: `packages/sidecar/src/test-support/`.** `FakeApp` checks every message against the protocol schemas the real `RpcPeer` uses, `FakePublisher` checks every event, and each stand-in has a contract test next to it that runs the real class on the same inputs. A test file that declares its own copy fails `test-support/one-home.test.ts`.
 - **jsdom has no layout.** `apps/desktop/src/test/setup.ts` adds the layout methods editors call (`getClientRects` and the like). Do not stub them per test.
 - **Stand-ins are checked against the real thing.** The in-memory Platform and `createTauriPlatform` over Node-backed bindings (`src/test/tauri-node-bindings.ts`) pass the same contract cases (PLAT-01). Each run lists the cases it cannot run, with a reason, and every Platform method is named by a case or listed as uncovered. `openTestDatabase` runs the app's own statement queue (`platform/queued-database.ts`), so a statement that waits on its own transaction hangs in a test as it does in the app.
-- **Wait for the event, never a fixed time.** A timeout catches a hang; it is not a way to wait.
+- **Wait for the event, never a fixed time.** A timeout catches a hang; it is not a way to wait. So the limits are hang-sized: 60 s per test and hook in Vitest (`apps/desktop/vite.config.ts`) and bun (`--timeout 60000` in each bun package's test script and in `scripts/run-tests.ts`), the same in the cloud Worker's Vitest (`apps/cloud/vitest.config.ts`), and 30 s for Testing Library's `findBy*` and `waitFor` (`apps/desktop/src/test/hang-timeouts.ts`). Bun ignores a timeout in `bunfig.toml`.
 - **Time and ids are inputs.** Pass a `Clock` and an `IdSource`.
 - **No shared fixed resources.** No fixed ports, names or paths. Temporary folders come from the run's own folder (see below).
 - **Release what you hold:** timers, processes, sockets, file handles.
@@ -70,11 +72,22 @@ Rules every test follows:
 - **A guard proves it can fail.** A check that reads source text includes a sample it must flag.
 - **Five guards watch the shape of tests** (`scripts/guards/test-shapes.ts`): tests that cannot fail, tests that mock the thing they test, stand-ins defined outside `src/test/`, real time or leaked state, and tests that cannot pass. A test cannot pass when a Testing Library query looks for text with whitespace at an end or doubled (the library trims and collapses the page's text first), or when a `vi.mock` factory leaves out a name that a module the test reaches imports (Vitest throws when that code runs; start the factory from `importOriginal()` or use `createTestContainer`). Each compares per-file counts with `scripts/guards/test-shapes-baseline.json`. A count may not rise, and the baseline must fall with every fix: run `bun scripts/guards/test-shapes.ts --write-baseline` after a fix, and `--list` to see every site. A mock that is a real seam carries `// seam: <ID> <reason>` on the line above.
 
+### Which tests run
+
+`pnpm test` runs every test. `pnpm test:changed` runs the tests the changes since origin/main can reach; every pull request runs it in CI, and main runs every test after each merge. Both go through `scripts/run-tests.ts`; `--dry-run` prints the choice without running it.
+
+- **Each runner's own graph decides.** Vitest's module graph picks the desktop's and the cloud's tests (`scripts/vitest-affected.ts` asks it through Vitest's Node API). Bun's resolver walks the imports of the bun-tested folders. `bun test --changed` is not used: it does not follow a workspace package imported by name, so a change to `packages/shared` selected none of the sidecar's tests.
+- **Files read by name count.** Code that names a changed file reads it (comments are stripped first): a data file by its base name, a module by its folder and base name. A test that lists or builds a whole folder is named in a folder rule.
+- **One file holds the rules:** `scripts/test-rules.ts`. A change on its run-everything list (manifests, the lockfile, test and CI configuration, the test run itself, migrations, generated code) runs everything. Its always list keeps the money, data-loss and security tests running on every pull request.
+- **Never an empty pass.** When code changed and no test reaches it, every test runs.
+- **The main line is the net.** When its full run fails on a test a pull request skipped, fix the defect and the rule that let it through. Nothing else checks the folder rules.
+- **Desktop tests come in two kinds:** the Vitest project `unit`, the default everywhere, and `macos` (`*.macos.test.ts`), for tests that need a program only macOS ships, such as `/bin/zsh`. The macOS kind runs in CI's macOS job.
+
 ## CI
 
 Every workflow runs on GitHub-hosted runners. A push costs this Mac nothing, and no job runs on the owner's Mac. Every job has `timeout-minutes`, so a hung runner stops at a known time rather than GitHub's six-hour default (`pnpm guards` checks this). A newer push cancels the older run of the same pull request; a push to main never cancels the run of the commit before it.
 
-- `ci.yml` runs the fast checks on every ready pull request and on each push to main.
+- `ci.yml` runs the fast checks on every ready pull request and on each push to main. A pull request runs only the tests its changes can reach ([Which tests run](#which-tests-run)); a push to main runs every test. Its macOS job runs the Rust checks and `pnpm test:macos`.
 - `codeql.yml` scans the TypeScript and the Rust with CodeQL on ready pull requests to main, on pushes to main, and weekly. Rust is scanned in build mode `none`, so the scan needs no build and no macOS runner. Results appear under Security > Code scanning; the workflow asks only for `security-events: write`.
 - `coverage.yml`, `parity.yml`, `catalogue-shots.yml` and `dependency-review.yml` run the measurements, the parity harness, the screenshots and the dependency review described in [States catalogue](#states-catalogue).
 
@@ -86,7 +99,7 @@ The catalogue draws the real app in a browser, one screen state at a time, with 
 
 - `pnpm --dir apps/desktop catalogue` serves it on a free port and prints `Catalogue: <url>`. That page lists every state, with a link for light and for dark.
 - `bun scripts/catalogue/shots.ts [state-id ...]` starts the server, captures each state in light and dark at 1440 x 900 into `.context/shots/ours/<state-id>-<theme>.png`, writes `index.json` beside them, and stops the server. It uses the Chromium already in Playwright's cache and downloads nothing. It exits 1 when a state fails or never settles.
-- On a ready pull request that touches the desktop's screens, `.github/workflows/catalogue-shots.yml` runs the same script on GitHub and uploads the PNGs as the `catalogue-shots` artefact, kept 14 days. Screens can be read that way when no browser may run on the owner's Mac. The same job runs `bun scripts/visualization/frame-policy.browser.ts`, which checks in Chromium that a Codex visualization's inline scripts run under the app's production policy and that its frame cannot reach the app or the network (issue #466).
+- On a ready pull request that touches the desktop's screens, `.github/workflows/catalogue-shots.yml` runs the same script on GitHub in three parts side by side (`--shard=k/3`) and uploads the PNGs as the `catalogue-shots-1` to `catalogue-shots-3` artefacts, kept 14 days. Screens can be read that way when no browser may run on the owner's Mac. Its `browser-checks` job runs the `*.browser.ts` checks the workflow lists, each in Chromium: a Codex visualization's inline scripts run under the app's production policy and its frame cannot reach the app or the network (`scripts/visualization/frame-policy.browser.ts`, issue #466); the pointer drags (issues #481 and #529); the Settings sidebar (issue #488); Cmd+Shift+Enter approves a waiting plan from the composer (`scripts/catalogue/plan-approve.browser.ts`, issue #586); and the Agents page's tabs fit their row at the default window, also with scrollbars that take space (`scripts/catalogue/agents-tabs.browser.ts`, issue #625).
 - The parity harness reads every state the same way and compares it with Conductor's inventories: `.github/workflows/parity.yml` runs it on GitHub and uploads the gap report as the `parity-report` artefact. What it checks, and the instrument check that must pass first, are in `docs/plans/parity-harness.md`.
 - A state is registered once, in `apps/desktop/src/catalogue/states/`. Its seed writes rows through the repositories and scripts the shell (`git-repo.ts`, `github.ts`) and the sidecar (`world.ts`, `live.ts`); its after-step drives the app through its own actions and real DOM events. Most states share one cast of two projects (`cast.ts`).
 - The release build never contains it: `pnpm build` runs `scripts/catalogue/check-bundle.ts` on `dist`, and `scripts/catalogue/check-bundle.build.test.ts` builds the real bundle and checks it.
@@ -100,15 +113,28 @@ The owner's ruling: Conductor's own frontend runs on this Mac only, from the git
 - `server.ts` serves the bundle on 127.0.0.1 with `standin.ts` injected before its first module. The stand-in is `window.__TAURI_INTERNALS__`; `backend.ts` answers through the SQL plugin over sql.js, the event plugin, the sidecar tunnel and the mapping's handlers. A call nobody answers is logged and answered with an error, never a made-up value. Handlers get two general tools through their context: `shell-reader.ts` reads the shell strings a frontend hands its native side (quotes, variables, `&&`, `||`, `if`, groups, redirections and the common built-ins) and runs each program against the sample world, with no answer for anything it cannot read exactly; `github-answers.ts` cuts a scripted GitHub GraphQL answer to the fields a query selects and applies `gh --jq` paths. A byte body (the fs plugin's writes) reaches a handler as `{ payload, headers }`.
 - `check.ts` needs no browser: it seeds every state (through `apps/desktop/src/catalogue/seeded.ts`), builds the mapped databases, prepares the frontend's own SQL on them and counts the calls the stand-in answers.
 - `run.ts [state-id ...]` is the browser run: one picture per state at 1440 by 900 in dark mode, taken once the page has been quiet for about a second, into `.context/shots/conductor-run/`, with `index.json` and `unanswered.json`. Every request to another origin is refused and listed. It is a browser run, so on the owner's Mac it waits for 08:00.
-- `live.ts [state-id ...] [--fronts conductor,ours]` is stage 2, a browser run (D099). Per state and front it seeds the state, moves its sample Mac under a fresh sealed scratch folder (`sidecar-diff/seal.ts`), builds its repositories with real git (`world-disk.ts`), and starts our app's debug build with the config override in `live-config.ts`: its hidden window opens the bridge page (`bridge.ts`) of the live server (`live-server.ts`) on `http://localhost:1420`, which must be free. The seeded rows go into the app's own database through its SQL plugin. Conductor's frontend, or our own built UI, then runs in Chromium; `translator.ts` sends each call to our real commands, plugins, events and sidecar through the bridge, by the name-by-name mapping in `.context/day/conductor-ref/live-mapping.ts` (or unchanged, for our UI). It writes `.context/shots/conductor-live/` (`<state>-dark.png`, `ours/<state>-dark.png`, `index.json`, `live.json` with every call and its outcome) and stops the app and its sidecar by their process ids.
+- `live.ts [state-id ...] [--fronts conductor,ours]` is stage 2, a browser run (D099). Per state and front it seeds the state, moves its sample Mac under a fresh sealed scratch folder (`sidecar-diff/seal.ts`), builds its repositories with real git (`world-disk.ts`), and starts our app's debug build with the config override in `live-config.ts`: its hidden window opens the bridge page (`bridge.ts`) of the live server (`live-server.ts`) on `http://localhost:1420`, which must be free. The seeded rows go into the app's own database through its database commands (`db_open`, `db_select`, `db_execute`). Conductor's frontend, or our own built UI, then runs in Chromium; `translator.ts` sends each call to our real commands, plugins, events and sidecar through the bridge, by the name-by-name mapping in `.context/day/conductor-ref/live-mapping.ts` (or unchanged, for our UI). It writes `.context/shots/conductor-live/` (`<state>-dark.png`, `ours/<state>-dark.png`, `index.json`, `live.json` with every call and its outcome) and stops the app and its sidecar by their process ids.
 - `sidecar-diff/diff.ts [scenario-id ...]` runs Conductor's sidecar (from the installed app, in place) and ours side by side on the same scenario calls and the same fake `claude` and `codex` programs, one at a time, each under `sandbox-exec` with a throwaway home, no network beyond loopback and no writes under the owner's home. Raw output and the in-order comparison go to `.context/day/conductor-ref/sidecar-diff/`; the findings of the first run are in `docs/reports/sidecar-diff-2026-11-07.md`.
 - `pnpm guards` fails when the repository holds a file named like a bundle chunk, a copy of a bundle code file, or any of the stretches of Conductor's code listed by hash in `scripts/guards/conductor-fingerprints.json` (`scripts/guards/conductor-code.ts`). `fingerprints.ts` rewrites that list from the bundle.
 
 ## A run leaves nothing behind
 
-`pnpm test` runs through `scripts/with-run-dir.ts`. It gives the run its own folder (`$TMPDIR/conducted-runs/<run id>`, recorded with the run's process id), points `TMPDIR` at it, and removes it when the run ends. When the run ends it fails if anything is left. The next run removes folders whose recorded process is gone.
+`pnpm test`, `pnpm test:changed` and `pnpm test:macos` run through `scripts/with-run-dir.ts`. It gives the run its own folder (`$TMPDIR/conducted-runs/<run id>`, recorded with the run's process id), points `TMPDIR` at it, and removes it when the run ends. When the run ends it fails if anything is left. The next run removes folders whose recorded process is gone.
 
 Tests that create git repos, sidecar sockets or temporary files create them under `TMPDIR`, and stop every process they start by the process id they recorded.
+
+## End-to-end tests in the real app
+
+`pnpm test:e2e [round-trip|drag|overflow]` drives the app people use: the Tauri shell with WKWebView, the real sidecar and a real database (issue #564, D135). The other tiers run in jsdom, in Chromium or through the service container, and missed bugs that only the real window shows.
+
+- **The test build** is a debug `.app` bundle with the release config's bundled sidecar (`tauri build --debug --bundles app --features e2e`). The `e2e` Cargo feature compiles in `tauri-plugin-wdio-webdriver`, the WebDriver server inside the app that is how WebdriverIO reaches WKWebView on macOS, and makes the build serve the built UI with no dev server. Nothing else turns the feature on. A release fails when its app binary carries the server (`verifyBundle` in `apps/desktop/src-tauri/release/bundle.ts`), and every e2e run first proves that scan finds the server in the test build.
+- **Where it runs.** `.github/workflows/e2e.yml` runs it on GitHub's hosted macOS runners, on pull requests that touch what the app is built from, nightly on main, and by hand. The repository is public, so it never runs on a runner on the owner's Mac: such a runner would execute any outside pull request's code there.
+- **One fresh folder per check**, under `/tmp/conducted-e2e/`, holds a clone of the bundle and the app's home and temp folder: its data, config, WebKit storage and settings files. The app starts with an environment built from nothing. `HOME` and `CFFIXED_USER_HOME` both point into the folder; without the second, WebKit keeps the page's storage in the owner's `~/Library/WebKit`, shared with every copy of the app. Each launch checks that the Keychain search list holds none of the owner's keychains, and the first launch checks that the page's storage starts empty. The app runs under the sidecar differential run's sandbox profile: no network beyond loopback and no writes in the owner's home, so it downloads no agent programs.
+- **Seeded data.** After a first launch applies the migrations, the app quits and `scripts/e2e/world.ts` writes two projects (one with a very long name), three workspaces on this Mac and one cloud workspace through the app's own repositories, with real git repositories on disk.
+- **A restart** is the app's own quit (`app://quit-requested`, what the Quit menu item sends), then a new start over the same folder.
+- **The checks.** `round-trip` changes every registry setting on every settings page, the user's and a project's, and the cloud workspace's Sync files switch, restarts, and reads each back in the window. Settings are listed from the registry, so a new one is covered without editing the check; one it cannot reach fails it, unless `NOT_COVERED` in `scripts/e2e/settings-round-trip.ts` names the reason. `drag` drags a workspace onto Pinned in the sidebar and checks it lands there. `overflow` measures every settings page for anything that scrolls sideways or reaches past the window, at rest, with a long project name and with search results open, after proving the measurement on a known wide box.
+- **Leaves nothing behind.** Every ending, Ctrl+C included, stops the app and everything it started by the pids it recorded, and removes the folder. A process that outlived its app or a folder left on disk fails the run. A run killed outright leaves its folder to the next run, which removes it.
+- **Limits.** The WebDriver server sends pointer input as events in the page. It does not move the Mac's cursor, so it never starts macOS's own drag session, which Tauri's handler answers. The app's window shows on screen while a check runs, so on the owner's Mac a run waits for 08:00, as browser runs do.
 
 ## Releases
 
@@ -123,6 +149,35 @@ After the release exists, the same workflow updates the Homebrew cask in `jahala
 Anyone can check that a published file came from this repository's code:
 
     gh attestation verify <file> --repo jahala/conducted
+
+### The agent programs' versions
+
+The app ships its own copies of Claude Code and Codex, pinned by the release feed at
+`apps/desktop/src-tauri/programs/release-feed.json` (PLAT-28). The same versions appear in the
+Rust pins (`pinned_version` in `apps/desktop/src-tauri/src/binaries.rs`), in the cloud image's
+program table (`apps/cloud/sandbox/image.ts` and its Dockerfile), and in the SDK the sidecar pins
+(`@anthropic-ai/claude-agent-sdk` in `packages/sidecar/package.json`). They move together.
+
+`bun scripts/programs/update-feed.ts` reads the newest Claude Code release from
+`https://downloads.claude.ai/claude-code-releases/<version>/manifest.json` and the newest Codex
+release from GitHub, and writes every file above with the size and SHA-256 each publisher states.
+It never computes or guesses a checksum: a release without one is refused. It moves the SDK pin to
+the newest wrapper the Claude Code manifest's `sdkCompat` tested, and says so. When every pinned
+copy is current, it changes nothing.
+
+Between app updates, the program manager moves Claude Code forward on its own (D133,
+`apps/desktop/src-tauri/src/binaries/follow.rs`). At launch and once a day it reads
+`https://downloads.claude.ai/claude-code-releases/latest` and that release's `manifest.json`, the
+two files Claude Code's own installer reads. It installs the release for new chats when it is newer
+than the copy that runs and its `sdkCompat.testedWrapperVersions` lists the SDK the sidecar pins,
+with the size and SHA-256 the manifest states. The feed's version stays the floor and the answer
+when the host is out of reach. `build.rs` reads the SDK pin from `packages/sidecar/package.json`,
+so it has one home. Codex, gh, watchexec and the cloud image keep their pins.
+
+`.github/workflows/agent-programs.yml` runs the script daily and on manual dispatch. When a file
+changes, it updates the `chore/agent-program-versions` branch and opens or updates one pull
+request from it. The workflow needs no secret beyond its own token; the script reads GitHub with
+`GITHUB_TOKEN` when the workflow sets it.
 
 ## The product page
 

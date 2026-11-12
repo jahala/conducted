@@ -17,8 +17,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { Workspace } from "../../core/model.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
+import { dragPointer, layOut, middleOf } from "../../test/pointer-drag.ts";
 import { PinnedSection } from "./PinnedSection.tsx";
-import { WORKSPACE_DRAG_MIME } from "./use-workspace-drag.ts";
+import { useWorkspaceDragController, WorkspaceDragProvider } from "./workspace-drag-context.tsx";
 
 afterEach(cleanup);
 
@@ -27,7 +28,7 @@ function renderWith(container: ReturnType<typeof createTestContainer>["container
 	const indexRoute = createRoute({
 		getParentRoute: () => rootRoute,
 		path: "/",
-		component: () => <>{ui}</>,
+		component: () => <WorkspaceDragProvider>{ui}</WorkspaceDragProvider>,
 	});
 	const workspaceRoute = createRoute({
 		getParentRoute: () => rootRoute,
@@ -45,10 +46,17 @@ function renderWith(container: ReturnType<typeof createTestContainer>["container
 	);
 }
 
-const dropData = (id: string) => ({
-	getData: (type: string) => (type === WORKSPACE_DRAG_MIME ? id : ""),
-	setData: vi.fn(),
-});
+/** A row in another list that starts a workspace drag, as the main list does. */
+function ExternalDrag({ id }: { id: WorkspaceId }) {
+	const drag = useWorkspaceDragController();
+	return (
+		<button type="button" onPointerDown={(event) => drag.start(event, { kind: "workspace", id })}>
+			Start drag
+		</button>
+	);
+}
+
+const PINNED_BOX = { left: 0, top: 0, width: 300, height: 200 };
 
 describe("NAV-04 PinnedSection", () => {
 	it("pins a workspace dropped on the section", async () => {
@@ -64,7 +72,11 @@ describe("NAV-04 PinnedSection", () => {
 				<PinnedSection workspaces={[workspace]} allWorkspaces={[workspace]} />,
 			);
 			const region = await screen.findByRole("region", { name: "Pinned workspaces" });
-			fireEvent.drop(region, { dataTransfer: dropData(workspace.id) });
+			layOut(region, PINNED_BOX);
+			const row = region.querySelector(`[data-workspace-id="${workspace.id}"]`);
+			if (row === null) throw new Error("The pinned row is missing.");
+			layOut(row, { left: 0, top: 0, width: 300, height: 40 });
+			dragPointer(row, { x: 150, y: 120 });
 			await waitFor(() => expect(setPinned).toHaveBeenCalledWith(workspace.id, true));
 		} finally {
 			test.close();
@@ -82,10 +94,14 @@ describe("NAV-04 PinnedSection", () => {
 			// The pinned list is empty: the workspace only exists in the full list.
 			renderWith(
 				test.container,
-				<PinnedSection workspaces={[]} allWorkspaces={[workspace]} dragging />,
+				<>
+					<ExternalDrag id={workspace.id} />
+					<PinnedSection workspaces={[]} allWorkspaces={[workspace]} dragging />
+				</>,
 			);
 			const region = await screen.findByRole("region", { name: "Pinned workspaces" });
-			fireEvent.drop(region, { dataTransfer: dropData(workspace.id) });
+			layOut(region, PINNED_BOX);
+			dragPointer(screen.getByRole("button", { name: "Start drag" }), middleOf(PINNED_BOX));
 			await waitFor(() => expect(setPinned).toHaveBeenCalledWith(workspace.id, true));
 		} finally {
 			test.close();
@@ -144,7 +160,11 @@ describe("NAV-04 PinnedSection", () => {
 				<PinnedSection workspaces={[archived]} allWorkspaces={[archived]} />,
 			);
 			const region = await screen.findByRole("region", { name: "Pinned workspaces" });
-			fireEvent.drop(region, { dataTransfer: dropData(archived.id as WorkspaceId) });
+			layOut(region, PINNED_BOX);
+			const row = region.querySelector(`[data-workspace-id="${archived.id}"]`);
+			if (row === null) throw new Error("The pinned row is missing.");
+			layOut(row, { left: 0, top: 0, width: 300, height: 40 });
+			dragPointer(row, { x: 150, y: 120 });
 			await Promise.resolve();
 			expect(setPinned).not.toHaveBeenCalled();
 		} finally {

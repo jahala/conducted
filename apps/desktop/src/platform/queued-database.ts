@@ -1,9 +1,9 @@
 /**
  * @feature PLAT-02 The statement queue behind Platform.db
- * Owns: turning a raw SQL handle (tauri-plugin-sql in the app, node:sqlite in tests) into the
- * `Database` the app uses: one queue for every statement, a transaction that holds the queue from
- * BEGIN IMMEDIATE to COMMIT or ROLLBACK, merged identical selects, a handle that stops working
- * when its transaction ends, and a log line for slow statements. `createTauriDatabase` and the
+ * Owns: turning a raw SQL handle (the Rust shell's database commands in the app, node:sqlite in
+ * tests) into the `Database` the app uses: one queue for every statement, a transaction that holds
+ * the queue from BEGIN IMMEDIATE to COMMIT or ROLLBACK, merged identical selects, a handle that
+ * stops working when its transaction ends, and a log line for slow statements. `createTauriDatabase` and the
  * test database both call `createQueuedDatabase`, so a test runs the queue the app runs.
  * Behaviour: services-map.md 1.1 (Conductor's Platform object); our own design for the queue.
  * Must handle: a statement made on the outer database while a transaction is open waits for the
@@ -17,7 +17,7 @@
 import { appError } from "@conducted/shared";
 import type { Database, SqlResult } from "./platform.ts";
 
-/** The database handle tauri-plugin-sql returns. Only the calls the Platform needs. */
+/** A raw SQL handle: `db_execute` and `db_select` in the app (database.rs). */
 export interface SqlDatabase {
 	execute(
 		query: string,
@@ -42,8 +42,8 @@ export const DATABASE_PRAGMAS: readonly string[] = [
 const nowMs = (): number => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
 /**
- * Wraps a raw handle. Every statement goes through one queue, so the plugin's pool never runs two
- * at once. A transaction holds the queue from BEGIN IMMEDIATE to COMMIT or ROLLBACK; the work it
+ * Wraps a raw handle. Every statement goes through one queue, so the app's one connection never
+ * gets two at once. A transaction holds the queue from BEGIN IMMEDIATE to COMMIT or ROLLBACK; the work it
  * runs gets a handle that skips the queue, because the queue is already held. Identical
  * concurrent `select` calls share one promise, and a write clears those in-flight entries so a
  * later read cannot get a pre-write result.

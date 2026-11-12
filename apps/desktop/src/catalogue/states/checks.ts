@@ -3,13 +3,14 @@
  * Owns: arbor's pull request with a check in each state GitHub reports (passed, failed, cancelled,
  * waiting for an approval, skipped, and an outside service's status whose log the tab cannot
  * read), the deployments of a monorepo's previews, and a reviewer's comment to add to the chat;
- * and grove's pull request on relay, which deploys to the other providers the tab names.
+ * arbor's Re-run button with its tooltip; and grove's pull request on relay, which deploys to the
+ * other providers the tab names.
  * Behaviour: ui-map.md 3.6, "Checks" paragraph (check states, Re-run, deployments by provider,
  * comments with "Add all to chat").
  * Test first: not applicable; the screenshot run opens every state.
  */
 import { chatRoute, refreshGit, seedCast } from "../cast.ts";
-import { click, shows } from "../dom.ts";
+import { click, hover, shows } from "../dom.ts";
 import type { ScriptedPr } from "../github.ts";
 import type { CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, DAY, HOUR, MINUTE } from "../time.ts";
@@ -175,6 +176,20 @@ async function arborChecks(world: World): Promise<Scene> {
 	};
 }
 
+/** arbor's checks with a failure, and the pointer on Re-run, which shows its tooltip. */
+async function rerunTooltip(world: World): Promise<Scene> {
+	const cast = await seedCast(world, { arborFiles: COMMITTED_ONLY, prs: [ARBOR_PR] });
+	return {
+		route: chatRoute(cast.arbor, cast.chats.arbor),
+		after: async ({ app, document }) => {
+			await refreshGit(app, cast.arbor);
+			await openChecks(document);
+			await hover(document, "button", "Re-run");
+		},
+		ready: (document) => shows(document, "Re-run failed checks"),
+	};
+}
+
 async function groveChecks(world: World): Promise<Scene> {
 	const cast = await seedCast(world, { prs: [GROVE_PR] });
 	return {
@@ -193,6 +208,12 @@ export const CHECKS_STATES: CatalogueState[] = [
 		group: "Git panel",
 		title: "Checks tab: a check in every state, preview deployments and a review comment",
 		seed: arborChecks,
+	},
+	{
+		id: "git-checks-rerun-tooltip",
+		group: "Git panel",
+		title: "Checks tab: the Re-run button's tooltip",
+		seed: rerunTooltip,
 	},
 	{
 		id: "git-checks-deployments",

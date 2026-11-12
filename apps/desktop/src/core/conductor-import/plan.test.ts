@@ -6,9 +6,11 @@ import { parseSettingsDocument } from "../services/settings.ts";
 import { tomlCodec } from "../services/toml-codec.ts";
 import {
 	type ConductedState,
+	importSpace,
 	type PlanInput,
 	planConductorImport,
 	type RepoFolder,
+	SPACE_MARGIN_BYTES,
 } from "./plan.ts";
 
 const ROOT = "/Users/me/conductor/repos/alpha";
@@ -31,6 +33,7 @@ const nothing = (): ConductedState => ({
 	repos: [],
 	workspaces: [],
 	sessionIds: new Set(),
+	sessionIdsWithEvents: new Set(),
 	commentIds: new Set(),
 	sectionIds: new Set(),
 	sectionCount: 0,
@@ -56,6 +59,18 @@ const DEFAULTS: PlanInput["chatDefaults"] = {
 	},
 };
 
+/** Each chat's sent `session_messages` rows, as the copy's read counts them. */
+function sentRowsByChat(
+	database: ReturnType<typeof buildConductorFixture>,
+): Record<string, number> {
+	const counts: Record<string, number> = {};
+	for (const row of database.session_messages ?? []) {
+		if (row.sent_at === null || typeof row.session_id !== "string") continue;
+		counts[row.session_id] = (counts[row.session_id] ?? 0) + 1;
+	}
+	return counts;
+}
+
 function plan(
 	rows: ConductorFixtureRows,
 	options: { conducted?: ConductedState; folders?: Record<string, RepoFolder> } = {},
@@ -65,7 +80,7 @@ function plan(
 		...rows,
 	});
 	return planConductorImport({
-		snapshot: { tables: database, counts: {} },
+		snapshot: { tables: database, counts: {}, messageRows: sentRowsByChat(database) },
 		workspacesRoot: "/Users/me/conducted",
 		conducted: options.conducted ?? nothing(),
 		folders: options.folders ?? { [ROOT]: folder() },
@@ -254,5 +269,20 @@ describe("APP-17 the import's plan", () => {
 			settings: [{ key: "repo_conductor_config_file_migration_v2_complete", value: "true" }],
 		});
 		expect(migrated.files).toEqual([]);
+	});
+});
+
+describe("D132 the space the import needs", () => {
+	it("asks for the history, the largest chat twice more and the margin (D136)", () => {
+		// The journal holds the largest chat's transaction, and its staging holds it once more.
+		const space = importSpace({ diskBytes: 5e9, largestChatDiskBytes: 1e9 }, 10e9);
+		expect(space).toEqual({
+			historyBytes: 5e9,
+			neededBytes: 5e9 + 2 * 1e9 + SPACE_MARGIN_BYTES,
+			freeBytes: 10e9,
+			fits: true,
+		});
+		expect(importSpace({ diskBytes: 5e9, largestChatDiskBytes: 1e9 }, 9e9).fits).toBe(false);
+		expect(importSpace({ diskBytes: 0, largestChatDiskBytes: 0 }, 0).neededBytes).toBe(0);
 	});
 });

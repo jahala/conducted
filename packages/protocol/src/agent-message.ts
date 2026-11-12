@@ -86,6 +86,22 @@ export const AGENT_ERROR_CODES = {
 	authRequired: "agent_auth_required",
 } as const;
 
+/**
+ * True when Claude Code's text says it is not signed in: it asks to run /login, names an
+ * authentication_error, or is a 401 about invalid credentials. Conductor reads the same three
+ * signs (renderApp JVt @9517358). The Claude translator uses it on a failed result, and the chat
+ * uses it to hide the assistant text that repeats the sign-in error (kpa @9558460).
+ */
+export function isClaudeSignInErrorText(text: string | undefined): boolean {
+	if (text === undefined || text === "") return false;
+	const lower = text.toLowerCase();
+	return (
+		lower.includes("please run /login") ||
+		lower.includes("authentication_error") ||
+		(text.includes("401") && lower.includes("invalid authentication credentials"))
+	);
+}
+
 export const zErrorItem = z.object({
 	kind: z.literal("error"),
 	/** A stable code, for example one of AGENT_ERROR_CODES. */
@@ -111,6 +127,11 @@ export const zAgentMessage = z.object({
 	agent: zAgentKind,
 	/** The agent's own id for this message, when it has one. */
 	nativeId: z.string().optional(),
+	/**
+	 * The call that started the sub-agent that wrote this message. The chat keeps every item of
+	 * such a message inside that call, as Conductor does, instead of in the main transcript.
+	 */
+	parentToolUseId: zToolUseId.optional(),
 	items: z.array(zAgentItem),
 	raw: z.unknown().optional(),
 });

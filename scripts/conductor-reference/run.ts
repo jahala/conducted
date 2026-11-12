@@ -29,8 +29,8 @@ import { flag, loadMapping, startReferenceServer } from "./server.ts";
 export const VIEWPORT = { width: 1440, height: 900 };
 /** Frames the page must stay quiet to count as settled: long enough for a short timer or debounce. */
 const QUIET_FRAMES = 60;
-/** The most frames the settle wait may take, about twenty seconds at 60 frames a second. */
-const MAX_FRAMES = 1_200;
+/** The longest the settle wait may take, by time: a busy machine draws frames slowly or late. */
+const SETTLE_MS = 30_000;
 /** Catches a page that never loads. It is not a way to wait. */
 const HANG_MS = 60_000;
 
@@ -49,6 +49,7 @@ interface PageGlobals {
 	__REFERENCE_ACTIVITY__?: { calls: number; pending: number };
 	document: unknown;
 	requestAnimationFrame(callback: () => void): number;
+	performance: { now(): number };
 	MutationObserver: new (
 		callback: (records: unknown[]) => void,
 	) => { observe(target: unknown, options: object): void; disconnect(): void };
@@ -56,9 +57,9 @@ interface PageGlobals {
 
 /**
  * Runs in the page (Playwright sends its source): waits until it is quiet for `quiet` frames in a row,
- * or `max` frames pass. Quiet means no backend call waiting, no new call and no change to the page.
+ * or `maxMs` milliseconds pass. Quiet means no backend call waiting, no new call and no change to the page.
  */
-async function settle(limits: { quiet: number; max: number }): Promise<boolean> {
+async function settle(limits: { quiet: number; maxMs: number }): Promise<boolean> {
 	const page = globalThis as unknown as PageGlobals;
 	const activity = page.__REFERENCE_ACTIVITY__;
 	let changes = 0;
@@ -76,7 +77,8 @@ async function settle(limits: { quiet: number; max: number }): Promise<boolean> 
 	try {
 		let quiet = 0;
 		let seen = { calls: activity?.calls ?? 0, changes };
-		for (let index = 0; index < limits.max; index++) {
+		const deadline = page.performance.now() + limits.maxMs;
+		while (page.performance.now() < deadline) {
 			await frame();
 			const now = { calls: activity?.calls ?? 0, changes };
 			const still =
@@ -129,7 +131,7 @@ export async function capture(
 	});
 	try {
 		await page.goto(`${origin}${open.path}`, { timeout: HANG_MS });
-		result.settled = await page.evaluate(settle, { quiet: QUIET_FRAMES, max: MAX_FRAMES });
+		result.settled = await page.evaluate(settle, { quiet: QUIET_FRAMES, maxMs: SETTLE_MS });
 		await page.screenshot({ path: join(out, open.file), animations: "disabled" });
 		result.file = open.file;
 	} catch (cause) {

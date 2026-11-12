@@ -53,8 +53,6 @@ import { GeneralPage } from "../features/settings/pages/GeneralPage.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { ResourceUsageTable } from "../features/sidebar/ResourceUsageTable.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
-import { Sidebar } from "../features/sidebar/Sidebar.tsx";
-// biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { TabContent } from "../features/workspace/TabContent.tsx";
 import type { ShellCommand } from "../platform/platform.ts";
 import { agentEvent, userMessageEvent } from "../test/chat-events.ts";
@@ -64,6 +62,7 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../test/container.ts";
+import { answerSidecar, sidecarRefuses } from "../test/sidecar-answers.ts";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the toast host the app root mounts
 import { Toaster } from "../ui/Toast.tsx";
 import { ServicesProvider } from "./context.tsx";
@@ -109,7 +108,7 @@ function toolView(tool: CanonicalTool, input: unknown, output?: string): ToolCal
 			output === undefined
 				? null
 				: { kind: "tool_result", toolUseId, output, isError: false, truncated: false },
-		children: [],
+		blocks: [],
 	};
 }
 
@@ -177,6 +176,41 @@ async function mountChatPane(
 		),
 	);
 	await router.load();
+}
+
+/**
+ * A chat in plan mode whose agent waits on its plan. Conductor shows the plan bar only then
+ * (renderApp @9314918).
+ */
+async function seedWaitingPlan(
+	test: TestContainer,
+): Promise<{ workspaceId: WorkspaceId; sessionId: SessionId }> {
+	const workspace = await seedWorkspace(test.container);
+	const created = must(
+		await test.container.services.sessions.create(workspace.id, { ...CONFIG, planMode: true }),
+	);
+	must(await test.container.services.sessions.start());
+	// Approving turns plan mode off through the sidecar, which takes the change.
+	must(await test.container.sidecar.start());
+	answerSidecar(test, (call) =>
+		call.method === "updateConfig"
+			? { applied: "live" }
+			: sidecarRefuses(`Unexpected ${call.method}`),
+	);
+	must(
+		await test.container.services.sessions.applyLiveState(created.id, {
+			...idleLiveState,
+			openInteraction: {
+				interactionId: "join-plan" as InteractionId,
+				interaction: {
+					kind: "plan_approval",
+					plan: "First, change the parser.\nThen run the tests.",
+				},
+				since: 1,
+			},
+		}),
+	);
+	return { workspaceId: workspace.id, sessionId: created.id };
 }
 
 /**
@@ -280,44 +314,69 @@ describe("s1-ui-1 join", () => {
 	it("CHAT-12 approves a plan through the chat pane's interaction dock", async () => {
 		const test = createTestContainer();
 		try {
-			const workspace = await seedWorkspace(test.container);
-			const created = must(await test.container.services.sessions.create(workspace.id, CONFIG));
-			must(await test.container.services.sessions.start());
-			must(
-				await test.container.services.sessions.applyLiveState(created.id, {
-					...idleLiveState,
-					openInteraction: {
-						interactionId: "join-plan" as InteractionId,
-						interaction: {
-							kind: "plan_approval",
-							plan: "First, change the parser.\nThen run the tests.",
-						},
-						since: 1,
-					},
-				}),
-			);
+			const { workspaceId, sessionId } = await seedWaitingPlan(test);
 			const answer = vi
 				.spyOn(test.container.services.sessions, "answer")
 				.mockResolvedValue(ok(undefined));
 
-			await mountChatPane(test, workspace.id, created.id);
+			await mountChatPane(test, workspaceId, sessionId);
 
-			const bar = await screen.findByRole("group", { name: "Plan review" });
-			// The bar takes focus as it opens; the shortcut goes through the app's root dispatcher.
-			await waitFor(() => expect(bar.contains(document.activeElement)).toBe(true));
-			fireEvent.keyDown(document.activeElement as Element, {
+			await screen.findByRole("group", { name: "Plan review" });
+			// Focus stays in the composer while the plan waits (Chromium on the catalogue state
+			// chat-plan-review, issue #586), so the key is pressed there and reaches the app's root
+			// dispatcher, as Conductor's chat pane command does.
+			fireEvent.keyDown(await screen.findByRole("textbox", { name: "composer" }), {
 				key: "Enter",
+				// ProseMirror takes every keydown with code 13, as a browser sends Enter.
+				keyCode: 13,
 				metaKey: true,
 				shiftKey: true,
 			});
 
 			await waitFor(() =>
-				expect(answer).toHaveBeenCalledWith(created.id, "join-plan", {
+				expect(answer).toHaveBeenCalledWith(sessionId, "join-plan", {
 					kind: "plan_approval",
 					approved: true,
 				}),
 			);
 			expect(await screen.findByText("Approved")).toBeTruthy();
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	// Conductor's Approve button runs the same action as its shortcut: with text in the composer it
+	// sends the text as the plan's adjustments, and approves only an empty composer (renderApp
+	// @9313268; the bar's onApprovePlan at @9315041). Issue #595.
+	it("CHAT-12 the plan bar's Approve sends the composer's text as the plan's adjustments", async () => {
+		const test = createTestContainer();
+		try {
+			const { workspaceId, sessionId } = await seedWaitingPlan(test);
+			const answer = vi
+				.spyOn(test.container.services.sessions, "answer")
+				.mockResolvedValue(ok(undefined));
+			const updateConfig = vi.spyOn(test.container.services.sessions, "updateConfig");
+
+			await mountChatPane(test, workspaceId, sessionId);
+			const field = await screen.findByRole("textbox", { name: "composer" });
+			// TipTap hangs its editor on the element it draws into.
+			const editor = (field as unknown as { editor: Editor }).editor;
+			act(() => {
+				editor.commands.insertContent("Keep the old cache for reads.");
+			});
+			fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+			await waitFor(() =>
+				expect(answer).toHaveBeenCalledWith(sessionId, "join-plan", {
+					kind: "plan_approval",
+					approved: false,
+					feedback: "Keep the old cache for reads.",
+				}),
+			);
+			expect(answer).toHaveBeenCalledTimes(1);
+			expect(updateConfig).not.toHaveBeenCalled();
+			await waitFor(() => expect(editor.getText()).toBe(""));
 		} finally {
 			await test.container.stop();
 			test.close();
@@ -383,7 +442,7 @@ describe("s1-ui-1 join", () => {
 						}),
 					),
 				);
-				expect(await screen.findByText(entry.title)).toBeTruthy();
+				expect((await screen.findAllByText(entry.title)).length).toBeGreaterThan(0);
 				cleanup();
 			}
 		} finally {
@@ -954,17 +1013,17 @@ describe("s1-ui-1 join batch features", () => {
 		expect(screen.getByText("LANG")).toBeTruthy();
 	});
 
-	it("APP-07 shows the resource table from the resource chip in the sidebar's top strip", async () => {
+	it("APP-07 shows the Resources popover from the resource chip in the sidebar's top strip", async () => {
 		const test = batchContainer();
 		const workspace = await seedWorkspace(test.container, {
 			branch: "alpha",
-			branchIsPlaceholder: false,
+			directoryName: "alpha",
 			path: "/code/workspaces/alpha",
 		});
 		test.memory.controls.setProcesses([
 			{
 				pid: 1,
-				name: "node",
+				label: "rg",
 				cpuPercent: 12.5,
 				memoryBytes: 50 * 1024 * 1024,
 				cwd: workspace.path,
@@ -980,15 +1039,15 @@ describe("s1-ui-1 join batch features", () => {
 			createElement(ShellControls, {
 				sidebarOpen: true,
 				onToggleSidebar: () => undefined,
-				resources: createElement(ResourceUsageTable),
+				resources: createElement(ResourceUsageTable, { sidebarWidth: 320 }),
 			}),
 		);
 
 		fireEvent.click(await screen.findByRole("button", { name: /^Resource usage/ }));
 		const table = await screen.findByRole("table", { name: "Resources" });
-		expect(within(table).getByText("node")).toBeTruthy();
-		// A workspace is named in words, as Conductor names it.
-		expect(within(table).getByText("Alpha")).toBeTruthy();
+		expect(within(table).getByText("rg")).toBeTruthy();
+		// A workspace's group is named by its folder, as Conductor names it (renderApp @5568938).
+		expect(within(table).getByRole("button", { name: "alpha" })).toBeTruthy();
 	});
 
 	it("APP-10 dismisses a hint on the General page and brings it back with Reset callout dismissals", async () => {
@@ -1042,10 +1101,7 @@ describe("s1-ui-1 join batch features", () => {
 	it("CHAT-22 shows a Codex HTML write as a sandboxed visualization in the chat", async () => {
 		const test = batchContainer();
 		const workspace = await readyBatchWorkspace(test, "/code/workspaces/viz");
-		await test.container.platform.fs.writeTextAtomic(
-			`${workspace.path}/viz/chart.html`,
-			"<h1>Revenue chart</h1>",
-		);
+		test.memory.controls.addFile(`${workspace.path}/viz/chart.html`, "<h1>Revenue chart</h1>");
 		const session = await batchChat(
 			test,
 			workspace.id,

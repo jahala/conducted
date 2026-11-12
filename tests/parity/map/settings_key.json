@@ -180,12 +180,9 @@
 		"by": "seed"
 	},
 	"settings_key:ssh_key_path": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-12",
-		"owner": "hand",
-		"note": "SSH into a cloud workspace."
+		"status": "matched",
+		"ours": "ssh_key_path",
+		"by": "seed"
 	},
 	"settings_key:delete_branch_on_archive": {
 		"status": "matched",
@@ -372,12 +369,10 @@
 		"by": "rule:telemetry-backend"
 	},
 	"settings_key:user_message_footer_enabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CHAT-06",
-		"item": "A footer on user message bubbles behind the user_message_footer_enabled flag.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A user setting Conductor 0.92.1 registers in its settings schema (main @299952) that no frontend code reads; there is no footer to match.",
+		"by": "hand"
 	},
 	"settings_key:read_aloud_enabled": {
 		"status": "decided",
@@ -417,12 +412,9 @@
 		"by": "hand"
 	},
 	"settings_key:conductor_root_path": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SET-02",
-		"owner": "hand",
-		"note": "The app data folder on the Advanced page."
+		"status": "matched",
+		"ours": "conductor_root_path",
+		"by": "seed"
 	},
 	"settings_key:dashboard_enabled": {
 		"status": "matched",
@@ -496,12 +488,10 @@
 		"by": "seed"
 	},
 	"settings_key:experimental_legacy_file_preview_and_editing": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "REV-08",
-		"owner": "hand",
-		"note": "The file viewer and editor."
+		"status": "decided",
+		"decision": "D086",
+		"by": "hand",
+		"note": "An experimental switch for Conductor's old file editor, judged internal and never added (docs/plans/items/README.md); a key name D086 leaves out."
 	},
 	"settings_key:experimental_show_agent_cost": {
 		"status": "matched",
@@ -542,28 +532,22 @@
 		"by": "seed"
 	},
 	"settings_key:gh_pat_expires_at": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PR-01",
-		"owner": "hand",
-		"note": "GitHub access."
+		"status": "decided",
+		"decision": "D029",
+		"note": "The token broker's expiry record. D029 keeps the token in the Keychain, not in settings.",
+		"by": "hand"
 	},
 	"settings_key:gh_pat_token": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PR-01",
-		"owner": "hand",
-		"note": "GitHub access."
+		"status": "decided",
+		"decision": "D029",
+		"note": "The token broker's token record. D029 keeps the token in the Keychain, not in settings.",
+		"by": "hand"
 	},
 	"settings_key:gh_token": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PR-01",
-		"owner": "hand",
-		"note": "GitHub access."
+		"status": "decided",
+		"decision": "D029",
+		"note": "The token broker's session token. D029 has no broker; gh uses the user's own sign-in or GH_TOKEN.",
+		"by": "hand"
 	},
 	"settings_key:gh_token_app_client_id": {
 		"status": "decided",
@@ -572,20 +556,16 @@
 		"by": "hand"
 	},
 	"settings_key:gh_token_expires_at": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PR-01",
-		"owner": "hand",
-		"note": "GitHub access."
+		"status": "decided",
+		"decision": "D029",
+		"note": "The token broker's expiry. D029 has no broker; gh uses the user's own sign-in or GH_TOKEN.",
+		"by": "hand"
 	},
 	"settings_key:gh_token_source": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PR-01",
-		"owner": "hand",
-		"note": "GitHub access."
+		"status": "decided",
+		"decision": "D029",
+		"note": "The token broker's source record. D029 has no broker; gh uses the user's own sign-in or GH_TOKEN.",
+		"by": "hand"
 	},
 	"settings_key:gh_cloud_auth_method": {
 		"status": "decided",
@@ -1051,12 +1031,10 @@
 		"by": "seed"
 	},
 	"settings_key:terminal_max_buffered_lines": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "RUN-06",
-		"owner": "hand",
-		"note": "Terminal tabs."
+		"status": "matched",
+		"ours": "terminal_scrollback_limit_bytes",
+		"by": "hand",
+		"note": "Conductor's legacy name for the limit ours stores as terminal_scrollback_limit_bytes (services-map 4.2.3.2: legacy lines convert at 5120 bytes per line)."
 	},
 	"settings_key:terminal_scrollback_limit_bytes": {
 		"status": "matched",

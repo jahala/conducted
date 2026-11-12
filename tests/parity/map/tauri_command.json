@@ -2,7 +2,7 @@
 	"tauri_command:get_db_uri": {
 		"status": "decided",
 		"decision": "D086",
-		"note": "Conductor's shell command for its database file; our UI opens `conducted.db` through the SQL plugin directly.",
+		"note": "Conductor's shell command for its database file; our UI opens `conducted.db` with `db_open` (D137).",
 		"by": "hand"
 	},
 	"tauri_command:configure_http_proxy": {
@@ -146,12 +146,10 @@
 		"by": "seed"
 	},
 	"tauri_command:pty_write_mirror": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-09",
-		"item": "pty_write_mirror sends input to a mirrored terminal.",
-		"owner": "rule:name"
+		"status": "decided",
+		"decision": "D108",
+		"note": "CLOUD-09's finish chose a JS text mirror for a cloud terminal rather than Conductor's headless PTY copy; no Rust mirror commands are built.",
+		"by": "hand"
 	},
 	"tauri_command:pty_persist_terminal_history": {
 		"status": "gap",
@@ -162,28 +160,22 @@
 		"owner": "rule:name"
 	},
 	"tauri_command:pty_create_mirror": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-09",
-		"item": "pty_create_mirror makes a headless copy of a terminal for remote viewing.",
-		"owner": "rule:name"
+		"status": "decided",
+		"decision": "D108",
+		"note": "CLOUD-09's finish chose a JS text mirror for a cloud terminal rather than Conductor's headless PTY copy; no Rust mirror commands are built.",
+		"by": "hand"
 	},
 	"tauri_command:pty_resize_mirror": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-09",
-		"item": "pty_resize_mirror resizes a mirrored terminal.",
-		"owner": "rule:name"
+		"status": "decided",
+		"decision": "D108",
+		"note": "CLOUD-09's finish chose a JS text mirror for a cloud terminal rather than Conductor's headless PTY copy; no Rust mirror commands are built.",
+		"by": "hand"
 	},
 	"tauri_command:pty_delete_mirror": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-09",
-		"item": "pty_delete_mirror removes a mirrored terminal.",
-		"owner": "rule:name"
+		"status": "decided",
+		"decision": "D108",
+		"note": "CLOUD-09's finish chose a JS text mirror for a cloud terminal rather than Conductor's headless PTY copy; no Rust mirror commands are built.",
+		"by": "hand"
 	},
 	"tauri_command:raw_websocket_send_text": {
 		"status": "gap",
@@ -234,60 +226,46 @@
 		"owner": "rule:name"
 	},
 	"tauri_command:set_remote_file_sync_foreground": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-11",
-		"owner": "hand",
-		"note": "File sync of a cloud workspace."
+		"status": "decided",
+		"decision": "D018",
+		"note": "CLOUD-11's sync runs over the Worker's file routes through the Host interface, which D018 put in place of Conductor's native file-sync commands and events.",
+		"by": "hand"
 	},
 	"tauri_command:start_remote_file_sync": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-11",
-		"item": "start_remote_file_sync and the other sync commands mirror a cloud workspace to the Mac; D018 replaced them with the Host interface.",
-		"owner": "rule:name"
+		"status": "decided",
+		"decision": "D018",
+		"note": "CLOUD-11's sync runs over the Worker's file routes through the Host interface, which D018 put in place of Conductor's native file-sync commands and events.",
+		"by": "hand"
 	},
 	"tauri_command:resolve_remote_file_sync_direct_info": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-11",
-		"owner": "hand",
-		"note": "File sync of a cloud workspace."
+		"status": "decided",
+		"decision": "D018",
+		"note": "CLOUD-11's sync runs over the Worker's file routes through the Host interface, which D018 put in place of Conductor's native file-sync commands and events.",
+		"by": "hand"
 	},
 	"tauri_command:reject_remote_file_sync_direct_info": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-11",
-		"owner": "hand",
-		"note": "File sync of a cloud workspace."
+		"status": "decided",
+		"decision": "D018",
+		"note": "CLOUD-11's sync runs over the Worker's file routes through the Host interface, which D018 put in place of Conductor's native file-sync commands and events.",
+		"by": "hand"
 	},
 	"tauri_command:trigger_remote_file_sync": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-11",
-		"owner": "hand",
-		"note": "File sync of a cloud workspace."
+		"status": "decided",
+		"decision": "D018",
+		"note": "CLOUD-11's sync runs over the Worker's file routes through the Host interface, which D018 put in place of Conductor's native file-sync commands and events.",
+		"by": "hand"
 	},
 	"tauri_command:cleanup_remote_file_sync": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-11",
-		"owner": "hand",
-		"note": "File sync of a cloud workspace."
+		"status": "decided",
+		"decision": "D018",
+		"note": "CLOUD-11's sync runs over the Worker's file routes through the Host interface, which D018 put in place of Conductor's native file-sync commands and events.",
+		"by": "hand"
 	},
 	"tauri_command:stop_remote_file_sync": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-11",
-		"owner": "hand",
-		"note": "File sync of a cloud workspace."
+		"status": "decided",
+		"decision": "D018",
+		"note": "CLOUD-11's sync runs over the Worker's file routes through the Host interface, which D018 put in place of Conductor's native file-sync commands and events.",
+		"by": "hand"
 	},
 	"tauri_command:get_path_env": {
 		"status": "gap",

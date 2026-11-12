@@ -40,6 +40,7 @@ function makeWorkspace(overrides: Partial<Workspace> = {}): Workspace {
 		path: "/worktrees/oslo",
 		branch: "feature/oslo",
 		branchIsPlaceholder: false,
+		remoteFileSyncEnabled: false,
 		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "main",
@@ -109,7 +110,7 @@ function makeFs(folderExists = true): { fs: FileSystem; trashed: string[] } {
 				return ok(undefined);
 			},
 			async exists() {
-				return folderExists;
+				return ok(folderExists);
 			},
 			async stat() {
 				return err(appError("fs_not_found", "missing"));

@@ -58,6 +58,7 @@ describe("a workspace's recent activity moves forward", () => {
 					port: 55_101,
 					linkedPaths: [],
 					setupLogPath: null,
+					remoteFileSyncEnabled: false,
 					host: LOCAL_HOST,
 				}),
 			);
@@ -73,6 +74,7 @@ describe("a workspace's recent activity moves forward", () => {
 					port: 55_102,
 					linkedPaths: [],
 					setupLogPath: null,
+					remoteFileSyncEnabled: false,
 					host: LOCAL_HOST,
 				}),
 			);

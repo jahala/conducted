@@ -81,6 +81,12 @@ function scriptOwners(): void {
 	});
 }
 
+async function chooseOwner(): Promise<void> {
+	const owner = await screen.findByRole("combobox", { name: "Owner" });
+	fireEvent.keyDown(owner, { key: "Enter" });
+	fireEvent.keyDown(await screen.findByRole("option", { name: "acme" }), { key: "Enter" });
+}
+
 function scriptNameCheck(stdout: string, exitCode: number, stderr = ""): void {
 	test.memory.controls.scriptShell((command) => {
 		if (command.program !== "gh") return null;
@@ -186,6 +192,8 @@ describe("PRJ-03 Create a private GitHub repo? dialog", () => {
 			{ wrapper },
 		);
 
+		expect(await screen.findByText("Select an owner")).toBeTruthy();
+		await chooseOwner();
 		expect(await screen.findByText("Repository name is available.")).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Create repository" }));
 
@@ -197,6 +205,47 @@ describe("PRJ-03 Create a private GitHub repo? dialog", () => {
 			}),
 		);
 		await waitFor(() => expect(onCreated).toHaveBeenCalled());
+	});
+
+	it("says Conductor's three things the dialog creates", () => {
+		render(<QuickStartButton />, { wrapper });
+		fireEvent.click(screen.getByRole("button", { name: /Quick start/ }));
+		expect(
+			screen.getByText("Create a local folder, private GitHub repo, and first workspace."),
+		).toBeTruthy();
+	});
+
+	it("names git init as a step of creating the repository", () => {
+		render(
+			<CreateGithubRepoDialog
+				open
+				repo={{ ...created, name: "app", remoteUrl: null }}
+				onOpenChange={() => {}}
+				onCreated={() => {}}
+			/>,
+			{ wrapper },
+		);
+		expect(screen.getByText("git init")).toBeTruthy();
+	});
+
+	it("offers Open GitHub settings when the owners cannot be read", async () => {
+		test.memory.controls.scriptShell((command) => {
+			if (command.program !== "gh") return null;
+			if (command.args.join(" ") === "api user/orgs --paginate --jq .[].login") {
+				return ok({ exitCode: 1, stdout: "", stderr: "HTTP 401: Bad credentials" });
+			}
+			return null;
+		});
+		render(
+			<CreateGithubRepoDialog
+				open
+				repo={{ ...created, name: "app" }}
+				onOpenChange={() => {}}
+				onCreated={() => {}}
+			/>,
+			{ wrapper },
+		);
+		expect(await screen.findByRole("button", { name: "Open GitHub settings" })).toBeTruthy();
 	});
 
 	it("shows that the repository already exists and does not create it", async () => {
@@ -213,6 +262,7 @@ describe("PRJ-03 Create a private GitHub repo? dialog", () => {
 			{ wrapper },
 		);
 
+		await chooseOwner();
 		expect(await screen.findByText("This repository already exists.")).toBeTruthy();
 		expect(create).not.toHaveBeenCalled();
 	});

@@ -26,7 +26,7 @@ function harness(overrides: Partial<ReviewServiceDeps> = {}): {
 		fs: {
 			mkdirp: async () => ok(undefined),
 			writeTextAtomic: async () => ok(undefined),
-			exists: async () => false,
+			exists: async () => ok(false),
 		},
 		workspacePathOf: async () => ok("/code/workspaces/test"),
 		customPromptOf: async () => ok(null),

@@ -19,16 +19,18 @@ import type { BacklogWorkspace, Repo, RepoConfig, Session, Workspace } from "../
 import { branchPrefixFor, isSafeRefName } from "../workspace-helpers.ts";
 import { allocatePort } from "./ports.ts";
 import {
-	baseBranchFor,
-	CHAT_CREATION_FAILED_MESSAGE,
 	classifyUnarchive,
-	createPlaceNames,
 	expandHome,
-	SECTION_PLACEMENT_FAILED_MESSAGE,
 	WorkspaceService,
 	type WorkspaceServiceDeps,
-	worktreeFolderFor,
 } from "./workspace.ts";
+import {
+	baseBranchFor,
+	CHAT_CREATION_FAILED_MESSAGE,
+	createPlaceNames,
+	SECTION_PLACEMENT_FAILED_MESSAGE,
+	worktreeFolderFor,
+} from "./workspace-creation.ts";
 
 const output = (exitCode: number, stdout = "", stderr = ""): ShellOutput => ({
 	exitCode,
@@ -92,6 +94,7 @@ function makeWorkspace(overrides: Partial<Workspace> = {}): Workspace {
 		path: "/Users/test/conducted/workspaces/Project/oslo",
 		branch: "oslo",
 		branchIsPlaceholder: true,
+		remoteFileSyncEnabled: false,
 		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "main",
@@ -248,7 +251,7 @@ function makeHarness(
 			return ok(undefined);
 		},
 		async exists() {
-			return options.exists ?? false;
+			return ok(options.exists ?? false);
 		},
 		async stat() {
 			return err(appError("fs_not_found", "missing"));
@@ -323,6 +326,7 @@ function makeHarness(
 				path: input.path,
 				branch: input.branch,
 				branchIsPlaceholder: input.branchIsPlaceholder,
+				remoteFileSyncEnabled: false,
 				host: { kind: "local" },
 				displayName: null,
 				targetBranch: input.targetBranch,

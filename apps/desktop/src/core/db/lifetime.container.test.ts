@@ -62,12 +62,12 @@ describe("DATA-02 data lifetime from the composition root", () => {
 		const file = draftFile(fs.paths, "old-chat");
 
 		now = START - 31 * DAY;
-		expect((await fs.writeTextAtomic(file, "{}")).ok).toBe(true);
+		test.memory.controls.addFile(file, "{}");
 		now = START;
 
 		await startContainer(test);
 
-		expect(await fs.exists(file)).toBe(false);
+		expect(await fs.exists(file)).toEqual(ok(false));
 	});
 
 	it("turns a failed lifetime step into a start warning and leaves the user's file alone", async () => {
@@ -81,7 +81,7 @@ describe("DATA-02 data lifetime from the composition root", () => {
 		const fs = test.memory.platform.fs;
 		const userFile = "/code/user-files/report.pdf";
 		now = START - 8 * DAY;
-		must(await fs.writeTextAtomic(userFile, "mine"));
+		test.memory.controls.addFile(userFile, "mine");
 		await test.database.execute(
 			`INSERT INTO attachments (id, session_id, kind, original_name, path, is_draft, created_at)
 			VALUES ($1, $2, 'text', 'report.pdf', $3, 1, $4)`,
@@ -94,7 +94,7 @@ describe("DATA-02 data lifetime from the composition root", () => {
 		const warning = report.warnings.find((entry) => entry.step === "data lifetime");
 		expect(warning?.message).toContain("remove-draft-attachments");
 		expect(warning?.message).toContain(userFile);
-		expect(await fs.exists(userFile)).toBe(true);
+		expect(await fs.exists(userFile)).toEqual(ok(true));
 	});
 
 	it("keeps an open interaction in the live-state store and loads it on start", async () => {

@@ -1,9 +1,9 @@
 /**
  * @feature catalogue Chat events for catalogue seeds
  * Owns: a small builder that writes a chat's events in order, each a few seconds after the last, with
- * ids that never repeat: user messages, agent text and thinking, tool calls with their results, todo
- * lists, usage, notices and errors, checkpoints with the files a turn changed, and the turn's end
- * with its outcome.
+ * ids that never repeat: user messages, agent text and thinking (a sub-agent's too), tool calls with
+ * their results, todo lists, usage, notices and errors, checkpoints with the files a turn changed,
+ * and the turn's end with its outcome.
  * Behaviour: packages/protocol/src/events.ts and agent-message.ts are the shapes; the sidecar's runners
  * send Claude's tools with Claude's input names (file_path, old_string, command), which the tool cards
  * read.
@@ -39,15 +39,19 @@ export interface Conversation {
 		text: string,
 		options?: { attachmentPaths?: string[]; config?: SessionConfig; sender?: UserMessageSender },
 	): TurnId;
-	/** One agent message with these items. */
-	agent(turn: TurnId, items: AgentItem[]): void;
+	/** One agent message with these items; with `parent`, written by the sub-agent of that call. */
+	agent(turn: TurnId, items: AgentItem[], parent?: ToolUseId): void;
 	text(turn: TurnId, text: string): void;
 	thinking(turn: TurnId, text: string): void;
 	/** A tool call and, unless `output` is null, its result in a second message. Returns its id. */
 	tool(turn: TurnId, step: ToolStep): ToolUseId;
-	usage(turn: TurnId, contextUsedTokens: number): void;
-	/** The end checkpoint with the files the turn changed, then the turn's end. */
-	end(turn: TurnId, changes?: FileChange[], outcome?: TurnOutcome): void;
+	usage(
+		turn: TurnId,
+		contextUsedTokens: number,
+		extra?: Partial<Extract<AgentItem, { kind: "usage" }>>,
+	): void;
+	/** The end checkpoint with the files the turn changed, then the turn's end and its error. */
+	end(turn: TurnId, changes?: FileChange[], outcome?: TurnOutcome, error?: string): void;
 }
 
 export type TurnOutcome = Extract<SessionEvent, { type: "turn_ended" }>["outcome"];
@@ -62,8 +66,17 @@ export function conversation(prefix: string, startAt: number, stepMs = 4_000): C
 		at += stepMs;
 		return { eventId: `${prefix}-e${count}` as EventId, at };
 	};
-	const agent = (turn: TurnId, items: AgentItem[]): void => {
-		events.push({ ...next(), type: "agent", turnId: turn, message: { agent: "claude", items } });
+	const agent = (turn: TurnId, items: AgentItem[], parent?: ToolUseId): void => {
+		events.push({
+			...next(),
+			type: "agent",
+			turnId: turn,
+			message: {
+				agent: "claude",
+				...(parent === undefined ? {} : { parentToolUseId: parent }),
+				items,
+			},
+		});
 	};
 	let turns = 0;
 	return {
@@ -120,7 +133,7 @@ export function conversation(prefix: string, startAt: number, stepMs = 4_000): C
 			}
 			return toolUseId;
 		},
-		usage: (turn, contextUsedTokens) =>
+		usage: (turn, contextUsedTokens, extra) =>
 			agent(turn, [
 				{
 					kind: "usage",
@@ -132,9 +145,10 @@ export function conversation(prefix: string, startAt: number, stepMs = 4_000): C
 					contextUsedTokens,
 					contextWindowTokens: 200_000,
 					model: "claude-opus-4-7",
+					...extra,
 				},
 			]),
-		end(turn, changes, outcome = "success") {
+		end(turn, changes, outcome = "success", error) {
 			events.push({
 				...next(),
 				type: "checkpoint",
@@ -143,7 +157,13 @@ export function conversation(prefix: string, startAt: number, stepMs = 4_000): C
 				checkpointId: `${turn}-end` as CheckpointId,
 				...(changes === undefined ? {} : { changes }),
 			});
-			events.push({ ...next(), type: "turn_ended", turnId: turn, outcome });
+			events.push({
+				...next(),
+				type: "turn_ended",
+				turnId: turn,
+				outcome,
+				...(error === undefined ? {} : { error }),
+			});
 		},
 	};
 }

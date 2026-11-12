@@ -8,20 +8,20 @@
 		"owner": "rule:cite"
 	},
 	"toast:M389857": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "DATA-05",
-		"item": "An invalid settings file blocks saving a setting and the user is told why (\"Can't save setting because your settings file is invalid\").",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "run-load-failed",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > section > p",
+		"by": "seed"
 	},
 	"toast:M390047": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "DATA-05",
-		"item": "Saving a setting can fail with \"Failed to save setting\".",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-save-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "hand"
 	},
 	"toast:M394092": {
 		"status": "gap",
@@ -53,21 +53,19 @@
 	},
 	"toast:M2099774": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "REV-03",
 		"item": "Conductor shows \"Failed to add comment to chat\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:M2100103": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "REV-03",
 		"item": "Conductor shows \"Failed to save comment\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:M3139338": {
 		"status": "decided",
@@ -127,8 +125,7 @@
 		"screen": "Unplaced",
 		"backlog": "CHAT-01",
 		"item": "Conductor shows \"Couldn't reopen chat. Try again.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:M3686044": {
 		"status": "gap",
@@ -176,8 +173,7 @@
 		"screen": "Unplaced",
 		"backlog": "WS-05",
 		"item": "Conductor shows \"Couldn’t check for open pull requests. Close them on GitHub if needed.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:M3753291": {
 		"status": "decided",
@@ -205,8 +201,7 @@
 		"screen": "Unplaced",
 		"backlog": "COMP-02",
 		"item": "Conductor shows \"Couldn't save your default personality. Try again.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R227819": {
 		"status": "gap",
@@ -222,17 +217,15 @@
 		"screen": "Unplaced",
 		"backlog": "COMP-02",
 		"item": "Conductor shows \"Some saved models require a newer version of Conductor.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R252371": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "COMP-02",
 		"item": "Conductor shows \"Couldn't save loadouts. Try again.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R629044": {
 		"status": "gap",
@@ -251,12 +244,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R677318": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "CHAT-29",
-		"item": "A chat image has a menu with \"Copy image\": shows \"Copied image to clipboard\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-attachment-copied",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R677447": {
 		"status": "gap",
@@ -283,13 +276,12 @@
 		"owner": "rule:quote"
 	},
 	"toast:R2035043": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PRJ-03",
-		"item": "Conductor shows \"Project created.\" (message, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "create-github-repo",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R2213309": {
 		"status": "gap",
@@ -309,7 +301,7 @@
 	},
 	"toast:R2489876": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-12",
 		"item": "Opening a cloud workspace remotely works only in VS Code, Cursor and Zed: \"Remote open is only supported for VS Code, Cursor, and Zed\".",
@@ -361,8 +353,7 @@
 		"screen": "Unplaced",
 		"backlog": "COMP-04",
 		"item": "Conductor shows \"No active chat selected.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R2976926": {
 		"status": "gap",
@@ -426,8 +417,7 @@
 		"screen": "inventory-ui-text Git, review and files",
 		"backlog": "COMP-07",
 		"item": "Conductor shows \"File picker is not available on this device\" (message, inventory-ui-text Git, review and files); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R4998666": {
 		"status": "gap",
@@ -443,17 +433,15 @@
 		"screen": "Unplaced",
 		"backlog": "WS-03",
 		"item": "Conductor shows \"No active chat to send setup request to\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R5007891": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "RUN-01",
 		"item": "Conductor shows \"Unable to start: workspace or repository not found\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R5432175": {
 		"status": "gap",
@@ -461,8 +449,7 @@
 		"screen": "Unplaced",
 		"backlog": "RUN-03",
 		"item": "Conductor shows \"Preview URL copied to clipboard\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R5443582": {
 		"status": "gap",
@@ -481,34 +468,32 @@
 		"owner": "rule:cite"
 	},
 	"toast:R5453992": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-10",
-		"item": "Forwarding ports shows the notice \"Forwarding ports\" while the forward is being set up.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "cloud-ports",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"toast:R5493916": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "NAV-10",
-		"item": "Conductor shows \"Copied link\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "workspace-copied-link",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div > div",
+		"by": "seed"
 	},
 	"toast:R5493957": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "NAV-10",
 		"item": "Conductor shows \"Failed to copy link\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R5545832": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "NAV-04",
 		"item": "Deleting, reordering or moving a workspace between sections can fail with a short error.",
@@ -570,7 +555,7 @@
 	},
 	"toast:R5563508": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "CLOUD-12",
 		"item": "A cloud workspace has a copyable SSH command; \"Copied SSH command\" confirms it.",
@@ -578,7 +563,7 @@
 	},
 	"toast:R5563556": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "CLOUD-12",
 		"item": "Conductor shows \"Failed to copy SSH command\" (toast, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
@@ -590,8 +575,7 @@
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "WS-05",
 		"item": "Conductor shows \"No workspace selected to archive\" (message, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R5643247": {
 		"status": "decided",
@@ -601,20 +585,19 @@
 	},
 	"toast:R8137573": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "CHAT-06",
 		"item": "Conductor shows \"Failed to copy message\" (message, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R8156106": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "CHAT-10",
-		"item": "If an answer or approval cannot be delivered, the card comes back with \"Could not send answers. Try again.\"",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-question-answer-failed",
+		"via": "text",
+		"role": "alert",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > p",
+		"by": "seed"
 	},
 	"toast:R8191557": {
 		"status": "gap",
@@ -664,12 +647,11 @@
 	},
 	"toast:R8701195": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "SET-01",
 		"item": "Conductor shows \"Failed to reset setting\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R8730441": {
 		"status": "gap",
@@ -681,21 +663,19 @@
 	},
 	"toast:R8889053": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "COMP-02",
 		"item": "Conductor shows \"FYI: When you switch effort mid-chat with Claude, your next response will be slower and use more tokens.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R8889231": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "COMP-02",
-		"item": "Conductor shows \"FYI: When you switch models mid-chat, your next response will be slower and use more tokens.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"status": "matched",
+		"state": "composer-model-switch-mid-chat",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div > div",
+		"by": "seed"
 	},
 	"toast:R8920359": {
 		"status": "gap",
@@ -760,28 +740,28 @@
 		"owner": "rule:cite"
 	},
 	"toast:R9296109": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "COMP-10",
-		"item": "Using the goal bar or /goal on a chat that cannot do goals shows \"Codex goals are not available in this chat.\"",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "composer-slash-goal-unavailable",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R9299261": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "COMP-06",
-		"item": "A typed slash command the agent or workspace does not offer shows \"This command isn't available in this workspace.\"",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "composer-slash-command-unavailable",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R9299441": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "COMP-06",
-		"item": "Typing /plan for an agent without plan mode shows \"Plan mode is not available in this chat.\"",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "composer-slash-plan-unavailable",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R9299633": {
 		"status": "gap",
@@ -789,25 +769,23 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "CHAT-02",
 		"item": "Conductor shows \"Session not found\" (message, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R9299687": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "COMP-10",
-		"item": "Setting a goal with empty text shows \"Enter a goal first.\"",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "composer-goal-empty",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R9300528": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "SET-05",
 		"item": "Conductor shows \"Configuration refreshed.\" (message, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R9300822": {
 		"status": "gap",
@@ -831,8 +809,7 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "CHAT-12",
 		"item": "Conductor shows \"Failed to copy plan\" (message, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R9357302": {
 		"status": "gap",
@@ -880,8 +857,7 @@
 		"screen": "inventory-controls Composer",
 		"backlog": "CHAT-02",
 		"item": "Conductor shows \"Failed to change the message target.\" (message, inventory-controls Composer); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R9392485": {
 		"status": "gap",
@@ -889,8 +865,7 @@
 		"screen": "inventory-controls Composer",
 		"backlog": "CHAT-04",
 		"item": "Conductor shows \"Failed to prepare the message for editing.\" (message, inventory-controls Composer); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R9392792": {
 		"status": "gap",
@@ -898,8 +873,7 @@
 		"screen": "inventory-controls Composer",
 		"backlog": "CHAT-04",
 		"item": "Conductor shows \"Failed to discard attachment changes.\" (message, inventory-controls Composer); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R9405672": {
 		"status": "gap",
@@ -940,12 +914,10 @@
 		"by": "rule:team-wording"
 	},
 	"toast:R9513542": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-06",
-		"item": "Conductor shows \"Failed to copy request\" (toast, inventory-controls Composer); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Part of Conductor's workspace usage-limit request: it copies a message for a ChatGPT workspace admin (renderApp @9513550). Workspace plan accounting is Conductor's hosted service.",
+		"by": "hand"
 	},
 	"toast:R9549716": {
 		"status": "decided",
@@ -984,12 +956,12 @@
 		"by": "seed"
 	},
 	"toast:R9953202": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "REV-08",
-		"item": "If a file changed on disk while the user has unsaved edits, ask to keep or discard before saving.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "file-save-changed-on-disk",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R10074815": {
 		"status": "gap",
@@ -997,8 +969,7 @@
 		"screen": "Unplaced",
 		"backlog": "CHAT-01",
 		"item": "Conductor shows \"Failed to close other chats. Try again.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R10074989": {
 		"status": "gap",
@@ -1006,8 +977,7 @@
 		"screen": "Unplaced",
 		"backlog": "CHAT-17",
 		"item": "Conductor shows \"No chat content to copy\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R10075328": {
 		"status": "decided",
@@ -1022,24 +992,22 @@
 		"by": "hand"
 	},
 	"toast:R10085340": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-06",
-		"item": "Conductor shows \"Terminal settings are still loading.\" (toast, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's terminal-settings query notice. Ours loads settings before the shell mounts, so this loading state cannot occur (an internal difference, no user-visible state).",
+		"by": "hand"
 	},
 	"toast:R10085400": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "RUN-06",
-		"item": "Terminal settings that cannot load show \"Failed to load terminal settings.\"",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "terminal-settings-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R10105621": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-11",
 		"item": "A preview of a cloud workspace without its local mirror shows \"Couldn't open preview: local workspace mirror is unavailable.\"",
@@ -1051,8 +1019,7 @@
 		"screen": "Unplaced",
 		"backlog": "CHAT-01",
 		"item": "Conductor shows \"Failed to close chat. Try again.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R10111109": {
 		"status": "gap",
@@ -1060,8 +1027,7 @@
 		"screen": "Unplaced",
 		"backlog": "RUN-04",
 		"item": "Conductor shows \"Workspace is not ready yet.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R10395535": {
 		"status": "decided",
@@ -1097,8 +1063,7 @@
 		"screen": "Unplaced",
 		"backlog": "APP-03",
 		"item": "Conductor shows \"Failed to copy report to clipboard\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R10572819": {
 		"status": "gap",
@@ -1106,8 +1071,7 @@
 		"screen": "Unplaced",
 		"backlog": "APP-03",
 		"item": "Conductor shows \"Console logs copied to clipboard\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R10573129": {
 		"status": "gap",
@@ -1115,8 +1079,7 @@
 		"screen": "Unplaced",
 		"backlog": "APP-03",
 		"item": "Conductor shows \"No workspace available. Create a workspace first.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R10581997": {
 		"status": "gap",
@@ -1171,12 +1134,12 @@
 		"by": "hand"
 	},
 	"toast:R10918731": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents",
-		"backlog": "SET-03",
-		"item": "After a Codex login with the ChatGPT plan, show \"Codex now uses your ChatGPT plan\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-codex-signed-in",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li:nth-of-type(2) > div > div",
+		"by": "seed"
 	},
 	"toast:R10923050": {
 		"status": "gap",
@@ -1203,12 +1166,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R10954108": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents",
-		"backlog": "SET-03",
-		"item": "The Agents page lets the user save a provider API key and shows \"API key saved\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-subscription-saved",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R10954503": {
 		"status": "gap",
@@ -1219,54 +1182,48 @@
 		"owner": "rule:cite"
 	},
 	"toast:R10966069": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "SET-02",
-		"item": "The user can move the app's data folder; success shows \"Conductor root path changed successfully\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-advanced-root-path-changed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R10998780": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-03",
-		"item": "The Agents page can import a provider API key from the environment: \"API key imported from env\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-key-imported",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R11014233": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-ui-text Settings and agents",
 		"backlog": "SET-07",
 		"item": "Conductor shows \"Action names must be unique\" (message, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R11015771": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "SET-07",
 		"item": "Conductor shows \"Action names can't be empty\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R11050680": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "PR-01",
-		"item": "Refreshing GitHub data can fail with \"Couldn't refresh GitHub\".",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D029",
+		"note": "Conductor's GitHub App connection refresh. D029 keeps the gh login and the Keychain token, and no GitHub App connection.",
+		"by": "hand"
 	},
 	"toast:R11050766": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "PR-01",
-		"item": "Conductor shows \"Some GitHub details couldn't be updated\" (toast, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D029",
+		"note": "Part-failure message of Conductor's GitHub App connection refresh, which D029 leaves out.",
+		"by": "hand"
 	},
 	"toast:R11086629": {
 		"status": "decided",
@@ -1324,21 +1281,19 @@
 	},
 	"toast:R11117343": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Settings: General",
 		"backlog": "SET-02",
 		"item": "Conductor shows \"Failed to reset message send key\" (message, inventory-controls Settings: General); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R11117511": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Settings: General",
 		"backlog": "SET-02",
 		"item": "Conductor shows \"Failed to update message send key\" (message, inventory-controls Settings: General); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R11120183": {
 		"status": "gap",
@@ -1379,12 +1334,9 @@
 		"owner": "rule:cite"
 	},
 	"toast:R11153716": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-09",
-		"item": "Conductor shows \"Couldn't update manual overrides\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
+		"status": "decided",
+		"decision": "D110",
+		"note": "These belong to Conductor's manual-override pair editor and the auto-forwarding note on Connections. D110 builds manual overrides as remote:local text lines and records the simplification, so the pair editor's Remote and Local labels, Add override button, failure toast and port-range note are not built.",
 		"by": "hand"
 	},
 	"toast:R11162731": {
@@ -1417,8 +1369,7 @@
 		"screen": "Unplaced",
 		"backlog": "APP-10",
 		"item": "Conductor shows \"Failed to reset callout dismissals\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R11203233": {
 		"status": "gap",
@@ -1426,8 +1377,7 @@
 		"screen": "Unplaced",
 		"backlog": "APP-10",
 		"item": "Conductor shows \"Callout dismissals reset\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R11204862": {
 		"status": "decided",
@@ -1501,12 +1451,11 @@
 	},
 	"toast:R11298129": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "SET-07",
 		"item": "Conductor shows \"Repository removed successfully\" (message, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R11326426": {
 		"status": "decided",
@@ -1602,7 +1551,7 @@
 	},
 	"toast:R11511925": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Composer",
 		"backlog": "NAV-04",
 		"item": "Creating or editing a section can fail with a short error, and the section list stays as it was.",
@@ -1610,7 +1559,7 @@
 	},
 	"toast:R11512041": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Composer",
 		"backlog": "NAV-04",
 		"item": "Conductor shows \"Section no longer exists\" (toast, inventory-controls Composer); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
@@ -1618,7 +1567,7 @@
 	},
 	"toast:R11512106": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Composer",
 		"backlog": "NAV-04",
 		"item": "Creating or editing a section can fail with a short error, and the section list stays as it was.",
@@ -1664,8 +1613,7 @@
 		"screen": "inventory-controls Platform",
 		"backlog": "NAV-17",
 		"item": "Conductor shows \"No workspace selected\" (message, inventory-controls Platform); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R11632825": {
 		"status": "matched",
@@ -1715,8 +1663,7 @@
 		"screen": "inventory-controls Platform",
 		"backlog": "PR-09",
 		"item": "Conductor shows \"No repository available\" (message, inventory-controls Platform); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R11635178": {
 		"status": "gap",
@@ -1798,7 +1745,7 @@
 	},
 	"toast:R11647565": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "SET-02",
 		"item": "Conductor shows \"GitHub isn't connected yet. Finish the sign-in and try again.\" (toast, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
@@ -1832,7 +1779,7 @@
 	},
 	"toast:R11699632": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "RUN-06",
 		"item": "Terminal text selected by the user can be sent to the chat as a file named terminal-selection plus the time.",
@@ -1844,8 +1791,7 @@
 		"screen": "Unplaced",
 		"backlog": "NAV-09",
 		"item": "Conductor shows \"Failed to save keyboard shortcut\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand",
-		"by": "hand"
+		"owner": "hand"
 	},
 	"toast:R11752107": {
 		"status": "decided",

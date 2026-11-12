@@ -113,6 +113,7 @@ function workspace(over: Partial<Workspace> = {}): Workspace {
 		path: "/tmp/workspace",
 		branch: "conducted/workspace",
 		branchIsPlaceholder: false,
+		remoteFileSyncEnabled: false,
 		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "main",
@@ -205,9 +206,9 @@ describe("CHAT-06 message list", () => {
 	it("shows the empty chat starters and fills the draft when one is picked", async () => {
 		state.chat = { state: "ready", data: view([]) };
 		render(wrap(<MessageList sessionId={sessionId} workspaceId={workspaceId} />));
-		fireEvent.click(await screen.findByRole("button", { name: "Fix a known bug" }));
+		fireEvent.click(await screen.findByRole("button", { name: "Fix a TODO" }));
 		expect(state.saveDraft).toHaveBeenCalledWith(sessionId, {
-			text: "Fix a known bug",
+			text: "Fix a TODO",
 			attachmentPaths: [],
 		});
 	});

@@ -10,12 +10,14 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../../../test/container.ts";
+import { Toaster, toast } from "../../../ui/Toast.tsx";
 import { RepoGitPage } from "./RepoGitPage.tsx";
 
 let test: TestContainer | undefined;
 
 afterEach(() => {
 	cleanup();
+	toast.dismiss();
 	test?.close();
 	test = undefined;
 });
@@ -160,5 +162,55 @@ describe("SET-07 RepoGitPage", () => {
 		await waitFor(() => expect(toggle.getAttribute("aria-checked")).toBe("false"));
 		const back = await settings.getForRepo("delete_branch_on_archive", repo.rootPath, null);
 		expect(back.ok && back.value.source).not.toBe("repo-local");
+	});
+
+	it("toasts Failed to save setting when this repository's value cannot be saved (issue #614)", async () => {
+		const { repo, container } = await renderPage();
+		render(<Toaster />);
+		await container.services.settings.start();
+		// A file stands where the repository's .conducted folder must go.
+		test?.memory.controls.addFile(`${repo.rootPath}/.conducted`, "");
+		const toggle = await screen.findByRole("switch", { name: "Delete branch on archive" });
+		await waitFor(() => expect((toggle as HTMLButtonElement).disabled).toBe(false));
+
+		fireEvent.click(toggle);
+
+		await waitFor(() =>
+			expect(document.querySelector("[data-sonner-toast]")?.textContent).toBe(
+				"Failed to save setting",
+			),
+		);
+		expect(toggle.getAttribute("aria-checked")).toBe("false");
+	});
+
+	// Conductor's row shows the value the setting falls back to while the repository's value loads:
+	// on for this switch (`effective.value !== "false"`), off for the other two (renderApp @11165946).
+	// Ours showed off, so a read while the page opened saw the switch turn off again (issue #615).
+	it("shows Set upstream on plain git push on, as its default, while this repository's value loads", async () => {
+		const { repo, container } = await renderPage();
+		const { settings } = container.services;
+		await settings.start();
+		expect(await settings.set("worktree_push_auto_setup_remote", false)).toEqual(ok(undefined));
+		expect(
+			await settings.setForRepo(repo.rootPath, "worktree_push_auto_setup_remote", true),
+		).toEqual(ok(undefined));
+		cleanup();
+		render(
+			<QueryClientProvider client={new QueryClient()}>
+				<ServicesProvider container={container}>
+					<RepoGitPage repoId={repo.id} />
+				</ServicesProvider>
+			</QueryClientProvider>,
+		);
+
+		// No read has answered yet: this runs before any promise settles.
+		const loading = screen.getByRole("switch", { name: "Set upstream on plain git push" });
+		expect((loading as HTMLButtonElement).disabled).toBe(true);
+		expect(loading.getAttribute("aria-checked")).toBe("true");
+		const other = screen.getByRole("switch", { name: "Delete branch on archive" });
+		expect(other.getAttribute("aria-checked")).toBe("false");
+
+		await waitFor(() => expect((loading as HTMLButtonElement).disabled).toBe(false));
+		expect(loading.getAttribute("aria-checked")).toBe("true");
 	});
 });

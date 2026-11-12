@@ -49,6 +49,7 @@ export function createActions(
 			setDefaultBranch: (repoId, branch) => services.repo.setDefaultBranch(repoId, branch),
 			reorder: (orderedIds) => services.repo.reorder(orderedIds),
 			updateConfig: (repoId, config) => services.repo.updateConfig(repoId, config),
+			copyPreview: (repoId) => services.repo.copyPreview(repoId),
 			setIcon: (repoId, icon) => services.repo.setIcon(repoId, icon),
 			resetRunAction: (repoId, actionId) => services.repo.resetRunAction(repoId, actionId),
 			setRunActionHidden: (repoId, actionId, hidden) =>
@@ -195,10 +196,13 @@ export function createActions(
 			restart: (id) => services.terminals.restart(id),
 			runCommand: (workspaceId, command) => services.terminals.runCommand(workspaceId, command),
 			close: (id) => services.terminals.close(id),
+			move: (workspaceId, id, placement) => services.terminals.move(workspaceId, id, placement),
 		},
 		files: {
 			write: (workspaceId, path, text, expectedModifiedAt) =>
 				services.workspaceFiles.saveFile(workspaceId, path, text, expectedModifiedAt),
+			setSyncEnabled: (workspaceId, enabled) =>
+				services.cloudFileSync.setEnabled(workspaceId, enabled),
 			attachToChat: (workspaceId, paths) =>
 				services.composer.attachFilesToActiveChat(workspaceId, paths),
 			open: (workspaceId, path, mode, scope) =>

@@ -19,7 +19,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
 import type { Workspace } from "../core/model.ts";
-import { FIRST_CHAT_APP_TOOLS } from "../core/services/workspace.ts";
+import { FIRST_CHAT_APP_TOOLS } from "../core/services/workspace-creation.ts";
 import { createTestContainer, seedRepo, type TestContainer } from "../test/container.ts";
 import { toast } from "../ui/Toast.tsx";
 import { CreateWorkspacePage } from "./CreateWorkspacePage.tsx";
@@ -32,6 +32,7 @@ const workspace: Workspace = {
 	path: "/workspaces/Project/oslo",
 	branch: "oslo",
 	branchIsPlaceholder: true,
+	remoteFileSyncEnabled: false,
 	host: { kind: "local" },
 	displayName: null,
 	targetBranch: "main",

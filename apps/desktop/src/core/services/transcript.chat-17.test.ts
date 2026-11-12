@@ -13,7 +13,12 @@ const must = <T>(result: { ok: true; value: T } | { ok: false; error: unknown })
 	return result.value;
 };
 
-function toolBlock(rawName: string, input: unknown, output: string): ChatBlock {
+function toolBlock(
+	rawName: string,
+	input: unknown,
+	output: string,
+	blocks: ChatBlock[] = [],
+): ChatBlock {
 	const call: ToolCallView = {
 		toolUseId: "tool-1" as ToolUseId,
 		item: {
@@ -30,7 +35,7 @@ function toolBlock(rawName: string, input: unknown, output: string): ChatBlock {
 			isError: false,
 			truncated: false,
 		},
-		children: [],
+		blocks,
 	};
 	return { kind: "tool", call };
 }
@@ -131,6 +136,24 @@ describe("CHAT-17 formatTranscript", () => {
 		expect(text).toContain("Thinking: The logs are under /tmp.");
 		expect(text).toContain('Input: {"command":"ls /tmp"}');
 		expect(text).toContain("Output:\none\ntwo");
+	});
+
+	it("writes a sub-agent's blocks under the call that holds them", () => {
+		const text = formatTranscript(
+			[
+				turn({
+					blocks: [
+						toolBlock("Task", { description: "Look" }, "Found it.", [
+							{ kind: "text", text: "A note from the sub-agent." },
+						]),
+					],
+				}),
+			],
+			"concise",
+		);
+
+		expect(text).toContain("[tool] Task");
+		expect(text).toContain("  A note from the sub-agent.");
 	});
 
 	it("leaves a reverted turn out", () => {
@@ -267,5 +290,46 @@ describe("CHAT-17 searchHistory", () => {
 		const copied = test.memory.controls.clipboardText ?? "";
 		expect(copied).toContain("Fix the login bug");
 		expect(copied).toContain("The login bug is fixed.");
+	});
+
+	it("writes a background helper's late work under the call of the earlier turn that started it (D129)", async () => {
+		test = createTestContainer();
+		const workspace = await seedWorkspace(test.container);
+		const sessions = test.container.services.sessions;
+		const chat = must(await sessions.create(workspace.id, sampleSession.config));
+		must(await sessions.start());
+
+		const late = agentEvent("e5", "turn-2", 210, [{ kind: "text", text: "Late helper note" }]);
+		if (late.type !== "agent") throw new Error("the fixture is an agent event");
+		const events: SessionEvent[] = [
+			userMessageEvent("e1", "turn-1", 100),
+			agentEvent("e2", "turn-1", 110, [
+				{
+					kind: "tool_call",
+					toolUseId: "task-1" as ToolUseId,
+					tool: "sub_agent",
+					rawName: "Task",
+					input: { description: "Check the other tests" },
+				},
+			]),
+			userMessageEvent("e3", "turn-2", 200),
+			agentEvent("e4", "turn-2", 205, [{ kind: "text", text: "Own reply in turn two." }]),
+			{ ...late, message: { ...late.message, parentToolUseId: "task-1" as ToolUseId } },
+		];
+		for (const [idx, event] of events.entries()) {
+			sessions.applyStoredEvent(chat.id, idx, event, event.at);
+		}
+
+		must(await sessions.copyTranscript(chat.id, "concise"));
+		const copied = test.memory.controls.clipboardText ?? "";
+		expect(copied).toBe(
+			[
+				"User: Fix the login bug",
+				"[tool] Task",
+				"  Late helper note",
+				"User: Fix the login bug",
+				"Own reply in turn two.",
+			].join("\n\n"),
+		);
 	});
 });

@@ -124,21 +124,21 @@ describe("NAV-10 TabItem", () => {
 		expect(container.querySelector('[data-host="local"]')).not.toBeNull();
 	});
 
-	it("shows the full title as a tooltip and reports a drag", () => {
-		const onDragStart = vi.fn();
+	it("shows the full title as a tooltip and reports a pointer press", () => {
+		const onPointerDown = vi.fn();
 		render(
 			<TabItem
 				tab={tab}
 				active={false}
 				onSelect={vi.fn()}
 				onClose={vi.fn()}
-				onDragStart={onDragStart}
+				onPointerDown={onPointerDown}
 			/>,
 		);
 		const item = screen.getByRole("tab", { name: "Fix login" });
 		expect(item.getAttribute("title")).toBe("Fix login");
-		expect(item.getAttribute("draggable")).toBe("true");
-		fireEvent.dragStart(item);
-		expect(onDragStart).toHaveBeenCalledTimes(1);
+		expect(item.getAttribute("draggable")).toBeNull();
+		fireEvent.pointerDown(item, { button: 0, pointerId: 1, clientX: 5, clientY: 5 });
+		expect(onPointerDown).toHaveBeenCalledTimes(1);
 	});
 });

@@ -8,8 +8,9 @@
  * `available_in`; ids are normalised; labels come from the id; the shared file is read-only, so a
  * change to a shared action is written to the personal file).
  * Children: ActionIconPicker.
- * Must handle: an empty name or command (Save disabled), no place to run (Save disabled), a name
- * that normalises to an existing id (error naming the clash, Save disabled), a folder with
+ * Must handle: an empty name or command (Save disabled, saying Conductor's "Action names can't be
+ * empty" once a command is typed), no place to run (Save disabled), a name that normalises to an
+ * existing id ("Action names must be unique", Save disabled), a folder with
  * `$VARIABLES` (the known names are shown as help), and a save failure (dialog stays open with the
  * text kept).
  * Test first: two names that normalise to the same id show the clash and disable Save.
@@ -74,6 +75,7 @@ export function AddActionDialog({
 	const [draft, setDraft] = useState<ActionDraft>(initial);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const iconSearchRef = useRef<HTMLInputElement | null>(null);
 	const nameId = useId();
 	const commandId = useId();
 	const cwdId = useId();
@@ -161,7 +163,13 @@ export function AddActionDialog({
 							autoFocus
 							placeholder="My action"
 							aria-invalid={clash || undefined}
-							error={clash ? `An action called "${draft.name.trim()}" already exists.` : undefined}
+							error={
+								clash
+									? "Action names must be unique"
+									: draft.name.trim() === "" && draft.command.trim() !== ""
+										? "Action names can't be empty"
+										: undefined
+							}
 							onChange={(event) => set({ name: event.target.value })}
 						/>
 					</div>
@@ -193,14 +201,20 @@ export function AddActionDialog({
 					<div className="flex flex-col gap-1.5">
 						<span className="text-sm font-medium leading-none text-fg">Icon</span>
 						<div className="flex items-center gap-2">
-							<span className="flex size-8 items-center justify-center rounded-md bg-muted text-fg-muted">
+							<button
+								type="button"
+								aria-label="Choose action icon"
+								onClick={() => iconSearchRef.current?.focus()}
+								className="flex size-8 items-center justify-center rounded-md bg-muted text-fg-muted transition-colors hover:bg-hover hover:text-fg"
+							>
 								<ActionIcon name={draft.icon} />
-							</span>
+							</button>
 							<span className="text-xs text-fg-muted">{draft.icon ?? "The default play icon"}</span>
 						</div>
 						<ActionIconPicker
 							selected={draft.icon}
 							onSelect={(iconName) => set({ icon: iconName })}
+							searchInputRef={iconSearchRef}
 						/>
 					</div>
 

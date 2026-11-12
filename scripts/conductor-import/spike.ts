@@ -1,22 +1,25 @@
 /**
  * @feature APP-18 The chat history spike: does Conductor's history map whole?
  * Owns: `bun scripts/conductor-import/spike.ts <path-to-a-conductor-db-copy> [--sample N]`. It
- * clones the copy into a folder of its own, opens the clone read-only, maps the events of a sample
- * of chats with the mapping the import will use (packages/sidecar/src/import/conductor-events.ts),
- * and prints counts only: chats sampled per agent, events per event type, mapped and unmapped per
- * type, the mapped share, and for each chat whether its transcript in our chat (the turns our turn
- * builder makes of the mapped events) reads the same as in Conductor's (its `session_messages`
- * rows), as match, mismatch with its first cause, or not mapped yet.
+ * clones the copy into a folder of its own, opens the clone read-only, reads every chat that has
+ * `session_messages` rows (or N of them, spread evenly), maps each chat's rows with the mapping the
+ * import will use (packages/sidecar/src/import/conductor-history.ts), and prints counts only: chats
+ * per agent, rows per kind, mapped and unmapped per kind, why rows were not mapped, which mapped
+ * rows were left out because Conductor does not show them, the mapped share, and for each chat
+ * whether its transcript in our chat (the turns our turn builder makes of the mapped events) reads
+ * the same as in Conductor's (conductor-transcript.ts, from the same rows), as match, mismatch
+ * with its first cause, or not mapped yet. It also counts chats that have events but no messages,
+ * the only history that reading messages could miss.
  * Behaviour: docs/plans/migrate-from-conductor.md, "The spike first": the pass mark is at least
- * 99% of the events in the sampled chats the mapping handles mapped, and every such chat reading
+ * 99% of the rows in the sampled chats the mapping handles mapped, and every such chat reading
  * the same as in Conductor. A chat of an agent the mapping does not handle yet (Codex today) is
  * counted apart and left out of the mark. Below the mark, chat history does not come over.
  * Must handle: it never prints, logs or returns a value from the database (no text, path, title,
- * name, id, agent or event type it does not know: an unknown one counts as "other"); an error
- * prints its kind only, never its message, which could quote a row; the copy and the folder beside
- * it stay as they were, because SQLite opens only the clone (opening a database creates files
- * beside it); the clone's folder is removed when the run ends, even when it fails. The sample is
- * spread evenly over the chats that have events, in id order, so a second run reads the same chats.
+ * name, id, role or agent it does not know: an unknown one counts as "other"); an error prints
+ * its kind only, never its message, which could quote a row; the copy and the folder beside it
+ * stay as they were, because SQLite opens only the clone (opening a database creates files beside
+ * it); the clone's folder is removed when the run ends, even when it fails. A sample is spread
+ * evenly over the chats that have messages, in id order, so a second run reads the same chats.
  * Test first: prints counts only, never a value from the database.
  */
 import { Database } from "bun:sqlite";
@@ -25,26 +28,28 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ChatTurn } from "../../apps/desktop/src/core/model.ts";
 import { buildTurns } from "../../apps/desktop/src/core/services/turn-builder.ts";
+import type { SessionEvent } from "../../packages/protocol/src/events.ts";
 import { idleLiveState } from "../../packages/protocol/src/live-state.ts";
 import type { SessionConfig } from "../../packages/protocol/src/session-config.ts";
 import type { AgentKind } from "../../packages/shared/src/ids.ts";
 import {
-	CONDUCTOR_EVENT_TYPES,
-	type ConductorEventRow,
 	type ConductorMessageRow,
-	type CountedEventType,
+	LEFT_OUT_REASONS,
+	MAPPED_AGENTS,
+	mapConductorMessages,
+	ROW_KINDS,
+	type RowCount,
+	UNMAPPED_REASONS,
+} from "../../packages/sidecar/src/import/conductor-history.ts";
+import {
 	compareTranscripts,
 	conductorTranscript,
-	MAPPED_AGENTS,
-	mapConductorEvents,
 	shownText,
 	type TranscriptEntry,
 	type TranscriptTurn,
 	type TranscriptVerdict,
-	type TypeCount,
-} from "../../packages/sidecar/src/import/conductor-events.ts";
+} from "../../packages/sidecar/src/import/conductor-transcript.ts";
 
-const DEFAULT_SAMPLE = 25;
 const PASS_SHARE = 0.99;
 
 /** The config our user_message events carry. The spike stores nothing, so any valid one does. */
@@ -111,6 +116,35 @@ function chatTranscript(turns: readonly ChatTurn[]): TranscriptTurn[] {
 	});
 }
 
+/**
+ * The events without sub-agent messages whose parent call is in none of them, and how many text,
+ * todo and call entries those messages held. Conductor takes every sub-agent message out of the
+ * main transcript (`vmt` @1427544) and has no card for one whose parent it never stored, so it shows
+ * none of it; ours keeps it at the top level, by the owner's ruling to hide nothing (D129). The
+ * comparison leaves that ruled difference out and the spike prints its size.
+ */
+function withoutOrphanedWork(events: readonly SessionEvent[]): {
+	kept: SessionEvent[];
+	leftOutEntries: number;
+} {
+	const calls = new Set<string>();
+	for (const event of events) {
+		if (event.type !== "agent") continue;
+		for (const item of event.message.items)
+			if (item.kind === "tool_call") calls.add(item.toolUseId);
+	}
+	let leftOutEntries = 0;
+	const kept = events.filter((event) => {
+		const parent = event.type === "agent" ? event.message.parentToolUseId : undefined;
+		if (event.type !== "agent" || parent === undefined || calls.has(parent)) return true;
+		leftOutEntries += event.message.items.filter(
+			(item) => item.kind === "text" || item.kind === "tool_call" || item.kind === "todo",
+		).length;
+		return false;
+	});
+	return { kept, leftOutEntries };
+}
+
 const entries = (turns: readonly TranscriptTurn[]): number =>
 	turns.reduce((sum, turn) => sum + turn.user.length + turn.agent.length, 0);
 
@@ -133,7 +167,12 @@ function cloneCopy(source: string): { folder: string; path: string } {
 	return { folder, path };
 }
 
-export function runSpike(source: string, sample: number, print: (line: string) => void): boolean {
+/** `sample` is how many chats to read, spread evenly; null reads every chat that has messages. */
+export function runSpike(
+	source: string,
+	sample: number | null,
+	print: (line: string) => void,
+): boolean {
 	const { folder, path } = cloneCopy(source);
 	try {
 		const db = new Database(path, { readonly: true });
@@ -155,53 +194,62 @@ interface ChatResult {
 	verdict: TranscriptVerdict | null;
 }
 
-function measure(db: Database, sample: number, print: (line: string) => void): boolean {
+function measure(db: Database, sample: number | null, print: (line: string) => void): boolean {
 	const chats = db
 		.query<{ id: string; agent_type: string | null }, []>(
 			`SELECT id, agent_type FROM sessions s
-			WHERE EXISTS (SELECT 1 FROM session_events e WHERE e.session_id = s.id) ORDER BY id`,
+			WHERE EXISTS (SELECT 1 FROM session_messages m WHERE m.session_id = s.id) ORDER BY id`,
 		)
 		.all();
-	const events = db.query<ConductorEventRow, [string]>(
-		`SELECT event_id, event_type, content, received_at, reverted_at FROM session_events
-		WHERE session_id = ? ORDER BY session_index`,
-	);
-	// The rows Conductor's chat reads, in the order it reads them.
+	const eventsOnly =
+		db
+			.query<{ total: number }, []>(
+				`SELECT COUNT(*) AS total FROM sessions s
+				WHERE EXISTS (SELECT 1 FROM session_events e WHERE e.session_id = s.id)
+				AND NOT EXISTS (SELECT 1 FROM session_messages m WHERE m.session_id = s.id)`,
+			)
+			.get()?.total ?? 0;
+	// The rows Conductor's chat reads, in the order it reads them (`AA`, main @1538196).
 	const messages = db.query<ConductorMessageRow, [string]>(
 		`SELECT id, role, content, sent_at, created_at, turn_id FROM session_messages
 		WHERE session_id = ? AND sent_at IS NOT NULL ORDER BY sent_at, rowid`,
 	);
-	const totals: Record<CountedEventType, TypeCount> = {
-		userMessage: { events: 0, mapped: 0, unmapped: 0 },
-		agent: { events: 0, mapped: 0, unmapped: 0 },
-		checkpointCreated: { events: 0, mapped: 0, unmapped: 0 },
-		other: { events: 0, mapped: 0, unmapped: 0 },
-	};
-	let reverted = 0;
-	let notMappedEvents = 0;
+	const totals = Object.fromEntries(
+		ROW_KINDS.map((kind) => [kind, { rows: 0, mapped: 0, unmapped: 0 }]),
+	) as Record<(typeof ROW_KINDS)[number], RowCount>;
+	const unmapped = Object.fromEntries(UNMAPPED_REASONS.map((reason) => [reason, 0])) as Record<
+		(typeof UNMAPPED_REASONS)[number],
+		number
+	>;
+	const leftOut = Object.fromEntries(LEFT_OUT_REASONS.map((reason) => [reason, 0])) as Record<
+		(typeof LEFT_OUT_REASONS)[number],
+		number
+	>;
+	let notMappedRows = 0;
+	let orphanedEntries = 0;
 	const perChat: ChatResult[] = [];
-	for (const index of picks(chats.length, sample)) {
+	for (const index of picks(chats.length, sample ?? chats.length)) {
 		const chat = chats[index];
 		if (chat === undefined) continue;
 		const agent = agentOf(chat.agent_type);
 		const rows = messages.all(chat.id);
 		const conductor = conductorTranscript(rows);
 		if (!mapped(agent)) {
-			notMappedEvents += events.all(chat.id).length;
+			notMappedRows += rows.length;
 			perChat.push({ agent, conductor, ours: [], verdict: null });
 			continue;
 		}
-		const result = mapConductorEvents(events.all(chat.id), {
-			agent,
-			config: { ...SPIKE_CONFIG, agent },
-		});
-		for (const type of [...CONDUCTOR_EVENT_TYPES, "other"] as const) {
-			totals[type].events += result.counts[type].events;
-			totals[type].mapped += result.counts[type].mapped;
-			totals[type].unmapped += result.counts[type].unmapped;
+		const result = mapConductorMessages(rows, { agent, config: { ...SPIKE_CONFIG, agent } });
+		for (const kind of ROW_KINDS) {
+			totals[kind].rows += result.counts[kind].rows;
+			totals[kind].mapped += result.counts[kind].mapped;
+			totals[kind].unmapped += result.counts[kind].unmapped;
 		}
-		reverted += result.reverted;
-		const stored = result.events.map((event, idx) => ({
+		for (const reason of UNMAPPED_REASONS) unmapped[reason] += result.unmapped[reason];
+		for (const reason of LEFT_OUT_REASONS) leftOut[reason] += result.leftOut[reason];
+		const { kept, leftOutEntries } = withoutOrphanedWork(result.events);
+		orphanedEntries += leftOutEntries;
+		const stored = kept.map((event, idx) => ({
 			idx,
 			event,
 			receivedAt: event.at,
@@ -210,7 +258,7 @@ function measure(db: Database, sample: number, print: (line: string) => void): b
 		const ours = chatTranscript(buildTurns(stored, idleLiveState));
 		perChat.push({ agent, conductor, ours, verdict: compareTranscripts(rows, ours) });
 	}
-	const all = Object.values(totals).reduce((sum, count) => sum + count.events, 0);
+	const all = Object.values(totals).reduce((sum, count) => sum + count.rows, 0);
 	const mappedAll = Object.values(totals).reduce((sum, count) => sum + count.mapped, 0);
 	const share = all === 0 ? 0 : mappedAll / all;
 	const compared = perChat.filter((chat) => chat.verdict !== null);
@@ -219,7 +267,8 @@ function measure(db: Database, sample: number, print: (line: string) => void): b
 		compared.length > 0 && all > 0 && share >= PASS_SHARE && matching === compared.length;
 
 	print("Conductor chat history spike: counts only");
-	print(`chats with events: ${chats.length}`);
+	print(`chats with messages: ${chats.length}`);
+	print(`chats with events but no messages: ${eventsOnly}`);
 	print(`chats sampled: ${perChat.length}`);
 	print("chats by agent (sampled, match, mismatch, not mapped yet):");
 	for (const label of AGENT_LABELS) {
@@ -229,14 +278,20 @@ function measure(db: Database, sample: number, print: (line: string) => void): b
 		print(`  ${label} ${of.length} ${match} ${of.length - match - notMapped} ${notMapped}`);
 	}
 	print("chats not mapped yet are left out of the pass mark.");
-	print("events by type in mapped chats (events, mapped, unmapped):");
-	for (const type of [...CONDUCTOR_EVENT_TYPES, "other"] as const) {
-		const count = totals[type];
-		print(`  ${type} ${count.events} ${count.mapped} ${count.unmapped}`);
+	print("rows by kind in mapped chats (rows, mapped, unmapped):");
+	for (const kind of ROW_KINDS) {
+		const count = totals[kind];
+		print(`  ${kind} ${count.rows} ${count.mapped} ${count.unmapped}`);
 	}
-	print(`all events in mapped chats: ${all}, mapped: ${mappedAll} (${(share * 100).toFixed(1)}%)`);
-	print(`events in chats not mapped yet: ${notMappedEvents}`);
-	print(`reverted events left out: ${reverted}`);
+	print(`all rows in mapped chats: ${all}, mapped: ${mappedAll} (${(share * 100).toFixed(1)}%)`);
+	print("unmapped rows by reason:");
+	for (const reason of UNMAPPED_REASONS) print(`  ${reason} ${unmapped[reason]}`);
+	print("mapped rows left out, as Conductor does not show them:");
+	for (const reason of LEFT_OUT_REASONS) print(`  ${reason} ${leftOut[reason]}`);
+	print(`rows in chats not mapped yet: ${notMappedRows}`);
+	print(
+		`sub-agent entries whose parent call is stored nowhere, shown by D129 and left out of the comparison: ${orphanedEntries}`,
+	);
 	print("per chat (agent; Conductor turns, entries; Conducted turns, entries; result):");
 	perChat.forEach((chat, index) => {
 		const result = chat.verdict === null ? "not mapped yet" : VERDICT_WORDS[chat.verdict];
@@ -246,15 +301,15 @@ function measure(db: Database, sample: number, print: (line: string) => void): b
 	});
 	print(`mapped chats whose transcript matches: ${matching} of ${compared.length}`);
 	print(
-		`pass mark (at least 99% of events mapped and every mapped chat matching): ${passed ? "met" : "not met"}`,
+		`pass mark (at least 99% of rows mapped and every mapped chat matching): ${passed ? "met" : "not met"}`,
 	);
 	return passed;
 }
 
 function main(argv: readonly string[]): number {
 	const [source, flag, value] = argv;
-	const sample = flag === "--sample" ? Number(value) : DEFAULT_SAMPLE;
-	if (source === undefined || !Number.isInteger(sample) || sample < 1) {
+	const sample = flag === "--sample" ? Number(value) : null;
+	if (source === undefined || (sample !== null && (!Number.isInteger(sample) || sample < 1))) {
 		process.stderr.write(
 			"usage: bun scripts/conductor-import/spike.ts <path-to-a-conductor-db-copy> [--sample N]\n",
 		);

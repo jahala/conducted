@@ -45,6 +45,7 @@ const workspaceFor = (id: WorkspaceId, patch: Partial<Workspace> = {}): Workspac
 	path: `/workspaces/${id}`,
 	branch: `branch-${id}`,
 	branchIsPlaceholder: true,
+	remoteFileSyncEnabled: false,
 	host: { kind: "local" },
 	displayName: null,
 	targetBranch: "main",
@@ -151,7 +152,7 @@ function harness(
 			return ok(undefined);
 		},
 		async exists() {
-			return true;
+			return ok(true);
 		},
 		paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" },
 	} as unknown as Pick<FileSystem, "writeTextAtomic" | "mkdirp" | "exists"> & {

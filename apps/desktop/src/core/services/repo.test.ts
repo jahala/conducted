@@ -172,7 +172,7 @@ function makePlatform(options: { dirs?: readonly string[]; confirm?: boolean } =
 			return ok({ path, isDirectory: true, isSymlink: false, size: 0, modifiedAt: 0 });
 		},
 		async exists() {
-			return false;
+			return ok(false);
 		},
 		async readText() {
 			return err(appError("fs_missing", "no file"));
@@ -222,6 +222,10 @@ function makeService(options: Parameters<typeof makePlatform>[0] = {}) {
 		} as unknown as RepoServiceDeps["settings"],
 		removal: { removeWorkspacesOf, releaseBacklogOf: () => {} },
 		ids: createTestIds(),
+		// No setting save fails in these tests, so a report would be a defect.
+		reportSettingSaveFailed: (error) => {
+			throw new Error(`Unexpected failed setting save: ${error.message}`);
+		},
 	});
 	return { service, repos, git, platform, removeWorkspacesOf };
 }

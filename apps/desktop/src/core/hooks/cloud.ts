@@ -4,16 +4,17 @@
  * @feature CLOUD-10 Port forwarding from a cloud workspace to the Mac
  * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
  * @feature CLOUD-17 Cloud settings page
+ * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
  * @feature CLOUD-19 Create cloud workspaces: the organisation switcher and the new-workspace page in cloud mode
- * Owns: the query hooks for the cloud connection: the pairing the Connections page reads, the
- * organisation switcher's entries and active entry and the paired Worker's readiness (CLOUD-19), a
- * cloud workspace's forwarding view, the status, resources and agent cost its header shows, and
- * the Mac's personal cloud settings (Git and Cloud pages).
+ * Owns: the query hooks for the cloud connection: the pairing the Cloud page reads, the deploy's
+ * state, the organisation switcher's entries and active entry and the paired Worker's readiness
+ * (CLOUD-19), a cloud workspace's forwarding view, the status, resources and agent cost its header
+ * shows, and the Mac's personal cloud settings (Git and Cloud pages).
  * Behaviour: core/hooks.ts states the contract; the pairing, forwarding, workspace and settings
  * services' stores hold the answers.
  * Must handle: a state not read yet (loading), and a Keychain or Worker read that failed (an error
  * state with its message).
- * Test first: ConnectionsPage.test.tsx pairs with a Worker URL and a token, then unpairs.
+ * Test first: CloudPage.test.tsx pairs with a Worker URL and a token, then unpairs.
  */
 import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
@@ -30,13 +31,23 @@ export const useFileSyncStatus: Queries["useFileSyncStatus"] = (workspaceId) => 
 		container.services.workspace.store,
 		(state) => state.workspacesById[workspaceId]?.host,
 	);
-	// Subscribe to the status so a sync that finishes redraws the panel.
+	// Subscribe to the status and the workspace's saved switch, so a sync that finishes or the
+	// switch turning off redraws the panel.
 	useStore(service.store, (state) => state.byWorkspace[workspaceId]);
+	useStore(
+		container.services.workspace.store,
+		(state) => state.workspacesById[workspaceId]?.remoteFileSyncEnabled,
+	);
 	useEffect(() => {
 		if (host?.kind !== "cloud") return;
 		void service.start(workspaceId);
 	}, [service, workspaceId, host?.kind]);
 	return service.viewOf(workspaceId, host ?? { kind: "local" });
+};
+
+export const useCloudDeploy: Queries["useCloudDeploy"] = () => {
+	const service = useServices().services.cloudDeploy;
+	return useStore(service.store, (current) => current);
 };
 
 export const useCloudPairing: Queries["useCloudPairing"] = () => {

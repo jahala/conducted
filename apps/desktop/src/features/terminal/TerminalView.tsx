@@ -12,11 +12,15 @@
  * Our design choice: in a centre terminal tab and in the Run tab the view is drawn by the app shell's
  * surface layer (NAV-15, app/surface-registry.tsx, ui-map.md 8), so it stays mounted while another
  * tab or workspace is open. The Scripts panel's Setup and Terminal N tabs mount it directly. Either way it still tolerates being unmounted and mounted again
- * (a workspace switch in the Scripts panel, a restart) by replaying saved history.
+ * (a workspace switch in the Scripts panel, a move between strips, a restart) by replaying the
+ * scrollback the connection gives, read in the same step as it subscribes.
  * Must handle: a terminal that has ended (history shown, banner with exit code), a terminal that
  * cannot be found, the PTY failing to spawn, output arriving before the view is ready (buffer it),
  * output faster than rendering (acknowledge bytes only after they are written, for flow control),
- * a resize while hidden (fit on show), and find with no matches.
+ * a resize while hidden (fit on show), find with no matches, and a clicked link, opened only after
+ * the system dialog Conductor shows ("Open link?", renderApp title:R4363426) is answered Open.
+ * The selected text gets Conductor's bar with "Add to chat": it attaches the selection to the
+ * workspace's newest chat as `terminal-selection-<time>.txt`, clears it, and names a failed attach.
  * Test first: output written to a connection before mount appears in the terminal buffer after
  * mount, and bytes are acknowledged once.
  */
@@ -30,11 +34,17 @@ import {
 	useState,
 } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
-import { useActions, useSetting, useTerminalConnection, useTerminals } from "../../core/hooks.ts";
+import { useServices } from "../../core/context.tsx";
+import {
+	useActions,
+	useSessions,
+	useSetting,
+	useTerminalConnection,
+	useTerminals,
+} from "../../core/hooks.ts";
 import type { TerminalConnection, TerminalUnsubscribe } from "../../core/model.ts";
 import { terminalLimit as limitForMode } from "../../core/terminals.ts";
 import { Button } from "../../ui/Button.tsx";
-import { Dialog, DialogClose, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { LoadableView } from "../../ui/LoadableView.tsx";
 import { toastError } from "../../ui/Toast.tsx";
@@ -54,7 +64,7 @@ import { resolveTerminalAppearance, type TerminalAppearance } from "./terminal-t
  * StrictMode's development remount does not leave the terminal without a PTY listener.
  */
 export class BufferedTerminalConnection implements TerminalConnection {
-	readonly history: Uint8Array;
+	#history: Uint8Array;
 	readonly #source: TerminalConnection;
 	#unsubscribe: TerminalUnsubscribe | null = null;
 	#pending: Uint8Array[] = [];
@@ -63,7 +73,16 @@ export class BufferedTerminalConnection implements TerminalConnection {
 
 	constructor(source: TerminalConnection) {
 		this.#source = source;
-		this.history = source.history;
+		this.#history = source.history;
+	}
+
+	/**
+	 * The scrollback to replay before live output, as the source gave it when this view subscribed.
+	 * Reading it in the same step as subscribing means no output falls between the two, even while
+	 * another view of the terminal (the strip it is leaving, #527) still listens.
+	 */
+	get history(): Uint8Array {
+		return this.#history;
 	}
 
 	/** The exit state can change when a finished shell is restarted. */
@@ -78,6 +97,7 @@ export class BufferedTerminalConnection implements TerminalConnection {
 	start(): void {
 		if (this.#started) return;
 		this.#started = true;
+		this.#history = this.#source.history;
 		this.#unsubscribe = this.#source.onData((chunk) => {
 			if (this.#listeners.size === 0) {
 				this.#pending.push(chunk);
@@ -195,8 +215,11 @@ export function TerminalView({
 	const connection = useTerminalConnection(terminalId);
 	const actions = useActions();
 	const workspaceTerminals = useTerminals(workspaceId);
+	const openChats = useSessions(workspaceId);
+	const chatForSelection = openChats.state === "ready" ? openChats.data[0] : undefined;
 	const tabFreakMode = useSetting<boolean>("experimental_tab_freak_mode");
-	const [pendingLink, setPendingLink] = useState<string | null>(null);
+	const { platform } = useServices();
+	const [selectedText, setSelectedText] = useState("");
 	const source = connection.state === "ready" ? connection.data : null;
 	const buffered = useMemo(
 		() => (source ? new BufferedTerminalConnection(source) : null),
@@ -271,13 +294,38 @@ export function TerminalView({
 		});
 	};
 
-	const openPendingLink = () => {
-		const url = pendingLink;
-		setPendingLink(null);
-		if (url === null) return;
-		void actions.app.openUrl(url).then((result) => {
-			if (!result.ok) toastError("Couldn't open the link", result.error);
+	/** Conductor's file name for a terminal selection: our instant, with colons and dots as hyphens. */
+	const selectionFileName = (): string =>
+		`terminal-selection-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, -5)}`;
+
+	const addSelectionToChat = async () => {
+		const session = chatForSelection;
+		const text = selectedText.trim();
+		if (session === undefined || text === "") return;
+		const attached = await actions.attachments.addText(session.id, selectionFileName(), text);
+		if (!attached.ok) {
+			toastError("Failed to attach terminal selection", attached.error);
+			return;
+		}
+		setSelectedText("");
+		surfaceRef.current?.clear();
+		if (typeof document !== "undefined") {
+			document.querySelector<HTMLElement>(".ProseMirror")?.focus();
+		}
+	};
+
+	/** Conductor asks in the system dialog, with these words, before it opens a terminal link. */
+	const openLink = async (url: string): Promise<void> => {
+		const confirmed = await platform.dialogs.confirm({
+			title: "Open link?",
+			message: `Open this terminal link?\n\n${url}`,
+			okLabel: "Open",
+			cancelLabel: "Cancel",
+			kind: "warning",
 		});
+		if (!confirmed) return;
+		const opened = await actions.app.openUrl(url);
+		if (!opened.ok) toastError("Couldn't open the link", opened.error);
 	};
 
 	const search = useCallback(
@@ -366,8 +414,9 @@ export function TerminalView({
 									visible={visible}
 									ended={ended !== null}
 									focusOnMount={focusOnMount}
-									onOpenLink={setPendingLink}
+									onOpenLink={(url) => void openLink(url)}
 									onCopy={copySelection}
+									onSelectionChange={setSelectedText}
 								/>
 							</>
 						) : (
@@ -378,6 +427,19 @@ export function TerminalView({
 						)
 					}
 				</LoadableView>
+				{selectedText.trim() !== "" && chatForSelection !== undefined ? (
+					<div
+						role="status"
+						className="absolute inset-x-0 top-0 z-10 flex items-center gap-2 bg-canvas px-2 py-1"
+					>
+						<span className="min-w-0 flex-1 truncate font-mono text-xs text-fg-muted">
+							{selectedText.replace(/\s+/g, " ")}
+						</span>
+						<Button variant="outline" size="xs" onClick={() => void addSelectionToChat()}>
+							Add to chat
+						</Button>
+					</div>
+				) : null}
 				{findOpen ? (
 					<TerminalFindBar
 						query={query}
@@ -402,25 +464,6 @@ export function TerminalView({
 					terminalLimit={limitReached ? effectiveLimit : undefined}
 				/>
 			) : null}
-			<Dialog
-				open={pendingLink !== null}
-				onOpenChange={(open) => {
-					if (!open) setPendingLink(null);
-				}}
-			>
-				<DialogContent
-					title="Open link?"
-					description={`Open this terminal link? ${pendingLink ?? ""}`}
-					size="sm"
-				>
-					<DialogFooter>
-						<DialogClose asChild>
-							<Button variant="secondary">Cancel</Button>
-						</DialogClose>
-						<Button onClick={openPendingLink}>Open</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
 		</div>
 	);
 }

@@ -2,20 +2,27 @@ name: Catalogue shots
 
 # Draws every state of the states catalogue (docs/engineering.md, "States catalogue") in Chromium
 # and uploads the PNGs, so a screen change can be read beside Conductor's captures without a
-# browser run on the owner's Mac. Runs on pull requests that touch the desktop's screens. The same
-# job runs the browser check of the Codex visualization frame under the app's production policy
-# (scripts/visualization/frame-policy.browser.ts, issue #466) and the Loadout's pointer drag
-# (scripts/catalogue/loadout-drag.browser.ts, issue #481).
+# browser run on the owner's Mac. Runs on pull requests that touch the desktop's screens. The
+# states are drawn in three parts side by side (`shots.ts --shard`), because one run of about 300
+# states outgrew its 30-minute limit. A separate job runs the browser check of the Codex visualization frame under the app's production policy
+# (scripts/visualization/frame-policy.browser.ts, issue #466), the Loadout's pointer drag
+# (scripts/catalogue/loadout-drag.browser.ts, issue #481), the pointer checks for every in-app
+# drag (scripts/catalogue/pointer-drag.browser.ts, issue #529), the Settings sidebar's measure
+# (scripts/settings-nav.browser.ts, issue #488), the plan review shortcut from the composer
+# (scripts/catalogue/plan-approve.browser.ts, issue #586) and the Agents page's tab row
+# (scripts/catalogue/agents-tabs.browser.ts, issue #625).
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "apps/desktop/src/**"
       - "scripts/catalogue/**"
+      - "scripts/*.browser.ts"
       - "apps/desktop/vite.catalogue.config.ts"
       - "apps/desktop/src-tauri/tauri.conf.json"
       - "apps/desktop/src-tauri/src/visualization.rs"
       - "scripts/visualization/**"
+      - ".github/workflows/catalogue-shots.yml"
 
 permissions:
   contents: read
@@ -28,9 +35,17 @@ jobs:
   shots:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    # A full run takes about 14 minutes (2026-11-08), so 15 cut normal runs off. The limit catches
-    # a hang, not slowness.
+    # Microsoft's Playwright image for the locked playwright-core (1.65.0, and the image moves with it: Playwright refuses a mismatched image): Chromium and its system
+    # packages are already in it, so the job never needs Ubuntu's package mirror (issue #540).
+    container:
+      image: mcr.microsoft.com/playwright@sha256:9beb546099e11f52d62e505537914870e01a67e0e6b00ae41da4775324e73dbe # v1.65.0-noble
+    # One part draws a third of the states, about 10 minutes at 300 states (2026-11-12). The limit
+    # catches a hang, not slowness.
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
@@ -38,21 +53,61 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # ratchet:oven-sh/setup-bun@v2.2.0
-        with:
-          bun-version-file: .bun-version
+      # setup-bun needs unzip, which the Playwright image lacks; npm's bun package carries the binary.
+      - name: Install bun from npm at the pinned version
+        run: npm install --global "bun@$(cat .bun-version)"
+      # The job runs as root in the container and the checkout belongs to the runner's user, so git
+      # refuses the folder until it is marked safe.
+      - name: Let git use the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: pnpm install --frozen-lockfile
-      # The Chromium build that matches the locked playwright-core, with the system libraries it needs.
-      - run: pnpm exec playwright-core install --with-deps chromium
-      - run: bun scripts/catalogue/shots.ts
+      - run: bun scripts/catalogue/shots.ts --shard=${{ matrix.shard }}/3
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
+        # GitHub's artifact store once hung an upload for 9 minutes (#555); a hang fails here, not at the job's limit.
+        timeout-minutes: 5
         with:
-          name: catalogue-shots
+          name: catalogue-shots-${{ matrix.shard }}
           path: .context/shots/ours/
           retention-days: 14
+
+  browser-checks:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright@sha256:9beb546099e11f52d62e505537914870e01a67e0e6b00ae41da4775324e73dbe # v1.65.0-noble
+    # The first four checks took about 5 minutes together (2026-11-12); the plan review and Agents
+    # tab checks are not yet measured on GitHub. The limit catches a hang.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # ratchet:actions/setup-node@v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      # setup-bun needs unzip, which the Playwright image lacks; npm's bun package carries the binary.
+      - name: Install bun from npm at the pinned version
+        run: npm install --global "bun@$(cat .bun-version)"
+      # The job runs as root in the container and the checkout belongs to the runner's user, so git
+      # refuses the folder until it is marked safe.
+      - name: Let git use the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - run: pnpm install --frozen-lockfile
       - name: The visualization frame runs its scripts under the production policy
         if: ${{ !cancelled() }}
         run: bun scripts/visualization/frame-policy.browser.ts
       - name: The Loadout takes a model from a real pointer drag
         if: ${{ !cancelled() }}
         run: bun scripts/catalogue/loadout-drag.browser.ts
+      - name: Every in-app drag takes a real pointer drag
+        if: ${{ !cancelled() }}
+        run: bun scripts/catalogue/pointer-drag.browser.ts
+      - name: The settings sidebar never scrolls sideways
+        if: ${{ !cancelled() }}
+        run: bun scripts/settings-nav.browser.ts
+      - name: Cmd+Shift+Enter approves a waiting plan from the composer
+        if: ${{ !cancelled() }}
+        run: bun scripts/catalogue/plan-approve.browser.ts
+      - name: The Agents page's tabs fit their row, with scrollbars that take space too
+        if: ${{ !cancelled() }}
+        run: bun scripts/catalogue/agents-tabs.browser.ts

@@ -23,9 +23,10 @@
  * models loading or failing per agent; an agent not installed; a full loadout (Enter
  * replaces the last slot, as Conductor's does); a choice already in another slot (it moves there);
  * a save that fails (a toast with the reason).
- * Our design choice: a drag is a pointer drag, as Conductor's Loadout is (renderApp, its slot and
- * model rows use motion's pointer drag). The app window's drag-drop handler answers every native
- * drag for file drops, so the page never gets a drag's drop (issue #481).
+ * Our design choice: a drag is the app's shared pointer drag (ui/pointer-drag.ts), as Conductor's
+ * Loadout is (renderApp, its slot and model rows use motion's pointer drag). The app window's
+ * drag-drop handler answers every native drag for file drops, so the page never gets a drag's drop
+ * (issue #481).
  * Test first: Enter on a model row puts it in the next empty slot.
  */
 import type { ModelInfo } from "@conducted/protocol";
@@ -49,6 +50,7 @@ import {
 	MenuSeparator,
 	MenuTrigger,
 } from "../../../ui/Menu.tsx";
+import { type PointerDrag, type PointerDragHit, usePointerDrag } from "../../../ui/pointer-drag.ts";
 import { toastError } from "../../../ui/Toast.tsx";
 import { EFFORT_LABELS } from "../../composer/ModelPicker.tsx";
 import { type LoadoutEntry, useLoadout } from "../../composer/use-loadout.ts";
@@ -63,18 +65,15 @@ type DragPayload =
 	| { kind: "model"; choice: Choice }
 	| { kind: "slot"; from: number; entry: LoadoutEntry };
 
-/** A pointer drag in flight: the payload, the distance moved, and the slot under the pointer. */
-interface DragState {
+/** The part of a drag in flight that a dragged slot or model row draws. */
+interface Dragging {
 	payload: DragPayload;
 	dx: number;
 	dy: number;
-	target: number | undefined;
 }
 
 /** Conductor's hit-test margin around a slot's rectangle, in pixels (renderApp's loadout editor). */
 const SLOT_MARGIN = 16;
-/** How far the pointer moves before a press becomes a drag; a shorter press stays a click. */
-const DRAG_THRESHOLD = 4;
 
 const sameModel = (left: Choice, right: Choice): boolean =>
 	left.agent === right.agent && left.acpAgent === right.acpAgent && left.model === right.model;
@@ -105,13 +104,7 @@ export function LoadoutEditor() {
 	}, [actions, installsAsked]);
 	const favorites = useServices().services.favoriteModels;
 	const saves = useSettingSaves();
-	const [drag, setDrag] = useState<DragState | null>(null);
 	const slotNodes = useRef<(HTMLLIElement | null)[]>([]);
-	const stopListening = useRef<(() => void) | null>(null);
-	// Conductor suppresses the click that ends a drag on a slot (its `onClickCapture`), so a drag
-	// never opens the slot's choices; the next press starts the question again.
-	const clickAfterDrag = useRef(false);
-	useEffect(() => () => stopListening.current?.(), []);
 	const offset = entries[0]?.isDefault === true ? 1 : 0;
 
 	const report = (title: string, result: Result<unknown>) => {
@@ -163,23 +156,23 @@ export function LoadoutEditor() {
 	 * `SLOT_MARGIN`, and the nearest centre on the horizontal axis winning. Outside every slot
 	 * gives undefined, which a dragged slot reads as "remove".
 	 */
-	const targetAt = (x: number, y: number): number | undefined => {
-		let found: number | undefined;
+	const targetAt = (point: { x: number; y: number }): PointerDragHit<number> | undefined => {
+		let found: PointerDragHit<number> | undefined;
 		let nearest = Number.POSITIVE_INFINITY;
 		slotNodes.current.forEach((node, index) => {
 			if (node === null) return;
 			const rect = node.getBoundingClientRect();
 			if (
-				x < rect.left - SLOT_MARGIN ||
-				x > rect.right + SLOT_MARGIN ||
-				y < rect.top - SLOT_MARGIN ||
-				y > rect.bottom + SLOT_MARGIN
+				point.x < rect.left - SLOT_MARGIN ||
+				point.x > rect.right + SLOT_MARGIN ||
+				point.y < rect.top - SLOT_MARGIN ||
+				point.y > rect.bottom + SLOT_MARGIN
 			)
 				return;
-			const distance = Math.abs(x - (rect.left + rect.width / 2));
+			const distance = Math.abs(point.x - (rect.left + rect.width / 2));
 			if (distance < nearest) {
 				nearest = distance;
-				found = index;
+				found = { target: index, element: node };
 			}
 		});
 		return found;
@@ -207,53 +200,12 @@ export function LoadoutEditor() {
 		if (to !== payload.from) void move(payload.from, to);
 	};
 
-	const startDrag = (event: ReactPointerEvent, payload: DragPayload) => {
-		if (event.button !== 0 || event.ctrlKey || event.metaKey) return;
-		stopListening.current?.();
-		const startX = event.clientX;
-		const startY = event.clientY;
-		const pointerId = event.pointerId;
-		let active = false;
-		const clean = () => {
-			document.removeEventListener("pointermove", moved);
-			document.removeEventListener("pointerup", ended);
-			document.removeEventListener("pointercancel", ended);
-			document.removeEventListener("keydown", keyed);
-			if (stopListening.current === clean) stopListening.current = null;
-		};
-		const moved = (moveEvent: PointerEvent) => {
-			if (moveEvent.pointerId !== pointerId) return;
-			const dx = moveEvent.clientX - startX;
-			const dy = moveEvent.clientY - startY;
-			if (!active && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-			active = true;
-			clickAfterDrag.current = true;
-			setDrag({
-				payload,
-				dx,
-				dy,
-				target: shownTarget(payload, targetAt(moveEvent.clientX, moveEvent.clientY)),
-			});
-		};
-		const ended = (endEvent: PointerEvent) => {
-			if (endEvent.pointerId !== pointerId) return;
-			clean();
-			setDrag(null);
-			// A cancelled pointer changes nothing, as a drag cancelled with Escape does.
-			if (endEvent.type === "pointercancel" || !active) return;
-			drop(payload, targetAt(endEvent.clientX, endEvent.clientY));
-		};
-		const keyed = (keyEvent: KeyboardEvent) => {
-			if (keyEvent.key !== "Escape") return;
-			clean();
-			setDrag(null);
-		};
-		document.addEventListener("pointermove", moved);
-		document.addEventListener("pointerup", ended);
-		document.addEventListener("pointercancel", ended);
-		document.addEventListener("keydown", keyed);
-		stopListening.current = clean;
-	};
+	const pointer = usePointerDrag<DragPayload, number>({
+		targetAt,
+		onDrop: (payload, target) => drop(payload, target),
+		// A slot released outside every slot leaves the loadout, as in Conductor.
+		onReleaseOutside: (payload) => drop(payload, undefined),
+	});
 
 	return (
 		<div className="flex w-full max-w-2xl select-none flex-col">
@@ -264,7 +216,9 @@ export function LoadoutEditor() {
 			>
 				{Array.from({ length: LOADOUT_SIZE }, (_, index) => {
 					const entry = entries[index];
-					const highlighted = drag?.target === index;
+					const highlighted =
+						pointer.drag !== null &&
+						shownTarget(pointer.drag.payload, pointer.drag.target) === index;
 					return (
 						<li
 							// biome-ignore lint/suspicious/noArrayIndexKey: a slot is its position.
@@ -285,10 +239,14 @@ export function LoadoutEditor() {
 									entry={entry}
 									index={index}
 									dragging={
-										drag?.payload.kind === "slot" && drag.payload.from === index ? drag : null
+										pointer.drag?.payload.kind === "slot" && pointer.drag.payload.from === index
+											? pointer.drag
+											: null
 									}
-									clickAfterDrag={clickAfterDrag}
-									onDragStart={(event) => startDrag(event, { kind: "slot", from: index, entry })}
+									pointer={pointer}
+									onDragStart={(event) =>
+										pointer.start(event, { kind: "slot", from: index, entry })
+									}
 									onChange={(choice) =>
 										entry.isDefault
 											? void saveDefault(choice)
@@ -310,8 +268,8 @@ export function LoadoutEditor() {
 						spec={spec}
 						isEquipped={(choice) => entries.some((entry) => sameModel(entry.config, choice))}
 						onAdd={addNext}
-						drag={drag?.payload.kind === "model" ? drag : null}
-						onDragStart={startDrag}
+						drag={pointer.drag?.payload.kind === "model" ? pointer.drag : null}
+						onDragStart={(event, payload) => pointer.start(event, payload)}
 					/>
 				))}
 			</div>
@@ -335,7 +293,7 @@ function SlotCard({
 	entry,
 	index,
 	dragging,
-	clickAfterDrag,
+	pointer,
 	onDragStart,
 	onChange,
 	onRemove,
@@ -343,8 +301,8 @@ function SlotCard({
 	entry: LoadoutEntry;
 	index: number;
 	/** The offset to draw the card at while it is dragged, or null. */
-	dragging: { dx: number; dy: number } | null;
-	clickAfterDrag: { current: boolean };
+	dragging: Dragging | null;
+	pointer: PointerDrag<DragPayload, number>;
 	onDragStart: (event: ReactPointerEvent) => void;
 	onChange: (choice: Choice) => void;
 	onRemove: () => void;
@@ -370,7 +328,7 @@ function SlotCard({
 				onPointerDownCapture={(event) => {
 					if (event.button !== 0 || event.ctrlKey) return;
 					event.stopPropagation();
-					clickAfterDrag.current = false;
+					pointer.resetClick();
 					if (!entry.isDefault) onDragStart(event);
 				}}
 			>
@@ -379,11 +337,7 @@ function SlotCard({
 						type="button"
 						aria-label={`${agentDisplayName(entry.config)} ${label}, ${effort}`}
 						onClick={(event) => {
-							if (clickAfterDrag.current && event.detail !== 0) {
-								event.preventDefault();
-								event.stopPropagation();
-								return;
-							}
+							if (pointer.consumeClick(event)) return;
 							if (event.detail !== 0) setMenuOpen((open) => !open);
 						}}
 						style={
@@ -522,7 +476,7 @@ function AgentColumn({
 	isEquipped: (choice: Choice) => boolean;
 	onAdd: (choice: Choice) => void;
 	/** The model drag in flight, so the row it started from can follow the pointer. */
-	drag: DragState | null;
+	drag: Dragging | null;
 	onDragStart: (event: ReactPointerEvent, payload: DragPayload) => void;
 }) {
 	const navigate = useNavigate();

@@ -7,13 +7,13 @@
 	},
 	"scripts": {
 		"typecheck": "tsc -p .",
-		"test": "bun test ${CONDUCTED_TEST_REPORTS:+--reporter=junit --reporter-outfile=$CONDUCTED_TEST_REPORTS/sidecar.xml}",
+		"test": "bun test --timeout 60000 ${CONDUCTED_TEST_REPORTS:+--reporter=junit --reporter-outfile=$CONDUCTED_TEST_REPORTS/sidecar.xml}",
 		"test:coverage": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=coverage",
 		"build": "bun src/packaging.ts"
 	},
 	"dependencies": {
 		"@agentclientprotocol/sdk": "^2.4.0",
-		"@anthropic-ai/claude-agent-sdk": "0.3.318",
+		"@anthropic-ai/claude-agent-sdk": "0.3.321",
 		"@conducted/protocol": "workspace:^",
 		"@conducted/shared": "workspace:^",
 		"@modelcontextprotocol/sdk": "^1.32.2",

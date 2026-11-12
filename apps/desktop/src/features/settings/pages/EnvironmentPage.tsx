@@ -31,7 +31,7 @@
  * Test first: adding a variable from the panel saves it in the scope and shows the row with a
  * hidden value.
  */
-import type { RepoId } from "@conducted/shared";
+import type { RepoId, Result } from "@conducted/shared";
 import { useEffect, useMemo, useState } from "react";
 import { useServices } from "../../../core/context.tsx";
 import { parseDotenv } from "../../../core/dotenv.ts";
@@ -74,7 +74,7 @@ export function EnvironmentPage({
 	const services = useServices().services;
 	const { platform } = useServices();
 	const [adding, setAdding] = useState(false);
-	const [files, setFiles] = useState<{ path: string; exists: boolean }[]>([]);
+	const [files, setFiles] = useState<{ path: string; exists: Result<boolean> }[]>([]);
 	const [candidates, setCandidates] = useState<string[]>([]);
 	const [importing, setImporting] = useState(false);
 	const [repoFiles, setRepoFiles] = useState<{
@@ -98,6 +98,14 @@ export function EnvironmentPage({
 	const filesKey = storedFiles.join("\n");
 	const bannerDismissed = useSetting<boolean>(BANNER_DISMISSED_KEY);
 	const root = selectedRepo?.rootPath ?? platform.fs.paths.home;
+
+	/** Conductor's native env-file picker: absolute, `~`, or relative to the repository root. */
+	const browseForEnvFile = async (): Promise<string | null> => {
+		const picked = await platform.dialogs.pickFiles({ title: "Select env file", multiple: false });
+		const chosen = picked[0];
+		if (chosen === undefined) return null;
+		return pathInsideRepository(root, chosen) ?? chosen;
+	};
 
 	/** The scope's own variables: a repository's page leaves the inherited ones to their table. */
 	const ownVars = useMemo(
@@ -392,7 +400,7 @@ export function EnvironmentPage({
 						value={vars}
 						loadingLabel="Loading environment variables"
 						errorTitle="Couldn't load the environment variables"
-						loading={<p className="text-sm text-fg-muted">Loading environment variables…</p>}
+						loading={<p className="text-sm text-fg-muted">Loading environment variables</p>}
 						onRetry={() => void services.settings.loadEnvVars(scope)}
 					>
 						{() => (
@@ -425,8 +433,8 @@ export function EnvironmentPage({
 					<div>
 						<h2 className="text-sm font-medium text-fg">Env files</h2>
 						<p className="text-sm text-fg-muted">
-							Load environment variables from env files into the environment of your scripts and
-							agents.
+							Load environment variables from env files. In the native file picker, press{" "}
+							<span className="font-medium">Cmd+Shift+.</span> to show hidden files.
 						</p>
 						{repoRoot !== null && repoFiles?.root === repoRoot && repoFiles.ownValue ? (
 							<Button variant="link" size="sm" onClick={() => void resetFiles()}>
@@ -440,6 +448,7 @@ export function EnvironmentPage({
 						repositoryRoot={root}
 						onAdd={addFile}
 						onRemove={removeFile}
+						onBrowse={browseForEnvFile}
 					/>
 				</div>
 			</div>

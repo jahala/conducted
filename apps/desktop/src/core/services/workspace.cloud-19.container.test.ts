@@ -4,7 +4,8 @@
  * Owns: the composition-root proof that the one create path makes a cloud workspace when the page
  * names the paired Worker: the sandbox is started, the project's GitHub repository is cloned into
  * the workspace's own sandbox folder and the new branch checked out there, the row is saved with
- * the cloud host, and the first chat starts on the Worker's relay, with no worktree made on the Mac.
+ * the cloud host and with the Advanced setting as its Sync files switch (CLOUD-11), and the first
+ * chat starts on the Worker's relay, with no worktree made on the Mac.
  * Behaviour: Conductor's createWorkspaceWithSetup takes its cloud path when the page passes a cloud
  * server URL (main @1171344, `aV` @1109999); our Worker routes are apps/cloud/src/index.ts.
  * Test first: a cloud create clones the project into its own sandbox, saves the cloud host and
@@ -109,6 +110,48 @@ describe("CLOUD-19 the create path in the cloud", () => {
 			const macCalls = test.memory.controls.shellCalls;
 			expect(macCalls.some((call) => call.args.includes("worktree"))).toBe(false);
 			expect(macCalls.some((call) => call.cwd?.startsWith("/workspace") === true)).toBe(false);
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("saves the Advanced setting at create time as the new workspace's Sync files switch", async () => {
+		const test = createTestContainer();
+		try {
+			must(await test.container.services.settings.start());
+			must(await test.container.sidecar.start());
+			quietMacGit(test);
+			scriptWorker(test);
+			const repo = await seedRepo(test.container, {
+				name: "api",
+				remoteUrl: "git@github.com:acme/api.git",
+			});
+			const savedSwitch = async (id: string): Promise<unknown> =>
+				(
+					await test.database.select<{ remote_file_sync_enabled: number }>(
+						"SELECT remote_file_sync_enabled FROM workspaces WHERE id = $1",
+						[id],
+					)
+				)[0]?.remote_file_sync_enabled;
+
+			must(
+				await test.container.services.settings.set(
+					"auto_sync_files_in_new_cloud_workspaces",
+					false,
+				),
+			);
+			const off = must(await test.container.actions.workspaces.create(input(repo.id, "One")));
+			must(
+				await test.container.services.settings.set("auto_sync_files_in_new_cloud_workspaces", true),
+			);
+			const on = must(await test.container.actions.workspaces.create(input(repo.id, "Two")));
+
+			expect(await savedSwitch(off.id)).toBe(0);
+			expect(await savedSwitch(on.id)).toBe(1);
+			// Changing the setting later leaves a workspace that exists alone.
+			expect(test.container.services.cloudFileSync.isEnabled(off.id)).toBe(false);
+			expect(test.container.services.cloudFileSync.isEnabled(on.id)).toBe(true);
 		} finally {
 			await test.container.stop();
 			test.close();

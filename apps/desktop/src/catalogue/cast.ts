@@ -3,7 +3,7 @@
  * Owns: the one seed most states share, so the sidebar looks the same behind every screen. Project
  * "atlas" has arbor (a finished chat, idle), beacon (working, with a follow-up queued), canyon (waiting for
  * a tool approval) and delta (archived). Project "relay" has ember (waiting for an answer), fjord (waiting
- * for a plan review) and grove (idle, with an open pull request and unread messages).
+ * for a plan review, in plan mode) and grove (idle, with an open pull request and unread messages).
  * Behaviour: ui-map.md 3.8 (workspace status: working, needs permission, needs answer, needs plan review,
  * idle, archived).
  * Must handle: a chat that is working gets its running turn after the app starts (see live.ts); the
@@ -27,9 +27,10 @@ import {
 	scriptGitHub,
 } from "./github.ts";
 import { deliverEvents, openInteraction, setLiveState } from "./live.ts";
-import { addChat, addEvents, addRepo, addWorkspace } from "./seeds.ts";
+import { addChat, addEvents, addRepo, addWorkspace, CLAUDE_CONFIG } from "./seeds.ts";
 import { CATALOGUE_NOW, DAY, HOUR, MINUTE } from "./time.ts";
 import type { World } from "./world.ts";
+import { HOME } from "./world.ts";
 
 export interface Cast {
 	atlas: Repo;
@@ -213,7 +214,11 @@ export async function seedCast(world: World, git: GitWorld = {}): Promise<Cast> 
 		beacon: await addChat(world, beacon, { title: "Rate-limit the public API" }),
 		canyon: await addChat(world, canyon, { title: "Dark mode on the settings page" }),
 		ember: await addChat(world, ember, { title: "Retry failed webhooks" }),
-		fjord: await addChat(world, fjord, { title: "Invalidate the cache on writes" }),
+		// The plan waits in plan mode, the only time Conductor shows the plan bar (renderApp @9314918).
+		fjord: await addChat(world, fjord, {
+			title: "Invalidate the cache on writes",
+			config: { ...CLAUDE_CONFIG, planMode: true },
+		}),
 		grove: await addChat(world, grove, { title: "Upgrade to Node 24", unread: 2 }),
 	};
 
@@ -359,7 +364,7 @@ export async function animateCast(world: World, cast: Cast, app: StartedApp): Pr
 	const queued = await app.container.actions.sessions.send(
 		cast.chats.beacon.id,
 		"Also return a Retry-After header with the number of seconds to wait.",
-		[],
+		[`${HOME}/Desktop/retry-after.md`],
 		"queue",
 	);
 	if (!queued.ok) throw new Error(`Queueing the follow-up failed: ${queued.error.message}`);
@@ -608,6 +613,8 @@ export interface GitWorld {
 	prs?: ScriptedPr[];
 	/** arbor's folder is no longer a git repository, so every git command fails. */
 	arborBroken?: boolean;
+	/** atlas's clone cannot list its local branches: `git branch` there fails, as git does in a broken repository. */
+	atlasBranchesBroken?: boolean;
 	/** arbor has no branch checked out (a detached HEAD). */
 	arborDetached?: boolean;
 	/** arbor against its upstream, when not the default of in step with it. */
@@ -675,6 +682,11 @@ export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void
 		branch: options.arborDetached === true ? "" : cast.arbor.branch,
 		target: "origin/main",
 		files: arborFiles,
+		unchanged: Object.fromEntries(
+			Object.entries(PROJECT_FILES).filter(([path]) =>
+				arborFiles.every((file) => file.path !== path),
+			),
+		),
 		commits: [
 			{
 				sha: "5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
@@ -707,6 +719,24 @@ export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void
 					}
 				: null,
 		);
+	}
+	if (options.atlasBranchesBroken === true) {
+		world.scriptShell((command) => {
+			const args = command.args[0] === "-c" ? command.args.slice(2) : command.args;
+			return command.program === "git" &&
+				command.cwd === cast.atlas.rootPath &&
+				args[0] === "branch" &&
+				args[1]?.startsWith("--format") === true
+				? {
+						ok: true,
+						value: {
+							stdout: "",
+							stderr: "fatal: not a git repository (or any of the parent directories): .git\n",
+							exitCode: 128,
+						},
+					}
+				: null;
+		});
 	}
 	world.scriptShell(
 		scriptGitHub({

@@ -63,7 +63,7 @@ function makeFs(overrides: Partial<FileSystem> = {}): {
 			return ok(undefined);
 		},
 		async exists() {
-			return false;
+			return ok(false);
 		},
 		async stat() {
 			return err(appError("fs_not_found", "missing"));
@@ -157,7 +157,7 @@ describe("WS-05 archive snapshot", () => {
 		});
 		const { fs, trashed } = makeFs({
 			async exists(path: string) {
-				return path === "/worktrees/oslo/.git/MERGE_HEAD";
+				return ok(path === "/worktrees/oslo/.git/MERGE_HEAD");
 			},
 		});
 
@@ -205,7 +205,7 @@ describe("WS-05 removeWorktree", () => {
 		);
 		const { fs, trashed } = makeFs({
 			async exists() {
-				return true;
+				return ok(true);
 			},
 		});
 

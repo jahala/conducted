@@ -769,7 +769,7 @@ AGENT-04	control	Account page row 'Claude Code tool approvals'	ui-map 6	partly
 AGENT-08	control	Account page row 'Codex tool approvals'	ui-map 6	partly
 PR-01	control	Account: GitHub through the gh CLI	ui-map 6	covered
 PR-01	control	Account: GitHub personal access token field (Keychain)	ui-map 6	covered
-PR-01	message	Token field warns 'That doesn't look like a GitHub token. Are you sure?'	inventory text R@11048106	missing
+PR-01	message	Token field warns 'That doesn't look like a GitHub token. Are you sure?'	inventory text R@11048106	covered
 PR-09	control	Account: Linear connection and key	ui-map 6	covered
 SET-06	control	Appearance: 'Colored sidebar diffs'	ui-map 6	covered
 SET-06	control	Appearance: 'Code ligatures'	ui-map 6	covered
@@ -810,7 +810,7 @@ PR-08	control	Git: Graphite stack support (one positive setting, one home)	ui-ma
 RUN-03	control	Connections: workspace port range and reserved ports	ui-map 3.7	partly
 SET-03	view	Agents page with cards for Claude Code, Codex, Cursor, OpenCode and Pi	ui-map 6	covered
 SET-12	control	Agents: 'Use Claude Code with Chrome' switch	ui-map 6	missing
-SET-03	control	Agents: provider search 'Search providers' and 'No providers match'	ui-map 6, 7.2	covered
+SET-10	control	Providers dialog: 'Search providers' filters OpenCode's key providers by name or variable	ui-map 6, 7.2	missing
 SET-03	dialog	Agents: CLI sign-in and 'Paste code from Claude'	ui-map 6	covered
 SET-03	dialog	Agents: Codex ChatGPT device-code sign-in (Personal or Business)	ui-map 6	covered
 SET-03	message	Sign-in flow can show the 'claude setup-token' command	ui-map 6	partly
@@ -902,7 +902,7 @@ NAV-06	state	Dashboard column empty states	ui-map 7.2	covered
 CHAT-06	state	Chat 'No messages yet'	ui-map 7.2	covered
 CHAT-09	state	Todo 'No todos'	ui-map 7.2	covered
 CHAT-13	state	'No tasks' empty state (panel not yet identified)	ui-map 7.2	missing
-SET-03	state	Providers 'No providers match your search.'	ui-map 7.2	covered
+SET-10	state	Providers dialog: 'No providers match your search.'	ui-map 7.2	missing
 COMP-02	state	Models 'No models found'	ui-map 7.2	covered
 APP-04	state	Repos 'No repositories found' and 'Add a project to get started.'	ui-map 7.2	covered
 REV-08	state	'Empty CSV' and 'Preview not available'	ui-map 7.2	covered
@@ -1020,7 +1020,7 @@ NAV-08	rule	The command palette ranks commands with the shared rankFuzzy matcher
 COMP-02	rule	The model picker filters models with the shared rankFuzzy matcher; no live caller yet (moved from APP-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 CHAT-01	rule	The chat history picker filters chats with the shared rankFuzzy matcher; no live caller yet (moved from APP-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 REV-01	rule	The target branch picker filters branches with the shared rankFuzzy matcher; no live caller yet (moved from APP-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
-SET-03	rule	The Agents page provider search ranks providers with the shared rankFuzzy matcher; no live caller yet (moved from APP-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
+SET-10	rule	The Providers dialog's provider search ranks providers with the shared rankFuzzy matcher; no live caller yet (moved from APP-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 SET-11	rule	Suggested variable names in the Environment form are ranked with the shared rankFuzzy matcher (features/settings/environment/EnvVarSuggestions.tsx), or the file header's claim is cut (moved from APP-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 NAV-10	message	After a branch rename the workspace header (features/workspace/WorkspaceHeader.tsx) warns that the old remote branch remains and toasts the final -vN name; Actions.git.renameBranch returns Result<void>, so the final name has to reach the header (moved from GIT-09 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 NAV-10	rule	Terminal tabs render a surface anchor (features/workspace/TabContent.tsx, through app/surface-registry.tsx) and app/AppShell.tsx (NAV-01) owns the placements store and mounts the surface layer; browser tabs follow once RUN-04 draws a preview (moved from NAV-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	partly
@@ -1061,7 +1061,7 @@ SET-04	rule	The Environment page shows environment_variable_files and marks it w
 REV-08	shortcut	The file editor has undo, redo, the default key map and Tab indent (needs the @codemirror/commands 6.x dependency, not installed overnight).	ui-map 3.2	missing
 REV-08	action	Reveal in Finder and Open in another app from a preview that cannot show (files.reveal and files.openInApp in core/api.ts; the default "Open in" app opens the file).	ui-map 3.2	covered
 CHAT-04	action	Retry a failed queued message goes through Actions (needs sessions.queue.retry in core/api.ts and actions.ts; QueueBox calls the service directly until then).	ui-map 3.4	partly
-APP-15	rule	Move the hand-written substring filters (ModelPicker, ChatHistoryButton, TargetBranchPicker, AgentsPage, changed-file-tree) onto rankFuzzy.	docs/reports/audits/s2-step-1-core-1	missing
+APP-15	rule	Move the hand-written substring filters (ModelPicker, ChatHistoryButton, TargetBranchPicker, changed-file-tree) onto rankFuzzy.	docs/reports/audits/s2-step-1-core-1	missing
 APP-14	rule	The APP-14 contrast matrix never sets data-vibrancy, so sidebar text on the translucent surface is unchecked (ui/app-14.test.tsx).	docs/reports/audits/s2-step-1-ui-1	missing
 APP-14	rule	Markdown and PR text have no link style and no test for one; style links through the shared kit (AssistantText.tsx, ExternalLink.tsx).	docs/reports/audits/s2-step-1-ui-1	missing
 APP-14	rule	search-highlight tokens carry the same values as highlight, and the test checks class names only; give them measured values and assert the colour (styles.css:113-117).	docs/reports/audits/s2-step-1-ui-1	missing
@@ -1105,12 +1105,12 @@ CHAT-27	control	Conductor shows "Copy error details" (tooltip, inventory-control
 CHAT-23	message	Conductor shows "Connecting" (literal, inventory-ui-text Git, review and files); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory literal R@2215964	missing
 CHAT-23	message	Conductor shows "Deleted" (literal, inventory-ui-text Git, review and files); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory literal R@2216274	missing
 CHAT-23	message	Conductor shows "Unknown" (literal, inventory-ui-text Git, review and files); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory literal R@2216298	missing
-APP-04	control	Conductor shows "Search repositories..." (placeholder, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory placeholder R@1898620	missing
+APP-04	control	Conductor shows "Search repositories..." (placeholder, Unplaced); ours shows it in catalogue state clone-github-dialog.	inventory placeholder R@1898620	covered
 APP-04	control	Conductor shows "Loading recent repos" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory aria_label R@1898003	missing
-APP-04	control	Conductor shows "Search repositories" (aria_label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory aria_label R@1898585	missing
-APP-04	message	Conductor shows "Recent repos" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@1897964	missing
+APP-04	control	Conductor shows "Search repositories" (aria_label, Unplaced); ours shows it in catalogue state clone-github-dialog.	inventory aria_label R@1898585	covered
+APP-04	message	Conductor shows "Recent repos" (text, Unplaced); ours shows it in catalogue state clone-github-dialog.	inventory text R@1897964	covered
 CHAT-24	message	Conductor shows "Failed to render diagram" (text, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@8047788	missing
-CHAT-22	message	Conductor shows "Couldn’t load visualization" (text, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@9498978	missing
+CHAT-22	message	Conductor shows "Couldn’t load visualization" (text, inventory-ui-text Chat and tool cards); ours shows it in catalogue state chat-visualizations-unavailable.	inventory text R@9498978	covered
 CHAT-06	region	A footer on user message bubbles behind the user_message_footer_enabled flag.	services-map 4.2.3	missing
 REV-08	state	The file editor shows an error card when it fails to open.	inventory description R@9949297	missing
 APP-05	region	The toast area carries the accessible name 'Notifications'.	inventory aria_label R@511358	missing
@@ -1141,16 +1141,16 @@ CHAT-15	dialog	A restore whose branch is taken asks 'Restore to new branch?'.	se
 WS-05	dialog	Archiving a workspace with running agents asks 'Archive workspace?' first.	ui-map 3.1; inventory title R@11399995	missing
 SET-02	setting	General: 'Follow-up behavior' (Queue or Steer).	ui-map 6; inventory label R@11118427	missing
 REV-08	setting	Experimental: use the legacy file preview and editor.	ui-map 6; inventory title R@11106695	missing
-NAV-13	control	Conductor shows "View workspace world map" (control, Unplaced); ours says "Open the place name map" on Passport command (parity gap, wording).	inventory text R@1853248	missing
-PRJ-02	control	Conductor shows "Location" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@1894370	missing
+NAV-13	control	Conductor shows "View workspace world map" (control, Home) as the tooltip of Home's "N/100 cities visited" button, which opens the Passport; ours has no counterpart yet (parity gap).	inventory text R@1853248	missing
+PRJ-02	control	Conductor shows "Location" (control, Unplaced); ours shows it in catalogue state clone-github-dialog.	inventory text R@1894370	covered
 PRJ-02	region	Conductor shows "Cloning..." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@1895265	missing
-PRJ-03	region	Conductor shows "Create a local folder, private GitHub repo, and first workspace." (region, Unplaced); ours says "Create a local folder from a template and add it as a project." on Create project dialog (parity gap, wording).	inventory text R@2035684	missing
-PRJ-03	region	Conductor shows "Name must include letters or numbers." (region, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@2036417	missing
-GIT-04	control	Conductor shows "View PR status" (control, inventory-ui-text Git, review and files); ours says "PR status details" on git panel PR status chip (parity gap, wording).	inventory text R@2184278	missing
-PR-08	region	Conductor shows "Couldn't load this stack. Open the PR on GitHub to see it." (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).	inventory text R@2202229	missing
-GIT-04	region	Conductor shows "Checks pending..." (region, inventory-ui-text Git, review and files); ours says "N checks pending..." on git panel header (parity gap, wording).	inventory text R@2224224	missing
-PR-07	control	Conductor shows "Discard" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@2256696	missing
-PR-07	control	Conductor shows "Save" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@2256762	missing
+PRJ-03	region	Conductor shows "Create a local folder, private GitHub repo, and first workspace." (region, Unplaced); ours shows it in catalogue state create-project.	inventory text R@2035684	covered
+PRJ-03	region	Conductor shows "Name must include letters or numbers." (region, Unplaced); ours shows it in catalogue state create-project-invalid-name.	inventory text R@2036417	covered
+GIT-04	control	Conductor shows "View PR status" (control, git panel) on the PR status button; ours names the same button so.	inventory text R@2184278	covered
+PR-08	region	Conductor shows "Couldn't load this stack. Open the PR on GitHub to see it." (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours shows it in catalogue state workspace-archived-file.	inventory text R@2202229	covered
+NAV-03	region	Conductor shows "Checks pending..." (region, sidebar) as the git action in a workspace row's hover card while checks run; ours has no counterpart yet, since the hover card is not built (parity gap).	inventory text R@2224224	missing
+PR-07	control	Conductor shows "Discard" (control, Unplaced); ours shows it in catalogue state composer-goal-update-error.	inventory text R@2256696	covered
+PR-07	control	Conductor shows "Save" (control, Unplaced); ours shows it in catalogue state sidebar-section-edit.	inventory text R@2256762	covered
 WS-08	control	Conductor shows "No apps available" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@2501184	missing
 GIT-02	control	Conductor shows "Could not load git status" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@2668400	missing
 WS-03	region	Conductor shows "Couldn’t load the logs." (region, inventory-ui-text Cloud (research only, no planned row yet)); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@2982552	missing
@@ -1158,53 +1158,53 @@ CLOUD-16	control	Conductor shows "Cloud desktop" (control, inventory-ui-text Clo
 GIT-12	control	Conductor shows "Switch to" (control, inventory-ui-text Git, review and files); ours has no counterpart yet (parity gap).	inventory text R@3983808	missing
 SET-07	control	Conductor shows "Import details" (control, inventory-ui-text Git, review and files); ours has no counterpart yet (parity gap).	inventory text R@4011003	missing
 REV-07	control	Conductor shows "Close search" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@4026205	missing
-RUN-01	region	Conductor shows "Couldn't load actions." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@5020313	missing
-CLOUD-09	region	Conductor shows "Select a port to share via a URL. Workspace read permissions required." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@5436101	missing
+RUN-01	region	Conductor shows "Couldn't load actions." (region, Unplaced); ours shows it in catalogue state run-load-failed.	inventory text R@5020313	covered
+CLOUD-09	region	Conductor shows "Select a port to share via a URL. Workspace read permissions required." (region, Unplaced); ours shows it in catalogue state cloud-preview-picker.	inventory text R@5436101	covered
 NAV-04	region	Conductor shows "Loading sections…" (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@5543955	missing
 NAV-04	control	Conductor shows "Couldn't load sections" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@5544139	missing
-CLOUD-11	control	Conductor shows "Sync files" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).	inventory text R@5584687	missing
-CLOUD-11	region	Conductor shows "Keeps this cloud workspace's files mirrored to a local folder so local tools can inspect and edit them." (region, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).	inventory text R@5584915	missing
-CLOUD-11	region	Conductor shows "Changes continue syncing in the background while the switch is on." (region, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).	inventory text R@5585079	missing
-CLOUD-11	region	Conductor shows "Mirrors this cloud workspace to a local folder for local tools." (region, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).	inventory text R@5587920	missing
-CLOUD-11	control	Conductor shows "Local folder" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).	inventory text R@5588145	missing
-CLOUD-11	control	Conductor shows "Sync to a local directory" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).	inventory text R@5589114	missing
-CLOUD-11	control	Conductor shows "Sync failed" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).	inventory text R@5591397	missing
-CLOUD-11	control	Conductor shows "Internal sync error" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).	inventory text R@5592461	missing
+CLOUD-11	control	Conductor shows "Sync files" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours shows it in catalogue state cloud-actions-pause.	inventory text R@5584687	covered
+CLOUD-11	region	Conductor shows "Keeps this cloud workspace's files mirrored to a local folder so local tools can inspect and edit them." (region, inventory-ui-text Cloud (research only, no planned row yet)); ours shows it in catalogue state cloud-actions-pause.	inventory text R@5584915	covered
+CLOUD-11	region	Conductor shows "Changes continue syncing in the background while the switch is on." (region, inventory-ui-text Cloud (research only, no planned row yet)); ours shows it in catalogue state cloud-actions-pause.	inventory text R@5585079	covered
+CLOUD-11	region	Conductor shows "Mirrors this cloud workspace to a local folder for local tools." (region, inventory-ui-text Cloud (research only, no planned row yet)); ours shows it in catalogue state cloud-actions-pause.	inventory text R@5587920	covered
+CLOUD-11	control	Conductor shows "Local folder" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours shows it in catalogue state cloud-actions-pause.	inventory text R@5588145	covered
+CLOUD-11	control	Conductor shows "Sync to a local directory" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours shows it in catalogue state cloud-actions-pause.	inventory text R@5589114	covered
+CLOUD-11	control	Conductor shows "Sync failed" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours shows it in catalogue state cloud-sync-error.	inventory text R@5591397	covered
+CLOUD-11	control	Conductor shows "Internal sync error" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours shows it in catalogue state cloud-sync-error.	inventory text R@5592461	covered
 WS-07	region	Conductor shows "Browse..." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@5686320	missing
 WS-07	control	Conductor shows "No workspaces found" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@5687206	missing
 WS-07	region	Conductor shows "Loading directories..." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@5693367	missing
 WS-07	control	Conductor shows "Select all" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@5694226	missing
 WS-07	control	Conductor shows "Deselect all" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@5694380	missing
-CHAT-24	control	Conductor shows "Mermaid diagram" (control, inventory-ui-text Chat and tool cards); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@8049769	missing
-CHAT-11	control	Conductor shows "Deny" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@8174862	missing
+CHAT-24	control	Conductor shows "Mermaid diagram" (control, inventory-ui-text Chat and tool cards); ours shows it in catalogue state chat-mermaid.	inventory text R@8049769	covered
+CHAT-11	control	Conductor shows "Deny" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours shows it in catalogue state chat-permission-network.	inventory text R@8174862	covered
 AGENT-08	control	Conductor shows "Structured response (JSON)" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).	inventory text R@8176460	missing
 AGENT-08	control	Conductor shows "Open authorization page" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).	inventory text R@8178859	missing
-SET-05	control	Conductor shows "Disconnect" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@8683825	missing
+SET-05	control	Conductor shows "Disconnect" (control, Unplaced); ours shows it in catalogue state settings-account-disconnect-github.	inventory text R@8683825	covered
 SET-05	control	Conductor shows "Stop waiting" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@8685730	missing
-CHAT-20	control	Conductor shows "Status:" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).	inventory text R@8791800	missing
-CHAT-20	control	Conductor shows "Subject:" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).	inventory text R@8792002	missing
-CHAT-20	control	Conductor shows "Blocked by:" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).	inventory text R@8792236	missing
-CHAT-20	control	Conductor shows "Blocks:" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).	inventory text R@8792501	missing
+CHAT-20	control	Conductor shows "Status:" (control, inventory-ui-text Chat and tool cards); ours shows it in catalogue state chat-tool-cards-tasks.	inventory text R@8791800	covered
+CHAT-20	control	Conductor shows "Subject:" (control, inventory-ui-text Chat and tool cards); ours shows it in catalogue state chat-tool-cards-tasks.	inventory text R@8792002	covered
+CHAT-20	control	Conductor shows "Blocked by:" (control, inventory-ui-text Chat and tool cards); ours shows it in catalogue state chat-tool-cards-tasks.	inventory text R@8792236	covered
+CHAT-20	control	Conductor shows "Blocks:" (control, inventory-ui-text Chat and tool cards); ours shows it in catalogue state chat-tool-cards-tasks.	inventory text R@8792501	covered
 CHAT-20	control	Conductor shows "Purpose: " (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).	inventory text R@8823423	missing
 REV-13	control	Conductor shows "Unable to load comment" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).	inventory text R@8839892	missing
 CHAT-29	control	Conductor shows "Preview unavailable" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).	inventory text R@8840402	missing
 CHAT-29	region	Conductor shows "Open the file to inspect this attachment." (region, inventory-controls Composer); ours has no counterpart yet (parity gap).	inventory text R@8840488	missing
-CHAT-28	region	Conductor shows "Loading usage…" (region, inventory-controls Composer); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@8855401	missing
-CHAT-14	control	Conductor shows "Context" (control, inventory-controls Composer); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@8859618	missing
-CHAT-14	control	Conductor shows "Window used" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).	inventory text R@8860458	missing
-CHAT-14	control	Conductor shows "Context usage" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@8875135	missing
+CHAT-28	region	Conductor shows "Loading usage…" (region, inventory-controls Composer); ours shows it in catalogue state chat-context-loading.	inventory text R@8855401	covered
+CHAT-14	control	Conductor shows "Context" (control, inventory-controls Composer); ours shows it in catalogue state chat-context-unknown.	inventory text R@8859618	covered
+CHAT-14	control	Conductor shows "Window used" (control, inventory-controls Composer); ours shows it in catalogue state chat-context-usage.	inventory text R@8860458	covered
+CHAT-14	control	Conductor shows "Context usage" (control, Unplaced); ours shows it in catalogue state chat-context-unknown.	inventory text R@8875135	covered
 COMP-01	control	Conductor shows "MCPs" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@8881215	missing
-CHAT-29	control	Conductor shows "Couldn’t load image" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@9037926	missing
+CHAT-29	control	Conductor shows "Couldn’t load image" (control, Unplaced); ours shows it in catalogue state chat-tool-cards-tasks.	inventory text R@9037926	covered
 AGENT-17	control	Conductor shows "Couldn’t load options" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@9119284	missing
 AGENT-17	region	Conductor shows "Loading options…" (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@9120201	missing
 AGENT-17	control	Conductor shows "Options update with your next message" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@9121155	missing
 WS-07	region	Conductor shows "Files from this directory are accessible to the agent in this workspace." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@9268515	missing
-CHAT-20	control	Conductor shows "Prompt" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).	inventory text R@9502437	missing
+CHAT-20	control	Conductor shows "Prompt" (control, inventory-controls Composer); ours shows it in catalogue state chat-tool-cards-tasks.	inventory text R@9502437	covered
 CHAT-06	region	Conductor shows "This content could not be displayed." (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).	inventory text R@9534245	missing
-CHAT-06	region	Conductor shows "Add a Cursor API key in provider settings to use Cursor." (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).	inventory text R@9543653	missing
-CHAT-06	region	Conductor shows "Exceeds Claude Code's size limit (5MB). Please revert to a previous user message by hovering over it, otherwise this chat will fail going forward." (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).	inventory text R@9544627	missing
-CHAT-06	control	Conductor shows "Cancelled" (control, inventory-controls Chat view); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@9557324	missing
-REV-02	control	Conductor shows "Unsaved changes" (control, inventory-controls Chat view); ours has no counterpart yet (parity gap).	inventory text R@9637583	missing
+CHAT-06	region	Conductor shows "Add a Cursor API key in provider settings to use Cursor." (region, inventory-controls Chat view); ours shows it in catalogue state chat-errors-cursor.	inventory text R@9543653	covered
+CHAT-06	region	Conductor shows "Exceeds Claude Code's size limit (5MB). Please revert to a previous user message by hovering over it, otherwise this chat will fail going forward." (region, inventory-controls Chat view); ours shows it in catalogue state chat-error-image-too-large.	inventory text R@9544627	covered
+CHAT-06	control	Conductor shows "Cancelled" (control, inventory-controls Chat view); ours shows it in catalogue state git-checks-mixed.	inventory text R@9557324	covered
+REV-02	control	Conductor shows "Unsaved changes" (control, inventory-controls Chat view); ours shows it in catalogue state file-changed-on-disk.	inventory text R@9637583	covered
 REV-02	control	Conductor shows "Retry update" (control, inventory-controls Chat view); ours has no counterpart yet (parity gap).	inventory text R@9637908	missing
 REV-02	control	Conductor shows "Update failed. Retry" (control, inventory-controls Chat view); ours has no counterpart yet (parity gap).	inventory text R@9638032	missing
 REV-02	region	Conductor shows "This file has been modified. Click to view the latest changes." (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).	inventory text R@9638941	missing
@@ -1212,27 +1212,28 @@ REV-08	control	Conductor shows "Failed to load PDF" (control, Unplaced); ours ha
 REV-08	control	Conductor shows "Failed to render page" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@9655838	missing
 REV-08	control	Conductor shows "Failed to load video" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@9659929	missing
 REV-02	control	Conductor shows "No changes in this file" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@9957571	missing
-CHAT-29	control	Conductor shows "Video attachment" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@9988523	missing
+CHAT-29	control	Conductor shows "Video attachment" (control, Unplaced); ours shows it in catalogue state chat-attachment-viewer.	inventory text R@9988523	covered
 REV-12	control	Conductor shows "Resolved" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@10000509	missing
 REV-12	control	Conductor shows "Outdated" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@10000794	missing
 PR-07	control	Conductor shows "Couldn't load comments" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@10007781	missing
 PR-04	control	Conductor shows "Failed to load logs" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@10014580	missing
 CLOUD-09	region	Conductor shows "Cloud terminal unavailable in read-only workspaces." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@10060117	missing
 NAV-03	control	Conductor shows "Waiting for background tasks" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@10069947	missing
-NAV-03	control	Conductor shows "Cancelling" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@10070194	missing
-APP-03	control	Conductor shows "Diagnostics" (control, inventory-ui-text Projects and workspaces); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@10181424	missing
-NAV-01	control	Conductor shows "Toggle sidebar" (control, Unplaced); ours says "Toggle left sidebar" on window controls row (parity gap, wording).	inventory text R@10289703	missing
-APP-07	control	Conductor shows "Memory" (control, inventory-controls App shell); ours has no counterpart yet (parity gap).	inventory text R@10362249	missing
-NAV-03	control	Conductor shows "My workspaces" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@10493981	missing
-APP-03	region	Conductor shows "Capture information about your environment to help diagnose issues." (region, Unplaced); ours says "Gather details about Conducted, your Mac and its shell to help diagnose a problem." on Diagnostics screen (parity gap, wording).	inventory text R@10574584	missing
-APP-03	region	Conductor shows "Copy the full diagnostics report to your clipboard" (region, Unplaced); ours says "Copy full report" on Diagnostics actions (parity gap, wording).	inventory text R@10576215	missing
+NAV-03	control	Conductor shows "Cancelling" (control, Unplaced); ours shows it in catalogue state chat-cancelling.	inventory text R@10070194	covered
+NAV-03	control	Conductor shows "Working" (control, sidebar) as a workspace row's status icon name: its raw status label, joined with the git label and "Unread" (renderApp @10245206); ours names the icon with the hover card's words, from one status (parity gap).	inventory literal R@10228149	missing
+APP-03	control	Conductor shows "Diagnostics" (control, inventory-ui-text Projects and workspaces); ours shows it in catalogue state diagnostics.	inventory text R@10181424	covered
+NAV-01	control	Conductor shows "Toggle sidebar" (control, window controls row) on the sidebar button; ours names the same button so.	inventory text R@10289703	covered
+APP-07	control	Conductor shows "Memory" (control, inventory-controls App shell); ours shows it in catalogue state cloud-actions-pause.	inventory text R@10362249	covered
+NAV-03	control	Conductor shows "My workspaces" (control, Unplaced); ours shows it in catalogue state sidebar.	inventory text R@10493981	covered
+APP-03	region	Conductor shows "Capture information about your environment to help diagnose issues." (region, Diagnostics) under the page title; ours shows the same there.	inventory text R@10574584	covered
+APP-03	region	Conductor shows "Copy the full diagnostics report to your clipboard" (region, Diagnostics) as the full report button's tooltip; ours shows the same there.	inventory text R@10576215	covered
 APP-03	region	Conductor shows "Redacted report hashes the values of all env variables, except a few non-sensitive ones like PATH" (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@10576554	missing
-APP-03	region	Conductor shows "Create a new session with the redacted report attached. Env values are hashed except non-sensitive ones like PATH." (region, Unplaced); ours says "Create a new session with the redacted report attached" on Diagnostics actions (parity gap, wording).	inventory text R@10576999	missing
+APP-03	region	Conductor shows "Create a new session with the redacted report attached. Env values are hashed except non-sensitive ones like PATH." (region, Diagnostics) as the redacted chat button's tooltip; ours shows the same there.	inventory text R@10576999	covered
 APP-03	region	Conductor shows "Create a new session with the full report attached. All env values are sent to your AI provider." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@10577409	missing
-SET-06	control	Conductor shows "Dark" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@10662685	missing
-SET-06	control	Conductor shows "System" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@10662728	missing
-SET-06	region	Conductor shows "Custom..." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@10669114	missing
-SET-06	region	Conductor shows "Enter font name exactly as installed on your system" (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@10669800	missing
+SET-06	control	Conductor shows "Dark" (control, Unplaced); ours shows it in catalogue state settings-appearance-theme-menu.	inventory text R@10662685	covered
+SET-06	control	Conductor shows "System" (control, Unplaced); ours shows it in catalogue state settings-appearance-theme-menu.	inventory text R@10662728	covered
+SET-06	region	Conductor shows "Custom..." (region, Unplaced); ours shows it in catalogue state settings-appearance-custom-font.	inventory text R@10669114	covered
+SET-06	region	Conductor shows "Enter font name exactly as installed on your system" (region, Unplaced); ours shows it in catalogue state settings-appearance-custom-font.	inventory text R@10669800	covered
 SET-04	region	Conductor shows "Cmd+Shift+." (region, inventory-controls Settings); ours has no counterpart yet (parity gap).	inventory text R@10692019	missing
 SET-05	control	Conductor shows "OAuth" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).	inventory text R@10725742	missing
 SET-05	control	Conductor shows "Bearer token" (control, inventory-controls Settings); ours has no counterpart yet (parity gap).	inventory text R@10725877	missing
@@ -1259,57 +1260,57 @@ APP-02	region	Conductor shows "Loading repositories..." (region, Unplaced); ours
 APP-02	control	Conductor shows "Couldn't check your GitHub sign-in" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@10821137	missing
 APP-02	control	Conductor shows "Signed in to GitHub as" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@10821338	missing
 SET-04	control	Conductor shows "Loading environment variables" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@10876329	missing
-SET-04	control	Conductor shows "Import" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@10886799	missing
-SET-03	region	Conductor shows "Open the OpenAI device authorization page." (region, inventory-controls Settings: Agents); ours has no counterpart yet (parity gap).	inventory text R@10927644	missing
-SET-03	control	Conductor shows "Enter this code when OpenAI asks for it:" (control, inventory-controls Settings: Agents); ours has no counterpart yet (parity gap).	inventory text R@10928079	missing
+SET-04	control	Conductor shows "Import" (control, Unplaced); ours shows it in catalogue state settings-environment-import.	inventory text R@10886799	covered
+SET-03	region	Conductor shows "Open the OpenAI device authorization page." (region, inventory-controls Settings: Agents); ours shows it in catalogue state settings-agents-codex-login.	inventory text R@10927644	covered
+SET-03	control	Conductor shows "Enter this code when OpenAI asks for it:" (control, inventory-controls Settings: Agents); ours shows it in catalogue state settings-agents-codex-login.	inventory text R@10928079	covered
 SET-03	control	Conductor shows "Connected to" (control, inventory-controls Settings: Agents); ours has no counterpart yet (parity gap).	inventory text R@10932513	missing
 SET-03	region	Conductor shows "Checking login status..." (region, inventory-controls Settings: Agents); ours has no counterpart yet (parity gap).	inventory text R@10933927	missing
 SET-03	region	Conductor shows "Review the provider setup, then refresh." (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).	inventory text R@10962716	missing
 SET-02	region	Conductor shows "Changing this removes all existing repos and workspaces from Conductor, but leaves their files on disk." (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).	inventory text R@10967695	missing
 SET-13	region	Conductor shows "Changing this may cause issues if the executable is not compatible with Conductor." (region, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).	inventory text R@10971526	missing
 SET-03	control	Conductor shows "Checking" (control, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap).	inventory text R@10982001	missing
-SET-07	control	Conductor shows "Hidden" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@11019107	missing
-SET-07	control	Conductor shows "Show action" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@11022869	missing
-SET-07	control	Conductor shows "Hide action" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@11023100	missing
-SET-07	control	Conductor shows "Reset to your repo's settings.toml" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@11023365	missing
+SET-07	control	Conductor shows "Hidden" (control, Unplaced); ours shows it in catalogue state settings-repo-actions-own.	inventory text R@11019107	covered
+SET-07	control	Conductor shows "Show action" (control, Unplaced); ours shows it in catalogue state settings-repo-actions-own.	inventory text R@11022869	covered
+SET-07	control	Conductor shows "Hide action" (control, Unplaced); ours shows it in catalogue state settings-repo-general-prompt.	inventory text R@11023100	covered
+SET-07	control	Conductor shows "Reset to your repo's settings.toml" (control, Unplaced); ours shows it in catalogue state settings-repo-actions-own.	inventory text R@11023365	covered
 SET-12	control	Conductor shows "Always approve" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@11097816	missing
-SET-02	control	Conductor shows "Learn more" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).	inventory text R@11104016	missing
+SET-02	control	Conductor shows "Learn more" (control, inventory-ui-text Cloud (research only, no planned row yet)); ours shows it in catalogue state settings-experimental.	inventory text R@11104016	covered
 GIT-08	region	Conductor shows "Loading remotes..." (region, inventory-controls Settings: General); ours has no counterpart yet (parity gap).	inventory text R@11130319	missing
 GIT-08	region	Conductor shows "No remote found." (region, inventory-controls Settings: General); ours has no counterpart yet (parity gap).	inventory text R@11130377	missing
-PR-08	control	Conductor shows "Graphite" (control, inventory-controls Settings: General); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@11137042	missing
-SET-02	control	Conductor shows "Custom" (control, inventory-controls Settings: General); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@11138708	missing
-SET-02	region	Conductor shows "Delete the local branch when archiving a workspace." (region, inventory-controls Settings: General); ours has no counterpart yet (parity gap).	inventory text R@11140791	missing
-SET-02	control	Conductor shows "configure it on GitHub" (control, inventory-controls Settings: General); ours has no counterpart yet (parity gap).	inventory text R@11141184	missing
-SET-02	region	Conductor shows "Warning: archived workspaces will be unrecoverable" (region, inventory-controls Settings: General); ours has no counterpart yet (parity gap).	inventory text R@11141442	missing
+PR-08	control	Conductor shows "Graphite" (control, inventory-controls Settings: General); ours shows it in catalogue state settings-git-pr-target-menu.	inventory text R@11137042	covered
+SET-02	control	Conductor shows "Custom" (control, inventory-controls Settings: General); ours shows it in catalogue state settings-git.	inventory text R@11138708	covered
+SET-02	region	Conductor shows "Delete the local branch when archiving a workspace." (region, inventory-controls Settings: General); ours shows it in catalogue state settings-git.	inventory text R@11140791	covered
+SET-02	control	Conductor shows "configure it on GitHub" (control, inventory-controls Settings: General); ours shows it in catalogue state settings-git.	inventory text R@11141184	covered
+SET-02	region	Conductor shows "Warning: archived workspaces will be unrecoverable" (region, inventory-controls Settings: General); ours shows it in catalogue state settings-git-delete-branch-warning.	inventory text R@11141442	covered
 CLOUD-09	region	Conductor shows "Manual overrides are ignored while Exclusive port forwarding is off." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@11154299	missing
-COMP-02	region	Conductor shows "Could not load models." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@11231761	missing
+COMP-02	region	Conductor shows "Could not load models." (region, Unplaced); ours shows it in catalogue state composer-model-load-failed.	inventory text R@11231761	covered
 PRJ-04	region	Conductor shows "Using .worktreeinclude from this repository. Remove that file to edit these patterns here." (region, inventory-controls Settings: Repository); ours has no counterpart yet (parity gap).	inventory text R@11274850	missing
 PRJ-05	control	Conductor shows "No favicon detected" (control, inventory-controls Settings: Repository); ours has no counterpart yet (parity gap).	inventory text R@11285835	missing
 GIT-12	control	Conductor shows "No branch name" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@11445293	missing
 PR-09	region	Conductor shows "Linear could not be loaded. Refresh Linear in settings." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@11448022	missing
 PR-11	control	Conductor shows "No pull requests found" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).	inventory text R@11455832	missing
-PR-11	control	Conductor shows "Open settings" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).	inventory text R@11456439	missing
+PR-11	control	Conductor shows "Open settings" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours shows it in catalogue state chat-errors.	inventory text R@11456439	covered
 PR-11	control	Conductor shows "In use" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).	inventory text R@11456954	missing
 PR-11	control	Conductor shows "Select" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).	inventory text R@11457027	missing
 GIT-12	control	Conductor shows "No branches found" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).	inventory text R@11458209	missing
-COMP-05	control	Conductor shows "PRs" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@11464130	missing
-COMP-05	control	Conductor shows "Branches" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@11464188	missing
-COMP-05	control	Conductor shows "Issues" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@11464249	missing
-NAV-10	control	Conductor shows "Enter a new name for this workspace" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).	inventory text R@11508077	missing
-NAV-04	control	Conductor shows "Section not found" (control, inventory-controls Composer); ours has no counterpart yet (parity gap).	inventory text R@11510910	missing
-COMP-09	control	Conductor shows "Keyword" (control, inventory-controls Composer); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@11524020	missing
-COMP-09	control	Conductor shows "Prompt snippet" (control, inventory-controls Composer); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@11525602	missing
+COMP-05	control	Conductor shows "PRs" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours shows it in catalogue state new-workspace-create-from.	inventory text R@11464130	covered
+COMP-05	control	Conductor shows "Branches" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours shows it in catalogue state new-workspace-create-from.	inventory text R@11464188	covered
+COMP-05	control	Conductor shows "Issues" (control, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours shows it in catalogue state new-workspace-create-from.	inventory text R@11464249	covered
+NAV-10	control	Conductor shows "Enter a new name for this workspace" (control, inventory-controls Composer); ours shows it in catalogue state workspace-rename-dialog.	inventory text R@11508077	covered
+NAV-04	control	Conductor shows "Section not found" (control, inventory-controls Composer); ours shows it in catalogue state sidebar-section-missing.	inventory text R@11510910	covered
+COMP-09	control	Conductor shows "Keyword" (control, inventory-controls Composer); ours shows it in catalogue state composer-create-snippet.	inventory text R@11524020	covered
+COMP-09	control	Conductor shows "Prompt snippet" (control, inventory-controls Composer); ours shows it in catalogue state composer-create-snippet.	inventory text R@11525602	covered
 CHAT-01	control	Conductor shows "Enter a new name for this chat" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@11542973	missing
 PRJ-05	region	Conductor shows "Pick an icon, emoji, favicon, or uploaded image for this repository" (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@11544294	missing
 SET-09	region	Conductor shows "Sign-in expired." (region, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap).	inventory text R@11574947	missing
-SET-09	control	Conductor shows "Workspace ID (optional)" (control, inventory-ui-text Settings and agents); ours holds it but no catalogue state draws it (parity gap, unshown).	inventory text R@11595958	missing
+SET-09	control	Conductor shows "Workspace ID (optional)" (control, inventory-ui-text Settings and agents); ours shows it in catalogue state settings-agents-custom.	inventory text R@11595958	covered
 SET-09	control	Conductor shows "Manual" (control, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap).	inventory text R@11601498	missing
 APP-09	control	Conductor shows "Drop images here" (control, inventory-controls App shell); ours has no counterpart yet (parity gap).	inventory text R@11656536	missing
 APP-09	control	Conductor shows "Click to preview" (control, inventory-controls App shell); ours has no counterpart yet (parity gap).	inventory text R@11657459	missing
 RUN-03	region	Conductor shows "No local servers running. Start your dev server and it'll show up here." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@11679495	missing
 SET-07	region	Conductor shows "No actions found in this source." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@11716261	missing
-NAV-09	control	Conductor shows "Type shortcut" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@11741989	missing
-NAV-09	control	Conductor shows "Fixed shortcut" (control, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@11744268	missing
+NAV-09	control	Conductor shows "Type shortcut" (control, Unplaced); ours shows it in catalogue state settings-key-bindings-recording.	inventory text R@11741989	covered
+NAV-09	control	Conductor shows "Fixed shortcut" (control, Unplaced); ours shows it in catalogue state settings-key-bindings.	inventory text R@11744268	covered
 WS-07	region	Conductor shows "Loading..." (region, Unplaced); ours has no counterpart yet (parity gap).	inventory text R@11772171	missing
 REV-03	message	Conductor shows "Failed to add comment to chat" (message, Unplaced); ours has no counterpart yet (parity gap).	inventory toast M@2099774	missing
 REV-03	message	Conductor shows "Failed to save comment" (message, Unplaced); ours has no counterpart yet (parity gap).	inventory toast M@2100103	missing
@@ -1366,14 +1367,14 @@ RUN-06	control	'Copilot' row in the Big terminal 'New tab preset' radio list (bu
 RUN-06	action	Choosing the 'Copilot' row saves `copilot --allow-all` as the new-tab preset, and the next new terminal tab runs it	other-runners 9; inventory label #403	missing
 RUN-06	control	'Gemini' row in the Big terminal 'New tab preset' radio list (bundle @10677047), with `gemini -y` shown as its command	other-runners 9; inventory label #404	missing
 RUN-06	action	Choosing the 'Gemini' row saves `gemini -y` as the new-tab preset, and the next new terminal tab runs it	other-runners 9; inventory label #404	missing
-CLOUD-15	control	Cloud workspace header's rename control is named 'Rename workspace'	inventory aria_label R@5625996	missing
+CLOUD-15	control	Cloud workspace header's rename control is named 'Rename workspace'	inventory aria_label R@5625996	covered
 REV-03	control	Draft comment attachment offers 'Edit in diff viewer' (aria), which opens the comment in the diff	inventory aria_label R@8842839	missing
-REV-08	control	File header copy button's tooltip reads 'Copy file contents' (ours says 'Copy file contents to clipboard')	inventory tooltip R@9642788	missing
-SET-07	region	Git: the Scripts page description reads 'Commands that run when workspaces are set up or archived.'	inventory description R@11028884	missing
+REV-08	control	File header copy button's tooltip reads 'Copy file contents'	inventory tooltip R@9642788	covered
+SET-07	region	Git: the Scripts page description reads 'Commands that run when workspaces are set up or archived.'	inventory description R@11028884	covered
 SET-05	control	MCP servers page has an 'Installed' and a 'Recommended' tab	inventory text R@10778993	missing
 SET-02	region	Experimental page description ends 'Expect breaking changes.'	inventory text R@11709231	missing
-SET-04	control	Variable value editor's placeholder reads 'Use an empty value to set this variable to an empty string.'	inventory placeholder R@10696051	missing
+SET-04	control	Variable value editor's placeholder reads 'Use an empty value to set this variable to an empty string.'	inventory placeholder R@10696051	covered
 GIT-08	control	Git settings: the remote picker's placeholder reads 'Select remote...'	inventory placeholder R@11129925	missing
-NAV-08	region	Palette search result for an agent shows the 'Agent' kind label	inventory text R@9307562	missing
-COMP-02	control	Model picker effort levels include 'Ultracode' (Claude)	inventory literal M@320179	missing
-COMP-02	control	Model picker footer names the effort shortcut 'Cycle effort'	inventory literal R@9245336	missing
+NAV-08	region	Palette search result for an agent shows the 'Agent' kind label	inventory text R@9307562	covered
+COMP-02	control	Model picker effort levels include 'Ultracode' (Claude)	inventory literal M@320179	covered
+COMP-02	control	Model picker footer names the effort shortcut 'Cycle effort'	inventory literal R@9245336	covered

@@ -1,4 +1,5 @@
 import type { Clock, Result } from "@conducted/shared";
+import { ok } from "@conducted/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMemoryPlatform } from "../../platform/memory.ts";
 import type { Database } from "../../platform/platform.ts";
@@ -383,17 +384,17 @@ describe("DATA-02 data lifetime", () => {
 
 		const fs = h.deps.fs;
 		h.setNow(NOW - 31 * DAY);
-		await fs.writeTextAtomic(`${draftsDir(fs.paths)}/live.json`, "{}");
+		h.memory.controls.addFile(`${draftsDir(fs.paths)}/live.json`, "{}");
 		h.setNow(NOW - DAY);
-		await fs.writeTextAtomic(`${draftsDir(fs.paths)}/recent.json`, "{}");
-		await fs.writeTextAtomic(`${draftsDir(fs.paths)}/gone.json`, "{}");
+		h.memory.controls.addFile(`${draftsDir(fs.paths)}/recent.json`, "{}");
+		h.memory.controls.addFile(`${draftsDir(fs.paths)}/gone.json`, "{}");
 		h.setNow(NOW);
 
 		const report = must(await runStep(h, "remove-draft-files"));
 		expect(report.filesTrashed).toBe(2);
-		expect(await fs.exists(`${draftsDir(fs.paths)}/live.json`)).toBe(false);
-		expect(await fs.exists(`${draftsDir(fs.paths)}/recent.json`)).toBe(true);
-		expect(await fs.exists(`${draftsDir(fs.paths)}/gone.json`)).toBe(false);
+		expect(await fs.exists(`${draftsDir(fs.paths)}/live.json`)).toEqual(ok(false));
+		expect(await fs.exists(`${draftsDir(fs.paths)}/recent.json`)).toEqual(ok(true));
+		expect(await fs.exists(`${draftsDir(fs.paths)}/gone.json`)).toEqual(ok(false));
 	});
 
 	it("keeps the new-workspace draft while it is young, then removes it when it expires", async () => {
@@ -401,17 +402,17 @@ describe("DATA-02 data lifetime", () => {
 		const fs = h.deps.fs;
 		h.setNow(NOW - DAY);
 		const path = `${draftsDir(fs.paths)}/${NEW_WORKSPACE_DRAFT_ID}.json`;
-		await fs.writeTextAtomic(path, "{}");
+		h.memory.controls.addFile(path, "{}");
 		h.setNow(NOW);
 
 		const kept = must(await runStep(h, "remove-draft-files"));
 		expect(kept.filesTrashed).toBe(0);
-		expect(await fs.exists(path)).toBe(true);
+		expect(await fs.exists(path)).toEqual(ok(true));
 
 		h.setNow(NOW + 31 * DAY);
 		const removed = must(await runStep(h, "remove-draft-files"));
 		expect(removed.filesTrashed).toBe(1);
-		expect(await fs.exists(path)).toBe(false);
+		expect(await fs.exists(path)).toEqual(ok(false));
 	});
 
 	it("removes old draft attachments and sweeps old staging folders", async () => {
@@ -424,8 +425,8 @@ describe("DATA-02 data lifetime", () => {
 		h.setNow(NOW - 8 * DAY);
 		const oldPath = `${draftAttachmentsDir(fs.paths, "s1")}/old.txt`;
 		const orphanPath = `${draftAttachmentsRoot(fs.paths)}/orphan/shot.png`;
-		await fs.writeTextAtomic(oldPath, "old");
-		await fs.writeTextAtomic(orphanPath, "orphan");
+		h.memory.controls.addFile(oldPath, "old");
+		h.memory.controls.addFile(orphanPath, "orphan");
 		await h.deps.db.execute(
 			`INSERT INTO attachments (id, session_id, kind, original_name, path, is_draft, created_at)
 			VALUES ($1, $2, 'text', 'old.txt', $3, 1, $4)`,
@@ -434,7 +435,7 @@ describe("DATA-02 data lifetime", () => {
 
 		h.setNow(NOW - DAY);
 		const recentPath = `${draftAttachmentsDir(fs.paths, "s1")}/recent.txt`;
-		await fs.writeTextAtomic(recentPath, "recent");
+		h.memory.controls.addFile(recentPath, "recent");
 		await h.deps.db.execute(
 			`INSERT INTO attachments (id, session_id, kind, original_name, path, is_draft, created_at)
 			VALUES ($1, $2, 'text', 'recent.txt', $3, 1, $4)`,
@@ -445,9 +446,9 @@ describe("DATA-02 data lifetime", () => {
 		const report = must(await runStep(h, "remove-draft-attachments"));
 		expect(report.rowsChanged).toBe(1);
 		expect(report.filesTrashed).toBe(2);
-		expect(await fs.exists(oldPath)).toBe(false);
-		expect(await fs.exists(orphanPath)).toBe(false);
-		expect(await fs.exists(recentPath)).toBe(true);
+		expect(await fs.exists(oldPath)).toEqual(ok(false));
+		expect(await fs.exists(orphanPath)).toEqual(ok(false));
+		expect(await fs.exists(recentPath)).toEqual(ok(true));
 		expect(await count(h.deps.db, "attachments")).toBe(1);
 	});
 
@@ -463,8 +464,8 @@ describe("DATA-02 data lifetime", () => {
 		// staging folder by its spelling. Neither is the app's to trash.
 		const userFile = "/code/user-files/report.pdf";
 		const climbing = `${draftAttachmentsDir(fs.paths, "s1")}/../../notes.txt`;
-		await fs.writeTextAtomic(userFile, "mine");
-		await fs.writeTextAtomic(climbing, "also mine");
+		h.memory.controls.addFile(userFile, "mine");
+		h.memory.controls.addFile(climbing, "also mine");
 		for (const [id, path] of [
 			["a-user", userFile],
 			["a-climbing", climbing],
@@ -484,8 +485,8 @@ describe("DATA-02 data lifetime", () => {
 		expect(outcome.error.code).toBe("data_lifetime_path_outside");
 		expect(outcome.error.message).toContain(userFile);
 		expect(outcome.error.message).toContain(climbing);
-		expect(await fs.exists(userFile)).toBe(true);
-		expect(await fs.exists(climbing)).toBe(true);
+		expect(await fs.exists(userFile)).toEqual(ok(true));
+		expect(await fs.exists(climbing)).toEqual(ok(true));
 		expect(await count(h.deps.db, "attachments")).toBe(0);
 	});
 
@@ -504,14 +505,14 @@ describe("DATA-02 data lifetime", () => {
 				VALUES ($1, 'w1', 'terminal', $2, '/code', $3, $4)`,
 				[id, `terminal-${id}`, NOW - 20 * DAY, endedAt],
 			);
-			await fs.writeTextAtomic(terminalHistoryFile(fs.paths, id), "scrollback");
+			h.memory.controls.addFile(terminalHistoryFile(fs.paths, id), "scrollback");
 		}
 
 		const report = must(await runStep(h, "remove-ended-terminals"));
 		expect(report.rowsChanged).toBe(1);
 		expect(report.filesTrashed).toBe(1);
-		expect(await fs.exists(terminalHistoryFile(fs.paths, "old"))).toBe(false);
-		expect(await fs.exists(terminalHistoryFile(fs.paths, "recent"))).toBe(true);
+		expect(await fs.exists(terminalHistoryFile(fs.paths, "old"))).toEqual(ok(false));
+		expect(await fs.exists(terminalHistoryFile(fs.paths, "recent"))).toEqual(ok(true));
 		const ids = (
 			await h.deps.db.select<{ id: string }>("SELECT id FROM terminals ORDER BY id")
 		).map((row) => row.id);
@@ -707,17 +708,17 @@ describe("DATA-02 data lifetime", () => {
 		expect(first.kind).toBe("ran");
 
 		h.setNow(NOW - 31 * DAY);
-		await h.deps.fs.writeTextAtomic(`${draftsDir(h.deps.fs.paths)}/old.json`, "{}");
+		h.memory.controls.addFile(`${draftsDir(h.deps.fs.paths)}/old.json`, "{}");
 		h.setNow(NOW);
 
 		const second = must(await runDataLifetimeJob(h.deps));
 		expect(second).toEqual({ kind: "skipped", lastRunAt: NOW });
-		expect(await h.deps.fs.exists(`${draftsDir(h.deps.fs.paths)}/old.json`)).toBe(true);
+		expect(await h.deps.fs.exists(`${draftsDir(h.deps.fs.paths)}/old.json`)).toEqual(ok(true));
 
 		h.setNow(NOW + DAY);
 		const third = must(await runDataLifetimeJob(h.deps));
 		expect(third.kind).toBe("ran");
-		expect(await h.deps.fs.exists(`${draftsDir(h.deps.fs.paths)}/old.json`)).toBe(false);
+		expect(await h.deps.fs.exists(`${draftsDir(h.deps.fs.paths)}/old.json`)).toEqual(ok(false));
 		const stored = await h.deps.db.select<{ value: string }>(
 			"SELECT value FROM settings WHERE key = $1",
 			[LIFETIME_LAST_RUN_KEY],
@@ -746,7 +747,7 @@ describe("DATA-02 data lifetime", () => {
 		});
 		h.setNow(NOW - 31 * DAY);
 		const draftPath = `${draftsDir(h.deps.fs.paths)}/orphan.json`;
-		await h.deps.fs.writeTextAtomic(draftPath, "{}");
+		h.memory.controls.addFile(draftPath, "{}");
 		h.setNow(NOW);
 
 		const report = must(await runDataLifetimeJob(h.deps));
@@ -757,7 +758,7 @@ describe("DATA-02 data lifetime", () => {
 		expect(cut?.outcome.ok).toBe(false);
 		expect(report.steps[0]?.outcome.ok).toBe(true);
 		expect(report.steps.at(-1)?.outcome.ok).toBe(true);
-		expect(await h.deps.fs.exists(draftPath)).toBe(false);
+		expect(await h.deps.fs.exists(draftPath)).toEqual(ok(false));
 
 		const second = must(await runDataLifetimeJob(h.deps));
 		expect(second).toEqual({ kind: "skipped", lastRunAt: NOW });

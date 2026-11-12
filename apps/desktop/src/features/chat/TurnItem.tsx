@@ -6,7 +6,7 @@
  * A finished turn folds runs of its tool calls and messages into one row each (fold-turn.ts), unless
  * "Expand all tool calls" is on.
  * Behaviour: frontend.md 5 (one item per turn), ui-map.md 3.3 (user message with attachments and
- * mention chips; assistant text; thinking; footer; 'Interrupted by user'; per-turn boundary;
+ * mention chips; assistant text; thinking; footer; 'Cancelled' on a stopped turn; per-turn boundary;
  * 'Something went wrong, retrying n/m' with Retry now and Retry in new chat).
  * Measured from Conductor 0.92.1 (renderApp @9595770): the turn is a column with 4px gaps, 28px sides and
  * 8px top and bottom; the user message gets 12px more above and below. The working line sits in the
@@ -14,16 +14,17 @@
  * Our design choice: Wrapped in the shared ErrorBoundary so one broken turn does not hide the
  * others. Blocks render through ChatBlockView.
  * Must handle: A running turn (nothing folded, no footer yet); a turn that ended in error (one banner:
- * none of its own when an error block of the turn already shows the same error), cancelled ("Interrupted by user") or cut off by a crash (a different line, since the user did not stop it);
+ * none of its own when an error block of the turn already shows the same error; otherwise the view
+ * Conductor shows for the error that ended a turn, from turn-error-view.ts), cancelled ("Interrupted by user") or cut off by a crash (a different line, since the user did not stop it);
  * a block that streams keeps its place on screen (keys come from position, not text); a reverted turn (dimmed, labelled); steers not yet read by the
  * agent (marked pending); footer actions are always visible, on every turn; the agent's retry line names
  * the attempt, Retry now stops the turn and sends the message again, and Retry in new chat hands the turn
- * to the banner; a turn with no user message offers no Retry now or Try again.
+ * to the banner; a turn with no user message offers no Retry now or Retry.
  * Test first: A turn with one text block and a tool block renders both in order; a thrown render
  * error shows the boundary text and the next turn still renders; Retry now cancels and resends.
  */
-import type { LiveState } from "@conducted/protocol";
-import type { SessionId, WorkspaceId } from "@conducted/shared";
+import { AGENT_ERROR_CODES, type LiveState } from "@conducted/protocol";
+import type { AgentKind, SessionId, WorkspaceId } from "@conducted/shared";
 import { memo, useRef } from "react";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useActions } from "../../core/hooks.ts";
@@ -36,6 +37,7 @@ import { FoldedRun } from "./FoldedRun.tsx";
 import { type FoldItem, foldTurnBlocks } from "./fold-turn.ts";
 import { reportFailure } from "./report-failure.ts";
 import { TurnFooter } from "./TurnFooter.tsx";
+import { type TurnErrorView, turnErrorView } from "./turn-error-view.ts";
 import { UserMessage } from "./UserMessage.tsx";
 import { useWorkspaceLinks } from "./workspace-links.ts";
 
@@ -50,6 +52,8 @@ export interface TurnItemProps {
 	retry?: LiveState["retry"];
 	/** "Expand all tool calls" is on: nothing folds. */
 	expandAll?: boolean;
+	/** The chat's agent. A turn error offers sign-in only in a Claude chat, as Conductor's does. */
+	agent?: AgentKind;
 }
 
 /**
@@ -63,37 +67,62 @@ function keyedBlocks(blocks: ChatBlock[]): { key: string; block: ChatBlock }[] {
 	}));
 }
 
-function outcomeBlock(turn: ChatTurn): Extract<ChatBlock, { kind: "notice" | "error" }> | null {
-	if (turn.outcome === "cancelled") {
-		return {
-			kind: "notice",
-			item: { kind: "notice", notice: "info", text: "Interrupted by user" },
-		};
-	}
-	if (turn.outcome === "interrupted") {
-		return {
-			kind: "notice",
-			item: { kind: "notice", notice: "info", text: "This turn stopped before it finished." },
-		};
-	}
-	if (turn.outcome === "error") {
-		// The agent's own error block already shows this error, with its retry actions.
-		const shown = turn.blocks.some(
-			(block) =>
-				block.kind === "error" && (turn.error === null || block.item.message === turn.error),
+interface OutcomeBanner {
+	block: Extract<ChatBlock, { kind: "notice" | "error" }>;
+	view?: TurnErrorView;
+}
+
+const notice = (text: string): OutcomeBanner => ({
+	block: { kind: "notice", item: { kind: "notice", notice: "info", text } },
+});
+
+/**
+ * The banner of how the turn ended. A failed turn's error is shown through Conductor's views for
+ * the error that ended a turn (turn-error-view.ts, IQi @9538488), unless an error block of the turn
+ * already says it.
+ */
+function outcomeBanner(turn: ChatTurn, agent: AgentKind | undefined): OutcomeBanner | null {
+	if (turn.outcome === "cancelled") return notice("Interrupted by user");
+	if (turn.outcome === "interrupted") return notice("This turn stopped before it finished.");
+	if (turn.outcome !== "error") return null;
+	// The agent's own error block already shows this error, with its retry actions.
+	const shown = turn.blocks.some(
+		(block) => block.kind === "error" && (turn.error === null || block.item.message === turn.error),
+	);
+	if (shown) return null;
+	const view = turnErrorView(turn.error, agent);
+	if (view.kind === "interrupted") return notice("Interrupted by user");
+	if (view.kind === "sign_in") {
+		// IQi shows nothing more when the turn's result already shows the sign-in view.
+		const signInShown = turn.blocks.some(
+			(block) => block.kind === "error" && block.item.code === AGENT_ERROR_CODES.authRequired,
 		);
-		if (shown) return null;
+		if (signInShown) return null;
 		return {
+			block: {
+				kind: "error",
+				item: {
+					kind: "error",
+					code: AGENT_ERROR_CODES.authRequired,
+					message: view.text,
+					retryable: false,
+				},
+			},
+		};
+	}
+	return {
+		block: {
 			kind: "error",
 			item: {
 				kind: "error",
 				code: "turn_error",
-				message: turn.error ?? "The turn failed.",
-				retryable: false,
+				message: turn.error ?? "Unknown error",
+				// GFe offers Retry on these two views only (IQi @9538488).
+				retryable: view.kind === "error" || view.kind === "overloaded",
 			},
-		};
-	}
-	return null;
+		},
+		view,
+	};
 }
 
 export const TurnItem = memo(function TurnItem({
@@ -103,6 +132,7 @@ export const TurnItem = memo(function TurnItem({
 	canRun,
 	retry,
 	expandAll = false,
+	agent,
 }: TurnItemProps) {
 	const actions = useActions();
 	const links = useWorkspaceLinks();
@@ -139,7 +169,7 @@ export const TurnItem = memo(function TurnItem({
 						"Couldn't retry now",
 					);
 				};
-	const banner = outcomeBlock(turn);
+	const banner = outcomeBanner(turn, agent);
 	const keyed = keyedBlocks(turn.blocks);
 	const items: FoldItem[] =
 		turn.outcome === "running" || expandAll
@@ -156,6 +186,7 @@ export const TurnItem = memo(function TurnItem({
 			streaming={turn.outcome === "running"}
 			onRetry={retryMessage}
 			retryInNewChat={retryInNewChat}
+			agent={agent}
 		/>
 	);
 
@@ -172,7 +203,7 @@ export const TurnItem = memo(function TurnItem({
 				resetKey={turn.turnId}
 				fallback={() => (
 					<div role="status" className="rounded-lg border border-border bg-surface px-4 py-3">
-						<p className="text-sm font-medium text-fg">This chat turn failed to render.</p>
+						<p className="text-sm font-medium text-fg">This chat turn failed to render</p>
 						<p className="text-xs text-fg-muted">Other turns are still available.</p>
 					</div>
 				)}
@@ -210,7 +241,13 @@ export const TurnItem = memo(function TurnItem({
 					),
 				)}
 				{banner === null ? null : (
-					<ChatBanner block={banner} onRetry={retryMessage} retryInNewChat={retryInNewChat} />
+					<ChatBanner
+						block={banner.block}
+						view={banner.view}
+						onRetry={retryMessage}
+						retryInNewChat={retryInNewChat}
+						agent={agent}
+					/>
 				)}
 				{retry === undefined ? null : (
 					<ChatRetryBanner retry={retry} onRetryNow={retryNow} retryInNewChat={retryInNewChat} />

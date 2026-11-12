@@ -20,6 +20,8 @@ const preferences: DiffPreferences = {
 const baseProps = {
 	path: "src/a.ts",
 	oldPath: null,
+	mode: "diff",
+	onModeChange: () => {},
 	editDisabledReason: null,
 	previewAvailable: true,
 	rawAvailable: true,
@@ -36,6 +38,23 @@ const baseProps = {
 };
 
 describe("REV-08 FileTabHeader", () => {
+	// #534: a kind in Conductor's brand table draws its tinted glyph; the rest keep Material's image.
+	it("shows the file's own glyph or Material icon in the path chip", () => {
+		const view = render(
+			<FileTabHeader {...baseProps} path="src/main.rs" mode="diff" onModeChange={() => {}} />,
+		);
+		const glyph = view.container.querySelector("svg[data-file-icon]");
+		expect(glyph?.getAttribute("data-file-icon")).toBe("rust");
+		expect(glyph?.getAttribute("class")).toContain("text-file-orange-700");
+
+		view.rerender(
+			<FileTabHeader {...baseProps} path="src/init.lua" mode="diff" onModeChange={() => {}} />,
+		);
+		const image = view.container.querySelector("img[data-file-icon]");
+		expect(image?.getAttribute("data-file-icon")).toBe("lua");
+		expect(image?.getAttribute("src")).toBeTruthy();
+	});
+
 	it("disables the Edit toggle for a deleted file and gives the reason", () => {
 		render(
 			<FileTabHeader
@@ -90,15 +109,14 @@ describe("REV-08 FileTabHeader", () => {
 				button.getAttribute("aria-label"),
 			),
 		).toEqual(["Unified view", "Split view", "Entire file", "Edit", "Preview"]);
-		fireEvent.click(screen.getByRole("button", { name: "Copy file contents to clipboard" }));
+		fireEvent.click(screen.getByRole("button", { name: "Copy file contents" }));
 		expect(onCopy).toHaveBeenCalledWith("const a = 1;\n");
 	});
 
 	it("disables Copy file contents until the text is loaded", () => {
 		render(<FileTabHeader {...baseProps} mode="edit" onModeChange={() => {}} copyText={null} />);
 		expect(
-			(screen.getByRole("button", { name: "Copy file contents to clipboard" }) as HTMLButtonElement)
-				.disabled,
+			(screen.getByRole("button", { name: "Copy file contents" }) as HTMLButtonElement).disabled,
 		).toBe(true);
 	});
 
@@ -124,5 +142,16 @@ describe("REV-08 FileTabHeader", () => {
 			<FileTabHeader {...baseProps} rawAvailable={false} mode="diff" onModeChange={onModeChange} />,
 		);
 		expect(screen.queryByRole("button", { name: "Entire file" })).toBeNull();
+	});
+});
+
+describe("REV-08 FileTabHeader failed update", () => {
+	it("shows Conductor's Retry update control after a failed save", () => {
+		const onSave = vi.fn();
+		render(<FileTabHeader {...baseProps} mode="edit" saveError="disk changed" onSave={onSave} />);
+		const retry = screen.getByRole("button", { name: "Update failed. Retry" });
+		expect(retry.textContent).toBe("Retry update");
+		fireEvent.click(retry);
+		expect(onSave).toHaveBeenCalledTimes(1);
 	});
 });

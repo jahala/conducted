@@ -1,9 +1,10 @@
 /**
  * @feature APP-05 File language
- * Owns: which language a path belongs to, from its exact name or its extension, for the file icon
- * and the editor's Shiki highlighting.
- * Behaviour: ui-map.md 3.6 and 8 (Conductor picks a file's icon and highlight language from its
- * name and extension). Measured from Conductor 0.92.1 (renderApp @2477220, @2480863).
+ * Owns: which language a path belongs to, from its exact name or its extension, for the editor's
+ * Shiki highlighting. The file's icon is APP-05's own rule (`ui/file-icon.ts`): Conductor's brand
+ * table, then the Material Icon Theme's manifest.
+ * Behaviour: ui-map.md 3.6 and 8 (Conductor picks a file's highlight language from its name and
+ * extension). Measured from Conductor 0.92.1 (renderApp @2477220, @2480863).
  * Our design choice (D002): the languages and their aliases are listed here in our own words; no
  * Conductor asset or table is copied.
  * Must handle: an exact file name (package.json, Cargo.toml, .gitignore), upper-case extensions, a

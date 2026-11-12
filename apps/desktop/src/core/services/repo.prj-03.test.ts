@@ -10,6 +10,8 @@ import { ok, type Result } from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ShellCommand, ShellOutput } from "../../platform/platform.ts";
 import { createTestContainer, seedRepo, type TestContainer } from "../../test/container.ts";
+import { failingOnExecute } from "../../test/failing-database.ts";
+import { SETTINGS_SQL } from "../db/settings.ts";
 import type { Repo } from "../model.ts";
 
 const output = (exitCode: number, stdout = "", stderr = ""): ShellOutput => ({
@@ -85,6 +87,34 @@ describe("PRJ-03 creating a project from a template", () => {
 		expect(called("git add -A")).toBe(true);
 		expect(called("git commit -m Initial commit")).toBe(true);
 		expect(test.container.services.repo.store.getState().order).toEqual([repo.id]);
+	});
+
+	it("tells the user when the folder it chose cannot be remembered for next time (issue #614)", async () => {
+		test.close();
+		test = createTestContainer({
+			wrapDatabase: (database) =>
+				failingOnExecute(database, SETTINGS_SQL.upsert, new Error("disk I/O error")),
+		});
+		await test.container.platform.fs.mkdirp("/code");
+		scriptLocalProject();
+		test.memory.controls.scriptShell((command) => {
+			const key = commandKey(command);
+			if (key === "git init") return answer(0, "Initialized\n");
+			if (key === "git add -A") return answer(0);
+			if (key === "git commit -m Initial commit") return answer(0);
+			return null;
+		});
+
+		const repo = must(
+			await test.container.actions.projects.createFromTemplate("My App!", "/code", "empty"),
+		);
+
+		// The project is made; only the folder suggestion for next time was not kept.
+		expect(repo.rootPath).toBe("/code/my-app");
+		expect(test.container.services.settings.get("last_clone_directory")).toBe("");
+		expect(test.toasted).toEqual([
+			{ message: "Failed to save setting", tone: "error", action: null, secondaryAction: null },
+		]);
 	});
 
 	it("refuses a name with no letters or numbers before it writes anything", async () => {
@@ -188,7 +218,7 @@ describe("PRJ-03 creating a project from a template", () => {
 		);
 
 		expect(result.ok).toBe(false);
-		expect(await test.container.platform.fs.exists("/code/broken")).toBe(false);
+		expect(await test.container.platform.fs.exists("/code/broken")).toEqual(ok(false));
 	});
 });
 

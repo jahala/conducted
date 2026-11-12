@@ -81,11 +81,29 @@ async function add(
 	return row.id;
 }
 
-const dropData = (id: string) => ({
-	getData: (type: string) =>
-		type === "application/x-conducted-queued-message" || type === "text/plain" ? id : "",
-	setData: vi.fn(),
-});
+/** Gives the queue rows a rectangle, since jsdom has no layout: 40px rows from the top. */
+const layOutRows = (rows: readonly HTMLElement[]) => {
+	for (const [index, row] of rows.entries()) {
+		vi.spyOn(row, "getBoundingClientRect").mockReturnValue({
+			x: 0,
+			y: index * 40,
+			width: 300,
+			height: 40,
+			top: index * 40,
+			left: 0,
+			right: 300,
+			bottom: index * 40 + 40,
+			toJSON: () => ({}),
+		});
+	}
+};
+
+/** A pointer drag from one row's middle to a point, as a user drags it. */
+const dragRow = (from: HTMLElement, to: { x: number; y: number }) => {
+	fireEvent.pointerDown(from, { button: 0, pointerId: 1, clientX: 150, clientY: 20 });
+	fireEvent.pointerMove(document, { pointerId: 1, clientX: to.x, clientY: to.y });
+	fireEvent.pointerUp(document, { pointerId: 1, clientX: to.x, clientY: to.y });
+};
 
 afterEach(() => {
 	cleanup();
@@ -333,9 +351,8 @@ describe("CHAT-04 queue box", () => {
 		renderBox(test, session.id);
 
 		const options = await screen.findAllByRole("option");
-		fireEvent.dragStart(options[1] as HTMLElement, { dataTransfer: dropData(second) });
-		fireEvent.dragOver(options[0] as HTMLElement);
-		fireEvent.drop(options[0] as HTMLElement, { dataTransfer: dropData(second) });
+		layOutRows(options);
+		dragRow(options[1] as HTMLElement, { x: 150, y: 5 });
 
 		await waitFor(() =>
 			expect(
@@ -350,9 +367,8 @@ describe("CHAT-04 queue box", () => {
 			err(appError("db", "The database is locked.")),
 		);
 		const restored = await screen.findAllByRole("option");
-		fireEvent.dragStart(restored[1] as HTMLElement, { dataTransfer: dropData(first) });
-		fireEvent.dragOver(restored[0] as HTMLElement);
-		fireEvent.drop(restored[0] as HTMLElement, { dataTransfer: dropData(first) });
+		layOutRows(restored);
+		dragRow(restored[1] as HTMLElement, { x: 150, y: 5 });
 
 		await waitFor(() =>
 			expect(toasted).toHaveBeenCalledWith("Failed to reorder queued messages", {

@@ -11,7 +11,7 @@
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { createAppRouter } from "../../app/router.tsx";
 import { ServicesProvider } from "../../core/context.tsx";
@@ -72,22 +72,33 @@ async function mount(test: TestContainer) {
 	return router;
 }
 
-/** A drag's data, as the browser hands it from the card to the column. */
-function dataTransfer() {
-	const data = new Map<string, string>();
-	return {
-		setData: (type: string, value: string) => data.set(type, value),
-		getData: (type: string) => data.get(type) ?? "",
-		effectAllowed: "all",
-		dropEffect: "none",
-	};
+/** Gives the five columns rectangles side by side, since jsdom has no layout. */
+function layOutColumns(): void {
+	const names = ["Backlog", "In progress", "In review", "Done", "Canceled"];
+	for (const [index, name] of names.entries()) {
+		vi.spyOn(screen.getByRole("region", { name }), "getBoundingClientRect").mockReturnValue({
+			x: index * 306,
+			y: 0,
+			width: 300,
+			height: 600,
+			top: 0,
+			left: index * 306,
+			right: index * 306 + 300,
+			bottom: 600,
+			toJSON: () => ({}),
+		});
+	}
 }
 
+/** A pointer drag from a card's middle to a column's middle, as a user drags it. */
 function drag(card: HTMLElement, column: HTMLElement) {
-	const transfer = dataTransfer();
-	fireEvent.dragStart(card, { dataTransfer: transfer });
-	fireEvent.dragOver(column, { dataTransfer: transfer });
-	fireEvent.drop(column, { dataTransfer: transfer });
+	layOutColumns();
+	const box = column.getBoundingClientRect();
+	const x = box.x + box.width / 2;
+	const y = box.y + box.height / 2;
+	fireEvent.pointerDown(card, { button: 0, pointerId: 1, clientX: 5, clientY: 5 });
+	fireEvent.pointerMove(document, { pointerId: 1, clientX: x, clientY: y });
+	fireEvent.pointerUp(document, { pointerId: 1, clientX: x, clientY: y });
 }
 
 const column = (name: string) => screen.getByRole("region", { name });

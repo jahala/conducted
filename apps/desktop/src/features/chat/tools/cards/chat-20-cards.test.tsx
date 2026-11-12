@@ -63,7 +63,7 @@ function view(tool: CanonicalTool, input: unknown, extra: Extra = {}): ToolCallV
 						isError: extra.isError ?? false,
 						truncated: false,
 					},
-		children: [],
+		blocks: [],
 	};
 }
 
@@ -151,12 +151,25 @@ describe("CHAT-20 task details card", () => {
 		expect(screen.getByText("Task details")).toBeTruthy();
 		expect(screen.getAllByText("Write the test").length).toBeGreaterThan(0);
 		expect(screen.getByText("in_progress")).toBeTruthy();
-		expect(screen.getByText("Status")).toBeTruthy();
-		expect(screen.getByText("Subject")).toBeTruthy();
-		expect(screen.getByText("Blocked by")).toBeTruthy();
-		expect(screen.getByText("Blocks")).toBeTruthy();
+		expect(screen.getByText("Status:")).toBeTruthy();
+		expect(screen.getByText("Subject:")).toBeTruthy();
+		expect(screen.getByText("Blocked by:")).toBeTruthy();
+		expect(screen.getByText("Blocks:")).toBeTruthy();
 		expect(screen.getByText("2")).toBeTruthy();
 		expect(screen.getByText("None")).toBeTruthy();
+		expect(screen.getByText("Task ID:")).toBeTruthy();
+	});
+
+	it("says 'Loading task...' until the task has been read", () => {
+		render(
+			<TaskGetCard
+				call={view("task_get", { taskId: "1" })}
+				sessionId={sessionId}
+				defaultExpanded
+			/>,
+		);
+		expect(screen.getByText("Loading task...")).toBeTruthy();
+		expect(screen.queryByText("Status:")).toBeNull();
 	});
 
 	it("shows the agent's text when the task no longer exists", () => {
@@ -268,7 +281,7 @@ describe("CHAT-20 preview image card", () => {
 			/>,
 		);
 		fireEvent.error(screen.getByRole("img", { name: "gone.png" }));
-		expect(screen.getByText(/Image could not be loaded/)).toBeTruthy();
+		expect(screen.getByText("Failed to load image")).toBeTruthy();
 		expect(screen.queryByRole("img")).toBeNull();
 	});
 
@@ -301,7 +314,7 @@ describe("CHAT-20 preview image card", () => {
 		renderWithServices(
 			<ImageViewCard call={view("image_view", { path: "/work/a.png" })} sessionId={sessionId} />,
 		);
-		expect(screen.getByText("Loading image.")).toBeTruthy();
+		expect(screen.getByText("Loading image")).toBeTruthy();
 	});
 });
 
@@ -354,6 +367,7 @@ describe("CHAT-20 send message card", () => {
 			/>,
 		);
 		expect(screen.getByText("Send message")).toBeTruthy();
+		expect(screen.getByText("To:")).toBeTruthy();
 		expect(screen.getAllByText("Design chat").length).toBeGreaterThan(0);
 		expect(screen.getByText("Please review the plan")).toBeTruthy();
 	});
@@ -405,7 +419,7 @@ describe("CHAT-20 image generation card", () => {
 				sessionId={sessionId}
 			/>,
 		);
-		expect(screen.getByText("Loading image")).toBeTruthy();
+		expect(screen.getAllByText("Loading image").length).toBeGreaterThan(0);
 	});
 });
 

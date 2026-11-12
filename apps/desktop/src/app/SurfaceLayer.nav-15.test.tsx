@@ -204,8 +204,9 @@ describe("NAV-15 SurfaceLayer", () => {
 		);
 		expect(document.activeElement).toBe(input);
 
-		// jsdom 30 will not move focus out of an element once an ancestor is hidden, so the test
-		// checks that the layer asks the focused control to blur. A browser then clears focus.
+		// jsdom moves focus out of an element whose ancestor is hidden only later, if at all (jsdom 31
+		// does it asynchronously; jsdom 30 never did), so the test checks that the layer asks the
+		// focused control to blur. A browser then clears focus.
 		const blur = vi.spyOn(input, "blur");
 		view.rerender(<SurfaceLayer surfaces={surfaces} placements={new Map()} focusSurfaceId="t1" />);
 		expect(blur).toHaveBeenCalledTimes(1);

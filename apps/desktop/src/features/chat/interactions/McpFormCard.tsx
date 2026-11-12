@@ -49,9 +49,6 @@ interface FormField {
 
 type ParsedSchema = { ok: true; fields: FormField[] } | { ok: false; reason: string };
 
-/** Radix Select cannot hold an empty value, so an unset enum uses this stand-in. */
-const UNSET = "__choose__";
-
 /** Reads the parts of a JSON Schema this card can show. Anything else needs a different card. */
 function parseSchema(schema: unknown): ParsedSchema {
 	const record = asRecord(schema);
@@ -243,12 +240,10 @@ export function McpFormCard({
 									<Select
 										id={id}
 										aria-label={field.label}
-										value={text === "" ? UNSET : text}
-										options={[
-											{ value: UNSET, label: "Select an option" },
-											...field.options.map((option) => ({ value: option, label: option })),
-										]}
-										onValueChange={(next) => setValue(field.key, next === UNSET ? "" : next)}
+										value={text}
+										placeholder="Select an option"
+										options={field.options.map((option) => ({ value: option, label: option }))}
+										onValueChange={(next) => setValue(field.key, next)}
 										disabled={pending || chosen !== null || timedOutNow}
 									/>
 									{field.description === null ? null : (

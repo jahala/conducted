@@ -39,6 +39,7 @@ const workspace: Workspace = {
 	path: "/workspaces/oslo",
 	branch: "oslo",
 	branchIsPlaceholder: true,
+	remoteFileSyncEnabled: false,
 	host: { kind: "local" },
 	displayName: null,
 	targetBranch: "main",
@@ -117,7 +118,7 @@ function harness(
 			return ok(undefined);
 		},
 		async exists() {
-			return true;
+			return ok(true);
 		},
 		paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" },
 	} as unknown as Pick<FileSystem, "writeTextAtomic" | "mkdirp" | "exists"> & {
@@ -290,7 +291,7 @@ describe("WS-03 RunScriptsService.runSetup", () => {
 			fs: {
 				writeTextAtomic: async () => ok(undefined),
 				mkdirp: async () => ok(undefined),
-				exists: async () => true,
+				exists: async () => ok(true),
 				paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" },
 			},
 		});

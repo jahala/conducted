@@ -567,14 +567,14 @@ Why: this is the spike's own method, extended to the second agent's transcript s
 
 ## D106. Pairing a Mac with a Worker keeps one URL and one token, checked before they are saved (2026-11-07)
 
-Proposed by the CLOUD-07 PR; not yet ruled on by the owner.
+Proposed by the CLOUD-07 PR; its block was moved to the Cloud page by the owner in issue #489.
 Context: D101 stores one pairing token per Mac under `cloud-pairing-token` and leaves the pairing flow to this row. The CLOUD-02 spike kept the token in a mode-600 file and named the Keychain as the product's home (question 4). Conductor has no self-hosted Worker to pair with, so its screens give no place or wording to copy; the flow and its form are ours (D098, D020: report the gap).
 Chosen:
 
 - A pairing is a Worker URL and its token. The app sends both to the Worker's `GET /pair` before it saves either. The answer must name the service `conducted-cloud` and report `paired: true`; anything else is refused, so a URL that answers any request is not taken for a Worker. A 401 is its own message.
 - The Worker URL is kept in the Keychain under `cloud-pairing-url` and the token under `cloud-pairing-token`, both in the app's service. The URL is written before the token, and only a non-empty token counts as paired. The token never returns to the web view, a log or an event; the URL does, so the app can show which Worker the Mac is paired with.
 - One pairing per Mac: pairing another Worker replaces the URL and token. A cloud workspace still names its own Worker URL on its host (D092), so a workspace whose Worker is not the paired one fails with the Worker's own refusal rather than falling back to the Mac.
-- The form lives in a "Cloud Workspaces" block on the Connections page, our own page (D098). Unpair removes both items; a Mac that was never paired succeeds.
+- The form lives in a "Cloud Workspaces" block at the top of the Cloud page, our own page (D098). The owner moved it there in issue #489, where he said the Cloud page is where the user already is; the block holds deploy, remove and pair together. Unpair removes both items; a Mac that was never paired succeeds.
 - The Worker's `/pair` route sits behind the same token check as every other route and touches no Durable Object, so a Mac can pair before the first workspace exists.
 
 Why: the user can check the token with the Worker at the moment they paste it, and a wrong URL or token changes nothing. Keeping the URL makes the state after a restart readable. Per-Worker tokens stay possible later; the Keychain keys can gain a Worker suffix when a second Worker needs its own token.
@@ -611,7 +611,7 @@ Chosen:
 - **Docker is still required, because Cloudflare's docs do not support a prebuilt image for our scheduling policy.** The Container is started by the Durable Object with `ctx.container.start({ image, instance })`, so it uses the `durable_object` scheduling policy. Under that policy the image must be a digest-pinned reference in the Cloudflare managed registry (`registry.cloudflare.com/<ACCOUNT_ID>/<REPOSITORY>@sha256:<DIGEST>`); Docker Hub, Amazon ECR and Google Artifact Registry are not accepted. That reference is account-scoped, and the docs do not document a cross-account pull, so publishing once from our account and having each user reference it is not a supported path. The deprecated `default` policy does accept Docker Hub, ECR and GAR without Docker, but it fixes one image and instance type application-wide in the Wrangler config and does not let the Durable Object choose them. We keep `durable_object`, and a deploy checks Docker before creating anything and says to install and start it. Sources, read 2026-11-07: https://developers.cloudflare.com/containers/guides/image-management/, https://developers.cloudflare.com/containers/configuration/scheduling-policy/, https://developers.cloudflare.com/containers/guides/deploy/.
 - **The pairing token is made in Rust.** 32 random bytes from `/dev/urandom`, base64url, written to a mode-600 file that `wrangler deploy --secrets-file` reads and that is removed whatever the deploy does. The token never reaches the web view. A successful deploy checks the Worker's `/pair` and keeps the URL and token in the Keychain, exactly as CLOUD-07's pairing does.
 - **The uninstall removes billing first.** It deletes the Worker, then its container application and its images, then the R2 bucket, and finally unpairs this Mac. Deleting the Worker alone leaves its container application billing (the spike's finding). A resource the account does not have is skipped, so a second uninstall succeeds.
-- **Conductor's cloud onboarding and Cloud computer page are left out.** The "Workspaces now run in the cloud" onboarding, its Enter shortcut, the "Set up cloud" step, the send-button coach mark, and the Cloud computer page's build log, Settings, Logs and Activate are Conductor-hosted or organization features (D004, D018, D025), and D002 keeps their wording out too. The deploy and remove controls live on our Connections page instead (D098, D106).
+- **Conductor's cloud onboarding and Cloud computer page are left out.** The "Workspaces now run in the cloud" onboarding, its Enter shortcut, the "Set up cloud" step, the send-button coach mark, and the Cloud computer page's build log, Settings, Logs and Activate are Conductor-hosted or organization features (D004, D018, D025), and D002 keeps their wording out too. The deploy, remove and pair controls live in the Cloud Workspaces block at the top of our Cloud page instead (D098, D106, issue #489).
 - **A cloud workspace's archive, unarchive and delete belong to its Worker.** Archive reads the branch head through the Worker, saves the work to R2 and stops the sandbox; unarchive moves the row back; delete removes the backups, sandbox and Durable Object storage before the local row is dropped.
 
 Why: the user's own account stays the only home for the Worker and its data, the app carries the code it deploys, no secret enters the web view, and the two outside tools a deploy needs are named when they are missing.
@@ -650,7 +650,7 @@ Chosen:
 - **Search reads the mirror.** `WorkspaceFilesService.tree`, `quickOpen` and `grep` take a search root: the workspace folder on the Mac, or the mirror of a cloud workspace. The sync runs when the file tree or a search needs it and the last sync is more than five seconds old, which is the research's poll interval. Every other file call (read, save, stat) still goes to the Worker as CLOUD-03 built it.
 - **A cloud file opens from the mirror, or from Downloads.** The file tab's Reveal in Finder and Open in another app use the mirror's copy. When the mirror has none, the file's text is written to `~/Downloads` and the toast says "Saved to" with a "Downloads" button. A path outside the mirror answers "File is outside the synced workspace"; a failed reveal answers "Could not open Downloads. Try again.".
 - **An upload is a guarded Worker write.** `uploadFile` reads the Mac file and writes it through `/files write`, then updates the mirror. It carries text only, because `/files write` carries text (D101's file route). No Rust command and no crate is added: D018's Host interface plus the Worker route is the door, so `start_remote_file_sync` and its siblings are not rebuilt as Tauri commands.
-- **The setting starts the sync for new cloud workspaces.** `auto_sync_files_in_new_cloud_workspaces` (Advanced, default true) is the CLOUD-11 switch. `file_include_globs` keeps its existing one home as the repository's list of files copied into a new workspace (SET-07, WS-03); the cloud upload of that list is not built because no cloud workspace creation flow exists yet to call it.
+- **The setting starts the sync for new cloud workspaces.** `auto_sync_files_in_new_cloud_workspaces` (Advanced, default true) gives a new cloud workspace's Sync files switch its first value. Since migration 0019 the workspace row keeps the switch (`remote_file_sync_enabled`, Conductor's column), so a restart keeps it (#549). `file_include_globs` keeps its existing one home as the repository's list of files copied into a new workspace (SET-07, WS-03); the cloud upload of that list is not built because no cloud workspace creation flow exists yet to call it.
 - **The scripts panel shows the states.** The panel shows Conductor's words: "Sync files is off", "Sync folder unavailable", "Sync files failed", and "Local terminal unavailable" as the title when the mirror folder is unavailable.
 
 Left out, and why:
@@ -694,7 +694,7 @@ Chosen:
 - **The personal cloud settings live in the Worker.** One object at `settings/user.json` in the Worker's R2 bucket holds `gitIdentity` (`{name, email}`) and `personalCloudEnvVars` (name to value). The desktop reads and writes it at `GET /settings` and `POST /settings` behind the same pairing token as every other route. The reason is the app, not the screen: every sandbox start must read the same identity and variables, and the agent's own commits happen inside the sandbox. Redesigning the local DB would not reach them.
 - **Applied twice.** A start merges the settings into the container environment (`GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL`, then the variables). The Worker's git route reads them again per call, so an identity saved while a sandbox runs applies to the next desktop commit without a restart.
 - **Names are checked in the Worker.** A variable name that is not a shell name, starts with `CONDUCTED_`, is set by the sandbox (`PATH`, `HOME`, the git scrub, `GH_TOKEN`) or is a provider key (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, the Codex and Cursor names) is refused with its reason. A provider key in the sandbox is what the plan forbids; the Worker swaps it in at the outbound handler instead.
-- **The pages are ours.** The Git identity row is on the Git page, where Conductor puts it (ui-map 6 Git), and appears only on a Mac paired with a Worker. The personal cloud variables are on a new Cloud page. Both use Conductor's wording ("Git identity", "Name and email used for commits in cloud workspaces.", "Couldn't update Git identity", "Conductor could not connect to cloud settings. Try again."). Conductor's org Environment and MCP pages are not built (D004, D018).
+- **The pages are ours.** The Git identity row is on the Git page, where Conductor puts it (ui-map 6 Git), and appears only on a Mac paired with a Worker. The personal cloud variables are on a new Cloud page, and the deploy, remove and pair block sits at its top (issue #489). Both use Conductor's wording ("Git identity", "Name and email used for commits in cloud workspaces.", "Couldn't update Git identity", "Conductor could not connect to cloud settings. Try again."). Conductor's org Environment and MCP pages are not built (D004, D018).
 - **Data privacy mode.** Conductor gates cloud work with `isCloudRestrictedByDataPrivacy = enterprise_data_privacy === "true" && flag !== "true"`, where the flag is PostHog's `cloud-in-data-privacy-mode` (services-map 4.1.2). We run no flag service (D025), so the flag is always off: while `enterprise_data_privacy` is on, a cloud workspace's run calls (`start`, `git`, `exec`, `files`, `terminal`, `preview-url`, and the relay) answer `cloud_data_privacy`, while settings reads, state, stop, remove and archive still reach the Worker. The truth table is tested in `core/cloud/privacy.ts`.
 - **The model key choice is already the per-chat provider.** CLOUD-17's "Which model key the Worker uses for cloud runs" is the `cloudClaudeCredentialSelection` family in Conductor. In our design the chat's provider is the choice: the router sends the host, and the Worker swaps that host's secret (D104). No second setting would change anything, so none is invented.
 - **The `env_vars` table keeps its two scopes.** Conductor's `env_vars` has a `context` of `local` or `cloud` (services-map 4.2.8). Our DB rows are `global` and `repo` (DATA-01) and the settings files already carry a `[environment_variables.cloud]` table (SET-04). The personal cloud variables are the Worker's object above, not a third DB scope; making the DB row context-aware would be a second home for the same setting.
@@ -879,11 +879,12 @@ Chosen:
 - **A workspace's folder comes from git.** A live workspace's folder is the repository worktree that `git worktree list` names with the workspace's folder name (or its recorded path); none means the workspace stays behind. An archived workspace keeps its recorded path, or the place Conducted would restore it to. Conductor's `setting_up` is ready; `initializing` and `failed` stay behind, as Conductor deletes them at start; cloud workspaces stay behind.
 - **An imported workspace is never renamed or cleaned up by Conducted on its own.** Its branch is not a placeholder, so no branch Conductor still uses is renamed; it has no setup log path, because Conductor's log is in Conductor's folder; it has no archive time, so the archived-data jobs leave it alone. Workspace ports are chosen inside the port service's queue for the whole import.
 - **Chats come over without their messages.** A chat keeps its title, agent, model, effort, fast mode, plan mode and the agent's session id, and resumes from the agent's transcript (D006). A hidden Conductor chat comes over closed, at its last change. An unread workspace shows unread through its newest chat. OpenCode and Pi chats stay behind until Conductor's `acp_config` is read. A chat with no agent type ran Claude, the only agent Conductor had then.
-- **Chat history waits for the spike, as its own row (APP-18).** The mapping is `packages/sidecar/src/import/conductor-events.ts`, beside the Claude translator it uses, and `scripts/conductor-import/spike.ts` measures it on a copy, printing counts only. Codex payloads and Conductor's checkpoint events (snapshots under Conductor's own refs) count as unmapped. History comes over only if the lead's run meets D100's pass mark.
+- **Chat history waits for the spike, as its own row (APP-18).** The mapping is `packages/sidecar/src/import/conductor-history.ts` (issue #512 moved it from `session_events` to `session_messages` on 2026-11-11), beside the Claude translator it uses, and `scripts/conductor-import/spike.ts` measures it on a copy, printing counts only. Codex payloads and Conductor's checkpoint events (snapshots under Conductor's own refs) count as unmapped. History comes over only if the lead's run meets D100's pass mark.
 - **Favourites take their agent from the agents' model lists**, since Conductor's favourite names only a model; at most four are kept, as the model picker keeps. Review comments come over for open workspaces only, as the plan says.
 - **Where it sits (D098).** Conductor has no import, so it sits on General after Sync agent configs, which also brings things in from elsewhere, and on the first-run project step when Conductor's database is on this Mac. The `our-name` guard exempts the import's own files, which must name Conductor to the user.
 
 Why: each choice keeps rule 1 (nothing of Conductor's is written) and rule 7 (once per item) true by construction rather than by care, or follows what Conductor itself reads. The deviations from the plan's letter are facts the plan's author did not have.
+Since D130: chats bring their history; the bullets "Chats come over without their messages" (as to messages) and "Chat history waits for the spike" are replaced.
 
 ## D125. Large services are split along their feature ids when next changed, with no size gate (2026-11-08)
 
@@ -934,3 +935,166 @@ Left out, and why:
 - A cloud create does not copy the Mac's included files (such as `.env`) into the sandbox, so no secret enters it (cloud-and-remote.md, "Secrets never enter the sandbox"), and the clone names its remote `origin` whatever the project's `remote_name` says.
 
 Why: it is Conductor's own control in Conductor's place, the smallest set of its behaviour that one local and one cloud entry need, and it reuses the create path and the Worker routes that exist, adding only the readiness route.
+
+## D128. A pull request runs the tests its changes can reach; main runs every test (2026-11-11)
+
+Proposed by the lead; not yet ruled on by the owner, apart from the rules the brief quoted: money, data-loss and security tests run on every pull request, and a flaky test gets a root cause.
+
+Context: main's last green CI run (43030758742) took 12 minutes, 9.5 of them in `pnpm test`, every test on every pull request whatever it changed. The desktop's Vitest files alone took 514 s. The TypeScript job also installed zsh from Ubuntu's mirror for one test, and the mirror was unreachable that day (#540).
+
+Chosen:
+
+- Pull requests run `pnpm test:changed --since HEAD^1` (`scripts/run-tests.ts`): each runner's own import graph picks the tests the changed files reach, files read by name count as reached, and `scripts/test-rules.ts` holds the run-everything list, the folder rules and the always-run tests. Code that changed with no test reaching it runs everything. Main runs every test after each merge, the net under the selection.
+- The bun-tested folders walk Bun's resolver over their imports instead of `bun test --changed`, which missed every import of a workspace package by name.
+- Tests that need a program only macOS ships are their own Vitest project (`*.macos.test.ts`) and run in CI's macOS job, so no job installs zsh.
+- Not done: a fixture cache, because Vitest puts the desktop's time in jsdom per file (environment 41 to 43%) and module loading (24%), with setup at 1%; and shared workers, because they first need proof that the 830 desktop files leave no global state behind. A desktop change still selects about half of the desktop files, since most tests reach the real container, so shared workers are where the next gain is.
+
+Why: run only what a change can break, and keep one net that catches what that misses (the owner's test-setup method).
+
+## D129. A background helper's late work shows inside the card that started it (2026-11-11)
+
+Ruled by the owner. The lead proposed: "keep all the data, and show a helper's late work inside the card that started it. Conductor shows that finish notice where it arrives, and we'd keep it there, so you can see the helper is done and find its card." The owner answered "go".
+
+Context: a Task or Agent call can start a helper that keeps working after its turn ends. Its later messages name the call in `parent_tool_use_id`, but each row is saved under the turn running when it arrives (main-BE1h_1MP.js `Mmt` @1440920). Conductor builds each turn from its own rows only (`wp` @1423850). It takes every message that names a parent out of the main transcript (`vmt`), and makes a card only for a call of the same turn (`_mt` @1427823). So it shows a helper's late work nowhere. Ours showed it at the top level of the later turn.
+
+Chosen:
+
+- **Keep every row, and put late work in its card.** A sub-agent's text, thinking, todo list or call whose parent call is in an earlier turn goes inside that call's card, after what the card already holds, in arrival order. A late result goes to its call. The later turn shows only its own work. The turn builder finishes turns in order and keeps one index of their calls, so the build stays linear in the events.
+- **Unknown parents stay where they are.** A sub-agent message whose parent call never arrived stays at the top level of the turn it arrives in. The ruling moves late work; it hides nothing.
+- **The finish notice: neither app draws one.** Conductor keeps the `task_notification` row in the later turn's main transcript, but its system view draws nothing for it: renderApp `Ipa` @9596117 draws a system row only when it has `content`, and the SDK's notification has none (checked in SDK 0.3.321's type and in the CLI that emits it). Our Claude translator drops the row. The proposal's premise that Conductor shows it was wrong, and Conductor has no wording to copy, so no notice is added. Showing one would be a further departure, and that is the owner's call.
+- **Only changed turns redraw.** `reuseUnchangedTurns` keeps every turn whose content did not change the same object, matched by id, so a past turn that gains late work redraws and the turns after it do not. It replaces the differ that reused only the turns before the first change.
+- **The history check leaves the ruled difference out.** The spike compares each turn's main transcript. Conductor leaves late work out of it, and now so do we; a known-case test reads `match`. Work whose parent call is stored in no row is the other ruled difference: Conductor takes every sub-agent message out of the main transcript (`vmt` @1427544) and shows none of it, ours keeps it at the top level. The spike leaves those entries out of the comparison and prints how many (`scripts/conductor-import/spike.ts`, `withoutOrphanedWork`). On the owner's backup copy, 63 parent ids are stored in no row.
+
+Why: the owner's ruling. Late work stays visible, in the card it belongs to, where Conductor loses it.
+
+## D130. How APP-18 brings chat history from Conductor (2026-11-11)
+
+Decided by the lead under the owner's rule "Match Conductor. Nothing made up; gaps are reported." Replaces D124's two bullets on chat history.
+
+Context: the lead's spike run on a copy of the owner's database met D100's pass mark: all 288 Claude chats read the same as in Conductor, and 100% of 3,172,282 rows map (#555). One chat has about 400,000 rows, and the spike held a whole chat in memory at about 426 MB per 200,000 rows. The work used only Conductor's schema and made-up data.
+
+Chosen:
+
+- **After the rows, one chat at a time.** History is written once the import's rows have committed, in one transaction per chat that counts the events and reads the first back. A chat whose history fails comes over without it and is named with the reason; the others go on.
+- **Which chats.** A chat brings its history when its agent has a mapping (`CONDUCTOR_MAPPED_AGENTS` in the protocol, Claude today) and it is in Conducted with no event of its own: one the import brings now, or one an earlier import brought without history. A chat with any event is never added to. A second import adds nothing, a failed chat gets its history on the next import, and a chat the user used since the dry run is left as it is.
+- **Two reads, memory bounded by one.** The Rust shell pages a chat's sent rows by rowid without their content, then fetches rows by rowid. Neither needs an index on Conductor's table, whose indexes are not known. The sidecar's mapper keeps a few numbers per row, sets the order Conductor shows, and maps the rows a read at a time. The desktop cannot import the sidecar, so it reaches the mapper over RPC. The spike runs the same mapper over rows in memory, so it measures what ships.
+- **Each turn ends.** The mapping adds a `turn_ended` event to each shown turn, decided by its last result as our runner decides it (`resultErrorItem`). A turn with no result ends `unrecorded`: it has ended, and nothing records how. The chat shows nothing for it, as Conductor shows nothing, and claims neither success nor a crash. On the owner's copy that is 1,505 of 19,200 turns in 157 chats (17,249 end in success, 446 in an error). Without an end, every imported turn would show "This turn stopped before it finished.", and startup repair would add an end to each.
+- **Times.** An event's `at` is Conductor's time. It is received at the import's time, so the data lifetime job, which ages events by when they were received and scans from a watermark, treats imported events as events received at import.
+
+Why: the owner's rule "Match Conductor. Nothing made up; gaps are reported." The history matches Conductor's chat by the spike's measure; a turn whose end the rows do not record shows nothing, as in Conductor, without inventing how it ended.
+Since D136: a chat's events are staged outside its transaction, and the transaction copies them into the chat in one statement.
+
+## D131. File icons draw Conductor's tinted brand glyphs, from their own packages (2026-11-12)
+
+Decided by the lead under the owner's rule "Match Conductor. Nothing made up; gaps are reported." The second package (react-icons) is needed because 11 of Conductor's glyphs are not Simple Icons. How the app shows the CC BY 4.0 credit that Font Awesome and codicons require is the owner's call (#577).
+
+Context: Conductor 0.92.1 looks a file up in a hand-made table before the Material Icon Theme (renderApp `x8i` @2480863): 22 names, a Dockerfile prefix and 84 reachable extensions, drawn with 43 glyphs in 30 tints. Its glyphs come from react-icons. Matched path for path, 32 are Simple Icons, 8 are Font Awesome 5's solid file shapes, 2 are VS Code codicons (`json`, `settings-gear`) and 1 is Devicons' `java`. The issue assumed all were Simple Icons.
+
+Chosen:
+
+- **The table is ours, the art is theirs.** `ui/file-icon.ts` holds the table, hand-read and checked entry for entry against Conductor's. `ui/file-icon.tsx` draws the 32 brand glyphs from `simple-icons` 14.15.0 (CC0; every 14.x release matches all 32, 13.0.0 and 15.0.0 do not), and the other 11 from `react-icons` 5.5.0 (MIT wrapper; Font Awesome and codicons are CC BY 4.0, Devicons MIT; 5.6.0 and 5.7.0 redraw some). Both are pinned exactly, and each glyph is imported by name.
+- **Tints are tokens.** `--color-file-<tint>` in `styles.css` holds Conductor's colours unchanged: Tailwind 4's palette and Conductor's own grays. Only `documentation` (Markdown) changes in dark mode.
+- **Conductor's quirks are kept.** The table reads the text a caller gives, so the file tree's bare name matches a name and the path chip's path matches only by extension, as in Conductor. C# draws Simple Icons' `sharp` glyph, as Conductor's does.
+- **Left out.** Conductor's first rule draws a `[LINEAR]-` or `[GITHUB]-` attachment with its own Linear and GitHub images; we have neither image. Folders keep our own glyph; Conductor draws codicons' folder in the muted colour.
+
+Why: the owner's rule. Every glyph comes from its published package, never from Conductor's bundle (D002), and is checked against Conductor's at the same version.
+
+## D132. The import from Conductor fits on the disk (2026-11-12)
+
+Decided by the lead after measuring the import at full size (#556). The dialog's new lines are ours, since Conductor has no import from us, and are the owner's to judge.
+
+Context: the lead counted the chat history import on a copy of the owner's database. 288 Claude chats map to 2,128,838 events. Stored as our events they take 12.12 GB of JSON, and 3.77 GB without each agent message's `raw`. The owner's Mac has 15 GiB free, so the import as built could fill the disk.
+
+Chosen:
+
+- **Imported agent events keep no `raw`.** `raw` keeps the original SDK message so a later translator can read an event again. For an imported chat, that original is Conductor's own row. It stays in Conductor's database, and the import can run again from it. The mapper drops `raw` (`packages/sidecar/src/import/conductor-history.ts`). Events our own runner writes keep it.
+- **The dry run measures the history it brings.** It reads and maps each chat as the import does, and sizes each event as the writer stores it (`storedEventBytes` in `core/db/session-events.ts`). It writes nothing. So the dry run now takes about as long as the import's history step.
+- **SQLite's overhead is computed from its file format.** `TablePages` in `core/conductor-import/plan.ts` packs the rows into 4 KiB pages as SQLite appends them: a page takes rows until the next one does not fit, and a row larger than a page holds fills overflow pages. The table's four indexes take their entries' bytes at 85% fill; they measured 88% to 89% full with random UUID ids, as Conductor's are. On made-up chats of four shapes the estimate is 0.2% to 2.7% above what the database grew by, and the test allows 0% to 5% (`conductor-import.space.container.test.ts`). A flat allowance on the rows' bytes missed by up to 90%, because how full a page gets depends on the rows' sizes. A test lists the table's indexes, so a new index fails until the estimate counts it.
+- **What must be free.** The history, plus the largest chat a second time, plus a margin of 2 GiB. The largest chat counts twice because SQLite's journal holds a chat's whole transaction before it is copied into the database, and keeps that size until the app closes. The margin keeps the Mac working after the import. With no history to write, the import asks for nothing.
+- **Free space comes from Rust.** `app.databaseFreeBytes` asks `statfs` for the disk that holds `conducted.db`, and answers the available blocks as `df` shows them. A disk that cannot be asked is `db_free_space_failed`.
+- **The import refuses before it writes.** It reads the free space again when it starts. If the disk no longer has room, it stops with both numbers, changes nothing and drops its copy, so the next try starts from a new dry run.
+- **What the dialog says.** Under "Chat history": "Takes about <size> of disk space", then "<size> is free." When the space is not there, a red notice reads "There is not enough free disk space. The import needs <size> free, and <size> is free. Free up space, then try again.", and Try again takes Import's place. Sizes are decimal GB with one decimal, as Finder shows a disk, and whole MB below 1 GB.
+- **The measure script checks the estimate on real data.** It prints the dry run's figures beside the scratch database's file and journal, before and after the import. The Node stand-in clones Conductor's database as Rust does, so on APFS neither copy takes space.
+
+Why: the owner's disk must not fill. `raw` was most of the weight, and the original stays in Conductor's database. The dry run already promises to say what the import will do before it does it, and the space it takes is part of that.
+Since D136: the largest chat counts three times, once more for its staging.
+
+## D133. Claude Code follows its newest compatible release between app updates (2026-11-12)
+
+Asked for by the owner in #541. Extends D021 and D088; D088's rule stays.
+Context: the app ran only the Claude Code its release feed pinned (D088), so a model that needs a newer Claude Code arrived only with an app release. Conductor pins its Claude Code the same way. Claude Code's release host publishes `https://downloads.claude.ai/claude-code-releases/latest`, the newest version as plain text, and `<version>/manifest.json` with each platform's SHA-256 and size and `sdkCompat.testedWrapperVersions`, the Claude Agent SDK versions that release was tested with. Claude Code's own installer (`https://claude.ai/install.sh`) reads the same two files.
+Chosen:
+
+- **When.** At launch, and whenever a day has passed on the wall clock, looked at once an hour (`apps/desktop/src-tauri/src/binaries/follow.rs`).
+- **Which release.** The `latest` version, when it is newer than the copy that runs and its manifest lists the SDK the sidecar pins. `build.rs` reads that pin from `packages/sidecar/package.json`, its one home. A release that does not list it is never installed, and the Advanced page names it.
+- **How it installs.** From `<version>/darwin-arm64/claude` or `<version>/darwin-x64/claude`, through a temporary file that replaces nothing until its size and SHA-256 match the manifest. A refused or cut-off download leaves the copy that runs, and no temporary file or empty version folder. Claude Code stays Ready meanwhile, so the send gate never holds a chat for it.
+- **The floor.** The release feed's version is the oldest the app runs and the answer when the host is out of reach. A first install and Re-download take the newest compatible release, or the floor. After a restart a followed copy runs only while it is newer than the floor and its install record lists the SDK, so an app update that moves either goes back to the floor until the next check.
+- **Chats.** A new chat resolves the bin link and gets the new copy. A running chat keeps the path it started with: every version that was ready during this app run stays on disk until the next launch, which moves the others to the Trash with their install records.
+- **What stays.** A program chosen in Settings still wins (SET-13). The app never runs a copy from PATH (D088); what changes is that its managed Claude Code is no longer fixed per app version. Codex, gh, watchexec and the cloud sandbox's programs keep their pins.
+- **Codex has no signal.** Its GitHub release gives each file a SHA-256 digest and ships a config schema and an SDK tarball at the same version, but nothing says which client or protocol version it works with. The sidecar speaks Codex's app-server protocol directly, so nothing can gate a move.
+- **Limits.** Only `latest` is read: the host publishes no list of versions (`/claude-code-releases/` answers 404), so a compatible release between the one that runs and an incompatible `latest` is never seen. The manifest is trusted over HTTPS from the vendor's host, as the installer trusts it. The host also publishes `<version>/manifest.json.sig`, but no public key for it is documented, so it is not checked. The floor's checksum is still reviewed in a pull request; a followed version's comes from the host at run time.
+
+Why: the owner's request. New models reach the user without an app release, and the SDK gate keeps the app on releases Claude Code's own tests cover for the SDK the sidecar runs.
+
+## D134. A system dialog's title is checked by a test, not a catalogue state (2026-11-12)
+
+Decided in the parity work under the owner's rule "Match Conductor. Nothing made up; gaps are reported."
+
+Context: Conductor titles its system folder pickers "Select project directory", "Select directory to link" and "Select Conductor root directory" (renderApp @1717947, @5685048, @10967435). macOS draws those windows outside the page, so no catalogue state can show them, and the parity harness's check b never sees them. Ours passes the same titles to `Platform.dialogs.pickFolder`, with our product name in the third (D012).
+
+Chosen: a parity entry that is the title of a system dialog is mapped to D134. Its note names the screen that opens the dialog and the test that asserts the title the Platform receives. The test drives the real screen, so changing the title fails it. A dialog the app draws itself stays a catalogue match.
+
+Why: the words are on screen and must match Conductor's. Only a test can see them, so the decision names the test that holds them.
+
+## D135. End-to-end tests drive the real app through its own WebDriver server (2026-11-12)
+
+Decided by the lead's brief for part 1 of #564, under the owner's plan in the issue ("The app runs in a debug build with Tauri's WebdriverIO service ... The plugin is compiled only into the test build. A check fails if it's in the release bundle.").
+
+Context: Tauri's own driver (`tauri-driver`) has no macOS support. On macOS, WebdriverIO reaches WKWebView only through `tauri-plugin-wdio-webdriver`, an HTTP WebDriver server compiled into the app, which lets any local process drive the window.
+
+Chosen:
+
+- **A Cargo feature, `e2e`, compiles the server in.** Nothing but `pnpm test:e2e` turns it on. `verifyBundle` fails a release whose app binary holds the server's markers, and each e2e run proves the same scan finds them in the test build.
+- **The test build is a debug `.app` bundle** with the release config's bundled sidecar. A bare debug binary finds no resources in production mode, and a dev build needs a dev server on a fixed port.
+- **WebdriverIO's `remote()` talks to the server directly.** The harness starts the app itself, so it owns the process ids, the environment and the folder; `@wdio/tauri-service` would start the app for it.
+- **Everything the app keeps is in the fresh folder.** `HOME` and `CFFIXED_USER_HOME` point there; the first launch of a probe without `CFFIXED_USER_HOME` read three stored keys of another copy of the app from the shared WebKit store, so it is required. The app runs under the sidecar differential run's sandbox profile.
+- **Data is written by the app's own repositories** while the app is stopped, after its first launch ran the migrations.
+
+Why: the owner's plan names the plugin and the release check; a check that cannot reach the owner's data or another copy's is the only kind that may run on the owner's Mac.
+
+## D136. A chat's history is read outside its transaction, so the import keeps the database queue free (2026-11-12)
+
+Proposed by the #598 PR; not yet ruled on by the owner.
+
+Context: the lead's measure on a copy of the owner's database (#598) showed each chat's history written in one transaction on the app's one database queue, which the longest chat held for 79 s, and the import's process at 2.4 GB. On a made-up chat of 200,900 rows and 608 million characters the measure showed 15.7 s and 1.7 GB. Sampling each stage apart showed where the memory went. The peak belonged to the measure's own last step: it opens the largest chat, and `sessions.open` loads every event of it. The import's own peak was about 540 MB, with its retained heap flat. The measure's relay of the sidecar's lines also joined and split its whole buffer again on every chunk, which allocated 79 GB during the import and lengthened the hold by a third. The Rust shell's framer has no such cost. The hold itself was mostly the chat's reads and mapping, which ran inside the transaction.
+
+Chosen:
+
+- **Stage, then copy in one statement.** A chat's reads and mapping run outside any transaction. Each read's events go into a staging in one statement, and the app's own writes take their turn between those statements. The staging is a temporary database (`ATTACH DATABASE '' AS conductor_history`), so no reader of `session_events` sees it, and SQLite deletes its file when the import detaches it after each chat, or when the connection closes. The chat's transaction then copies the staged events with one `INSERT ... SELECT`, counts them and reads the first back.
+- **All or nothing still holds per chat (rule 3).** A chat whose reads fail leaves only its staging, which is detached. A failed copy rolls back. A crash takes the temporary file with the connection. A reader sees none of a chat's history or all of it. The staging lives on the connection the queue uses. If the SQL plugin's pool, which nothing pins to one connection (platform/tauri.ts), replaced it mid-chat, the staging would be gone and the chat would fail as any chat fails.
+- **What still holds the queue.** The copy, because a reader must see the whole chat or none of it, and SQLite has one writer. On the made-up chat it held the queue 4.0 to 4.7 s, against 10.3 s with the reads inside and the relay fixed. Detaching the staging takes about 0.5 s as one statement. Each staging statement takes about 10 ms.
+- **A chat used meanwhile.** The chat is counted before its reads and again inside its transaction. A chat that gained an event in between is left as it is, as before.
+- **Disk.** While the largest chat is copied, its staging holds it once more, so the space check asks for the history, the largest chat twice more, and the margin. The staging holds the same rows without the chat's id and indexes, so it takes less than the chat does in the database. It sits in the system's temporary folder, which on a Mac is on the disk that holds the database.
+- **The measure tells its stages apart.** It prints peak memory for the dry run, the import, and the open of the largest chat; the longest statement outside a transaction beside the longest transaction; and its relay joins a line once. Its test runs a chat of 200,700 rows and 338 million characters and bounds how far each process's memory rises while the import runs.
+
+Why: rule 3 is kept per chat, and the app's own writes wait at most for SQLite's copy of one chat, never for its reads. On the made-up chat the peak memory the measure reported was its own open of the chat, which the import does not do; the lead's run on the copy shows whether that holds for the owner's chats.
+
+## D137. The app's database is one connection that nothing replaces while the app runs (2026-11-12)
+
+Decided by the agent fixing issue #616, which the owner filed. Replaces "An explicit pool pin is PLAT-27" in `platform/tauri.ts`.
+
+Context: a transaction is BEGIN IMMEDIATE, its statements and COMMIT, each sent to the Rust shell as its own call (`platform/queued-database.ts`). The app sent them through tauri-plugin-sql 2.6.0, which opens a sqlx pool with `Pool::connect(db_url)` (`wrapper.rs:102`) and so with sqlx 0.8's defaults: up to 10 connections, an idle one closed after 10 minutes, and any one closed when it is released after 30 minutes of life (`sqlx-core-0.8.6/src/pool/connection.rs`, `return_to_pool`). A connection closed inside a transaction rolls it back, and the transaction's later statements then save one by one on a new connection. A TEMP table or an ATTACH vanished with the connection too. A test through the real Rust side showed both on main: the second insert of a transaction saved on its own and COMMIT failed with "no transaction is active", and a TEMP table was gone after the UI's open ran a second time, because the plugin's `load` replaces the pool it holds.
+
+Chosen:
+
+- **Our own commands over one connection.** `database.rs` holds one sqlx `SqliteConnection` from the first `db_open` until the app exits. `db_execute` and `db_select` run on it. There is no pool, so nothing closes the connection while the app runs and nothing opens a second one. Once it is closed (at exit) every database command fails with `db_closed`, and a connection SQLite can no longer use fails each statement the same way. No later statement of a transaction can save on its own.
+- **What the UI sends stays the same.** Values bind as the plugin bound them (null, text, every number as a REAL, a boolean, array or object as its JSON text), and rows come back keyed by column name in column order. A test runs the same statements through the plugin on main and through our commands, with the same answers. The migrations run through sqlx's migrator with the same versions and checksums, so a database the plugin migrated opens unchanged; this was checked on a file the plugin migrated.
+- **The plugin is removed.** `tauri-plugin-sql`, `@tauri-apps/plugin-sql` and the `sql:` permissions are gone, so no web page can load or close a pool under the app. The live parity harness seeds through `db_open`, `db_select` and `db_execute`, and the parity map records Conductor's `sql|*` commands under this decision.
+- **The stand-ins are held to it.** The contract case `db.one-connection` loses the connection between BEGIN and COMMIT and requires the transaction's later statements, its commit and every statement after it to fail. The memory Platform and the Node stand-in both run it; a stand-in that opens a new connection fails it.
+
+Why the other ways were not enough:
+
+- **Pool options through the plugin.** It has none: `Pool::connect` takes only the URL, and SQLite's URL options do not reach the pool.
+- **A pool the app builds and puts in the plugin's `DbInstances`.** One connection with no lifetime and no idle timeout stops the 30-minute close, but sqlx still opens a new connection after one fails its ping. The only hook that can refuse it (`after_connect`) makes every later statement wait the 30-second acquire timeout. And any call to the plugin's `load` replaces the pool with a default one.
+
+The test: `apps/desktop/src-tauri/tests/plat_02_database.rs`.

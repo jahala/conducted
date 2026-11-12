@@ -12,6 +12,8 @@
  * count the removal dialog names), useSetting(conductor_root_path), useActions().projects
  * (updateConfig, remove).
  * Children: FilesToCopyField, RemoveRepoDialog.
+ * The Files to copy block shows Conductor's preview of the gitignored files the patterns match,
+ * with its Refresh action (Actions.projects.copyPreview).
  * Must handle: root path and workspaces path shown read-only with the warning not to move them; an
  * ordered list of preview URL templates, each with an optional name and a URL validated with the
  * workspace port variable, saved 500 ms after the last edit, with add, remove and move up or down;
@@ -23,7 +25,7 @@
  */
 import type { RepoId } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	useActions,
 	useRepoConfig,
@@ -89,8 +91,24 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 	const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
 	const [removing, setRemoving] = useState(false);
 	const [iconOpen, setIconOpen] = useState(false);
+	const [copyPreview, setCopyPreview] = useState<
+		{ state: "detecting" } | { state: "ready"; paths: string[] } | { state: "error" } | null
+	>(null);
 	const readyConfig = config.state === "ready" ? config.data : null;
 	configRef.current = readyConfig;
+
+	/** Asks the repository which ignored files its copy patterns match (SET-07). */
+	const refreshCopyPreview = useCallback(async (): Promise<void> => {
+		setCopyPreview({ state: "detecting" });
+		const result = await actions.projects.copyPreview(repoId);
+		setCopyPreview(result.ok ? { state: "ready", paths: result.value } : { state: "error" });
+	}, [actions, repoId]);
+
+	const copyPatterns = readyConfig?.copyFiles.join("\n") ?? null;
+	useEffect(() => {
+		if (copyPatterns === null) return;
+		void refreshCopyPreview();
+	}, [copyPatterns, refreshCopyPreview]);
 
 	useEffect(() => {
 		if (readyConfig === null) return;
@@ -357,8 +375,9 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 										</p>
 										<FilesToCopyField
 											patterns={settings.copyFiles}
-											matches={null}
+											matches={copyPreview}
 											onChange={(patterns) => void save({ ...settings, copyFiles: patterns })}
+											onRefresh={() => void refreshCopyPreview()}
 										/>
 									</div>
 

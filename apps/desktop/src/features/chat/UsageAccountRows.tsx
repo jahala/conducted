@@ -23,6 +23,7 @@
 import type { appToSidecarRequests, RateLimit, ResultOf } from "@conducted/protocol";
 import { cn } from "../../ui/cn.ts";
 import { Spinner } from "../../ui/Spinner.tsx";
+import { formatResetTime } from "./reset-time.ts";
 
 type ContextUsageAnswer = ResultOf<(typeof appToSidecarRequests)["getContextUsage"]>;
 
@@ -57,19 +58,7 @@ function windowName(limit: RateLimit): string {
 
 /** The reset time as Conductor writes it: a short date, then the time. */
 function resetText(resetsAt: number | undefined): string {
-	if (resetsAt === undefined) return "reset time unavailable";
-	const at = new Date(resetsAt);
-	const date = at.toLocaleDateString(undefined, {
-		year: "numeric",
-		month: "short",
-		day: "numeric",
-	});
-	const time = at.toLocaleTimeString(undefined, {
-		hour: "numeric",
-		minute: "2-digit",
-		hour12: true,
-	});
-	return `${date}, ${time}`;
+	return resetsAt === undefined ? "reset time unavailable" : formatResetTime(resetsAt);
 }
 
 interface WindowView {

@@ -1,14 +1,21 @@
 /**
  * @feature APP-17 Import from Conductor: find, dry run, import, cancel
+ * @feature APP-18 Chat history from Conductor
  * Owns: `ConductorImportService`, which finds Conductor's database, makes the read-only copy, reads
- * the repository folders it names, builds the plan and shows it as a dry run, writes it when the
- * user goes ahead, reloads the stores that show the imported rows, and removes the copy when the
- * import ends, is cancelled or fails, and at every start.
+ * the repository folders it names, builds the plan, measures the history it brings and reads the
+ * free space on the database's disk, and shows it as a dry run; writes it when the user goes
+ * ahead and the disk still has the space, then brings each chat's history (history.ts), reloads
+ * the stores that show the imported rows, and removes the copy when the import ends, is
+ * cancelled or fails, and at every start.
  * Behaviour: docs/plans/migrate-from-conductor.md (safety rules 1 to 7, "Where it lives").
  * Must handle: a dry run or an import while one runs is refused, never started twice; a cancel
  * while the dry run reads drops its copy once the read ends; the import
- * writes only the plan the user saw, and a plan is used once; any failure leaves Conducted as it
- * was (apply.ts) and drops the copy, so the next try starts from a fresh dry run; the copy left by
+ * writes only the plan the user saw, and a plan is used once; an import the disk has no room for
+ * is refused before it writes anything, with the space it needs and the space free, because the
+ * free space is read again when it starts (D132); any failure leaves Conducted as it
+ * was (apply.ts) and drops the copy, so the next try starts from a fresh dry run; chat history is
+ * written once the rows have committed, chat by chat, so a chat whose history fails comes over
+ * without it and is named in the outcome, and the copy stays until the last chat is read; the copy left by
  * a crash is removed at the next start; nothing of Conductor's is written: its database is copied
  * by the Rust shell, and its repository files and worktree list are only read; a store error
  * never carries a secret value, because values never leave the Rust shell.
@@ -31,14 +38,19 @@ import {
 	type SettingsService,
 	type TomlCodec,
 } from "../services/settings.ts";
+import type { SidecarClient } from "../sidecar/tunnel.ts";
 import { applyImportPlan, type ImportedCounts } from "./apply.ts";
 import { parseConductorRows } from "./conductor-rows.ts";
+import { type HistoryOutcome, importChatHistories, measureChatHistories } from "./history.ts";
 import {
 	type ChatDefaults,
 	type ConductedState,
 	conductorDatabasePath,
+	type HistorySize,
 	type ImportPlan,
 	type ImportPreview,
+	importSpace,
+	noSpaceError,
 	type OfferedModels,
 	planConductorImport,
 	type RepoFolder,
@@ -57,19 +69,24 @@ export interface ConductorImportState {
 	phase: ImportPhase;
 	preview: ImportPreview | null;
 	imported: ImportedCounts | null;
+	/** What became of each chat's history in the last import. */
+	history: HistoryOutcome | null;
 	error: AppError | null;
 }
 
 export interface ImportOutcome {
 	imported: ImportedCounts;
+	history: HistoryOutcome;
 }
 
 export interface ConductorImportServiceDeps {
-	platform: Pick<Platform, "conductorImport" | "fs" | "keychain">;
+	platform: Pick<Platform, "app" | "conductorImport" | "fs" | "keychain">;
 	db: Database;
 	repositories: () => Repositories;
 	repositoriesOn: (db: Database) => Repositories;
 	git: Pick<GitRunner, "stdout">;
+	/** The sidecar, which maps chat history (APP-18). */
+	sidecar: Pick<SidecarClient, "request">;
 	toml: TomlCodec;
 	settings: Pick<SettingsService, "updateSettingsFile" | "excludeLocalSettingsFromGit">;
 	/** The config a new chat starts with, which an imported chat starts from. */
@@ -85,13 +102,21 @@ export interface ConductorImportServiceDeps {
 	now: () => number;
 }
 
+/** A dry run's plan, its copy and the history size it measured. */
+interface Planned {
+	copyPath: string;
+	plan: ImportPlan;
+	size: HistorySize;
+	preview: ImportPreview;
+}
+
 const busy = (): AppError =>
 	appError("import_busy", "The import is already working. Wait for it to finish.");
 
 export class ConductorImportService {
 	readonly store: StoreApi<ConductorImportState>;
 	readonly #deps: ConductorImportServiceDeps;
-	#plan: { copyPath: string; plan: ImportPlan } | null = null;
+	#plan: Planned | null = null;
 	#working = false;
 	/** Set when the user cancels while a dry run is still reading; the dry run then drops its copy. */
 	#cancelled = false;
@@ -103,6 +128,7 @@ export class ConductorImportService {
 			phase: "idle",
 			preview: null,
 			imported: null,
+			history: null,
 			error: null,
 		}));
 	}
@@ -130,7 +156,13 @@ export class ConductorImportService {
 		if (this.#working) return err(busy());
 		this.#working = true;
 		this.#cancelled = false;
-		this.store.setState({ phase: "planning", preview: null, imported: null, error: null });
+		this.store.setState({
+			phase: "planning",
+			preview: null,
+			imported: null,
+			history: null,
+			error: null,
+		});
 		try {
 			const cleared = await this.#dropCopy();
 			if (!cleared.ok) {
@@ -161,8 +193,8 @@ export class ConductorImportService {
 				return planned;
 			}
 			this.#plan = planned.value;
-			this.store.setState({ phase: "planned", preview: planned.value.plan.preview });
-			return ok(planned.value.plan.preview);
+			this.store.setState({ phase: "planned", preview: planned.value.preview });
+			return ok(planned.value.preview);
 		} finally {
 			this.#working = false;
 		}
@@ -179,35 +211,55 @@ export class ConductorImportService {
 		this.#plan = null;
 		this.store.setState({ phase: "importing", error: null });
 		try {
-			const applied = await applyImportPlan(planned.plan, {
-				db: this.#deps.db,
-				repositoriesOn: this.#deps.repositoriesOn,
-				conductorImport: this.#deps.platform.conductorImport,
-				keychain: this.#deps.platform.keychain,
-				fs: this.#deps.platform.fs,
-				writeSettingsFile: (file) => this.#writeSettingsFile(file),
-				withPorts: this.#deps.withPorts,
-				copyPath: planned.copyPath,
-				now: this.#deps.now(),
-			});
+			const room = await this.#room(planned.size);
+			const applied = !room.ok
+				? room
+				: await applyImportPlan(planned.plan, {
+						db: this.#deps.db,
+						repositoriesOn: this.#deps.repositoriesOn,
+						conductorImport: this.#deps.platform.conductorImport,
+						keychain: this.#deps.platform.keychain,
+						fs: this.#deps.platform.fs,
+						writeSettingsFile: (file) => this.#writeSettingsFile(file),
+						withPorts: this.#deps.withPorts,
+						copyPath: planned.copyPath,
+						now: this.#deps.now(),
+					});
+			const done: Result<ImportOutcome> = applied.ok
+				? ok({
+						imported: applied.value,
+						history: await importChatHistories(planned.plan.history, {
+							db: this.#deps.db,
+							repositoriesOn: this.#deps.repositoriesOn,
+							conductorImport: this.#deps.platform.conductorImport,
+							sidecar: this.#deps.sidecar,
+							copyPath: planned.copyPath,
+							now: this.#deps.now(),
+						}),
+					})
+				: applied;
 			const dropped = await this.#dropCopy();
 			if (!dropped.ok) {
 				// The next start removes it; the import's own outcome is what the user needs now.
 				this.#deps.log("warn", `The import's copy could not be removed: ${dropped.error.message}`);
 			}
-			if (!applied.ok) {
-				this.store.setState({ phase: "failed", error: applied.error });
-				this.#deps.log("warn", `The import from Conductor stopped: ${applied.error.message}`);
-				return applied;
+			if (!done.ok) {
+				this.store.setState({ phase: "failed", error: done.error });
+				this.#deps.log("warn", `The import from Conductor stopped: ${done.error.message}`);
+				return done;
+			}
+			const { imported, history } = done.value;
+			for (const failure of history.failed) {
+				this.#deps.log("warn", `A chat's history did not come over: ${failure.reason}`);
 			}
 			await this.#excludeLocalFiles(planned.plan.files);
 			const reloaded = await this.#deps.reload();
 			if (!reloaded.ok) {
 				this.#deps.log("warn", `The imported rows did not load: ${reloaded.error.message}`);
 			}
-			this.store.setState({ phase: "imported", imported: applied.value });
+			this.store.setState({ phase: "imported", imported, history });
 			this.#deps.log("info", "Imported from Conductor");
-			return ok({ imported: applied.value });
+			return done;
 		} finally {
 			this.#working = false;
 		}
@@ -234,7 +286,15 @@ export class ConductorImportService {
 		return discarded.ok ? ok(undefined) : discarded;
 	}
 
-	async #planNow(): Promise<Result<{ copyPath: string; plan: ImportPlan }>> {
+	/** Whether the disk still has the space the dry run measured; read again before any write. */
+	async #room(size: HistorySize): Promise<Result<void>> {
+		const free = await this.#deps.platform.app.databaseFreeBytes();
+		if (!free.ok) return free;
+		const space = importSpace(size, free.value);
+		return space.fits ? ok(undefined) : err(noSpaceError(space));
+	}
+
+	async #planNow(): Promise<Result<Planned>> {
 		const { platform } = this.#deps;
 		const copy = await platform.conductorImport.copy(conductorDatabasePath(platform.fs.paths.home));
 		if (!copy.ok) return copy;
@@ -266,7 +326,18 @@ export class ConductorImportService {
 			chatDefaults: chatDefaults.value,
 			now: this.#deps.now(),
 		});
-		return ok({ copyPath: copy.value.copyPath, plan });
+		const size = await measureChatHistories(plan.history, {
+			conductorImport: platform.conductorImport,
+			sidecar: this.#deps.sidecar,
+			copyPath: copy.value.copyPath,
+			now: this.#deps.now(),
+			cancelled: () => this.#cancelled,
+		});
+		if (!size.ok) return size;
+		const free = await platform.app.databaseFreeBytes();
+		if (!free.ok) return free;
+		const preview = { ...plan.preview, space: importSpace(size.value, free.value) };
+		return ok({ copyPath: copy.value.copyPath, plan, size: size.value, preview });
 	}
 
 	/** What one repository folder holds, read only: the folder, its worktrees and settings files. */
@@ -287,12 +358,19 @@ export class ConductorImportService {
 			conductedLocal: false,
 			scriptFiles: {},
 		};
-		if (!(await fs.exists(root))) return ok(empty);
+		const found = await fs.exists(root);
+		if (!found.ok) return found;
+		if (!found.value) return ok(empty);
 		const listed = await this.#deps.git.stdout(worktreeList(), { cwd: root });
 		const unreadable: string[] = [];
 		const readToml = async (relative: string): Promise<SettingsFileContents | null> => {
 			const path = `${root}/${relative}`;
-			if (!(await fs.exists(path))) return null;
+			const present = await fs.exists(path);
+			if (!present.ok) {
+				unreadable.push(relative);
+				return null;
+			}
+			if (!present.value) return null;
 			const text = await fs.readText(path);
 			const parsed = text.ok ? this.#deps.toml.parse(text.value) : null;
 			if (parsed === null || !parsed.ok) {
@@ -315,15 +393,21 @@ export class ConductorImportService {
 			const text = await fs.readText(path);
 			if (text.ok) scriptFiles[relative] = text.value;
 		}
+		const conductorJson = await fs.exists(`${root}/conductor.json`);
+		if (!conductorJson.ok) return conductorJson;
+		const conductedShared = await fs.exists(sharedSettingsFile(root));
+		if (!conductedShared.ok) return conductedShared;
+		const conductedLocal = await fs.exists(localSettingsFile(root));
+		if (!conductedLocal.ok) return conductedLocal;
 		return ok({
 			exists: true,
 			worktrees: listed.ok ? parseWorktreeList(listed.value) : null,
 			shared,
 			local,
 			unreadable,
-			conductorJson: await fs.exists(`${root}/conductor.json`),
-			conductedShared: await fs.exists(sharedSettingsFile(root)),
-			conductedLocal: await fs.exists(localSettingsFile(root)),
+			conductorJson: conductorJson.value,
+			conductedShared: conductedShared.value,
+			conductedLocal: conductedLocal.value,
 			scriptFiles,
 		});
 	}
@@ -354,6 +438,7 @@ export class ConductorImportService {
 			repos: repos.value,
 			workspaces: workspaces.value,
 			sessionIds: ids.value.sessionIds,
+			sessionIdsWithEvents: ids.value.sessionIdsWithEvents,
 			commentIds: ids.value.commentIds,
 			sectionIds: ids.value.sectionIds,
 			sectionCount: ids.value.sectionIds.size,

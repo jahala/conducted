@@ -10,17 +10,22 @@ import { APPROVAL_STATES } from "./approvals.ts";
 import { BANNER_STATES } from "./banners.ts";
 import { CHAT_STATES } from "./chat.ts";
 import { CHECKS_STATES } from "./checks.ts";
+import { CLOUD_STATES } from "./cloud.ts";
 import { COMMENT_STATES } from "./comments.ts";
 import { COMPOSER_STATES } from "./composer.ts";
 import { DEEP_LINK_STATES } from "./deep-links.ts";
+import { DRAG_STATES } from "./drags.ts";
 import { GIT_STATES } from "./git.ts";
 import { GOAL_STATES } from "./goals.ts";
 import { OPEN_IN_STATES } from "./open-in.ts";
 import { OVERLAY_STATES } from "./overlays.ts";
 import { PAGE_STATES } from "./pages.ts";
+import { PAR_RUN_STATES } from "./par-runs.ts";
 import { PR_TAB_STATES } from "./pr-tab.ts";
 import { PR_HEADER_STATES } from "./pull-request.ts";
 import { QUEUE_STATES } from "./queue.ts";
+import { RESOURCE_STATES } from "./resources.ts";
+import { REVIEW_STATES } from "./review.ts";
 import { SETTINGS_STATES } from "./settings.ts";
 import { SETUP_STATES } from "./setup.ts";
 import { SHELL_STATES } from "./shell.ts";
@@ -48,10 +53,15 @@ export const CATALOGUE_STATES: readonly CatalogueState[] = [
 	...BANNER_STATES,
 	...SETUP_STATES,
 	...SIDEBAR_STATES,
+	...RESOURCE_STATES,
 	...QUEUE_STATES,
 	...PR_TAB_STATES,
 	...DEEP_LINK_STATES,
+	...DRAG_STATES,
 	...COMMENT_STATES,
+	...PAR_RUN_STATES,
+	...CLOUD_STATES,
+	...REVIEW_STATES,
 ];
 
 const seen = new Set<string>();

@@ -2,7 +2,7 @@ import { appError, err, ok } from "@conducted/shared";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
-import type { AgentProgramView } from "../../../core/model.ts";
+import type { AgentProgramView, ProgramFollow } from "../../../core/model.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
 import { toast } from "../../../ui/Toast.tsx";
 import { AdvancedPage } from "./AdvancedPage.tsx";
@@ -25,6 +25,7 @@ const claude: AgentProgramView = {
 		nextAttemptAt: null,
 		error: null,
 		path: "/app/agent-binaries/claude/2.1.308/claude",
+		follow: null,
 	},
 	userPath: null,
 };
@@ -39,8 +40,8 @@ afterEach(() => {
 	test = undefined;
 });
 
-async function mountPage() {
-	test = createTestContainer();
+async function mountPage(options: Parameters<typeof createTestContainer>[0] = {}) {
+	test = createTestContainer(options);
 	await test.container.services.settings.start();
 	render(
 		<ServicesProvider container={test.container}>
@@ -53,6 +54,11 @@ async function mountPage() {
 describe("SET-02 AdvancedPage", () => {
 	it("refuses a program path that does not exist and does not save it", async () => {
 		const mounted = await mountPage();
+		mounted.memory.controls.scriptShell((command) =>
+			command.program === "which"
+				? ok({ exitCode: 1, stdout: "", stderr: `${command.args[0]} not found\n` })
+				: null,
+		);
 		const set = vi.spyOn(mounted.container.actions.settings, "set");
 
 		const input = screen.getByLabelText("Claude Code executable path");
@@ -62,6 +68,43 @@ describe("SET-02 AdvancedPage", () => {
 		expect(
 			await screen.findByText("No program exists at /definitely/not/here/claude."),
 		).toBeTruthy();
+		expect(set).not.toHaveBeenCalled();
+	});
+
+	// The file commands reach only the app's own folders (files.rs `default_roots`), so a typed path
+	// elsewhere was refused and the refusal read as "does not exist" (issue #601).
+	it("accepts a typed program path that exists outside the app's folders", async () => {
+		const mounted = await mountPage({ enforceFileScope: true });
+		mounted.memory.controls.scriptShell((command) =>
+			command.program === "which" && command.args[0] === "/bin/echo"
+				? ok({ exitCode: 0, stdout: "/bin/echo\n", stderr: "" })
+				: null,
+		);
+		const set = vi.spyOn(mounted.container.actions.settings, "set");
+
+		const input = screen.getByLabelText("Claude Code executable path");
+		fireEvent.change(input, { target: { value: "/bin/echo" } });
+		fireEvent.blur(input);
+
+		await waitFor(() => expect(set).toHaveBeenCalledWith("claude_executable_path", "/bin/echo"));
+		expect(screen.queryByText("No program exists at /bin/echo.")).toBeNull();
+	});
+
+	it("says why a program path could not be checked, and does not call it missing", async () => {
+		const mounted = await mountPage({ enforceFileScope: true });
+		mounted.memory.controls.scriptShell((command) =>
+			command.program === "which"
+				? err(appError("shell_spawn_failed", "which could not start."))
+				: null,
+		);
+		const set = vi.spyOn(mounted.container.actions.settings, "set");
+
+		const input = screen.getByLabelText("Codex executable path");
+		fireEvent.change(input, { target: { value: "/opt/tools/codex" } });
+		fireEvent.blur(input);
+
+		expect(await screen.findByText("which could not start.")).toBeTruthy();
+		expect(screen.queryByText("No program exists at /opt/tools/codex.")).toBeNull();
 		expect(set).not.toHaveBeenCalled();
 	});
 
@@ -83,14 +126,14 @@ describe("SET-02 AdvancedPage", () => {
 	it("offers Use system Claude Code when PATH has one, and saves its path when chosen", async () => {
 		test = createTestContainer();
 		const found = "/opt/homebrew/bin/claude";
+		// `which` finds the program by name on PATH, and by its path when the row checks it.
 		test.memory.controls.scriptShell((command) =>
-			command.program === "which" && command.args[0] === "claude"
+			command.program === "which" && (command.args[0] === "claude" || command.args[0] === found)
 				? ok({ exitCode: 0, stdout: `${found}\n`, stderr: "" })
 				: command.program === "which"
 					? ok({ exitCode: 1, stdout: "", stderr: "" })
 					: null,
 		);
-		expect((await test.container.platform.fs.writeTextAtomic(found, "")).ok).toBe(true);
 		await test.container.services.settings.start();
 		render(
 			<ServicesProvider container={test.container}>
@@ -123,9 +166,13 @@ describe("SET-02 AdvancedPage", () => {
 		const pickFile = vi
 			.spyOn(mounted.container.actions.app, "pickFile")
 			.mockResolvedValue(ok("/opt/tools/claude"));
-		// The picked program exists on the in-memory disk, so the path check lets it through.
-		expect((await mounted.container.platform.fs.writeTextAtomic("/opt/tools/claude", "")).ok).toBe(
-			true,
+		// `which` finds the picked program, so the path check lets it through.
+		mounted.memory.controls.scriptShell((command) =>
+			command.program === "which" && command.args[0] === "/opt/tools/claude"
+				? ok({ exitCode: 0, stdout: "/opt/tools/claude\n", stderr: "" })
+				: command.program === "which"
+					? ok({ exitCode: 1, stdout: "", stderr: "" })
+					: null,
 		);
 		const set = vi.spyOn(mounted.container.actions.settings, "set");
 
@@ -199,6 +246,66 @@ describe("SET-02 AdvancedPage", () => {
 		fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
 
 		expect(install).toHaveBeenCalledWith("claude");
+	});
+
+	it("PLAT-28 says which Claude Code runs and why (D133)", async () => {
+		const mounted = await mountPage();
+		const shows = async (
+			version: string,
+			follow: ProgramFollow,
+			userPath: string | null = null,
+		): Promise<string> => {
+			act(() => {
+				mounted.container.services.system.store.setState({
+					programs: {
+						state: "ready",
+						data: [{ status: { ...claude.status, version, follow }, userPath }],
+					},
+				});
+			});
+			const name = await screen.findByText("Claude Code", { selector: "li p" });
+			return name.nextElementSibling?.textContent ?? "";
+		};
+		const note = (check: ProgramFollow["check"]): ProgramFollow => ({
+			shipped: "2.1.322",
+			sdk: "0.3.321",
+			check,
+		});
+
+		expect(await shows("2.1.322", note(null))).toBe(
+			"Version 2.1.322, the version this app ships with.",
+		);
+		expect(await shows("2.1.330", note(null))).toBe(
+			"Version 2.1.330, a newer release tested with this app.",
+		);
+		expect(await shows("2.1.322", note({ kind: "checking" }))).toBe(
+			"Version 2.1.322, the version this app ships with. Checking for a newer version.",
+		);
+		expect(await shows("2.1.330", note({ kind: "newest", latest: "2.1.330" }))).toBe(
+			"Version 2.1.330, the newest release.",
+		);
+		expect(await shows("2.1.322", note({ kind: "untested", latest: "2.1.331" }))).toBe(
+			"Version 2.1.322, the version this app ships with. Version 2.1.331 is newer, but it is not tested with this app's Claude Agent SDK 0.3.321, so it is skipped.",
+		);
+		expect(await shows("2.1.330", note({ kind: "downloading", latest: "2.1.331" }))).toBe(
+			"Version 2.1.330. Downloading version 2.1.331 for new chats.",
+		);
+		expect(
+			await shows(
+				"2.1.322",
+				note({
+					kind: "failed",
+					error:
+						"The release host answered 503 for https://downloads.claude.ai/claude-code-releases/latest.",
+				}),
+			),
+		).toBe(
+			"Version 2.1.322, the version this app ships with. The check for a newer version failed: The release host answered 503 for https://downloads.claude.ai/claude-code-releases/latest.",
+		);
+		// A program the user chose wins over the managed copy, whatever the note says.
+		expect(
+			await shows("2.1.330", note({ kind: "newest", latest: "2.1.330" }), "/opt/my/claude"),
+		).toBe("Using the program at /opt/my/claude.");
 	});
 
 	it("AGENT-09 installs Cursor's SDK from the Agent binaries section", async () => {
@@ -302,6 +409,7 @@ describe("SET-02 AdvancedPage", () => {
 								nextAttemptAt: null,
 								error: null,
 								path: null,
+								follow: null,
 							},
 							userPath: null,
 						},
@@ -334,6 +442,7 @@ describe("SET-02 AdvancedPage", () => {
 								nextAttemptAt: null,
 								error: "The download was cut off.",
 								path: null,
+								follow: null,
 							},
 							userPath: null,
 						},
@@ -369,8 +478,32 @@ describe("SET-02 AdvancedPage", () => {
 			await waitFor(() => expect(set).toHaveBeenCalledWith("ssh_key_path", ""));
 		});
 
+		it("accepts a typed key pair outside the app's folders (issue #601)", async () => {
+			const mounted = await mountPage({ enforceFileScope: true });
+			const home = mounted.container.platform.fs.paths.home;
+			mounted.memory.controls.scriptShell((command) =>
+				command.program === "sh" && command.args.at(-1) === `${home}/.ssh/id_e2e`
+					? ok({ exitCode: 0, stdout: "ssh-ed25519 AAAAE2E e2e\n", stderr: "" })
+					: null,
+			);
+			const set = vi.spyOn(mounted.container.actions.settings, "set");
+
+			const input = screen.getByLabelText("SSH private key path");
+			fireEvent.change(input, { target: { value: "~/.ssh/id_e2e" } });
+			fireEvent.blur(input);
+
+			await waitFor(() => expect(set).toHaveBeenCalledWith("ssh_key_path", "~/.ssh/id_e2e"));
+			expect(screen.queryByText(/Custom SSH public key not found/)).toBeNull();
+		});
+
 		it("refuses a custom key with no .pub file in Conductor's words", async () => {
 			const mounted = await mountPage();
+			// The shell's read finds no public half: `cat` fails and prints nothing.
+			mounted.memory.controls.scriptShell((command) =>
+				command.program === "sh"
+					? ok({ exitCode: 1, stdout: "", stderr: "cat: /keys/missing.pub: No such file\n" })
+					: null,
+			);
 			const set = vi.spyOn(mounted.container.actions.settings, "set");
 			const input = screen.getByLabelText("SSH private key path");
 			fireEvent.change(input, { target: { value: "/keys/missing" } });
@@ -384,17 +517,11 @@ describe("SET-02 AdvancedPage", () => {
 
 		it("browses with Conductor's titles and saves an existing key pair", async () => {
 			const mounted = await mountPage();
-			expect((await mounted.container.platform.fs.writeTextAtomic("/keys/custom", "")).ok).toBe(
-				true,
+			mounted.memory.controls.scriptShell((command) =>
+				command.program === "sh" && command.args.at(-1) === "/keys/custom"
+					? ok({ exitCode: 0, stdout: "ssh-ed25519 AAAACUSTOM conducted\n", stderr: "" })
+					: null,
 			);
-			expect(
-				(
-					await mounted.container.platform.fs.writeTextAtomic(
-						"/keys/custom.pub",
-						"ssh-ed25519 AAAACUSTOM conducted\n",
-					)
-				).ok,
-			).toBe(true);
 			const pickFile = vi
 				.spyOn(mounted.container.actions.app, "pickFile")
 				.mockResolvedValue(ok("/keys/custom"));
@@ -412,7 +539,9 @@ describe("SET-02 AdvancedPage", () => {
 
 	it("asks before changing the root folder and saves the new path", async () => {
 		const mounted = await mountPage();
-		vi.spyOn(mounted.container.actions.app, "pickFolder").mockResolvedValue(ok("/tmp/new-root"));
+		const pickFolder = vi
+			.spyOn(mounted.container.actions.app, "pickFolder")
+			.mockResolvedValue(ok("/tmp/new-root"));
 
 		// Conductor's button is "Browse", under the description with the path field beside it.
 		fireEvent.click(screen.getByRole("button", { name: "Browse" }));
@@ -424,6 +553,8 @@ describe("SET-02 AdvancedPage", () => {
 				"/tmp/new-root",
 			),
 		);
+		// The system folder picker's title: Conductor's, with our product name (renderApp @10967435, D134).
+		expect(pickFolder).toHaveBeenCalledWith("Select Conducted root directory");
 	});
 });
 

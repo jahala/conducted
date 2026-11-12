@@ -17,8 +17,10 @@
  * The parity harness (scripts/parity/dump.ts) starts the server and lists the states with the same
  * functions, for this checkout or for an older one.
  *
- * Usage: bun scripts/catalogue/shots.ts [state-id ...]
- * With state ids it captures only those, and index.json lists only those.
+ * Usage: bun scripts/catalogue/shots.ts [state-id ...] [--shard=<k>/<n>]
+ * With state ids it captures only those, and index.json lists only those. With `--shard=k/n` it
+ * captures every n-th state starting at the k-th, so n jobs side by side draw every state once
+ * (CI splits the run this way; one run of about 300 states outgrew its job's limit).
  */
 import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
@@ -159,7 +161,39 @@ function trashStale(written: Set<string>): string[] {
 	return stale;
 }
 
-async function main(only: string[]): Promise<number> {
+/** One part of a split run: the `index`-th of `count`, counted from 1. */
+export interface Shard {
+	index: number;
+	count: number;
+}
+
+/** The command line: the state ids to draw and the part of the states, or why it cannot be read. */
+export function parseShotsArgs(
+	args: readonly string[],
+): { ok: true; only: string[]; shard: Shard | null } | { ok: false; error: string } {
+	const only: string[] = [];
+	let shard: Shard | null = null;
+	for (const arg of args) {
+		if (!arg.startsWith("--shard")) {
+			only.push(arg);
+			continue;
+		}
+		const match = /^--shard=(\d+)\/(\d+)$/.exec(arg);
+		const index = Number(match?.[1]);
+		const count = Number(match?.[2]);
+		if (match === null || count < 1 || index < 1 || index > count) {
+			return { ok: false, error: `Read --shard as --shard=<k>/<n>, with 1 <= k <= n; got ${arg}.` };
+		}
+		shard = { index, count };
+	}
+	return { ok: true, only, shard };
+}
+
+/** The states one part draws: every `count`-th, starting at the `index`-th, in their order. */
+export const shardOf = <T>(states: readonly T[], shard: Shard): T[] =>
+	states.filter((_, position) => position % shard.count === shard.index - 1);
+
+async function main(only: string[], shard: Shard | null): Promise<number> {
 	mkdirSync(OUT, { recursive: true });
 	const server = startServer();
 	const stopOnSignal = (signal: NodeJS.Signals): void => {
@@ -175,7 +209,8 @@ async function main(only: string[]): Promise<number> {
 		const all = await listStates(browser, url);
 		const unknown = only.filter((id) => !all.some((state) => state.id === id));
 		if (unknown.length > 0) throw new Error(`Unknown state ids: ${unknown.join(", ")}`);
-		const states = only.length === 0 ? all : all.filter((state) => only.includes(state.id));
+		const chosen = only.length === 0 ? all : all.filter((state) => only.includes(state.id));
+		const states = shard === null ? chosen : shardOf(chosen, shard);
 
 		const entries = [];
 		let failed = 0;
@@ -209,7 +244,8 @@ async function main(only: string[]): Promise<number> {
 			join(OUT, "index.json"),
 			`${JSON.stringify({ viewport: VIEWPORT, states: entries }, null, "\t")}\n`,
 		);
-		if (only.length === 0) {
+		// Only a run that drew every state knows which old pictures no state still draws.
+		if (only.length === 0 && shard === null) {
 			const written = new Set(entries.flatMap((entry) => Object.values(entry.files)));
 			const stale = trashStale(written);
 			if (stale.length > 0) console.log(`Moved ${stale.length} old screenshots to the Trash.`);
@@ -227,7 +263,12 @@ if (import.meta.main) {
 		console.error("apps/desktop has no Vite. Run pnpm install first.");
 		process.exit(1);
 	}
-	main(process.argv.slice(2))
+	const args = parseShotsArgs(process.argv.slice(2));
+	if (!args.ok) {
+		console.error(args.error);
+		process.exit(64);
+	}
+	main(args.only, args.shard)
 		.then((code) => process.exit(code))
 		.catch((cause: unknown) => {
 			console.error(cause instanceof Error ? cause.message : cause);

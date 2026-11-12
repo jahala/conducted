@@ -32,10 +32,7 @@ async function setup(path: string) {
 	const test = createTestContainer();
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 	const workspace = await seedWorkspace(test.container, { path });
-	await test.container.platform.fs.writeTextAtomic(
-		`${workspace.path}/notes.md`,
-		"# Hello from the tab",
-	);
+	test.memory.controls.addFile(`${workspace.path}/notes.md`, "# Hello from the tab");
 	vi.spyOn(test.container.services.fileDiff, "load").mockResolvedValue(ok(diff));
 	return { test, client, workspace };
 }
@@ -190,7 +187,7 @@ describe("REV-08 FileTab", () => {
 		}
 	});
 
-	it("shows the save in flight and then its error in the header", async () => {
+	it("shows the save in flight and then Conductor's Retry update control", async () => {
 		const { test, client, workspace } = await setup("/code/workspaces/tab-saving");
 		try {
 			let finish: (result: Result<{ modifiedAt: number }>) => void = () => {};
@@ -217,7 +214,9 @@ describe("REV-08 FileTab", () => {
 			await act(async () => {
 				finish(err(appError("other", "The disk is full.")));
 			});
-			await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("The disk is full."));
+			await waitFor(() =>
+				expect(screen.getByRole("button", { name: "Update failed. Retry" })).toBeTruthy(),
+			);
 			expect(screen.queryByRole("status", { name: "Saving file" })).toBeNull();
 			expect(screen.getByRole("status", { name: "Unsaved changes" })).toBeTruthy();
 		} finally {
@@ -235,7 +234,7 @@ describe("REV-08 FileTab code view", () => {
 			const workspace = await seedWorkspace(test.container, {
 				path: "/code/workspaces/tab-rust",
 			});
-			await test.container.platform.fs.writeTextAtomic(
+			test.memory.controls.addFile(
 				`${workspace.path}/src/main.rs`,
 				"fn main() {\n    let count = 1;\n}",
 			);

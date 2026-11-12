@@ -136,6 +136,7 @@ describe("CLOUD-15 the cloud workspace service", () => {
 				path: "/code/workspaces/lisbon",
 				branch: "jahala/lisbon",
 				branchIsPlaceholder: false,
+				remoteFileSyncEnabled: false,
 				host: { kind: "local" },
 				targetBranch: "origin/main",
 				port: 55101,

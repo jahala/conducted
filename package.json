@@ -9,8 +9,10 @@
 		"typecheck": "pnpm -r --parallel typecheck && tsc -p scripts",
 		"lint": "biome check . && shellcheck bin/*.sh",
 		"format": "biome format --write .",
-		"test": "bun scripts/check-runtime.ts && bun scripts/with-run-dir.ts pnpm run test:all",
-		"test:all": "pnpm -r --no-bail test; packages=$?; bun test ./scripts ${CONDUCTED_TEST_REPORTS:+--reporter=junit --reporter-outfile=$CONDUCTED_TEST_REPORTS/scripts.xml}; scripts=$?; exit $((packages || scripts))",
+		"test": "bun scripts/check-runtime.ts && bun scripts/with-run-dir.ts bun scripts/run-tests.ts --all",
+		"test:changed": "bun scripts/check-runtime.ts && bun scripts/with-run-dir.ts bun scripts/run-tests.ts",
+		"test:macos": "bun scripts/check-runtime.ts && bun scripts/with-run-dir.ts pnpm --dir apps/desktop run test:macos",
+		"test:e2e": "bun scripts/check-runtime.ts && bun scripts/with-run-dir.ts bun scripts/e2e/run.ts",
 		"guards": "bun scripts/guards/run.ts",
 		"stubs": "bun scripts/check-stubs.ts",
 		"repo-rules": "bun scripts/repo-rules.ts",
@@ -20,11 +22,18 @@
 		"release": "bun scripts/release.ts"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.6.5",
+		"@biomejs/biome": "^2.6.6",
 		"@types/bun": "^1.4.4",
-		"playwright-core": "1.64.0",
-		"typescript": "^7.0.2"
+		"@types/node": "^26.6.6",
+		"playwright-core": "1.65.0",
+		"typescript": "^7.0.2",
+		"webdriverio": "10.2.0"
 	},
 	"license": "MIT",
-	"version": "0.3.3"
+	"version": "0.3.3",
+	"pnpm": {
+		"overrides": {
+			"readdir-glob>minimatch": "^11.0.1"
+		}
+	}
 }

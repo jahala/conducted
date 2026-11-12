@@ -1,3 +1,4 @@
+import { appError, err, ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseDotenv } from "../../../core/dotenv.ts";
@@ -49,6 +50,32 @@ describe("SET-04 EnvFilesList", () => {
 		await waitFor(() => expect(onAdd).toHaveBeenCalledWith(".env.local"));
 	});
 
+	it("fills the path from the system picker", async () => {
+		const onBrowse = vi.fn(async () => ".env.local");
+		render(
+			<EnvFilesList
+				files={[]}
+				candidates={[]}
+				repositoryRoot="/repo"
+				onAdd={async () => true}
+				onRemove={async () => true}
+				onBrowse={onBrowse}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "Add env file" }));
+		fireEvent.click(screen.getByRole("button", { name: "Browse for env file" }));
+
+		await waitFor(() =>
+			expect((screen.getByLabelText("Environment file path") as HTMLInputElement).value).toBe(
+				".env.local",
+			),
+		);
+		expect((screen.getByRole("button", { name: "Browse for env file" }) as HTMLElement).title).toBe(
+			"Browse for env file. Press Cmd+Shift+. to show hidden files.",
+		);
+	});
+
 	it("cancels adding an env file without changing anything", () => {
 		const onAdd = vi.fn(async () => true);
 		render(
@@ -72,7 +99,7 @@ describe("SET-04 EnvFilesList", () => {
 		const onRemove = vi.fn(async () => true);
 		render(
 			<EnvFilesList
-				files={[{ path: ".env", exists: false }]}
+				files={[{ path: ".env", exists: ok(false) }]}
 				candidates={[]}
 				repositoryRoot="/repo"
 				onAdd={async () => true}
@@ -84,6 +111,25 @@ describe("SET-04 EnvFilesList", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Remove .env" }));
 
 		await waitFor(() => expect(onRemove).toHaveBeenCalledWith(".env"));
+	});
+
+	it("says why a file could not be checked instead of calling it missing (issue #601)", () => {
+		const refused = appError(
+			"fs_out_of_scope",
+			"Path is outside the folders this window may reach: /secrets/.env",
+		);
+		render(
+			<EnvFilesList
+				files={[{ path: "/secrets/.env", exists: err(refused) }]}
+				candidates={[]}
+				repositoryRoot="/repo"
+				onAdd={async () => true}
+				onRemove={async () => true}
+			/>,
+		);
+
+		expect(screen.getByText(refused.message)).toBeTruthy();
+		expect(screen.queryByText("File not found")).toBeNull();
 	});
 
 	it("keeps only paths inside the root", () => {

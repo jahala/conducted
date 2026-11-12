@@ -1,8 +1,9 @@
 /**
  * @feature catalogue States of the full pages in the main layout: Home, new workspace, backlog, diagnostics
- * Owns: the seeds for Home with the cast, the new workspace page with a project chosen and in
- * cloud mode (ready, and waiting for the Worker's GitHub token, CLOUD-19), the backlog with saved
- * workspaces and empty, and the Diagnostics page.
+ * Owns: the seeds for Home with the cast, the new workspace page with a project chosen (and its
+ * Create from picker open, and its slash command menu) and in
+ * cloud mode (ready, with no project on GitHub, and waiting for the Worker's GitHub token, CLOUD-19), the backlog with saved
+ * workspaces and empty, the Diagnostics page, an archived workspace's file tab, and an address that matches no page.
  * Behaviour: ui-map.md 2 (routes /all-workspaces, /create, /backlog, /diagnostics), WS-11 (backlog),
  * APP-03 (diagnostics).
  * Test first: not applicable; the screenshot run opens every state.
@@ -10,9 +11,9 @@
 
 import { ok } from "@conducted/shared";
 import type { CloudReadiness } from "../../core/organization.ts";
-import { animateCast, seedCast } from "../cast.ts";
+import { animateCast, seedCast, workspaceRoute } from "../cast.ts";
 import { click, find, shows, typeInto } from "../dom.ts";
-import { CLAUDE_CONFIG, must, setSetting } from "../seeds.ts";
+import { addRepo, CLAUDE_CONFIG, must, setSetting } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
 import type { World } from "../world.ts";
 
@@ -27,6 +28,27 @@ async function seedCloudOrganization(world: World, readiness: CloudReadiness) {
 }
 
 export const PAGE_STATES: CatalogueState[] = [
+	{
+		id: "route-not-found",
+		group: "Pages",
+		title: "An address that matches no page",
+		seed: async (world) => {
+			await seedCast(world);
+			return { route: "/no-such-page", ready: (document) => shows(document, "Not Found") };
+		},
+	},
+	{
+		id: "workspace-archived-file",
+		group: "Pages",
+		title: "An archived workspace's file tab",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: workspaceRoute(cast.delta, { tab: "file", path: "README.md", fileMode: "diff" }),
+				ready: (document) => shows(document, "Workspace archived"),
+			};
+		},
+	},
 	{
 		id: "home",
 		group: "Pages",
@@ -122,6 +144,32 @@ export const PAGE_STATES: CatalogueState[] = [
 		},
 	},
 	{
+		id: "new-workspace-create-from",
+		group: "Pages",
+		title: "New workspace dialog, the Create from picker open",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/create?repo=${cast.atlas.id}`,
+				after: ({ document }) => click(document, "button", "Show or hide the create-from picker"),
+				ready: (document) => shows(document, "Starts from"),
+			};
+		},
+	},
+	{
+		id: "new-workspace-slash-menu",
+		group: "Pages",
+		title: "New workspace dialog, the first message's slash command menu",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/create?repo=${cast.atlas.id}`,
+				after: ({ document }) => typeInto(document, "textarea", "First message", "/"),
+				ready: (document) => shows(document, "/compact"),
+			};
+		},
+	},
+	{
 		id: "new-workspace-cloud",
 		group: "Pages",
 		title: "New workspace dialog in the cloud: the Worker's repository picker",
@@ -134,6 +182,27 @@ export const PAGE_STATES: CatalogueState[] = [
 				route: "/create",
 				ready: (document) =>
 					document.querySelector('[role="dialog"] button[aria-label="Repository"]') !== null,
+			};
+		},
+	},
+	{
+		id: "new-workspace-cloud-no-github-project",
+		group: "Pages",
+		title: "New workspace dialog in the cloud with no project on GitHub",
+		seed: async (world) => {
+			// One project with no GitHub remote, so the Worker has nothing it can clone.
+			const notes = await addRepo(world, { name: "notes", remoteUrl: null });
+			await setSetting(world, "active_organization", "cloud");
+			const readiness: CloudReadiness = {
+				github: true,
+				agents: { anthropic: true, openai: false, cursor: false },
+			};
+			world.memory.controls.scriptCloud((request) =>
+				request.path === "/readiness" ? ok({ status: 200, body: JSON.stringify(readiness) }) : null,
+			);
+			return {
+				route: `/create?repo=${notes.id}`,
+				ready: (document) => shows(document, "Add one"),
 			};
 		},
 	},

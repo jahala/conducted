@@ -21,6 +21,7 @@ export function ScopeBackBar({ label, onBack }: ScopeBackBarProps) {
 			<button
 				type="button"
 				onClick={onBack}
+				title="Back to all changes"
 				className="flex items-center gap-1.5 rounded-sm px-1 py-0.5 text-xs text-fg-muted hover:bg-hover hover:text-fg"
 			>
 				<ArrowLeftIcon className="size-3.5" />

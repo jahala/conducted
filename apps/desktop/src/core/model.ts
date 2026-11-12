@@ -147,6 +147,11 @@ export interface Workspace {
 	 * Every call checks it first (core/host.ts).
 	 */
 	host: Host;
+	/**
+	 * A cloud workspace's Sync files switch, saved so a restart keeps it (CLOUD-11). A new cloud
+	 * workspace takes the Advanced setting's value; a local workspace has no mirror and is false.
+	 */
+	remoteFileSyncEnabled: boolean;
 	lastActivityAt: number;
 	createdAt: number;
 	updatedAt: number;
@@ -309,8 +314,8 @@ export interface ToolCallView {
 	toolUseId: ToolUseId;
 	item: Extract<AgentItem, { kind: "tool_call" }>;
 	result: Extract<AgentItem, { kind: "tool_result" }> | null;
-	/** Calls made by a sub-agent started by this call. */
-	children: ToolCallView[];
+	/** What a sub-agent started by this call showed, in order, kept inside its card. */
+	blocks: ChatBlock[];
 }
 
 export type ChatBlock =
@@ -341,7 +346,7 @@ export interface ChatTurn {
 	startCheckpointId: string | null;
 	endCheckpointId: string | null;
 	changes: FileChange[];
-	outcome: "running" | "success" | "error" | "cancelled" | "interrupted";
+	outcome: "running" | "success" | "error" | "cancelled" | "interrupted" | "unrecorded";
 	error: string | null;
 	/** When the turn started and ended, in milliseconds since the epoch. Null end while it runs. */
 	startedAt: number;
@@ -806,7 +811,13 @@ export interface AgentProgramView {
 	/** The path the user chose in settings instead of the managed copy. Null: the managed copy. */
 	userPath: string | null;
 }
-export type { ProgramState, ProgramStatus, SystemInfo } from "../platform/platform.ts";
+export type {
+	ProgramFollow,
+	ProgramFollowCheck,
+	ProgramState,
+	ProgramStatus,
+	SystemInfo,
+} from "../platform/platform.ts";
 
 /** One provider key of an agent on the Agents page. The value itself stays in the Keychain. */
 export interface ProviderKeyView {

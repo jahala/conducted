@@ -12,9 +12,10 @@
  * outlined and tinted in the accent, the others on the muted fill; "New" on gstack); and one Create button
  * at the right with its Cmd+Enter keys, reading "Creating..." while it works.
  * Our design choice: Conductor's dialog also creates the GitHub repository and the first workspace in the
- * same run. Ours creates the folder and project, then offers the private repository in the next dialog,
- * so the description and the line under the name speak of the folder only. Conductor's logos for the
- * templates are its assets (D002); ours are drawn letter marks. Cancel stays beside Create.
+ * same run. Ours creates the folder and project, then offers the private repository in the next dialog;
+ * the first workspace is made once the project is added (use-open-added-project.ts), so Conductor's
+ * description is true. Conductor's logos for the templates are its assets (D002); ours are drawn letter
+ * marks. Cancel stays beside Create.
  * Must handle: an empty or unusable project name (Create stays disabled), a cancelled or failing
  * folder dialog, a template command that fails (its message stays in the dialog), a failed GitHub
  * repository (its message stays in the dialog), no GitHub sign-in (the repository dialog explains
@@ -22,6 +23,7 @@
  * Test first: Quick start creates the chosen folder and template through projects.createFromTemplate,
  * then asks about the private GitHub repository.
  */
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useId, useRef, useState } from "react";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useActions, useGitHubOwners, useRepoNameCheck } from "../../core/hooks.ts";
@@ -137,7 +139,7 @@ export function CreateProjectDialog({ open, onOpenChange, onCreated }: CreatePro
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
 				title="Create project"
-				description="Create a local folder from a template and add it as a project."
+				description="Create a local folder, private GitHub repo, and first workspace."
 				size="xl"
 				className="max-w-[525px]"
 				onConfirm={() => {
@@ -271,6 +273,7 @@ export function CreateGithubRepoDialog({
 	onCreated,
 }: CreateGithubRepoDialogProps) {
 	const actions = useActions();
+	const navigate = useNavigate();
 	const owners = useGitHubOwners();
 	const ownerId = useId();
 	const nameId = useId();
@@ -280,8 +283,8 @@ export function CreateGithubRepoDialog({
 	const [busy, setBusy] = useState(false);
 	const flight = useRef(createSingleFlight()).current;
 
-	const effectiveOwner =
-		owner !== "" ? owner : owners.state === "ready" ? (owners.data[0]?.login ?? null) : null;
+	// Conductor's owner field starts empty with "Select an owner"; it never picks the first account.
+	const effectiveOwner = owner === "" ? null : owner;
 	const check = useRepoNameCheck(effectiveOwner ?? "", name);
 	const folder = projectFolderName(name);
 	const canCreate =
@@ -336,10 +339,23 @@ export function CreateGithubRepoDialog({
 			}
 		});
 
+	// Conductor's own sentences, with its code chips (renderApp @1957512). The product name is
+	// Conducted (D012). The chips are inline-block so "git init" reads as its own visible name.
+	const codeClass = "inline-block rounded bg-muted px-1 py-0.5 font-mono text-xs";
 	const description =
-		repo.remoteUrl === null
-			? "The app will run git init if needed, create a private GitHub repository, add it as origin, and push the current branch."
-			: "The existing origin remote will be renamed to upstream. The app will create a private GitHub repository, add it as origin, and push the current branch.";
+		repo.remoteUrl === null ? (
+			<>
+				Conducted will run <code className={codeClass}>git init</code>, create a private GitHub
+				repo, add it as <code className={codeClass}>origin</code>, and push the current branch.
+			</>
+		) : (
+			<>
+				<code className={codeClass}>{repo.name}</code> already has a non-GitHub{" "}
+				<code className={codeClass}>origin</code> remote. Conducted will rename it to{" "}
+				<code className={codeClass}>upstream</code>, create a private GitHub repo, add it as{" "}
+				<code className={codeClass}>origin</code>, and push the current branch.
+			</>
+		);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -362,6 +378,7 @@ export function CreateGithubRepoDialog({
 									<Select
 										id={ownerId}
 										aria-label="Owner"
+										placeholder="Select an owner"
 										value={effectiveOwner ?? ""}
 										options={owners.data.map((candidate) => ({
 											value: candidate.login,
@@ -373,10 +390,25 @@ export function CreateGithubRepoDialog({
 										onValueChange={setOwner}
 									/>
 								)
+							) : owners.state === "error" ? (
+								<div className="flex flex-col items-start gap-1">
+									<p className="text-xs text-fg-subtle">{owners.error.message}</p>
+									<Button
+										variant="ghost"
+										size="sm"
+										onClick={() => {
+											onOpenChange(false);
+											void navigate({
+												to: "/settings/user/$page",
+												params: { page: "account" },
+											});
+										}}
+									>
+										Open GitHub settings
+									</Button>
+								</div>
 							) : (
-								<p className="text-xs text-fg-subtle">
-									{owners.state === "error" ? owners.error.message : "Loading GitHub owners…"}
-								</p>
+								<p className="text-xs text-fg-subtle">Loading GitHub owners…</p>
 							)}
 						</div>
 						<div className="flex flex-col gap-1.5">

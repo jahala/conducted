@@ -13,9 +13,16 @@
  * no longer has is removed from the mirror at the next sync; a file over the shared cloud read
  * limit (D120) is skipped, named in the baseline with its size, and never read again while its
  * listed size stays over it; a mirror larger than the Worker's list cap is reported as
- * truncated rather than exhausting the app; a reveal that fails says "Could not open Downloads.
+ * truncated rather than exhausting the app; an upload whose mirror copy cannot be written stands,
+ * and the sync's state says the mirror failed, with the reason; a reveal that fails says "Could not open Downloads.
  * Try again."; a preview of a Local variant with no mirror says "Couldn't open preview: local
  * workspace mirror is unavailable.".
+ * The workspace's "Sync files" switch is saved on its row (`remoteFileSyncEnabled`, migration
+ * 0019), as Conductor keeps `remote_file_sync_enabled`, so a restart keeps it. The service reads
+ * it from the workspace and saves it through the workspace service before it starts or stops the
+ * sync; a save that fails changes nothing, so the switch keeps its stored value. A new cloud
+ * workspace takes the Advanced setting as its first value when it is created, as Conductor's
+ * create step does (`initialSyncEnabled`).
  * Our design choice: the mirror is built from the Worker's `/files list` and `/files readBytes`
  * routes, so it needs no second transport and the pairing token stays in Rust. The sync runs when the
  * file tree or a search asks for it and last ran more than five seconds ago, which is Conductor's
@@ -42,18 +49,32 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Cloud, FileSystem, Opener } from "../../platform/platform.ts";
 import {
 	type FileSyncView,
+	IN_SYNC_STATUS,
+	LOCAL_TERMINAL_SYNC_FAILED_DESCRIPTION,
 	LOCAL_TERMINAL_UNAVAILABLE_LABEL,
+	RESTART_SYNC_DESCRIPTION,
 	SYNC_FAILED_LABEL,
+	SYNC_FOLDER_REMOVED_DESCRIPTION,
 	SYNC_FOLDER_UNAVAILABLE_LABEL,
+	SYNC_OFF_DESCRIPTION,
 	SYNC_OFF_LABEL,
+	SYNCING_STATUS,
 } from "../file-sync-view.ts";
 import type { Workspace } from "../model.ts";
 import { cloudJson } from "./host-runtime.ts";
 
 type CloudHost = Extract<Host, { kind: "cloud" }>;
 
-/** The Advanced setting that starts sync in a new cloud workspace. */
+/** The Advanced setting that gives a new cloud workspace's Sync files switch its first value. */
 export const AUTO_SYNC_SETTING = "auto_sync_files_in_new_cloud_workspaces";
+
+/**
+ * The Sync files switch a new workspace starts with: the Advanced setting for a cloud workspace,
+ * off for one on the Mac, which has no mirror (Conductor's create step, main bundle @1083318).
+ */
+export const initialSyncEnabled = (host: Host, autoSync: boolean): boolean =>
+	host.kind === "cloud" && autoSync;
+
 /** The folder under the Conducted root that holds every cloud workspace's mirror. */
 export const MIRROR_FOLDER = "remote-workspace-sync";
 /** The baseline file's name, kept in a sibling metadata folder so it never shows in the file tree. */
@@ -203,7 +224,8 @@ export interface FileSyncDeps {
 	repoNameOf: (id: WorkspaceId) => Result<string>;
 	/** The Conducted root, with `~` expanded (the `conductor_root_path` setting). */
 	rootPath: () => string;
-	setting: <T>(key: string) => T;
+	/** Saves the workspace's Sync files switch; the workspace service writes its row and store. */
+	saveEnabled: (id: WorkspaceId, enabled: boolean) => Promise<Result<void>>;
 	now: () => number;
 }
 
@@ -219,15 +241,37 @@ export class FileSyncService {
 		this.#deps = deps;
 	}
 
-	/** True when the Advanced setting starts sync in a new cloud workspace. */
-	autoSyncEnabled(): boolean {
-		return this.#deps.setting<boolean>(AUTO_SYNC_SETTING) === true;
+	/** The workspace's saved Sync files switch. */
+	isEnabled(workspaceId: WorkspaceId): boolean {
+		const workspace = this.#deps.workspaceOf(workspaceId);
+		return workspace.ok && workspace.value.remoteFileSyncEnabled;
 	}
 
-	/** True when the workspace's mirror folder is on disk, so a Mac preview can read it. */
-	async mirrorReady(workspaceId: WorkspaceId): Promise<boolean> {
+	/**
+	 * Turns the workspace's sync on or off, as the "Sync files" switch does. The switch is saved
+	 * first; a failed save is returned and nothing else changes.
+	 */
+	async setEnabled(workspaceId: WorkspaceId, enabled: boolean): Promise<Result<void>> {
+		const workspace = this.#deps.workspaceOf(workspaceId);
+		if (!workspace.ok) return workspace;
+		if (workspace.value.host.kind !== "cloud") return ok(undefined);
+		const saved = await this.#deps.saveEnabled(workspaceId, enabled);
+		if (!saved.ok) return saved;
+		if (!enabled) {
+			this.stop(workspaceId);
+			return ok(undefined);
+		}
+		this.#engage(workspaceId, true);
+		return this.syncNow(workspaceId);
+	}
+
+	/**
+	 * True when the workspace's mirror folder is on disk, so a Mac preview can read it. A mirror the
+	 * file commands cannot check is the Err, not false.
+	 */
+	async mirrorReady(workspaceId: WorkspaceId): Promise<Result<boolean>> {
 		const mirror = this.mirrorPathOf(workspaceId);
-		if (!mirror.ok) return false;
+		if (!mirror.ok) return ok(false);
 		return this.#deps.fs.exists(mirror.value);
 	}
 
@@ -248,8 +292,8 @@ export class FileSyncService {
 		const workspace = this.#deps.workspaceOf(workspaceId);
 		if (!workspace.ok) return workspace;
 		if (workspace.value.host.kind !== "cloud") return ok(undefined);
+		if (!this.isEnabled(workspaceId)) return ok(undefined);
 		this.#engage(workspaceId, true);
-		if (!this.autoSyncEnabled()) return ok(undefined);
 		return this.syncNow(workspaceId);
 	}
 
@@ -266,11 +310,13 @@ export class FileSyncService {
 		const mirror = this.mirrorPathOf(workspaceId);
 		if (!mirror.ok) return mirror;
 		const status = this.store.getState().byWorkspace[workspaceId];
-		const exists = await this.#deps.fs.exists(mirror.value);
-		if (!exists && !this.autoSyncEnabled()) {
+		const found = await this.#deps.fs.exists(mirror.value);
+		if (!found.ok) return found;
+		const exists = found.value;
+		if (!exists && !this.isEnabled(workspaceId)) {
 			return err(appError("cloud_file_sync_off", SYNC_OFF_LABEL));
 		}
-		if (exists && !this.autoSyncEnabled()) return ok(undefined);
+		if (exists && !this.isEnabled(workspaceId)) return ok(undefined);
 		this.#engage(workspaceId, true);
 		const last = status?.lastSyncedAt ?? null;
 		if (last !== null && this.#deps.now() - last < SYNC_POLL_MS) return ok(undefined);
@@ -314,13 +360,38 @@ export class FileSyncService {
 		if (!answer.ok) return answer;
 		const mirror = this.mirrorPathOf(workspaceId);
 		if (mirror.ok) {
-			const local = `${mirror.value}/${guarded.value}`;
-			const parent = local.slice(0, local.lastIndexOf("/"));
-			if (parent.length > 0) await this.#deps.fs.mkdirp(parent);
-			if (text === null) await this.#deps.fs.writeBytes(local, read.value);
-			else await this.#deps.fs.writeTextAtomic(local, text);
+			const copied = await this.#copyToMirror(mirror.value, guarded.value, read.value, text);
+			// The sandbox has the file, so the upload stands. The mirror lacks it until the next sync,
+			// and the sync's state says why, where the user reads the mirror's state.
+			if (!copied.ok) {
+				const status = this.store.getState().byWorkspace[workspaceId] ?? emptyStatus(mirror.value);
+				this.#setStatus(workspaceId, {
+					...status,
+					state: "failed",
+					error: copied.error.message,
+					mirrorPath: mirror.value,
+				});
+			}
 		}
 		return ok(destination);
+	}
+
+	/** Writes an uploaded file's copy into the mirror, making its folder first. */
+	async #copyToMirror(
+		mirrorPath: string,
+		relativePath: string,
+		bytes: Uint8Array,
+		text: string | null,
+	): Promise<Result<void>> {
+		const local = `${mirrorPath}/${relativePath}`;
+		const parent = local.slice(0, local.lastIndexOf("/"));
+		if (parent.length > 0) {
+			const made = await this.#deps.fs.mkdirp(parent);
+			if (!made.ok) return made;
+		}
+		return text === null
+			? this.#deps.fs.writeBytes(local, bytes)
+			: this.#deps.fs.writeTextAtomic(local, text);
 	}
 
 	/**
@@ -342,7 +413,9 @@ export class FileSyncService {
 		const mirror = this.mirrorPathOf(workspaceId);
 		if (!mirror.ok) return mirror;
 		const mirrored = `${mirror.value}/${guarded.value}`;
-		if (await this.#deps.fs.exists(mirrored)) {
+		const inMirror = await this.#deps.fs.exists(mirrored);
+		if (!inMirror.ok) return inMirror;
+		if (inMirror.value) {
 			if (options.reveal !== false) {
 				const revealed = await this.#reveal(mirrored);
 				if (!revealed.ok) return revealed;
@@ -396,33 +469,52 @@ export class FileSyncService {
 	/** The view a screen shows for one workspace. */
 	viewOf(workspaceId: WorkspaceId, host: Host): FileSyncView {
 		if (host.kind === "local") return { state: "local" };
-		const status = this.store.getState().byWorkspace[workspaceId];
+		const enabled = this.isEnabled(workspaceId);
 		const mirror = this.mirrorPathOf(workspaceId);
 		const mirrorPath = mirror.ok ? mirror.value : "";
+		if (!enabled) {
+			return {
+				state: "off",
+				label: SYNC_OFF_LABEL,
+				description: SYNC_OFF_DESCRIPTION,
+				mirrorPath,
+				enabled: false,
+			};
+		}
+		const status = this.store.getState().byWorkspace[workspaceId];
 		if (status?.state === "failed") {
-			return { state: "failed", label: SYNC_FAILED_LABEL, message: status.error ?? "" };
+			return {
+				state: "failed",
+				label: SYNC_FAILED_LABEL,
+				message: status.error ?? "",
+				description: LOCAL_TERMINAL_SYNC_FAILED_DESCRIPTION,
+				mirrorPath,
+				enabled: true,
+			};
 		}
 		if (status?.state === "syncing") {
-			return { state: "syncing", label: "Syncing files", mirrorPath };
+			return { state: "syncing", label: SYNCING_STATUS, mirrorPath, enabled: true };
 		}
 		if (status?.state === "synced" && status.lastSyncedAt !== null) {
 			return {
 				state: "synced",
-				label: "Files in sync",
+				label: IN_SYNC_STATUS,
 				mirrorPath,
 				lastSyncedAt: status.lastSyncedAt,
 				files: status.files,
 				truncated: status.truncated,
+				enabled: true,
 			};
 		}
-		if (this.autoSyncEnabled()) {
-			return {
-				state: "unavailable",
-				label: SYNC_FOLDER_UNAVAILABLE_LABEL,
-				localTerminalLabel: LOCAL_TERMINAL_UNAVAILABLE_LABEL,
-			};
-		}
-		return { state: "off", label: SYNC_OFF_LABEL };
+		return {
+			state: "unavailable",
+			label: SYNC_FOLDER_UNAVAILABLE_LABEL,
+			description: SYNC_FOLDER_REMOVED_DESCRIPTION,
+			mirrorPath,
+			localTerminalLabel: LOCAL_TERMINAL_UNAVAILABLE_LABEL,
+			localTerminalDescription: RESTART_SYNC_DESCRIPTION,
+			enabled: true,
+		};
 	}
 
 	async #sync(workspaceId: WorkspaceId): Promise<Result<void>> {
@@ -537,7 +629,9 @@ export class FileSyncService {
 		for (const stale of previous?.files ?? []) {
 			if (seen.has(stale)) continue;
 			const local = `${mirrorPath}/${stale}`;
-			if (await this.#deps.fs.exists(local)) await this.#deps.fs.trash(local);
+			const left = await this.#deps.fs.exists(local);
+			if (!left.ok) return left;
+			if (left.value) await this.#deps.fs.trash(local);
 		}
 		const baseline: Baseline = {
 			version: 1,

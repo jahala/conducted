@@ -20,6 +20,7 @@
 import { useEffect, useState } from "react";
 import { useServices } from "../../../core/context.tsx";
 import { useSetting } from "../../../core/hooks.ts";
+import { BigTerminalSettings } from "../../terminal/BigTerminalSettings.tsx";
 import { RegistrySettingRows } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
@@ -43,6 +44,7 @@ export function ExperimentalPage({ focusSettingKey = null }: { focusSettingKey?:
 			<RegistrySettingRows
 				page="experimental"
 				focusSettingKey={focusSettingKey}
+				exclude={["big_terminal_preset", "big_terminal_custom_commands"]}
 				unavailableFor={(def) => (def.key === "graphite_disabled" ? gtUnavailable(gt) : null)}
 				extraFor={(def) =>
 					def.key === "experimental_sidebar_transparency" && transparency ? (
@@ -52,6 +54,7 @@ export function ExperimentalPage({ focusSettingKey = null }: { focusSettingKey?:
 					) : null
 				}
 			/>
+			<BigTerminalSettings focusSettingKey={focusSettingKey} />
 		</SettingsPageFrame>
 	);
 }

@@ -10,9 +10,9 @@
  * from the code theme setting (diff/diff-theme.ts), and every line shows its number.
  * Data: useFileDiff, useDiffComments, useFileContent (the working file the conflict rows read),
  * useActions().comments and files.resolveConflicts.
- * Children: diff/DiffView, ConflictResolver, FileTabState (loading and error).
- * Must handle: loading, error with retry, an unchanged file in this scope ("No changes in this
- * scope"), the diff reloading while the agent writes (keep the old diff on screen with an
+ * Children: diff/DiffView, ConflictResolver, FileTabState (loading), EmptyState (read error).
+ * Must handle: loading, error with retry, an unchanged file in this scope (Conductor's "No changes to this file.")
+ * and a read that fails ("Couldn't load file changes"), the diff reloading while the agent writes (keep the old diff on screen with an
  * "Updating diff" notice, never blank it), a renderer failure (DiffView's own warning), and a
  * conflicted file whose markers the conflict rows resolve.
  * Test first: while a second request is in flight the previous diff stays rendered.
@@ -28,6 +28,7 @@ import {
 	useFileDiff,
 	useSetting,
 } from "../../core/hooks.ts";
+import { Button } from "../../ui/Button.tsx";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { useThemeType } from "../../ui/use-theme-type.ts";
@@ -75,7 +76,18 @@ export function FileDiffPane({ workspaceId, path, scope, preferences }: FileDiff
 	};
 
 	if (diff.state === "error") {
-		return <FileTabState kind="error" detail={diff.error.message} onAction={retry} />;
+		return (
+			<EmptyState
+				tone="failed"
+				title="Couldn't load file changes"
+				body={diff.error.message}
+				action={
+					<Button variant="secondary" onClick={retry}>
+						Try again
+					</Button>
+				}
+			/>
+		);
 	}
 	if (diff.state === "loading" && previous === null) {
 		return <FileTabState kind="loading" detail={null} onAction={retry} />;
@@ -99,12 +111,12 @@ export function FileDiffPane({ workspaceId, path, scope, preferences }: FileDiff
 							body,
 							details,
 						);
-						if (!result.ok) toastError("Couldn't add the comment", result.error);
+						if (!result.ok) toastError("Failed to add comment to chat", result.error);
 						return result.ok;
 					},
 					onEdit: async (id, body, details) => {
 						const result = await actions.comments.edit(id, body, details);
-						if (!result.ok) toastError("Couldn't edit the comment", result.error);
+						if (!result.ok) toastError("Failed to save comment", result.error);
 						return result.ok;
 					},
 					onDelete: async (id) => {
@@ -124,12 +136,7 @@ export function FileDiffPane({ workspaceId, path, scope, preferences }: FileDiff
 
 	const unchanged = !shown.binary && !shown.tooLarge && shown.oldText === shown.newText;
 	if (unchanged) {
-		return (
-			<EmptyState
-				title="No changes in this scope"
-				body="This file is the same here as in the version you are comparing against."
-			/>
-		);
+		return <EmptyState title="No changes to this file." />;
 	}
 
 	return (

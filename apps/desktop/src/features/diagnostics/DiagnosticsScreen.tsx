@@ -99,7 +99,7 @@ export function DiagnosticsScreen() {
 	async function copyReport(captureToCopy: DiagnosticsCapture): Promise<boolean> {
 		const copied = await actions.app.copyText(renderReport(captureToCopy));
 		if (!copied.ok) {
-			toastError("Couldn't copy the report", copied.error);
+			toastError("Failed to copy report to clipboard", copied.error);
 			return false;
 		}
 		return true;
@@ -109,21 +109,16 @@ export function DiagnosticsScreen() {
 		if (busy !== null || capture === null || redacted === null) return;
 		setBusy(action);
 		try {
+			// Conductor copies either report at once, with these toasts (renderApp @10572596); the
+			// owner ruled to match it (2026-11-12, "whatever conductor does?").
 			if (action === "copy_redacted") {
-				if (await copyReport(redacted)) toast.success("Report copied");
+				if (await copyReport(redacted)) toast.success("Redacted report copied");
 				return;
 			}
 			if (action === "copy_full") {
-				const confirmed = await platform.dialogs.confirm({
-					title: "Copy the full report?",
-					message:
-						"The full report can include personal data such as environment values and file paths. Share it only with someone you trust.",
-					okLabel: "Copy full report",
-				});
-				if (!confirmed) return;
 				if (await copyReport(capture)) {
 					setView("full");
-					toast.success("Full report copied");
+					toast.success("Report copied to clipboard");
 				}
 				return;
 			}

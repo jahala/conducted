@@ -5,6 +5,7 @@ import type { Interaction } from "@conducted/protocol";
 import { appError, err, type InteractionId, ok, type SessionId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "../../../ui/Toast.tsx";
 import { QuestionCard } from "./QuestionCard.tsx";
 
 const state = vi.hoisted(() => ({
@@ -295,7 +296,8 @@ describe("CHAT-10 question card", () => {
 		await waitFor(() => expect(state.cancel).toHaveBeenCalledWith(sessionId));
 	});
 
-	it("comes back with a retry message when the answer cannot be sent", async () => {
+	it("comes back with a retry message and Conductor's toast when the answer cannot be sent", async () => {
+		const reported = vi.spyOn(toast, "error").mockImplementation(() => "");
 		state.answer
 			.mockResolvedValueOnce(err(appError("sidecar_down", "The sidecar is not running.")))
 			.mockResolvedValueOnce(ok(undefined));
@@ -305,6 +307,7 @@ describe("CHAT-10 question card", () => {
 		fireEvent.keyDown(card(), { key: "Enter" });
 
 		expect(await screen.findByText("Could not send answers. Try again.")).toBeTruthy();
+		expect(reported).toHaveBeenCalledWith("Could not send answers. Try again.");
 		expect(screen.getByRole("button", { name: "Submit" })).toBeTruthy();
 
 		fireEvent.keyDown(card(), { key: "Enter" });

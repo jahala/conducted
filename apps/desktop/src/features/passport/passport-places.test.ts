@@ -7,7 +7,7 @@
 import type { RepoId, WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { Workspace, WorkspaceState } from "../../core/model.ts";
-import { createPlaceNames } from "../../core/services/workspace.ts";
+import { createPlaceNames } from "../../core/services/workspace-creation.ts";
 import { buildPassportPlaces, unvisitedPlaces } from "./passport-places.ts";
 
 function workspace(directoryName: string, state: WorkspaceState = "ready"): Workspace {
@@ -18,6 +18,7 @@ function workspace(directoryName: string, state: WorkspaceState = "ready"): Work
 		path: `/code/workspaces/${directoryName}`,
 		branch: `me/${directoryName}`,
 		branchIsPlaceholder: false,
+		remoteFileSyncEnabled: false,
 		host: { kind: "local" },
 		displayName: null,
 		targetBranch: "origin/main",

@@ -34,7 +34,13 @@ env:
 jobs:
   harness:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Microsoft's Playwright image for the locked playwright-core (1.65.0, and the image moves with it: Playwright refuses a mismatched image): Chromium and its system
+    # packages are already in it, so the job never needs Ubuntu's package mirror (issue #540).
+    container:
+      image: mcr.microsoft.com/playwright@sha256:9beb546099e11f52d62e505537914870e01a67e0e6b00ae41da4775324e73dbe # v1.65.0-noble
+    # The dump draws every state one after another: 375 states took 17 to 23 minutes on 2026-11-12,
+    # by the runner. The limit catches a hang, not slowness.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
@@ -42,11 +48,14 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # ratchet:oven-sh/setup-bun@v2.2.0
-        with:
-          bun-version-file: .bun-version
+      # setup-bun needs unzip, which the Playwright image lacks; npm's bun package carries the binary.
+      - name: Install bun from npm at the pinned version
+        run: npm install --global "bun@$(cat .bun-version)"
+      # The job runs as root in the container and the checkout belongs to the runner's user, so git
+      # refuses the folder until it is marked safe.
+      - name: Let git use the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright-core install --with-deps chromium
       - name: Dump every catalogue state
         run: bun scripts/parity/dump.ts --out "$RUNNER_TEMP/parity" --commit "${{ github.event.pull_request.head.sha || github.sha }}"
       - name: Run the flows
@@ -60,6 +69,8 @@ jobs:
             sed -n '1,/^## Gaps by screen/p' "$RUNNER_TEMP/parity/report.md" >> "$GITHUB_STEP_SUMMARY"
           fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
+        # GitHub's artifact store once hung an upload for 9 minutes (#555); a hang fails here, not at the job's limit.
+        timeout-minutes: 5
         if: ${{ !cancelled() }}
         with:
           name: parity-report
@@ -68,6 +79,10 @@ jobs:
 
   instrument:
     runs-on: ubuntu-latest
+    # Microsoft's Playwright image for the locked playwright-core (1.65.0, and the image moves with it: Playwright refuses a mismatched image): Chromium and its system
+    # packages are already in it, so the job never needs Ubuntu's package mirror (issue #540).
+    container:
+      image: mcr.microsoft.com/playwright@sha256:9beb546099e11f52d62e505537914870e01a67e0e6b00ae41da4775324e73dbe # v1.65.0-noble
     timeout-minutes: 30
     env:
       BEFORE_345: 29e65165e39c1d389b99621b3f6b1c048b38950a
@@ -80,11 +95,14 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # ratchet:oven-sh/setup-bun@v2.2.0
-        with:
-          bun-version-file: .bun-version
+      # setup-bun needs unzip, which the Playwright image lacks; npm's bun package carries the binary.
+      - name: Install bun from npm at the pinned version
+        run: npm install --global "bun@$(cat .bun-version)"
+      # The job runs as root in the container and the checkout belongs to the runner's user, so git
+      # refuses the folder until it is marked safe.
+      - name: Let git use the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright-core install --with-deps chromium
       - name: Check out the commit before #345 beside this one
         run: git worktree add --detach "$RUNNER_TEMP/before-345" "$BEFORE_345"
       - name: Install it
@@ -98,6 +116,8 @@ jobs:
       - name: The three known misses are found
         run: bun scripts/parity/instrument.ts "$RUNNER_TEMP/instrument/report.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
+        # GitHub's artifact store once hung an upload for 9 minutes (#555); a hang fails here, not at the job's limit.
+        timeout-minutes: 5
         if: ${{ !cancelled() }}
         with:
           name: parity-instrument

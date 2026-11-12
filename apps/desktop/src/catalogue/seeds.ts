@@ -8,7 +8,7 @@
  * draws a half-seeded screen.
  * Test first: not applicable; the screenshot run opens every state on it.
  */
-import { LOCAL_HOST, type SessionConfig, type SessionEvent } from "@conducted/protocol";
+import { type Host, LOCAL_HOST, type SessionConfig, type SessionEvent } from "@conducted/protocol";
 import type { Result, SessionId } from "@conducted/shared";
 import type { Repo, Session, Workspace } from "../core/model.ts";
 import { HOME, type World } from "./world.ts";
@@ -64,6 +64,10 @@ export interface WorkspaceSeed {
 	pr?: { number: number; title: string };
 	pinned?: boolean;
 	lastActivityAt?: number;
+	/** A cloud workspace's Worker; a Mac workspace by default. */
+	host?: Host;
+	/** A cloud workspace's saved Sync files switch; off by default, as on the Mac. */
+	remoteFileSyncEnabled?: boolean;
 }
 
 /** Adds a workspace under `~/conducted/workspaces/<project>/<name>`, ready unless the seed says otherwise. */
@@ -85,7 +89,8 @@ export async function addWorkspace(
 			port: 55_000 + 10 * taken.length,
 			linkedPaths: [],
 			setupLogPath: null,
-			host: LOCAL_HOST,
+			host: seed.host ?? LOCAL_HOST,
+			remoteFileSyncEnabled: seed.remoteFileSyncEnabled ?? false,
 		}),
 	);
 	const state = seed.state ?? "ready";

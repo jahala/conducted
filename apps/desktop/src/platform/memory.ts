@@ -17,8 +17,11 @@
  * queued dialog answer is used only by the dialog kind it was queued for; an unreadable
  * `listArtifacts` cursor is an Err, and `listArtifacts` leaves out the reserved `.context` files
  * and counts them in `omitted` the way file_search.rs does (the contract cases hold both);
- * `app.writeLog` keeps the level and message, not the data; the file system keeps text only, with
- * folders as path prefixes, and resolves `.` and `..` in a path the way the real one does; with
+ * `app.writeLog` keeps the level and message, not the data; the file system keeps text and bytes,
+ * resolves `.` and `..` in a path the way the real one does, and starts with the home, app data,
+ * temp and resource folders; a write into a missing folder is `fs_not_found` and makes no folder,
+ * as files.rs answers it (the contract case "fs.write-missing-folder" holds it, issue #600), while
+ * a file a test puts on the disk (`controls.files`, `controls.addFile`) brings its folders; with
  * `enforceFileScope` the file commands refuse a path outside the default roots and the registered
  * ones with `fs_out_of_scope`, as files.rs does (the contract case "fs.register-root" holds it),
  * and without it every path is reachable, so a service test can seed files anywhere.
@@ -43,6 +46,7 @@ import type {
 	AttachmentFiles,
 	Clipboard,
 	Cloud,
+	CloudDeployEvent,
 	CloudDeployInput,
 	CloudDeployResult,
 	CloudPairing,
@@ -152,6 +156,8 @@ export interface MemoryPlatformControls {
 	emitCloudLine(relayId: string, line: string): boolean;
 	/** Ends one relay, as the Worker or the network would. False when the relay is not open. */
 	emitCloudClosed(relayId: string, reason: string): boolean;
+	/** Reports one deploy step, as the Rust shell would while `cloud_deploy` runs (CLOUD-08). */
+	emitCloudDeployStep(step: string): void;
 	/** Makes the next `shell.start` stay running until the caller cancels it. */
 	holdNextStart(): void;
 	/** The exit code of the next PTY spawned with a `command`. Null means a signal ended it. */
@@ -192,6 +198,11 @@ export interface MemoryPlatformControls {
 	readonly registeredRoots: readonly string[];
 	/** Makes a folder and its parents exist on the user's disk, outside the app's file scope. */
 	addFolder(path: string): void;
+	/**
+	 * Puts a text file on the user's disk with its folders, as another program would, outside the
+	 * app's file scope. Its modified time is the clock's.
+	 */
+	addFile(path: string, text: string): void;
 	/** Lines the app sent to the sidecar, in order. */
 	readonly sidecarSent: readonly string[];
 	/** Delivers a line to `sidecar.onLine` listeners. */
@@ -238,6 +249,8 @@ export interface MemoryPlatformControls {
 	seedConductorDatabase(path: string, tables: MemoryConductorDatabase): void;
 	/** The database at `path` and the files beside it, as one text. */
 	conductorFingerprint(path: string): string;
+	/** What `app.databaseFreeBytes` answers from now on. It starts at `MEMORY_FREE_BYTES`. */
+	setDatabaseFreeBytes(bytes: number): void;
 	/** The visualization pages the scheme would serve, by address, oldest first (CHAT-22). */
 	readonly visualizationPages: ReadonlyMap<string, string>;
 	/** Log lines written through `app.writeLog`. */
@@ -252,11 +265,15 @@ export type MemoryConductorDatabase = Record<string, readonly Readonly<Record<st
 /** One process of the app, as the process table lists it. */
 export interface MemoryProcess {
 	pid: number;
-	name: string;
+	/** The parent's pid; 0 when left out. */
+	ppid?: number;
+	label: string;
 	cpuPercent: number;
 	memoryBytes: number;
 	/** Its working folder, which places it in a workspace. */
 	cwd: string;
+	/** The terminal it runs in, as the Rust shell marks a terminal's processes. */
+	terminalId?: string;
 }
 
 export interface MemoryPlatform {
@@ -283,6 +300,9 @@ const normalizePath = (path: string): string => {
 	if (joined === "") return "/";
 	return absolute ? `/${joined}` : joined;
 };
+
+/** What `app.databaseFreeBytes` answers until a test sets it: 500 GiB, a roomy Mac's disk. */
+export const MEMORY_FREE_BYTES = 500 * 1024 ** 3;
 
 /** Most artifact entries one page returns, as file_search.rs `MAX_ARTIFACT_PAGE`. */
 const MAX_ARTIFACT_PAGE = 200;
@@ -429,6 +449,25 @@ export const isWithinRoot = (path: string, root: string): boolean => {
 	return target === base || target.startsWith(base === "/" ? "/" : `${base}/`);
 };
 
+/**
+ * Files by absolute path. A file on a disk sits in a folder, so a file a test seeds through
+ * `controls.files` brings its folders with it, as the user's disk would have them. The file
+ * commands check the folder first, so a write into a missing folder still fails (issue #600).
+ */
+class FilesOnDisk<T> extends Map<string, T> {
+	readonly #directories: Set<string>;
+
+	constructor(directories: Set<string>) {
+		super();
+		this.#directories = directories;
+	}
+
+	override set(path: string, value: T): this {
+		for (const ancestor of ancestors(path)) this.#directories.add(ancestor);
+		return super.set(path, value);
+	}
+}
+
 // ---------------------------------------------------------------- the stand-in
 
 export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlatform {
@@ -442,10 +481,17 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 
 	type ValueListener<T> = (value: T) => void;
 
-	const files = new Map<string, string>();
-	/** Binary files the mirror keeps (CLOUD-11); text files stay in `files`. */
-	const blobs = new Map<string, Uint8Array>();
+	// The folders a Mac has before the app writes anything: the home, temp and resource folders,
+	// and the app data folder the shell makes at startup for the database and logs.
 	const directories = new Set<string>(["/"]);
+	for (const folder of [paths.home, paths.appData, paths.temp, paths.resources]) {
+		const target = normalizePath(folder);
+		for (const ancestor of ancestors(target)) directories.add(ancestor);
+		directories.add(target);
+	}
+	const files = new FilesOnDisk<string>(directories);
+	/** Binary files the mirror keeps (CLOUD-11); text files stay in `files`. */
+	const blobs = new FilesOnDisk<Uint8Array>(directories);
 	const registeredRoots: string[] = [];
 	const modified = new Map<string, number>();
 	const trashed = new Map<string, string>();
@@ -481,6 +527,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	let vibrancy: boolean | null = null;
 	let trafficLightPosition: { x: number; y: number } | null = null;
 	let networkOnline = true;
+	let databaseFreeBytes = MEMORY_FREE_BYTES;
 
 	const sidecarLineListeners = new Set<ValueListener<string>>();
 	const sidecarRestartListeners = new Set<ValueListener<void>>();
@@ -535,6 +582,16 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		for (const ancestor of ancestors(path)) directories.add(ancestor);
 	};
 
+	/**
+	 * files.rs writes into a folder that exists and never makes one: a missing folder is
+	 * `fs_not_found` (issue #600). Null means the folder is there.
+	 */
+	const missingFolder = (target: string): AppError | null => {
+		const folder = parentPath(target);
+		if (directories.has(folder)) return null;
+		return platformError("fs_not_found", `${folder} does not exist.`);
+	};
+
 	/** The files.rs scope check, when the test asked for it. Null means the path may be used. */
 	const outOfScope = (path: string): AppError | null => {
 		if (options.enforceFileScope !== true) return null;
@@ -570,7 +627,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		if (directories.has(target)) {
 			return err(platformError("fs_is_a_directory", `${target} is a folder.`));
 		}
-		addParentFolders(target);
+		const missing = missingFolder(target);
+		if (missing !== null) return err(missing);
 		blobs.delete(target);
 		files.set(target, text);
 		modified.set(target, clock.now());
@@ -589,7 +647,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		if (directories.has(target)) {
 			return err(platformError("fs_is_a_directory", `${target} is a folder.`));
 		}
-		addParentFolders(target);
+		const missing = missingFolder(target);
+		if (missing !== null) return err(missing);
 		files.delete(target);
 		blobs.set(target, bytes);
 		modified.set(target, clock.now());
@@ -621,10 +680,11 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			: ok(new TextEncoder().encode(text));
 	};
 
-	const exists = async (path: string): Promise<boolean> => {
-		if (outOfScope(path) !== null) return false;
+	const exists = async (path: string): Promise<Result<boolean>> => {
+		const refused = outOfScope(path);
+		if (refused !== null) return err(refused);
 		const target = normalizePath(path);
-		return files.has(target) || blobs.has(target) || directories.has(target);
+		return ok(files.has(target) || blobs.has(target) || directories.has(target));
 	};
 
 	const stat = async (path: string): Promise<Result<FileStat>> => {
@@ -1033,6 +1093,31 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	// ---------------------------------------------------------------- import from Conductor (APP-17)
 
 	const copyFolder = `${paths.appData}/${CONDUCTOR_COPY_FOLDER}`;
+	/**
+	 * Each copy's sent `session_messages` rows by chat, in rowid order, built once per copy. A row's
+	 * rowid is its place in the table plus one, as SQLite numbers the rows the fixture inserts.
+	 */
+	const chatIndexes = new WeakMap<
+		MemoryConductorDatabase,
+		Map<string, { rowid: number; row: Readonly<Record<string, unknown>> }[]>
+	>();
+	const messagesByChat = (copy: MemoryConductorDatabase) => {
+		const table = copy.session_messages;
+		if (table === undefined) return null;
+		const known = chatIndexes.get(copy);
+		if (known !== undefined) return known;
+		const byChat = new Map<string, { rowid: number; row: Readonly<Record<string, unknown>> }[]>();
+		table.forEach((row, index) => {
+			if (typeof row.session_id !== "string" || row.sent_at === null || row.sent_at === undefined)
+				return;
+			const rows = byChat.get(row.session_id) ?? [];
+			rows.push({ rowid: index + 1, row });
+			byChat.set(row.session_id, rows);
+		});
+		chatIndexes.set(copy, byChat);
+		return byChat;
+	};
+	const textOrNull = (value: unknown): string | null => (typeof value === "string" ? value : null);
 	const cloneDatabase = (source: MemoryConductorDatabase): MemoryConductorDatabase =>
 		Object.fromEntries(
 			Object.entries(source).map(([table, rows]) => [table, rows.map((row) => ({ ...row }))]),
@@ -1088,7 +1173,52 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			for (const table of CONDUCTOR_COUNTED_TABLES) {
 				counts[table] = copy.value[table]?.length ?? null;
 			}
-			return ok({ tables, counts });
+			const chats = messagesByChat(copy.value);
+			const messageRows =
+				chats === null
+					? null
+					: Object.fromEntries([...chats].map(([chat, rows]) => [chat, rows.length]));
+			return ok({ tables, counts, messageRows });
+		},
+		readMessageKeys: async (copyPath, sessionId, afterRowid, limit) => {
+			const copy = ownCopy(copyPath);
+			if (!copy.ok) return copy;
+			const rows = messagesByChat(copy.value)?.get(sessionId) ?? [];
+			let start = 0;
+			while (start < rows.length && (rows[start]?.rowid ?? 0) <= afterRowid) start++;
+			return ok(
+				rows.slice(start, start + Math.max(1, limit)).map(({ rowid, row }) => ({
+					rowid,
+					role: textOrNull(row.role),
+					turn_id: textOrNull(row.turn_id),
+					sent_at: textOrNull(row.sent_at),
+					created_at: textOrNull(row.created_at),
+					chars: textOrNull(row.content)?.length ?? 0,
+				})),
+			);
+		},
+		readMessages: async (copyPath, sessionId, rowids) => {
+			const copy = ownCopy(copyPath);
+			if (!copy.ok) return copy;
+			const all = copy.value.session_messages ?? [];
+			const wanted = [...new Set(rowids)].sort((a, b) => a - b);
+			return ok(
+				wanted.flatMap((rowid) => {
+					const row = all[rowid - 1];
+					if (row === undefined || row.session_id !== sessionId || row.sent_at == null) return [];
+					return [
+						{
+							rowid,
+							id: String(row.id),
+							role: textOrNull(row.role),
+							content: textOrNull(row.content),
+							sent_at: textOrNull(row.sent_at),
+							created_at: textOrNull(row.created_at),
+							turn_id: textOrNull(row.turn_id),
+						},
+					];
+				}),
+			);
 		},
 		moveSecrets: async (copyPath, moves) => {
 			const copy = ownCopy(copyPath);
@@ -1265,6 +1395,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 				platformError("attachment_missing", `Attachment source does not exist: ${sourcePath}`),
 			);
 		}
+		// attachments.rs makes the destination's folder, unlike the plain file write.
+		addParentFolders(normalizePath(destinationPath));
 		const written = await writeTextAtomic(destinationPath, text);
 		if (!written.ok) return written;
 		return ok({
@@ -1281,7 +1413,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		materialize: async (sourcePath, destinationPath) => materialize(sourcePath, destinationPath),
 		resizeImage: async (sourcePath, destinationPath) => materialize(sourcePath, destinationPath),
 		writeBytes: async (bytes, destinationPath) => {
-			// The stand-in keeps text only, so the bytes are kept as UTF-8 text.
+			// The stand-in keeps text only, so the bytes are kept as UTF-8 text. attachments.rs makes
+			// the destination's folder.
+			addParentFolders(normalizePath(destinationPath));
 			const written = await writeTextAtomic(destinationPath, new TextDecoder().decode(bytes));
 			if (!written.ok) return written;
 			return ok({
@@ -1306,6 +1440,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			nextAttemptAt: null,
 			error: null,
 			path: null,
+			follow: null,
 		};
 
 	const setProgramStatus = (status: ProgramStatus): void => {
@@ -1362,6 +1497,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 
 	const cloudScripts: CloudScript[] = [];
 	const cloudDeployScripts: CloudDeployScript[] = [];
+	const cloudDeployListeners = new Set<(event: CloudDeployEvent) => void>();
 	const cloudDeploys: CloudDeployInput[] = [];
 	const cloudUninstalls: CloudUninstallInput[] = [];
 	const cloudRequests: CloudRequest[] = [];
@@ -1409,6 +1545,10 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		uninstall: async (input = {}) => {
 			cloudUninstalls.push(input);
 			return ok(undefined);
+		},
+		onDeployEvent: (listener) => {
+			cloudDeployListeners.add(listener);
+			return () => cloudDeployListeners.delete(listener);
 		},
 		request: async (request) => {
 			cloudRequests.push(request);
@@ -1538,17 +1678,20 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		channel: options.channel ?? "dev",
 		health: async () => ok(undefined),
 		dbVersionWarning: async () => ok(null),
+		databaseFreeBytes: async () => ok(databaseFreeBytes),
 		onDeepLink: (listener) => listen(deepLinkListeners, listener),
 		onDeepLinkRejected: (listener) => listen(deepLinkRejectedListeners, listener),
 		onQuitRequested: (listener) => listen(quitListeners, listener),
 		quit: async () => {},
 		resourceUsage: async (workspacePaths) =>
 			ok(
-				processes.map(({ cwd, ...usage }) => {
+				processes.map(({ cwd, ppid = 0, ...usage }) => {
 					const owner = workspacePaths
 						.filter((path) => isWithinRoot(cwd, path))
 						.sort((left, right) => right.length - left.length)[0];
-					return owner === undefined ? usage : { ...usage, workspacePath: owner };
+					return owner === undefined
+						? { ...usage, ppid }
+						: { ...usage, ppid, workspacePath: owner };
 				}),
 			),
 		// The data argument is not kept, so a value that cannot be serialised cannot break logging.
@@ -1607,6 +1750,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		scriptCloudDeploy: (script) => {
 			cloudDeployScripts.unshift(script);
+		},
+		emitCloudDeployStep: (step) => {
+			for (const listener of cloudDeployListeners) listener({ step });
 		},
 		get cloudDeploys() {
 			return cloudDeploys;
@@ -1699,6 +1845,12 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			addParentFolders(target);
 			directories.add(target);
 		},
+		addFile: (path, text) => {
+			const target = normalizePath(path);
+			blobs.delete(target);
+			files.set(target, text);
+			modified.set(target, clock.now());
+		},
 		get sidecarSent() {
 			return sidecarSent;
 		},
@@ -1749,6 +1901,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		conductorDatabases,
 		seedConductorDatabase: (path, tables) => {
 			conductorDatabases.set(path, cloneDatabase(tables));
+		},
+		setDatabaseFreeBytes: (bytes) => {
+			databaseFreeBytes = bytes;
 		},
 		conductorFingerprint: (path) => {
 			const folder = path.slice(0, path.lastIndexOf("/") + 1);

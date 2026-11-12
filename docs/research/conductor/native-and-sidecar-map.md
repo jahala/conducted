@@ -59,7 +59,7 @@ Command names are Tauri `#[tauri::command]` functions. Module is taken from the 
 | `file_sync_tracing.rs` | A `tracing` layer that turns sync log lines into structured events with a forwarding budget | none | none |
 | `app_actions.rs` | Client of the actions server (internal users only). Section A7. | `ensure_app_actions_started`, `get_app_actions_url`, `poll_app_action`, `submit_app_action_result` | none (long polling) |
 | `app_logger.rs` | Starts and talks to the logger server. Section A7. | `ensure_app_logger_started`, `get_app_logger_connection`, `submit_app_logs`, `export_app_logs`, `configure_app_logger_persistence`, `configure_app_logger_external_logging_disabled` | none |
-| `resource_usage.rs` | Process table with memory footprint per terminal and sidecar, with command lines redacted | `get_resource_usage` | none |
+| `resource_usage.rs` | Process table with memory footprint per terminal and sidecar, with command lines redacted. Lists with `ps -eo pid=,ppid=,ucomm=,args=`, reads memory with `proc_pid_rusage`, and labels WebKit's helpers and the runtime (ui-map.md 1.3) | `get_resource_usage` | none |
 | `posthog.rs`, `sentry` (in lib) | Analytics and crash reports. Both honour `disable_external_logging` and `enterprise_data_privacy`. | `set_posthog_user_context`, `configure_sentry_external_logging_disabled` | none |
 | `keychain_settings.rs` | Secrets in the macOS Keychain | `get_keychain_setting`, `set_keychain_setting`, `delete_keychain_setting` | none |
 | `db_rollback.rs` | Refuses a schema newer than the app. Section A11. | `get_db_version_warning` (command in `lib.rs`, logic here) | none |

@@ -44,6 +44,7 @@ import {
 	CheckIcon,
 	CloseIcon,
 } from "../../../ui/icons.tsx";
+import { toast } from "../../../ui/Toast.tsx";
 import { withKeys } from "../tools/ToolCardFrame.tsx";
 
 export interface QuestionCardProps {
@@ -131,6 +132,7 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 			busy.current = false;
 			setFailed("answer");
 			setPending(false);
+			toast.error("Could not send answers. Try again.");
 		}
 	}
 

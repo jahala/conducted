@@ -2,9 +2,11 @@
  * @feature NAV-04 Section dialog
  * Owns: The dialog to create or rename a section: a name and an optional emoji.
  * Behaviour: ui-map.md 5.2 ('Section create or edit (name, emoji)'), 4 item 5.
- * Must handle: Empty name (submit disabled); a name that already exists (allowed, sections are told
+ * Must handle: The section is gone while this dialog is open ("Section not found", as Conductor's
+ * edit dialog shows); empty name (submit disabled); a name that already exists (allowed, sections are told
  * apart by id); Enter submits; Escape closes; the action fails (error under the field, dialog stays
- * open).
+ * open, and Conductor's toast names it: "Couldn't create section", "Couldn't edit section", or
+ * "Section no longer exists" when the section vanished, renderApp @11511933).
  * Our design choice: The emoji is a short text field plus a small set of common choices, so the
  * picker needs no extra library. A section is renamed from the same dialog that creates it.
  * Test first: Submitting 'Review' with no emoji calls sections.create('Review', null).
@@ -12,12 +14,13 @@
 import type { Result } from "@conducted/shared";
 import { useEffect, useId, useRef, useState } from "react";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
-import { useActions } from "../../core/hooks.ts";
+import { useActions, useSections } from "../../core/hooks.ts";
 import type { Section } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import { Dialog, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
 import { Input, Label } from "../../ui/Input.tsx";
+import { toast } from "../../ui/Toast.tsx";
 
 export interface SectionDialogProps {
 	open: boolean;
@@ -28,8 +31,22 @@ export interface SectionDialogProps {
 
 const EMOJI_CHOICES = ["📌", "📝", "🚧", "🐛", "✨", "🧪", "🚀", "📚"] as const;
 
+/** Conductor's toast wording for a failed save (renderApp @11511933). */
+function sectionToast(section: Section | null, code: string): string {
+	if (code === "section_unknown") return "Section no longer exists";
+	return section === null ? "Couldn't create section" : "Couldn't edit section";
+}
+
 export function SectionDialog({ open, onOpenChange, section }: SectionDialogProps) {
 	const actions = useActions();
+	const loadedSections = useSections();
+	const sections = loadedSections.state === "ready" ? loadedSections.data : [];
+	const sectionsRef = useRef(sections);
+	sectionsRef.current = sections;
+	const loadedRef = useRef(loadedSections.state === "ready");
+	loadedRef.current = loadedSections.state === "ready";
+	/** True when the section was in the loaded list as the dialog opened, so its absence now means it went. */
+	const presentOnOpen = useRef(false);
 	const nameId = useId();
 	const emojiId = useId();
 	const [name, setName] = useState(section?.name ?? "");
@@ -42,6 +59,10 @@ export function SectionDialog({ open, onOpenChange, section }: SectionDialogProp
 
 	useEffect(() => {
 		if (!open) return;
+		presentOnOpen.current =
+			initial.current !== null &&
+			loadedRef.current &&
+			sectionsRef.current.some((entry) => entry.id === initial.current?.id);
 		setName(initial.current?.name ?? "");
 		setEmoji(initial.current?.emoji ?? "");
 		setError(null);
@@ -61,6 +82,7 @@ export function SectionDialog({ open, onOpenChange, section }: SectionDialogProp
 						: await actions.sections.rename(initial.current.id, trimmed, chosenEmoji);
 				if (!result.ok) {
 					setError(result.error.message);
+					toast.error(sectionToast(initial.current, result.error.code));
 					return;
 				}
 				onOpenChange(false);
@@ -69,6 +91,18 @@ export function SectionDialog({ open, onOpenChange, section }: SectionDialogProp
 			}
 		});
 	};
+
+	const missing =
+		presentOnOpen.current && !sections.some((entry) => entry.id === initial.current?.id);
+	if (missing) {
+		return (
+			<Dialog open={open} onOpenChange={onOpenChange}>
+				<DialogContent title="Edit section">
+					<p className="text-sm text-fg-muted">Section not found</p>
+				</DialogContent>
+			</Dialog>
+		);
+	}
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>

@@ -44,9 +44,6 @@ jobs:
         with:
           bun-version-file: .bun-version
       - run: pnpm install --frozen-lockfile
-      # The RUN-09 tests run the terminal shim in a real zsh, which this image does not ship.
-      - name: Install zsh
-        run: sudo apt-get update -qq && sudo apt-get install -qq --yes --no-install-recommends zsh
       # These call the coverage scripts directly, not `pnpm test`: the run-owned temp folder check
       # belongs to the test run and has nothing to say about report folders.
       - name: Desktop coverage (reports in apps/desktop/coverage)
@@ -77,6 +74,8 @@ jobs:
       - name: Upload the reports
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
+        # GitHub's artifact store once hung an upload for 9 minutes (#555); a hang fails here, not at the job's limit.
+        timeout-minutes: 5
         with:
           name: coverage-typescript
           path: |
@@ -104,12 +103,22 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # ratchet:Swatinem/rust-cache@v2.9.3
         with:
           workspaces: apps/desktop/src-tauri
-      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # ratchet:taiki-e/install-action@v2.90.1
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # ratchet:taiki-e/install-action@v2.90.3
         with:
           tool: cargo-llvm-cov
       # The toolchain file in this folder pins Rust, so rustup adds the component to that version.
       - name: Add the LLVM tools the coverage report needs
         run: rustup component add llvm-tools-preview
+      # The relay integration test starts the Worker in Cloudflare's local runtime, so this job
+      # installs the cloud package's wrangler and workerd, as ci.yml's Rust job does.
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # ratchet:actions/setup-node@v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install the Worker runtime for the relay test
+        working-directory: .
+        run: pnpm install --frozen-lockfile --filter @conducted/cloud
       - name: Run the tests once with coverage on
         run: cargo llvm-cov --no-report
       - name: Write the reports (reports in apps/desktop/src-tauri/coverage)
@@ -131,6 +140,8 @@ jobs:
       - name: Upload the reports
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
+        # GitHub's artifact store once hung an upload for 9 minutes (#555); a hang fails here, not at the job's limit.
+        timeout-minutes: 5
         with:
           name: coverage-rust
           path: apps/desktop/src-tauri/coverage

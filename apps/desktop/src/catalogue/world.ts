@@ -2,7 +2,7 @@
  * @feature catalogue The outside world one catalogue state runs in
  * Owns: building the in-memory Platform over a real SQLite with a fixed clock and counting ids, the
  * repositories the seeds write through, the scripted shell answers (with the git repositories they
- * describe), and the scripted sidecar that answers the app's requests and delivers the lines a state
+ * describe), the pictures a state gives its image files, and the scripted sidecar that answers the app's requests and delivers the lines a state
  * needs.
  * Behaviour: not applicable, a development tool. The memory Platform's controls (platform/memory.ts) are
  * the same ones the tests script; nothing here changes what the app does with an answer.
@@ -73,6 +73,11 @@ export interface World {
 	notify(method: string, params: unknown): void;
 	/** Sends a request from the sidecar to the app, such as `requestInteraction`. */
 	request(method: string, params: unknown): void;
+	/**
+	 * Gives the file at `path` a picture the browser can load, as the app's webview loads a real
+	 * image. Every other file keeps its asset:// address, which the browser cannot open.
+	 */
+	showPicture(path: string, url: string): void;
 }
 
 /** The agents this Mac has: Claude Code and Codex, both installed and signed in. */
@@ -121,7 +126,12 @@ const model = (id: string, label: string, options: Partial<ModelInfo> = {}): Mod
 /** The catalogue's model lists. The labels are sample data, not a claim about any provider's list. */
 const MODELS: Record<string, ModelInfo[]> = {
 	claude: [
-		model("default", "Opus 4.7", { shortLabel: "Opus", isDefault: true, supportsFastMode: true }),
+		model("default", "Opus 4.7", {
+			shortLabel: "Opus",
+			isDefault: true,
+			supportsFastMode: true,
+			efforts: ["low", "medium", "high", "max", "ultracode"],
+		}),
 		model("sonnet", "Sonnet 4.6", { shortLabel: "Sonnet", contextWindowTokens: 1_000_000 }),
 		model("haiku", "Haiku 4.5", { shortLabel: "Haiku", isNew: true }),
 	],
@@ -201,6 +211,7 @@ export function createWorld(database: Database): World {
 			nextAttemptAt: null,
 			error: null,
 			path,
+			follow: null,
 		});
 	}
 
@@ -252,6 +263,11 @@ export function createWorld(database: Database): World {
 		return sent;
 	};
 
+	const pictures = new Map<string, string>();
+	const fs = memory.platform.fs;
+	const assetUrl = fs.assetUrl.bind(fs);
+	fs.assetUrl = (path) => pictures.get(path) ?? assetUrl(path);
+
 	const repos: ScriptedRepo[] = [];
 	return {
 		clock,
@@ -269,5 +285,6 @@ export function createWorld(database: Database): World {
 		failSidecar: (method) => held.set(method, "fail"),
 		notify: (method, params) => emit({ jsonrpc: "2.0", method, params }),
 		request: (method, params) => emit({ jsonrpc: "2.0", id: nextRequestId++, method, params }),
+		showPicture: (path, url) => pictures.set(path, url),
 	};
 }

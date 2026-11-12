@@ -40,6 +40,7 @@ vi.mock("../../core/hooks.ts", () => ({
 			{ id: "api", name: "api", hidden: false, displayOrder: 1 },
 		],
 	}),
+	useSections: () => ({ state: "ready", data: [] }),
 	useShortcutOverrides: () => ({ overrides: {}, error: null }),
 }));
 
@@ -114,6 +115,7 @@ function workspace(id: string, overrides: Partial<Workspace> = {}): Workspace {
 		path: `/workspaces/${id}`,
 		branch: `branch-${id}`,
 		branchIsPlaceholder: false,
+		remoteFileSyncEnabled: false,
 		host: { kind: "local" },
 		displayName: id,
 		targetBranch: "main",
