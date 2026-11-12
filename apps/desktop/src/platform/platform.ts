@@ -43,9 +43,20 @@ export const PLATFORM_ERROR_CODES = [
 	"binary_resources_dir_failed",
 	"binary_verification_failed",
 	"clipboard_unavailable",
+	"cloud_account_invalid", // CLOUDFLARE_ACCOUNT_ID is not an id Cloudflare gives
+	"cloud_api_failed", // Cloudflare's API refused a request or could not be reached
+	"cloud_bad_channel", // a relay stream is neither the sidecar nor a terminal
 	"cloud_bad_line",
+	"cloud_bucket_account_unclear", // several of the user's accounts hold the bucket
+	"cloud_bucket_key_unaddressable", // the bucket holds an object Cloudflare's API cannot address
+	"cloud_bucket_name_invalid", // a bucket name Cloudflare refuses
+	"cloud_bucket_not_empty", // the bucket still held objects after emptying
+	"cloud_bucket_unreadable", // the login cannot read an account's buckets
+	"cloud_container_name_invalid", // a container name Cloudflare refuses
 	"cloud_data_privacy",
 	"cloud_deploy_failed",
+	"cloud_deploy_no_url", // wrangler printed no workers.dev URL after a deploy
+	"cloud_docker_missing", // Docker, which builds the sandbox image, is not installed or not running
 	"cloud_method_not_allowed",
 	"cloud_not_a_worker",
 	"cloud_not_paired",
@@ -55,6 +66,7 @@ export const PLATFORM_ERROR_CODES = [
 	"cloud_relay_failed",
 	"cloud_relay_unknown",
 	"cloud_request_failed",
+	"cloud_resources_invalid", // the deploy inputs' deploy.json is unreadable or invalid
 	"cloud_resources_missing",
 	"cloud_response_too_large",
 	"cloud_token_invalid",
@@ -70,6 +82,11 @@ export const PLATFORM_ERROR_CODES = [
 	"cloud_unscripted",
 	"cloud_url_not_allowed",
 	"cloud_vm_id_invalid",
+	"cloud_worker_name_invalid", // a Worker name Cloudflare refuses
+	"cloud_wrangler_failed", // wrangler failed, or a file or secret it needs was not made
+	"cloud_wrangler_missing", // wrangler is not installed or could not start
+	"cloud_wrangler_timeout", // wrangler did not finish in time
+	"cloud_wrangler_too_old", // wrangler is too old for the sandbox's containers
 	"db_check_failed",
 	"db_close_failed",
 	"db_closed",
@@ -187,6 +204,7 @@ export const PLATFORM_ERROR_CODES = [
 	"program_read_failed",
 	"program_release_invalid",
 	"program_release_missing",
+	"program_remove_failed", // a managed program's folder or link could not be removed
 	"program_resources_dir_failed",
 	"program_status_not_sent",
 	"program_unpack_failed",

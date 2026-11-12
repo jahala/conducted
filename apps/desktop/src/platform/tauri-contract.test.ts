@@ -174,15 +174,87 @@ function withoutTestItems(source: string): string {
 	}
 }
 
-/** Every error code a Rust module builds, as `code: "..."` or as the first argument of `failed(`. */
-function rustErrorCodes(source: string): string[] {
+/**
+ * Splits the text between an opening bracket at `open` and its match at the top level's commas.
+ * Strings and character literals are skipped, so a comma or bracket inside one does not count.
+ * Answers the parts and the index just past the closing bracket.
+ */
+function topLevelParts(source: string, open: number): { parts: string[]; end: number } {
+	const parts: string[] = [];
+	let depth = 0;
+	let start = open + 1;
+	for (let index = open; index < source.length; index++) {
+		const char = source[index];
+		if (char === '"') {
+			for (index++; index < source.length && source[index] !== '"'; index++) {
+				if (source[index] === "\\") index++;
+			}
+		} else if (char === "'") {
+			const literal = /^'(?:\\.|[^\\'])'/.exec(source.slice(index));
+			if (literal !== null) index += literal[0].length - 1;
+		} else if (char === "(" || char === "[" || char === "<") depth++;
+		else if (char === ">" && source[index - 1] === "-") continue;
+		else if (char === ")" || char === "]" || char === ">") {
+			depth--;
+			if (depth === 0) {
+				parts.push(source.slice(start, index));
+				return { parts: parts.map((part) => part.trim()).filter(Boolean), end: index + 1 };
+			}
+		} else if (char === "," && depth === 1) {
+			parts.push(source.slice(start, index));
+			start = index + 1;
+		}
+	}
+	return { parts: parts.map((part) => part.trim()).filter(Boolean), end: source.length };
+}
+
+/**
+ * The functions that build an error from a code they are given: each takes a parameter
+ * `code: &'static str`, the type of `CommandError::Failed`'s code (`failed`, `refused`,
+ * `blocking`, `remove_link`, ...). Answers each name and the position of that parameter. A name
+ * two modules give the code at different positions is refused, since a call could not be read.
+ */
+function rustCodeHelpers(sources: readonly string[]): Map<string, number> {
+	const helpers = new Map<string, number>();
+	for (const source of sources) {
+		const production = withoutTestItems(source);
+		for (const match of production.matchAll(/\bfn\s+([a-z_][a-z0-9_]*)\s*(<)?/g)) {
+			const name = match[1];
+			if (name === undefined) continue;
+			let at = match.index + match[0].length - (match[2] === undefined ? 0 : 1);
+			if (match[2] !== undefined) at = topLevelParts(production, at).end;
+			const open = production.indexOf("(", at);
+			if (open < 0) continue;
+			const position = topLevelParts(production, open).parts.findIndex((parameter) =>
+				/^code\s*:\s*&'static\s+str$/.test(parameter),
+			);
+			if (position < 0) continue;
+			const known = helpers.get(name);
+			if (known !== undefined && known !== position) {
+				throw new Error(`fn ${name} takes its code at position ${known} and at ${position}`);
+			}
+			helpers.set(name, position);
+		}
+	}
+	return helpers;
+}
+
+/**
+ * Every error code a Rust module builds: as `code: "..."`, or as the literal a call passes to a
+ * helper's code parameter (`rustCodeHelpers`).
+ */
+function rustErrorCodes(source: string, helpers: ReadonlyMap<string, number>): string[] {
 	const production = withoutTestItems(source);
 	const codes = new Set<string>();
 	for (const match of production.matchAll(/\bcode:\s*"([a-z0-9_]+)"/g)) {
 		if (match[1] !== undefined) codes.add(match[1]);
 	}
-	for (const match of production.matchAll(/\b(?:failed|blocking)\s*\(\s*"([a-z0-9_]+)"/g)) {
-		if (match[1] !== undefined) codes.add(match[1]);
+	for (const match of production.matchAll(/(\bfn\s+)?\b([a-z_][a-z0-9_]*)\s*\(/g)) {
+		const position = match[2] === undefined ? undefined : helpers.get(match[2]);
+		if (match[1] !== undefined || position === undefined) continue;
+		const { parts } = topLevelParts(production, match.index + match[0].length - 1);
+		const code = /^"([a-z0-9_]+)"$/.exec(parts[position] ?? "")?.[1];
+		if (code !== undefined) codes.add(code);
 	}
 	return [...codes];
 }
@@ -224,10 +296,19 @@ describe("PLAT-02 the Platform's error codes are one list", () => {
 	it("lists every code a Rust command can return", () => {
 		const missing: string[] = [];
 		// Every Rust source, those in a module's own folder (binaries/follow.rs) too.
-		const sources = readdirSync(RUST_SRC, { recursive: true, encoding: "utf8" });
-		for (const file of sources.filter((name) => name.endsWith(".rs"))) {
-			const codes = rustErrorCodes(readFileSync(join(RUST_SRC, file), "utf8"));
-			for (const code of codes) if (!known.has(code)) missing.push(`${file}: ${code}`);
+		const sources = readdirSync(RUST_SRC, { recursive: true, encoding: "utf8" })
+			.filter((name) => name.endsWith(".rs"))
+			.map((file) => ({ file, text: readFileSync(join(RUST_SRC, file), "utf8") }));
+		const helpers = rustCodeHelpers(sources.map((source) => source.text));
+		// The scan still finds the helpers it was written for, so a change in how they are
+		// declared cannot empty it.
+		for (const name of ["failed", "refused", "blocking", "remove_link"]) {
+			expect(helpers.has(name), `fn ${name} is read as a code helper`).toBe(true);
+		}
+		for (const { file, text } of sources) {
+			for (const code of rustErrorCodes(text, helpers)) {
+				if (!known.has(code)) missing.push(`${file}: ${code}`);
+			}
 		}
 		expect(missing).toEqual([]);
 	});
@@ -244,9 +325,32 @@ describe("PLAT-02 the Platform's error codes are one list", () => {
 	});
 
 	it("still finds the codes when they move into a helper", () => {
-		const source =
-			'#[cfg(test)]\nmod tests { fn helper() { code: "made_up_test_code" } }\nfn real() { failed(\n  "real_code",\n  "x"); }';
-		expect(rustErrorCodes(source)).toEqual(["real_code"]);
+		const source = [
+			'#[cfg(test)]\nmod tests { fn helper() { code: "made_up_test_code" } }',
+			"fn refused(code: &'static str, message: impl Into<String>) -> CommandError { build() }",
+			"fn remove_link(link: &Path, code: &'static str) -> CommandResult<()> { build() }",
+			"fn checked<T>(what: &str, code: &'static str, f: impl FnOnce(&Path) -> T) {}",
+			"fn other(code: i64) {}",
+			'fn real() { failed(\n  "real_code",\n  "x"); refused("refused_code", format!("a, (b")); }',
+			'fn more() { remove_link(&path(","), "link_code"); checked("what", "checked_code", |p| p); }',
+			'fn not_codes() { other(3); remove_link("not_a_code", code); }',
+		].join("\n");
+		const helpers = rustCodeHelpers([
+			source,
+			"pub fn failed(code: &'static str, message: String) -> CommandError { build() }",
+		]);
+		expect(Object.fromEntries(helpers)).toEqual({
+			refused: 0,
+			remove_link: 1,
+			checked: 1,
+			failed: 0,
+		});
+		expect(rustErrorCodes(source, helpers).sort()).toEqual([
+			"checked_code",
+			"link_code",
+			"real_code",
+			"refused_code",
+		]);
 	});
 });
 
