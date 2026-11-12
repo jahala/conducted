@@ -900,6 +900,20 @@ export interface CloudDeployEvent {
 /** What an uninstall overrides: the same optional name a deploy used. */
 export type CloudUninstallInput = CloudDeployInput;
 
+/** What an uninstall removed from the user's account. Mirrors `CloudUninstallPayload` in cloud.rs. */
+export interface CloudUninstallResult {
+	/** The Worker was deleted. */
+	worker: boolean;
+	/** The container application was deleted. */
+	container: boolean;
+	/** How many container images were deleted. */
+	images: number;
+	/** The R2 bucket was deleted. */
+	bucket: boolean;
+	/** How many objects (the cloud settings and the backups) were deleted from the bucket first. */
+	objects: number;
+}
+
 /** The line transport to the sidecar inside one workspace's sandbox (CLOUD-03). */
 export interface CloudRelay {
 	readonly id: string;
@@ -939,9 +953,10 @@ export interface Cloud {
 	onDeployEvent(listener: (event: CloudDeployEvent) => void): Unsubscribe;
 	/**
 	 * Deletes what the deploy made, in the order that stops billing: the Worker, its container
-	 * application and images, then the R2 bucket. It also removes this Mac's pairing (CLOUD-08).
+	 * application and images, then the R2 bucket, emptied first of the cloud settings and backups.
+	 * It also removes this Mac's pairing, and says what it removed (CLOUD-08, issue #635).
 	 */
-	uninstall(input?: CloudUninstallInput): Promise<Result<void>>;
+	uninstall(input?: CloudUninstallInput): Promise<Result<CloudUninstallResult>>;
 	request(request: CloudRequest): Promise<Result<CloudResponse>>;
 	/**
 	 * Opens one line stream into the workspace's Durable Object. `channel` selects the sidecar

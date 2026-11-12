@@ -13,6 +13,7 @@
  * deployment. Conductor has no self-hosted Worker, so these controls have no Conductor home and
  * their form is ours (D098, D106, D109).
  * Must handle: a Worker URL or token the Worker refused (its message, earlier pairing left alone);
+ * a finished uninstall says what it removed, the bucket's files included (issue #635);
  * an unpaired Mac shows Deploy and the pair form, and a paired one shows the Worker and Unpair; a
  * deploy or uninstall that fails shows the shell's own message and changes no pairing.
  * CLOUD-08 issue #490: the deploy's state is the deploy service's, read through useCloudDeploy, so
@@ -22,6 +23,7 @@
  * Test first: a Worker URL the Worker refused leaves the Mac unpaired and shows the Worker's message.
  */
 import { useState } from "react";
+import { uninstallSummary } from "../../../core/cloud-uninstall.ts";
 import { useActions, useCloudDeploy, useCloudPairing } from "../../../core/hooks.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Input, Label } from "../../../ui/Input.tsx";
@@ -78,7 +80,7 @@ export function CloudWorkerBlock() {
 			setRemoveError(result.error.message);
 			return;
 		}
-		toast("Removed the deployment from your Cloudflare account");
+		toast(uninstallSummary(result.value));
 	};
 
 	/** What the deploy is doing, from the shell's own steps; never guessed. */

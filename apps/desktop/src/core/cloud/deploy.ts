@@ -7,15 +7,16 @@
  * a Worker secret there, so it never reaches the web view (D106). Issue #490: the state lives here,
  * not in the page, so leaving and returning shows the running deploy and its result.
  * Must handle: a second deploy while the first runs joins the first instead of uploading twice; an
- * uninstall is passed straight through, because the shell already refuses a second one against a
- * resource that is gone; a shell that reports no step leaves the step unknown, never invented.
+ * uninstall is passed straight through, because the shell already skips a resource that is gone;
+ * a shell that reports no step leaves the step unknown, never invented. Issue #635: the uninstall
+ * returns the shell's own count of what it removed.
  * Our design choice: the folder is not a screen input. D109 records why: the app carries what it
  * deploys, and a folder the user prepared was not a deploy flow.
  * Test first: two deploys in a row reach the shell once, and the store keeps the step and the result.
  */
 import type { AppError, Result } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { Cloud, CloudDeployResult } from "../../platform/platform.ts";
+import type { Cloud, CloudDeployResult, CloudUninstallResult } from "../../platform/platform.ts";
 
 /** What the page sees of the deploy (CLOUD-08). */
 export type CloudDeployState =
@@ -31,8 +32,8 @@ export interface CloudDeployService {
 	readonly deploying: boolean;
 	/** Deploys the app's bundled Worker and pairs this Mac. A second call joins the first. */
 	deploy(): Promise<Result<CloudDeployResult>>;
-	/** Deletes what the deploy made and unpairs this Mac. */
-	uninstall(): Promise<Result<void>>;
+	/** Deletes what the deploy made and unpairs this Mac, and says what it removed. */
+	uninstall(): Promise<Result<CloudUninstallResult>>;
 }
 
 /**
