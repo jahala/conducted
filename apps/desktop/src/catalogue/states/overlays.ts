@@ -1,7 +1,8 @@
 /**
  * @feature catalogue States of the command palette, the file viewer and the scripts panel
  * Owns: the command palette open over a workspace, on its Workspaces, Projects and Actions tabs, and
- * the pickers its actions open (Move to section, File picker, Search in files), the Passport opened from it, the Feedback dialog (opened as Send feedback opens it), the Clone GitHub repo dialog with its repository lists, a code file open in the file viewer, the file viewer
+ * the pickers its actions open (Move to section, File picker, Search in files, the snippets manager
+ * listing and editing a snippet), the Passport opened from it, the Feedback dialog (opened as Send feedback opens it), the Clone GitHub repo dialog with its repository lists, a code file open in the file viewer, the file viewer
  * for a file that is gone (its error state), a browser tab waiting for its dev server, and the scripts panel's Run tab before and after its dev
  * script ran. The in-memory Platform ends a command's terminal at once (platform/memory.ts), so a script
  * that is still running cannot be shown.
@@ -39,6 +40,41 @@ const inPalette = (
 				(shown.placeholder === undefined ||
 					document.querySelector(`[placeholder="${shown.placeholder}"]`) !== null) &&
 				(shown.label === undefined || has(document, "[aria-label]", shown.label)),
+		};
+	},
+});
+
+/** The user's snippets manager, opened from the palette's Edit snippets, with one snippet. */
+const snippets = (
+	id: string,
+	title: string,
+	then: (document: Document) => Promise<void>,
+	/** The dialog's title once `then` is done. */
+	heading: string,
+): CatalogueState => ({
+	id,
+	group: "Overlays and panels",
+	title,
+	seed: async (world) => {
+		const cast = await seedCast(world);
+		const created = await world.repositories.snippets.create({
+			name: "Review checklist",
+			keyword: "review",
+			prompt: "Check the diff for missing tests and unclear names.",
+		});
+		if (!created.ok) throw new Error(created.error.message);
+		return {
+			route: chatRoute(cast.arbor, cast.chats.arbor),
+			after: async ({ app, document }) => {
+				await refreshGit(app, cast.arbor);
+				await pressUntilTaken(document, "k", { meta: true });
+				await click(document, "[role=option]", "Edit snippets", { prefix: true });
+				await then(document);
+			},
+			ready: (document) =>
+				[...document.querySelectorAll("[role=dialog] h2")].some(
+					(title) => title.textContent === heading,
+				),
 		};
 	},
 });
@@ -89,6 +125,18 @@ export const OVERLAY_STATES: CatalogueState[] = [
 	}),
 	paletteAction("quick-open", "File picker", { placeholder: "Search files..." }),
 	paletteAction("search-in-files", "Search in files", { label: "Regular expression" }),
+	snippets(
+		"snippets-manager",
+		"The snippets manager with one snippet",
+		async () => {},
+		"New snippet",
+	),
+	snippets(
+		"snippets-manager-edit",
+		"The snippets manager editing a snippet",
+		(document) => click(document, "button", "Edit Review checklist"),
+		"Edit snippet",
+	),
 	{
 		id: "passport",
 		group: "Overlays and panels",
