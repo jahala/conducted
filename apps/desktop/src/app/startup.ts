@@ -12,7 +12,8 @@
  * Must handle: a database written by a newer app blocks every later step and returns `blocked`; a step that
  * is allowed to fail (favourite models, sections) is logged and skipped; the container runs its start once and
  * returns the first result to later callers; the sidecar failing to start is a `failed` state with its log
- * path.
+ * path; every failed state is written to the app log once, with the whole error, so the reason of the part
+ * that failed (SQLite's words, say) is on disk even though the screen shows only the message (#628).
  * Test first: with a database marked newer than the app, runStartup reports `blocked` and starts no service.
  */
 import { appError, err, messageOf, ok, type Result } from "@conducted/shared";
@@ -52,22 +53,11 @@ export async function runStartup(
 	try {
 		warning = await platform.app.dbVersionWarning();
 	} catch (cause) {
-		const message = messageOf(cause);
-		report({
-			kind: "failed",
-			phase: "database",
-			message,
-			logPath: await sidecarLogPath(platform),
-		});
-		return err(appError("startup_failed", message, cause));
+		await reportFailure(platform, report, "database", cause);
+		return err(appError("startup_failed", messageOf(cause), cause));
 	}
 	if (!warning.ok) {
-		report({
-			kind: "failed",
-			phase: "database",
-			message: warning.error.message,
-			logPath: await sidecarLogPath(platform),
-		});
+		await reportFailure(platform, report, "database", warning.error);
 		return err(warning.error);
 	}
 	if (warning.value !== null) {
@@ -87,27 +77,36 @@ export async function runStartup(
 			report({ kind: "running", phase: progress.phase });
 		});
 		if (!started.ok) {
-			report({
-				kind: "failed",
-				phase,
-				message: started.error.message,
-				logPath: await sidecarLogPath(platform),
-			});
+			await reportFailure(platform, report, phase, started.error);
 			return err(started.error);
 		}
 		report({ kind: "ready" });
 		return ok(undefined);
 	} catch (cause) {
-		const message = messageOf(cause);
-		platform.app.writeLog("error", "Startup failed", { message });
-		report({
-			kind: "failed",
-			phase,
-			message,
-			logPath: await sidecarLogPath(platform),
-		});
-		return err(appError("startup_failed", message, cause));
+		await reportFailure(platform, report, phase, cause);
+		return err(appError("startup_failed", messageOf(cause), cause));
 	}
+}
+
+/**
+ * Reports a failed start and writes it to the app log once. The log gets the whole error: its
+ * causes hold the words of the part that failed, such as SQLite's reason, which the screen's
+ * message leaves out (issue #628). A thrown Error is written as its stack, since JSON drops it.
+ */
+async function reportFailure(
+	platform: Platform,
+	report: (state: StartupState) => void,
+	phase: StartupPhase,
+	error: unknown,
+): Promise<void> {
+	const message = messageOf(error);
+	const logPath = await sidecarLogPath(platform);
+	platform.app.writeLog("error", `Startup failed during ${phase}`, {
+		message,
+		logPath,
+		error: error instanceof Error ? describeForLog(error) : error,
+	});
+	report({ kind: "failed", phase, message, logPath });
 }
 
 /**

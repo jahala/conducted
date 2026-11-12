@@ -82,6 +82,33 @@ describe("APP-01 startup gate", () => {
 		});
 	});
 
+	it("logs a failed step once, with the whole error, so the database's own words reach the log", async () => {
+		// Issue #628: the screen and the log said only "repair: Resetting working chats to idle
+		// failed"; SQLite's reason was in the error's cause and was never written anywhere.
+		const logs = recordLogs();
+		const sqlite = appError(
+			"db_statement_failed",
+			"error returned from database: (code: 5) database is locked",
+		);
+		start().mockImplementation(async (onProgress) => {
+			onProgress?.({ step: "repair", phase: "settings" });
+			return err(
+				appError(
+					"db.failed",
+					"repair: Resetting working chats to idle failed",
+					appError("db.failed", "Resetting working chats to idle failed", sqlite),
+				),
+			);
+		});
+
+		await runStartup(test.container, () => {}, { installHandlers: false });
+
+		const failed = logs.filter((line) => line.level === "error");
+		expect(failed).toHaveLength(1);
+		expect(failed[0]?.message).toBe("Startup failed during settings");
+		expect(JSON.stringify(failed[0]?.data)).toContain("(code: 5) database is locked");
+	});
+
 	it("logs why the sidecar log path is missing when the Platform cannot give it", async () => {
 		const logs = recordLogs();
 		vi.spyOn(test.container.platform.sidecar, "logPath").mockRejectedValue(
@@ -165,7 +192,7 @@ describe("APP-01 startup gate", () => {
 			phase: "settings",
 			message: "The settings file could not be read.",
 		});
-		expect(logs.some((line) => line.message === "Startup failed")).toBe(true);
+		expect(logs.some((line) => line.message === "Startup failed during settings")).toBe(true);
 	});
 });
 
