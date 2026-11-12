@@ -26,9 +26,12 @@
 //! - Output is captured up to `MAX_OUTPUT_BYTES` per stream. Past that the process is killed and
 //!   the call fails with `shell_output_too_large` instead of growing memory without bound.
 //! - Cancelling an id that already finished, or never existed, is a no-op that succeeds.
-//! - Quitting the app ends every command started with `shell_start`. Each runs in its own process
-//!   group, so closing the app would not reach it. `lib.rs` calls `terminate_all` when the app
-//!   exits: SIGTERM to every group, then SIGKILL to the groups still there after the grace period.
+//! - Quitting the app ends every command still running, from `shell_start` and `shell_run` alike
+//!   (issue #639: the startup `xcodebuild -license check` outlived a quit). Each runs in its own
+//!   process group, so closing the app would not reach it. Both record their group in `running`,
+//!   and `lib.rs` calls `terminate_all` when the app exits: SIGTERM to every group, then SIGKILL to
+//!   the groups still there after the grace period. A `shell_run` ended that way fails with
+//!   `shell_cancelled`.
 //! - `shell_start` returns as soon as the process is registered. The result arrives later as a
 //!   `shell://done` event. The UI makes the id, because `RunningCommand.id` is read synchronously.
 //! - Two `shell_start` calls with the same id: the second fails with `shell_duplicate_id`.
@@ -78,6 +81,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
@@ -195,14 +199,25 @@ pub struct RunningProcess {
 /// Shared state, registered once with `.manage(ShellState::default())`.
 #[derive(Default)]
 pub struct ShellState {
-    /// Running commands by UI id. Short critical sections only.
+    /// Running commands: `shell_start`'s by UI id, `shell_run`'s by `run:<n>`. Short critical
+    /// sections only.
     pub running: Mutex<HashMap<String, RunningProcess>>,
+    /// The number of the next `shell_run`, for its id in `running`. The UI's ids are UUIDs, so a
+    /// `run:<n>` id never meets one.
+    next_run: AtomicU64,
     /// Result of the one login-shell capture. The async mutex is held while capturing, so
     /// concurrent first callers wait for the same result.
     pub login_env: tauri::async_runtime::Mutex<Option<LoginEnv>>,
     /// Captures made in one working folder (PLAT-07), for `shell_login_env { cwd }` and for a
     /// command that asks for its folder's environment.
     pub folder_envs: FolderEnvs,
+}
+
+impl ShellState {
+    /// A fresh id for one `shell_run` in the `running` table.
+    fn run_id(&self) -> String {
+        format!("run:{}", self.next_run.fetch_add(1, Ordering::Relaxed))
+    }
 }
 
 /// Login-shell captures by working folder, so direnv and mise settings of a folder reach the
@@ -732,18 +747,34 @@ fn drive_with_limit(
     })
 }
 
+/// Runs a program to completion under `id` in the `running` table, so quitting the app ends it
+/// as it ends `shell_start`'s commands. A run ended that way fails with `shell_cancelled`.
 fn run_blocking(
+    running: &Mutex<HashMap<String, RunningProcess>>,
+    id: &str,
     request: &ShellCommandRequest,
     base_env: &HashMap<String, String>,
     program_roots: &[PathBuf],
 ) -> CommandResult<Finished> {
-    let child = spawn_child(request, base_env, program_roots)?;
-    drive_with_limit(
+    let (child, cancelled_now) = begin_running(running, id, || {
+        spawn_child(request, base_env, program_roots)
+    })?;
+    if cancelled_now {
+        // The app began quitting while the id was reserved and nothing could be signalled yet.
+        terminate_group(child.id());
+    }
+    let result = drive_with_limit(
         child,
         request.stdin.clone(),
         request.timeout_ms,
         MAX_OUTPUT_BYTES,
-    )
+    );
+    let cancelled = remove_finished(running, id);
+    let finished = result?;
+    if cancelled {
+        return Err(cancelled_error());
+    }
+    Ok(finished)
 }
 
 /// Turns a finished one-shot run into its output, or the error the UI reads.
@@ -1279,8 +1310,10 @@ pub async fn shell_run(
     let base_env = captured_env(&state, &command).await?;
     let roots = program_roots(&app);
     let timeout_ms = command.timeout_ms;
+    let id = state.run_id();
     let joined = blocking("shell_wait_failed", move || {
-        run_blocking(&command, &base_env, &roots)
+        let state = app.state::<ShellState>();
+        run_blocking(&state.running, &id, &command, &base_env, &roots)
     })
     .await?;
 
@@ -1930,10 +1963,9 @@ mod tests {
 
     #[test]
     fn plat_03_runs_a_command_and_returns_its_output() {
-        let finished = run_blocking(
+        let finished = run_in(
+            &ShellState::default(),
             &request("/bin/sh", &["-c", "printf 'hello'"]),
-            &test_env(),
-            &test_program_roots(),
         )
         .expect("the command runs");
         assert_eq!(finished.output.stdout, "hello");
@@ -1944,10 +1976,9 @@ mod tests {
 
     #[test]
     fn plat_03_a_non_zero_exit_is_still_an_ok_result() {
-        let finished = run_blocking(
+        let finished = run_in(
+            &ShellState::default(),
             &request("/bin/sh", &["-c", "printf 'oops' >&2; exit 3"]),
-            &test_env(),
-            &test_program_roots(),
         )
         .expect("the command runs");
         assert_eq!(finished.output.exit_code, 3);
@@ -1957,12 +1988,8 @@ mod tests {
     #[test]
     fn plat_03_arguments_are_not_parsed_by_a_shell() {
         let value = "a b $HOME 'quoted'";
-        let finished = run_blocking(
-            &request("/bin/echo", &[value]),
-            &test_env(),
-            &test_program_roots(),
-        )
-        .expect("the command runs");
+        let finished = run_in(&ShellState::default(), &request("/bin/echo", &[value]))
+            .expect("the command runs");
         assert_eq!(finished.output.stdout, format!("{value}\n"));
     }
 
@@ -1980,8 +2007,7 @@ mod tests {
             "value".to_string(),
         )]));
 
-        let finished =
-            run_blocking(&command, &test_env(), &test_program_roots()).expect("the command runs");
+        let finished = run_in(&ShellState::default(), &command).expect("the command runs");
         let expected_dir = dir.canonicalize().expect("the temp folder exists");
         assert_eq!(
             finished.output.stdout,
@@ -1991,10 +2017,9 @@ mod tests {
 
     #[test]
     fn plat_03_a_signalled_process_reports_128_plus_the_signal() {
-        let finished = run_blocking(
+        let finished = run_in(
+            &ShellState::default(),
             &request("/bin/sh", &["-c", "kill -TERM $$"]),
-            &test_env(),
-            &test_program_roots(),
         )
         .expect("the command runs");
         assert_eq!(finished.output.exit_code, 128 + 15);
@@ -2005,8 +2030,7 @@ mod tests {
         let mut command = request("/bin/sh", &["-c", "sleep 30 & wait"]);
         command.timeout_ms = Some(150);
         let started = Instant::now();
-        let finished =
-            run_blocking(&command, &test_env(), &test_program_roots()).expect("the command runs");
+        let finished = run_in(&ShellState::default(), &command).expect("the command runs");
         assert!(finished.timed_out);
         assert!(started.elapsed() < Duration::from_secs(10));
 
@@ -2019,8 +2043,7 @@ mod tests {
     fn plat_03_run_reports_a_timeout_as_an_error() {
         let mut command = request("/bin/sh", &["-c", "sleep 30"]);
         command.timeout_ms = Some(120);
-        let finished =
-            run_blocking(&command, &test_env(), &test_program_roots()).expect("the command runs");
+        let finished = run_in(&ShellState::default(), &command).expect("the command runs");
         let error = run_output(finished, command.timeout_ms).expect_err("a timeout is an error");
         assert_eq!(error_code(error), "shell_timeout");
     }
@@ -2208,8 +2231,7 @@ mod tests {
     fn plat_03_a_grandchild_holding_the_pipe_does_not_block_the_result() {
         let command = request("/bin/sh", &["-c", "sleep 30 & echo $!; echo done"]);
         let started = Instant::now();
-        let finished =
-            run_blocking(&command, &test_env(), &test_program_roots()).expect("the command ends");
+        let finished = run_in(&ShellState::default(), &command).expect("the command ends");
         assert!(finished.output.stdout.contains("done"));
         assert!(
             started.elapsed() < Duration::from_secs(5),
@@ -2284,6 +2306,59 @@ mod tests {
         assert_eq!(
             done.error.map(error_code).as_deref(),
             Some("shell_cancelled")
+        );
+    }
+
+    /// Runs a one-shot command the way `shell_run` does, over the app's shell state.
+    fn run_in(state: &ShellState, command: &ShellCommandRequest) -> CommandResult<Finished> {
+        run_blocking(
+            &state.running,
+            &state.run_id(),
+            command,
+            &test_env(),
+            &test_program_roots(),
+        )
+    }
+
+    #[test]
+    fn plat_03_quitting_ends_a_one_shot_command_and_its_children() {
+        let state = Arc::new(ShellState::default());
+        let shared = Arc::clone(&state);
+        let run =
+            thread::spawn(move || run_in(&shared, &request("/bin/sh", &["-c", "sleep 30 & wait"])));
+        // The run registers its process group once it has started; this catches a run that never
+        // does, and is not a way to wait.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let pid = loop {
+            let started = lock_running(&state.running)
+                .values()
+                .map(|process| process.pid)
+                .find(|pid| *pid != 0);
+            if let Some(pid) = started {
+                break pid;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the one-shot command never appeared in the table that quitting ends"
+            );
+            thread::sleep(Duration::from_millis(10));
+        };
+
+        let signalled = terminate_all(&state.running, Duration::from_secs(5));
+        let result = run.join().expect("the run's thread finishes");
+
+        assert_eq!(signalled, 1);
+        assert!(
+            !process_group::group_exists(pid),
+            "the command and its child must end with the app"
+        );
+        assert_eq!(
+            result.err().map(error_code).as_deref(),
+            Some("shell_cancelled")
+        );
+        assert!(
+            lock_running(&state.running).is_empty(),
+            "a finished run leaves the table"
         );
     }
 

@@ -927,8 +927,8 @@ pub fn run() {
                         ),
                     );
                 }
-                // Commands started with `shell_start` run in their own process groups, so they
-                // would outlive the app. End them before the sidecar.
+                // Commands started with `shell_start` and `shell_run` run in their own process
+                // groups, so they would outlive the app. End them before the sidecar.
                 shell::terminate_all(
                     &app.state::<shell::ShellState>().running,
                     std::time::Duration::from_millis(shell::KILL_GRACE_MS),
