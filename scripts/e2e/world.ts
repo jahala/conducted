@@ -55,17 +55,22 @@ export interface World {
 	sshKey: string;
 }
 
-/** `bun:sqlite` shaped like tauri-plugin-sql's handle; `$1..$n` bind by name, as Bun needs. */
+/**
+ * `bun:sqlite` shaped like tauri-plugin-sql's handle; `$1..$n` bind by name, as Bun needs. The
+ * statements come from `db.query`, which caches them and finalizes them on `close()`. One from
+ * `db.prepare` stays unfinalized, so `close()` would leave the connection and its files open until
+ * the garbage collector got to it.
+ */
 function bunSqlDatabase(db: BunDatabase): SqlDatabase {
 	const bind = (params: readonly unknown[] = []): Record<string, never> =>
 		Object.fromEntries(params.map((value, index) => [`$${index + 1}`, value])) as never;
 	return {
 		execute: async (sql, params) => {
-			const result = db.prepare(sql).run(bind(params));
+			const result = db.query(sql).run(bind(params));
 			return { rowsAffected: result.changes, lastInsertId: Number(result.lastInsertRowid) };
 		},
 		select: async <Rows>(sql: string, params?: unknown[]) =>
-			db.prepare(sql).all(bind(params)) as Rows,
+			db.query(sql).all(bind(params)) as Rows,
 	};
 }
 

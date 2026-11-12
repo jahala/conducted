@@ -436,6 +436,48 @@ export function appLogTail(folder: FreshFolder, lines = 20): string {
 /** The page's first screen is drawn: the app shell, with the sidebar's Settings link. */
 const FIRST_SCREEN = '[aria-label="Settings"]';
 
+/**
+ * How long one first-screen probe may run. The test-only WebDriver server
+ * (`tauri-plugin-wdio-webdriver` 2.0.0-next.0) sometimes loses a script sent in the page's first
+ * milliseconds: WebKit never calls the completion of its `evaluateJavaScript` call
+ * (`platform/macos.rs`, `evaluate_js_raw`), so the server waits out the session's script timeout,
+ * 30 s by default (`webdriver/session.rs`), before it answers (#632). Release builds have no such
+ * server. `until` sends a new probe every 100 ms, so a lost probe only has to end. Over 16 launches
+ * on the owner's Mac (2026-11-12), 142 live probes answered in 3.8 ms at the median and 215 ms at
+ * the slowest, while the page was still starting. 2 s is about ten times that, so it cuts no live
+ * probe and turns a lost one from a 30 s stall into a 2 s one.
+ */
+export const FIRST_SCREEN_PROBE_MS = 2_000;
+
+/** The part of a WebDriver session the first-screen wait uses. */
+export interface ScriptSession {
+	getTimeouts(): Promise<{ script?: number }>;
+	setTimeout(timeouts: { script: number }): Promise<unknown>;
+	execute(script: (selector: string) => boolean, selector: string): Promise<boolean>;
+}
+
+/**
+ * Probes the page until the first screen is drawn, each probe under the short `probeMs` script
+ * timeout, then gives the session back the script timeout it had.
+ */
+export async function waitForFirstScreen(
+	session: ScriptSession,
+	probeMs = FIRST_SCREEN_PROBE_MS,
+): Promise<void> {
+	const { script } = await session.getTimeouts();
+	if (script === undefined) throw new Error("The WebDriver session reported no script timeout.");
+	await session.setTimeout({ script: probeMs });
+	await until("the app's first screen", async () =>
+		(await session.execute(
+			(selector: string) => document.querySelector(selector) !== null,
+			FIRST_SCREEN,
+		))
+			? true
+			: undefined,
+	);
+	await session.setTimeout({ script });
+}
+
 /** Starts the app over `folder` and connects to its window once the first screen is drawn. */
 export async function launch(folder: FreshFolder, tracker: Tracker): Promise<RunningApp> {
 	const problems = isolationProblems(folder);
@@ -475,14 +517,7 @@ export async function launch(folder: FreshFolder, tracker: Tracker): Promise<Run
 		connectionRetryCount: 0,
 	});
 	try {
-		await until("the app's first screen", async () =>
-			(await browser.execute(
-				(selector: string) => document.querySelector(selector) !== null,
-				FIRST_SCREEN,
-			))
-				? true
-				: undefined,
-		);
+		await waitForFirstScreen(browser);
 	} catch (cause) {
 		// Say what the window showed instead, and what the app printed, so the failure names its cause.
 		const shown = await browser

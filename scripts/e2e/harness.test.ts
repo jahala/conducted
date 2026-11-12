@@ -1,7 +1,8 @@
 /**
  * Tests the end-to-end harness's parts that need no app: the leftover check that fails a run, the
- * environment the app starts with, the sandbox's limit on where programs run from, the PATH
- * folders outside it, and the next value a number control moves to.
+ * environment the app starts with, the first-screen wait's script timeouts, the sandbox's limit on
+ * where programs run from, the PATH folders outside it, and the next value a number control moves
+ * to.
  */
 import { describe, expect, it } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
@@ -11,10 +12,13 @@ import { nextNumber } from "./controls.ts";
 import {
 	appEnvironment,
 	cleanUp,
+	FIRST_SCREEN_PROBE_MS,
 	type FreshFolder,
 	foldersOutside,
 	freshFolderProfile,
 	newTracker,
+	type ScriptSession,
+	waitForFirstScreen,
 } from "./harness.ts";
 
 const folderAt = (root: string): FreshFolder => ({
@@ -28,7 +32,38 @@ const folderAt = (root: string): FreshFolder => ({
 	programRoots: [root, "/usr/bin", "/bin"],
 });
 
+/**
+ * A session that answers as the test-only WebDriver server does (#632): each script runs under the
+ * script timeout the session holds when the script arrives, and the first script is lost, so it
+ * ends with a script timeout. The server would answer it only once that timeout ran out; here it
+ * answers at once, and the timeout it ran under is recorded. The first screen shows from the third
+ * probe on.
+ */
+function sessionThatLosesTheFirstScript(): { session: ScriptSession; ranUnder: number[] } {
+	let script = 30_000;
+	const ranUnder: number[] = [];
+	const session: ScriptSession = {
+		getTimeouts: async () => ({ script }),
+		setTimeout: async (timeouts) => {
+			script = timeouts.script;
+		},
+		execute: async () => {
+			ranUnder.push(script);
+			if (ranUnder.length === 1) throw new Error("script timeout");
+			return ranUnder.length >= 3;
+		},
+	};
+	return { session, ranUnder };
+}
+
 describe("the end-to-end harness", () => {
+	it("probes for the first screen under the short script timeout, then restores the session's", async () => {
+		const { session, ranUnder } = sessionThatLosesTheFirstScript();
+		await waitForFirstScreen(session, FIRST_SCREEN_PROBE_MS);
+		expect(ranUnder).toEqual([FIRST_SCREEN_PROBE_MS, FIRST_SCREEN_PROBE_MS, FIRST_SCREEN_PROBE_MS]);
+		expect((await session.getTimeouts()).script).toBe(30_000);
+	});
+
 	it("fails the run when a folder of this run is left on disk", async () => {
 		const base = mkdtempSync(join(tmpdir(), "e2e-harness-"));
 		try {
