@@ -38,9 +38,7 @@ describe("SET-12 agent config files", () => {
 			data: { agent: "claude", path, text: "", exists: false, modifiedAt: null },
 		});
 
-		expect(await test.memory.platform.fs.writeTextAtomic(path, '{"model":"opus"}')).toEqual(
-			ok(undefined),
-		);
+		test.memory.controls.addFile(path, '{"model":"opus"}');
 		const loaded = await catalog.loadConfigFile("claude");
 		if (!loaded.ok) throw new Error(loaded.error.message);
 		expect(loaded.value.exists).toBe(true);
@@ -76,9 +74,7 @@ describe("SET-12 agent config files", () => {
 		test = createTestContainer();
 		const catalog = test.container.services.agentCatalog;
 		const path = claudeFile(test);
-		expect(await test.memory.platform.fs.writeTextAtomic(path, '{"model":"opus"}')).toEqual(
-			ok(undefined),
-		);
+		test.memory.controls.addFile(path, '{"model":"opus"}');
 		const loaded = await catalog.loadConfigFile("claude");
 		if (!loaded.ok || loaded.value.modifiedAt === null) throw new Error("no config file loaded");
 
@@ -96,9 +92,7 @@ describe("SET-12 agent config files", () => {
 		test = createTestContainer();
 		const catalog = test.container.services.agentCatalog;
 		const path = claudeFile(test);
-		expect(await test.memory.platform.fs.writeTextAtomic(path, '{"model":"opus"}')).toEqual(
-			ok(undefined),
-		);
+		test.memory.controls.addFile(path, '{"model":"opus"}');
 		const loaded = await catalog.loadConfigFile("claude");
 		if (!loaded.ok) throw new Error(loaded.error.message);
 
@@ -135,7 +129,7 @@ describe("SET-12 agent config files", () => {
 		test = createTestContainer();
 		const fs = test.memory.platform.fs;
 		const path = claudeFile(test);
-		expect(await fs.writeTextAtomic(path, "old")).toEqual(ok(undefined));
+		test.memory.controls.addFile(path, "old");
 
 		const reads: ((value: Result<string>) => void)[] = [];
 		vi.spyOn(fs, "readText").mockImplementation(

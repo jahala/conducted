@@ -20,8 +20,10 @@
  * wrong types and unsupported values are dropped and reported, never thrown; a later write does
  * not undo an earlier one that failed; writes keep unknown entries and a `$schema` line, and a new
  * file has sorted keys; a settings write shows in the store at once (optimistic) and rolls back if
- * the file write fails; two writes to one file run one after the other; values of sensitive
- * settings are redacted before they reach a log.
+ * the file write fails; a settings file's folder is made before the write, since a new install
+ * has no `~/.conducted` and a project may have no `.conducted` (issue #600); two writes to one
+ * file run one after the other; values of sensitive settings are redacted before they reach a
+ * log.
  * SET-14 must handle: a rewrite of an existing file changes only the entries whose values differ,
  * keeping comments, blank lines and key order; a comment beside or directly above an entry the
  * save removes goes with it; any other comment a save would drop (a legacy `[tasks]` table moved
@@ -1282,7 +1284,12 @@ export class SettingsService {
 				return err(appError("settings_comments_dropped", commentsDroppedMessage(file, lost)));
 			}
 		}
-		const written = await this.#deps.platform.fs.writeTextAtomic(file, text);
+		// The file's folder is missing on a new install (`~/.conducted`) and in a project that
+		// never had a local file (`.conducted`). The write does not make it, so this does first, as
+		// Conductor's settings writer does (issue #600).
+		const fs = this.#deps.platform.fs;
+		const folder = await fs.mkdirp(file.slice(0, file.lastIndexOf("/")));
+		const written = folder.ok ? await fs.writeTextAtomic(file, text) : folder;
 		if (!written.ok) {
 			return err(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, written.error));
 		}

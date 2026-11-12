@@ -32,6 +32,7 @@ async function renderPage() {
 	test = testContainer;
 	const container = testContainer.container;
 	const repo = await seedRepo(container);
+	testContainer.memory.controls.addFolder(`${repo.rootPath}/.conducted`);
 	render(
 		<ServicesProvider container={container}>
 			<RepoActionsPage repoId={repo.id} />

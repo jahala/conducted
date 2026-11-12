@@ -18,7 +18,7 @@ async function setup(path: string) {
 	const absolute = `${workspace.path}/a.ts`;
 	const writeDisk = async (text: string): Promise<number> => {
 		now += 1_000;
-		await test.container.platform.fs.writeTextAtomic(absolute, text);
+		test.memory.controls.addFile(absolute, text);
 		return now;
 	};
 	const firstModifiedAt = await writeDisk("one");

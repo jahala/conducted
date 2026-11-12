@@ -1,6 +1,9 @@
 import { appError, err, ok, type RepoId, type Result } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FileSystem, Platform } from "../../platform/platform.ts";
+import { createTestContainer, type TestContainer } from "../../test/container.ts";
+import { createTestIds } from "../../test/ids.ts";
+import { createRepositories } from "../db/repositories.ts";
 import type { Setting, SettingsRepository } from "../db/settings.ts";
 import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
@@ -1308,5 +1311,58 @@ describe("SET-14 rewriting a settings file keeps the user's comments", () => {
 		expect(!second.ok && second.error.code).toBe("settings_comments_dropped");
 		expect(!second.ok && second.error.message).toContain('"# Runs on 3000"');
 		test.service.stop();
+	});
+});
+
+describe("DATA-05 saving on a fresh home (issue #600)", () => {
+	/** A second settings service over the same disk and database, as the app after a restart. */
+	const restarted = (test: TestContainer): SettingsService =>
+		new SettingsService({
+			platform: test.memory.platform,
+			repos: createRepositories(test.memory.platform.db, {
+				clock: { now: () => 0 },
+				ids: createTestIds(),
+			}),
+			toml: tomlCodec,
+		});
+
+	it("saves a file-backed setting when ~/.conducted does not exist yet, and reads it after a restart", async () => {
+		const test = createTestContainer();
+		try {
+			const settings = test.container.services.settings;
+			await settings.start();
+			const fs = test.memory.platform.fs;
+			expect(await fs.exists(`${fs.paths.home}/.conducted`)).toEqual(ok(false));
+
+			expect(await settings.set("default_plan_mode", true)).toEqual(ok(undefined));
+			expect(settings.get("default_plan_mode")).toBe(true);
+			settings.stop();
+
+			const after = restarted(test);
+			await after.start();
+			expect(after.get("default_plan_mode")).toBe(true);
+			after.stop();
+		} finally {
+			test.close();
+		}
+	});
+
+	it("saves a project's setting when the project has no .conducted folder yet", async () => {
+		const test = createTestContainer();
+		try {
+			const root = "/Users/conducted/code/atlas";
+			test.memory.controls.addFolder(`${root}/.git`);
+			const settings = test.container.services.settings;
+			await settings.start();
+
+			expect(await settings.setForRepo(root, "delete_branch_on_archive", true)).toEqual(
+				ok(undefined),
+			);
+			const read = await settings.getForRepo("delete_branch_on_archive", root, null);
+			expect(read.ok && read.value).toMatchObject({ value: true, source: "repo-local" });
+			settings.stop();
+		} finally {
+			test.close();
+		}
 	});
 });

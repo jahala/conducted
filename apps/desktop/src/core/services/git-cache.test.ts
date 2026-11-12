@@ -99,6 +99,7 @@ function createCache(options: { changesMaxBytes?: number; prInfoMaxBytes?: numbe
 	const fs = memory.platform.fs;
 	return {
 		fs,
+		controls: memory.controls,
 		advance: (ms: number) => {
 			now += ms;
 		},
@@ -190,9 +191,9 @@ describe("DATA-07 cached workspace changes", () => {
 	});
 
 	it("treats a damaged file as a miss and moves it to the Trash", async () => {
-		const { cache, fs } = createCache();
+		const { cache, fs, controls } = createCache();
 		const file = changesCacheFile(fs.paths, "w1");
-		expect((await fs.writeTextAtomic(file, "{ not json")).ok).toBe(true);
+		controls.addFile(file, "{ not json");
 
 		const loaded = await cache.loadChanges("w1" as WorkspaceId, "main");
 
@@ -201,10 +202,10 @@ describe("DATA-07 cached workspace changes", () => {
 	});
 
 	it("treats a file from another version as a miss and moves it to the Trash", async () => {
-		const { cache, fs } = createCache();
+		const { cache, fs, controls } = createCache();
 		const file = changesCacheFile(fs.paths, "w1");
 		const stale = { ...changesEntry("w1", "main", 100, "one"), version: 2 };
-		expect((await fs.writeTextAtomic(file, JSON.stringify(stale))).ok).toBe(true);
+		controls.addFile(file, JSON.stringify(stale));
 
 		const loaded = await cache.loadChanges("w1" as WorkspaceId, "main");
 
@@ -213,10 +214,10 @@ describe("DATA-07 cached workspace changes", () => {
 	});
 
 	it("treats an entry for another workspace as a damaged file", async () => {
-		const { cache, fs } = createCache();
+		const { cache, fs, controls } = createCache();
 		const file = changesCacheFile(fs.paths, "w1");
 		const wrong = changesEntry("w2", "main", 100, "one");
-		expect((await fs.writeTextAtomic(file, JSON.stringify(wrong))).ok).toBe(true);
+		controls.addFile(file, JSON.stringify(wrong));
 
 		const loaded = await cache.loadChanges("w1" as WorkspaceId, "main");
 
@@ -225,10 +226,10 @@ describe("DATA-07 cached workspace changes", () => {
 	});
 
 	it("treats a file with no value as a miss and moves it to the Trash", async () => {
-		const { cache, fs } = createCache();
+		const { cache, fs, controls } = createCache();
 		const file = changesCacheFile(fs.paths, "w1");
 		const empty = { ...changesEntry("w1", "main", 100, "one"), value: null };
-		expect((await fs.writeTextAtomic(file, JSON.stringify(empty))).ok).toBe(true);
+		controls.addFile(file, JSON.stringify(empty));
 
 		const loaded = await cache.loadChanges("w1" as WorkspaceId, "main");
 

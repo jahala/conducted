@@ -270,9 +270,7 @@ describe("s1-ui-3 join SET-12 config editors and Chrome switch", () => {
 		vi.spyOn(test.container.services.agentCatalog, "refresh").mockResolvedValue(ok(undefined));
 		test.container.services.agentCatalog.setInstalls(installs);
 		const path = `${test.container.platform.fs.paths.home}/.claude/settings.json`;
-		expect(await test.container.platform.fs.writeTextAtomic(path, '{"model":"opus"}')).toEqual(
-			ok(undefined),
-		);
+		test.memory.controls.addFile(path, '{"model":"opus"}');
 
 		renderInside(test, h(AgentsPage));
 		await screen.findByRole("heading", { name: "Claude Code" });

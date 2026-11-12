@@ -346,9 +346,12 @@ export interface FileSystem {
 	 * limit as `readText` applies.
 	 */
 	readBytes(path: string): Promise<Result<Uint8Array>>;
-	/** Writes to a temp file and renames it into place, so readers never see half a file. */
+	/**
+	 * Writes to a temp file and renames it into place, so readers never see half a file. The
+	 * folder must exist: a missing one is an Err with `fs_not_found`, and `mkdirp` makes it.
+	 */
 	writeTextAtomic(path: string, text: string): Promise<Result<void>>;
-	/** Writes bytes atomically, for a binary file the mirror keeps (CLOUD-11). */
+	/** Writes bytes atomically, for a binary file the mirror keeps (CLOUD-11). Same folder rule. */
 	writeBytes(path: string, bytes: Uint8Array): Promise<Result<void>>;
 	/**
 	 * Whether anything is at `path`: Ok(false) when nothing is there. A path the file commands may
