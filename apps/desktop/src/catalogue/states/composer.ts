@@ -2,7 +2,8 @@
  * @feature catalogue States of the composer
  * Owns: a new chat with an empty composer (the empty chat, and one offering an earlier chat as
  * context), the composer with a draft and two attached
- * files, the composer with the model picker open (searched with no match, and switching the model of
+ * files, the @ menu (and a search with no match), the chat's find bar, the composer with the model
+ * picker open (searched with no match, and switching the model of
  * a started chat), the slash command menu after typing "/" (Claude,
  * Codex, and with a Skills group), a typed command that cannot run here, the "+" menu, the Create
  * snippet dialog, the snippet picker with no snippets yet, the Link issue dialog with atlas's
@@ -15,7 +16,7 @@
 import type { Session, Workspace } from "../../core/model.ts";
 import { chatRoute, type GitWorld, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, find, has, hover, shows, typeInto } from "../dom.ts";
+import { click, find, has, hover, pressUntilTaken, shows, typeInto } from "../dom.ts";
 import { setLiveState } from "../live.ts";
 import { addChat, addEvents, CLAUDE_CONFIG, must, setSetting } from "../seeds.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
@@ -191,6 +192,41 @@ export const COMPOSER_STATES: CatalogueState[] = [
 				world,
 				({ document }) => typeInComposer(document, "/"),
 				(document) => shows(document, "Manage hooks (opens terminal)"),
+			),
+	},
+	{
+		id: "composer-file-mention",
+		group: "Composer",
+		title: "Composer with the @ menu open: files, folders and the composer's own rows",
+		seed: (world) =>
+			newChat(
+				world,
+				({ document }) => typeInComposer(document, "@"),
+				(document) => shows(document, "Attach current terminal output"),
+			),
+	},
+	{
+		id: "composer-file-mention-no-match",
+		group: "Composer",
+		title: "Composer with the @ menu searched for a file the workspace lacks",
+		seed: (world) =>
+			newChat(
+				world,
+				({ document }) => typeInComposer(document, "@quarterly-report"),
+				(document) => shows(document, "No files found"),
+			),
+	},
+	{
+		id: "chat-find",
+		group: "Composer",
+		title: "A chat's find bar, opened with Cmd+F",
+		seed: (world) =>
+			newChat(
+				world,
+				// Find belongs to the chat's area, so the key is pressed with the composer focused.
+				({ document }) => pressUntilTaken(document, "f", { meta: true }, '[aria-label="composer"]'),
+				(document) =>
+					document.querySelector('[placeholder="Find in messages and thinking"]') !== null,
 			),
 	},
 	{

@@ -6,7 +6,7 @@
  * output styles, the send key, the follow-up behaviour, where pull requests open), each open; the
  * Git page with a custom branch prefix; the Advanced page asking before it changes the root
  * folder, and Home after it changed; the Agents page's MCP servers for the chat last open; the Environment page's documented
- * variables; atlas's Add action dialog and icon picker; the Agents page's provider forms (Anthropic,
+ * variables; atlas's Add action dialog and icon picker (an emoji search with no match, the Favicon source); the Agents page's provider forms (Anthropic,
  * subscription, Vertex, both Bedrock modes, ChatGPT, Cursor, custom), its card badges and both
  * sign-in dialogs; a changed setting's actions menu; the Connect GitHub and disconnect dialogs; the
  * environment file picker, variable editor, import banner and local-override table; the MCP
@@ -1076,6 +1076,38 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				route: `/settings/repos/${cast.atlas.id}/misc`,
 				after: ({ document }) => click(document, "button", "Change repository icon"),
 				ready: (document) => document.querySelector('input[placeholder="Search emoji"]') !== null,
+			};
+		},
+	},
+	{
+		id: "settings-repo-icon-no-emoji",
+		group: "Settings",
+		title: "atlas: Misc, the icon picker searched for an emoji it lacks",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/misc`,
+				after: async ({ document }) => {
+					await click(document, "button", "Change repository icon");
+					await typeInto(document, "input", "Search emoji", "spaceship");
+				},
+				ready: (document) => shows(document, "No emoji found"),
+			};
+		},
+	},
+	{
+		id: "settings-repo-icon-favicon",
+		group: "Settings",
+		title: "atlas: Misc, the icon picker's Favicon source",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/misc`,
+				after: async ({ document }) => {
+					await click(document, "button", "Change repository icon");
+					await click(document, "[role=tab]", "Favicon");
+				},
+				ready: (document) => shows(document, "Use favicon"),
 			};
 		},
 	},

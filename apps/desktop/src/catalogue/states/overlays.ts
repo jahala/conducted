@@ -1,7 +1,8 @@
 /**
  * @feature catalogue States of the command palette, the file viewer and the scripts panel
  * Owns: the command palette open over a workspace, on its Workspaces, Projects and Actions tabs, and
- * the pickers its actions open (Move to section, File picker, Search in files, the snippets manager
+ * the pickers its actions open (Move to section, File picker, Search in files, Link pull request,
+ * Show keyboard shortcuts, the snippets manager
  * listing and editing a snippet), the Passport opened from it, the Feedback dialog (opened as Send feedback opens it), the Clone GitHub repo dialog with its repository lists, a code file open in the file viewer, the file viewer
  * for a file that is gone (its error state), a browser tab waiting for its dev server, and the scripts panel's Run tab before and after its dev
  * script ran. The in-memory Platform ends a command's terminal at once (platform/memory.ts), so a script
@@ -125,6 +126,12 @@ export const OVERLAY_STATES: CatalogueState[] = [
 		placeholder: "Search sections...",
 	}),
 	paletteAction("quick-open", "File picker", { placeholder: "Search files..." }),
+	paletteAction("link-pull-request", "Link pull request", {
+		placeholder: "https://github.com/owner/repo/pull/123",
+	}),
+	paletteAction("keyboard-shortcuts", "Show keyboard shortcuts", {
+		placeholder: "Search shortcuts...",
+	}),
 	paletteAction("search-in-files", "Search in files", { label: "Regular expression" }),
 	snippets(
 		"snippets-manager",
