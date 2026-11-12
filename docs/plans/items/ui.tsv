@@ -810,7 +810,7 @@ PR-08	control	Git: Graphite stack support (one positive setting, one home)	ui-ma
 RUN-03	control	Connections: workspace port range and reserved ports	ui-map 3.7	partly
 SET-03	view	Agents page with cards for Claude Code, Codex, Cursor, OpenCode and Pi	ui-map 6	covered
 SET-12	control	Agents: 'Use Claude Code with Chrome' switch	ui-map 6	missing
-SET-03	control	Agents: provider search 'Search providers' and 'No providers match'	ui-map 6, 7.2	covered
+SET-10	control	Providers dialog: 'Search providers' filters OpenCode's key providers by name or variable	ui-map 6, 7.2	missing
 SET-03	dialog	Agents: CLI sign-in and 'Paste code from Claude'	ui-map 6	covered
 SET-03	dialog	Agents: Codex ChatGPT device-code sign-in (Personal or Business)	ui-map 6	covered
 SET-03	message	Sign-in flow can show the 'claude setup-token' command	ui-map 6	partly
@@ -902,7 +902,7 @@ NAV-06	state	Dashboard column empty states	ui-map 7.2	covered
 CHAT-06	state	Chat 'No messages yet'	ui-map 7.2	covered
 CHAT-09	state	Todo 'No todos'	ui-map 7.2	covered
 CHAT-13	state	'No tasks' empty state (panel not yet identified)	ui-map 7.2	missing
-SET-03	state	Providers 'No providers match your search.'	ui-map 7.2	covered
+SET-10	state	Providers dialog: 'No providers match your search.'	ui-map 7.2	missing
 COMP-02	state	Models 'No models found'	ui-map 7.2	covered
 APP-04	state	Repos 'No repositories found' and 'Add a project to get started.'	ui-map 7.2	covered
 REV-08	state	'Empty CSV' and 'Preview not available'	ui-map 7.2	covered
@@ -1020,7 +1020,7 @@ NAV-08	rule	The command palette ranks commands with the shared rankFuzzy matcher
 COMP-02	rule	The model picker filters models with the shared rankFuzzy matcher; no live caller yet (moved from APP-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 CHAT-01	rule	The chat history picker filters chats with the shared rankFuzzy matcher; no live caller yet (moved from APP-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 REV-01	rule	The target branch picker filters branches with the shared rankFuzzy matcher; no live caller yet (moved from APP-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
-SET-03	rule	The Agents page provider search ranks providers with the shared rankFuzzy matcher; no live caller yet (moved from APP-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
+SET-10	rule	The Providers dialog's provider search ranks providers with the shared rankFuzzy matcher; no live caller yet (moved from APP-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 SET-11	rule	Suggested variable names in the Environment form are ranked with the shared rankFuzzy matcher (features/settings/environment/EnvVarSuggestions.tsx), or the file header's claim is cut (moved from APP-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 NAV-10	message	After a branch rename the workspace header (features/workspace/WorkspaceHeader.tsx) warns that the old remote branch remains and toasts the final -vN name; Actions.git.renameBranch returns Result<void>, so the final name has to reach the header (moved from GIT-09 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 NAV-10	rule	Terminal tabs render a surface anchor (features/workspace/TabContent.tsx, through app/surface-registry.tsx) and app/AppShell.tsx (NAV-01) owns the placements store and mounts the surface layer; browser tabs follow once RUN-04 draws a preview (moved from NAV-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	partly
@@ -1061,7 +1061,7 @@ SET-04	rule	The Environment page shows environment_variable_files and marks it w
 REV-08	shortcut	The file editor has undo, redo, the default key map and Tab indent (needs the @codemirror/commands 6.x dependency, not installed overnight).	ui-map 3.2	missing
 REV-08	action	Reveal in Finder and Open in another app from a preview that cannot show (files.reveal and files.openInApp in core/api.ts; the default "Open in" app opens the file).	ui-map 3.2	covered
 CHAT-04	action	Retry a failed queued message goes through Actions (needs sessions.queue.retry in core/api.ts and actions.ts; QueueBox calls the service directly until then).	ui-map 3.4	partly
-APP-15	rule	Move the hand-written substring filters (ModelPicker, ChatHistoryButton, TargetBranchPicker, AgentsPage, changed-file-tree) onto rankFuzzy.	docs/reports/audits/s2-step-1-core-1	missing
+APP-15	rule	Move the hand-written substring filters (ModelPicker, ChatHistoryButton, TargetBranchPicker, changed-file-tree) onto rankFuzzy.	docs/reports/audits/s2-step-1-core-1	missing
 APP-14	rule	The APP-14 contrast matrix never sets data-vibrancy, so sidebar text on the translucent surface is unchecked (ui/app-14.test.tsx).	docs/reports/audits/s2-step-1-ui-1	missing
 APP-14	rule	Markdown and PR text have no link style and no test for one; style links through the shared kit (AssistantText.tsx, ExternalLink.tsx).	docs/reports/audits/s2-step-1-ui-1	missing
 APP-14	rule	search-highlight tokens carry the same values as highlight, and the test checks class names only; give them measured values and assert the colour (styles.css:113-117).	docs/reports/audits/s2-step-1-ui-1	missing

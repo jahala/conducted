@@ -10,9 +10,9 @@ Rows audited: 484. Each named item has one row. Two groups are summarised in a s
 
 | Class           | Rows |
 | --------------- | ---- |
-| Covered         | 226  |
+| Covered         | 224  |
 | Partly          | 69   |
-| Missing         | 40   |
+| Missing         | 42   |
 | Out of scope    | 47   |
 | Planned (cloud) | 22   |
 | Not needed      | 80   |
@@ -22,11 +22,11 @@ By part of the report:
 | Part                                          | Covered | Partly | Missing | Out of scope | Planned (cloud) | Not needed | Total |
 | --------------------------------------------- | ------- | ------ | ------- | ------------ | --------------- | ---------- | ----- |
 | Settings shell and navigation                 | 23      | 4      | 0       | 4            | 0               | 2          | 33    |
-| Settings by page                              | 89      | 29     | 7       | 14           | 6               | 39         | 184   |
+| Settings by page                              | 88      | 29     | 8       | 14           | 6               | 39         | 184   |
 | Organization pages and server settings        | 0       | 0      | 0       | 10           | 10              | 0          | 20    |
 | Feature flags                                 | 0       | 2      | 0       | 6            | 1               | 14         | 23    |
 | Settings keys with no row in ui-map section 6 | 14      | 11     | 3       | 5            | 1               | 11         | 45    |
-| Onboarding, empty, loading and error states   | 47      | 10     | 7       | 8            | 4               | 5          | 81    |
+| Onboarding, empty, loading and error states   | 46      | 10     | 8       | 8            | 4               | 5          | 81    |
 | Diagnostics and update notice                 | 13      | 0      | 0       | 0            | 0               | 0          | 13    |
 | Shared UI kit                                 | 40      | 13     | 23      | 0            | 0               | 9          | 85    |
 
@@ -191,7 +191,7 @@ By part of the report:
 | Cursor harness card                                                                | ui-map 6 Agents                                                                   | Covered | `AgentCard.tsx` (SET-03)                                                                                          | -                                                                                                                                                                   |
 | OpenCode and Pi cards (ACP)                                                        | ui-map 6 Agents page                                                              | Covered | `AgentCard.tsx` "ACP name" (SET-03)                                                                               | -                                                                                                                                                                   |
 | Agent settings summary                                                             | ui-map 6 Agents                                                                   | Covered | Page title (SET-03)                                                                                               | -                                                                                                                                                                   |
-| Provider search "Search providers", "No providers match"                           | ui-map 6 Agents page, 7.2                                                         | Covered | `AgentsPage.tsx` (SET-03)                                                                                         | -                                                                                                                                                                   |
+| Provider search "Search providers", "No providers match"                            | ui-map 6 Agents page, 7.2                                                         | Missing | none                                                                                                              | Conductor's search filters OpenCode's key providers in the Providers dialog (renderApp @10944937); ours has none there (SET-10). Issue #625 took it off the tab row. |
 | CLI sign-in and "Paste code from Claude"                                           | ui-map 6 Agents page                                                              | Covered | `agents/AgentLoginDialog.tsx` (SET-03)                                                                            | -                                                                                                                                                                   |
 | `claude setup-token`                                                               | ui-map 6 Agents page                                                              | Partly  | `AgentLoginDialog.tsx` instructions                                                                               | State in the header that the sign-in flow can show this command.                                                                                                    |
 | Amazon Bedrock (AWS keys or Bedrock API key)                                       | ui-map 6 Agents page                                                              | Partly  | Registry `bedrock_region`, `claude_provider` (SET-03). `AgentsPage.tsx` says "Bedrock and Vertex fields left out" | Contradiction. Either remove the keys from the registry or give them a form. The Environment page can already set the variables Claude reads. Decide and record it. |
@@ -492,7 +492,7 @@ Keys already shown under "Settings by page" are not repeated.
 | Env "No variables set"                                                           | ui-map 7.2                  | Covered      | `EnvVarTable.tsx` (SET-04)                                                           | -                                                                                                                                               |
 | MCP "No recommended MCPs match your search"                                      | ui-map 7.2                  | Out of scope | none                                                                                 | Hosted catalogue.                                                                                                                               |
 | MCP "No matching MCP servers."                                                   | ui-map 7.2                  | Partly       | `McpServersSection.tsx` has "No MCP servers configured" but no search                | Add a filter and this text only if the list grows. Low priority (SET-05).                                                                       |
-| Providers "No providers match your search."                                      | ui-map 7.2                  | Covered      | `AgentsPage.tsx` (SET-03)                                                            | -                                                                                                                                               |
+| Providers "No providers match your search."                                      | ui-map 7.2                  | Missing      | none                                                                                 | Under the Providers dialog's search (SET-10); ours has no search there. Issue #625 took it off the Agents tab row. |
 | Models "No models found"                                                         | ui-map 7.2                  | Covered      | `features/composer/ModelPicker.tsx` (COMP-02)                                        | -                                                                                                                                               |
 | Repos "No repositories found", "Add a project to get started."                   | ui-map 7.2                  | Covered      | `features/sidebar/SidebarEmptyState.tsx`, `app/NoWorkspaceSelected.tsx` (APP-04)     | -                                                                                                                                               |
 | Sections "No matching sections"                                                  | ui-map 7.2                  | Partly       | `app/CreateWorkspacePage.tsx` lists a section picker; text not named                 | Add the empty text to the picker's header (WS-01).                                                                                              |
