@@ -2,7 +2,7 @@
  * @feature catalogue States of a workspace chat
  * Owns: a finished conversation (its work folded into one "3 tool calls, 2 messages" row, the final reply
  * and the footer with the turn's files), the same with that row opened (thinking, Read, Edit and Bash
- * rows), a chat that is working with a queued follow-up, and the three cards an agent waits on: a tool
+ * rows), a chat that is working with a queued follow-up (and retrying a failed request), and the three cards an agent waits on: a tool
  * approval, a question and a plan review; a workspace with a closed chat, so the tab strip offers
  * "View chat history"; a workspace address no workspace answers ("Workspace not
  * found"); and a reply that uses every Markdown part (headings, lists, inline code, a code block, a
@@ -17,6 +17,7 @@ import type { Workspace } from "../../core/model.ts";
 import { animateCast, type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
 import { click, clickOn, find, has, hover, shows } from "../dom.ts";
+import { setLiveState } from "../live.ts";
 import { addChat, addEvents, addRepo, must } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
@@ -255,6 +256,25 @@ export const CHAT_STATES: CatalogueState[] = [
 			(cast) => ({ route: chatRoute(cast.beacon, cast.chats.beacon), workspace: cast.beacon }),
 			"Retry-After header",
 		),
+	},
+	{
+		id: "chat-retrying",
+		group: "Workspace chat",
+		title: "Working, the agent retrying a failed request by itself",
+		seed: async (world: World): Promise<Scene> => {
+			const cast = await seedCast(world);
+			return {
+				route: chatRoute(cast.beacon, cast.chats.beacon),
+				after: async ({ app }) => {
+					await animateCast(world, cast, app);
+					await refreshGit(app, cast.beacon);
+					setLiveState(world, cast.chats.beacon.id, {
+						retry: { attempt: 2, maxAttempts: 10, error: "The API is overloaded." },
+					});
+				},
+				ready: (document) => shows(document, "Retry now"),
+			};
+		},
 	},
 	{
 		id: "chat-approval",
