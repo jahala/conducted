@@ -237,13 +237,9 @@
 		"note": "Conductor's full route is `/settings/repos/$repoId/misc`; our router serves it through `/settings/repos/$repoId/$page` (app/router.tsx). The seed compares the parameterised spec text with a state's literal route, so it cannot match."
 	},
 	"route:R9253487": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-02",
-		"owner": "hand",
-		"note": "Our user settings pages live under `/settings/<page>`, with the page id `default-models`; Conductor's is `/settings/user/models`. The same page opens, but the route identifier differs."
+		"status": "matched",
+		"ours": "/settings/user/models",
+		"by": "seed"
 	},
 	"route:R9524664": {
 		"status": "decided",
@@ -314,13 +310,9 @@
 		"by": "rule:team-route"
 	},
 	"route:R11298182": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"class": "wording",
-		"backlog": "SET-02",
-		"owner": "hand",
-		"note": "Our user settings pages live under `/settings/<page>`; Conductor's is `/settings/user/git`. The same page opens, but the route identifier differs."
+		"status": "matched",
+		"ours": "/settings/user/git",
+		"by": "seed"
 	},
 	"route:R11312381": {
 		"status": "decided",
@@ -341,13 +333,9 @@
 		"by": "hand"
 	},
 	"route:R11732135": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-02",
-		"owner": "hand",
-		"note": "Our user settings pages live under `/settings/<page>`; Conductor's is `/settings/user/experimental`. The same page opens, but the route identifier differs."
+		"status": "matched",
+		"ours": "/settings/user/experimental",
+		"by": "seed"
 	},
 	"route:R11736341": {
 		"status": "decided",
@@ -417,13 +405,9 @@
 		"by": "hand"
 	},
 	"route:R11784222": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-02",
-		"owner": "hand",
-		"note": "Our user settings pages live under `/settings/<page>`; Conductor's is `/settings/user/connections`. The same page opens, but the route identifier differs."
+		"status": "matched",
+		"ours": "/settings/user/connections",
+		"by": "seed"
 	},
 	"route:R11784338": {
 		"status": "decided",

@@ -107,12 +107,12 @@
 		"owner": "rule:quote"
 	},
 	"text:R1892943": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PRJ-02",
-		"item": "'Clone GitHub repo' dialog: Repository URL, Location, Browse, Recent repos",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "clone-github-dialog",
+		"via": "text",
+		"role": "heading",
+		"selector": "div:nth-of-type(3) > div > h2",
+		"by": "seed"
 	},
 	"text:R1893004": {
 		"status": "gap",
@@ -123,12 +123,12 @@
 		"owner": "rule:cite"
 	},
 	"text:R1893165": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "PRJ-02",
-		"item": "Conductor shows \"Repository URL\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "clone-github-dialog",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > label",
+		"by": "seed"
 	},
 	"text:R1894370": {
 		"status": "gap",
@@ -144,7 +144,7 @@
 		"state": "create-project",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(2) > div > button > span",
+		"selector": "div:nth-of-type(5) > div > div:nth-of-type(1) > div:nth-of-type(2) > div > button > span",
 		"by": "seed"
 	},
 	"text:R1895265": {
@@ -157,12 +157,12 @@
 		"by": "hand"
 	},
 	"text:R1897964": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "APP-04",
-		"item": "Conductor shows \"Recent repos\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "clone-github-dialog",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(4) > span",
+		"by": "seed"
 	},
 	"text:R1898879": {
 		"status": "gap",
@@ -279,7 +279,7 @@
 		"state": "sidebar-section-edit",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > button:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"text:R2035603": {
@@ -287,7 +287,7 @@
 		"state": "create-project",
 		"via": "text",
 		"role": "heading",
-		"selector": "div:nth-of-type(5) > h2",
+		"selector": "div:nth-of-type(5) > div > h2",
 		"by": "seed"
 	},
 	"text:R2035684": {
@@ -303,7 +303,7 @@
 		"state": "create-project",
 		"via": "text",
 		"role": "label",
-		"selector": "div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(1) > label",
+		"selector": "div:nth-of-type(5) > div > div:nth-of-type(1) > div:nth-of-type(1) > label",
 		"by": "seed"
 	},
 	"text:R2036417": {
@@ -319,7 +319,7 @@
 		"state": "create-project",
 		"via": "text",
 		"role": "label",
-		"selector": "div:nth-of-type(5) > div:nth-of-type(1) > div:nth-of-type(2) > label",
+		"selector": "div:nth-of-type(5) > div > div:nth-of-type(1) > div:nth-of-type(2) > label",
 		"by": "seed"
 	},
 	"text:R2036884": {
@@ -327,7 +327,7 @@
 		"state": "create-project",
 		"via": "text",
 		"role": "legend",
-		"selector": "div:nth-of-type(5) > div:nth-of-type(1) > fieldset > legend",
+		"selector": "div:nth-of-type(5) > div > div:nth-of-type(1) > fieldset > legend",
 		"by": "seed"
 	},
 	"text:R2037314": {
@@ -335,7 +335,7 @@
 		"state": "create-project",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(5) > div:nth-of-type(1) > fieldset > div > button:nth-of-type(3) > span:nth-of-type(1) > span",
+		"selector": "div:nth-of-type(5) > div > div:nth-of-type(1) > fieldset > div > button:nth-of-type(3) > span:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"text:R2086010": {
@@ -349,10 +349,10 @@
 	},
 	"text:R2093609": {
 		"status": "matched",
-		"state": "chat-plan-review",
+		"state": "create-github-repo",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(1) > button > span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > button:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"text:R2184278": {
@@ -433,7 +433,7 @@
 		"state": "settings-key-bindings",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div > div:nth-of-type(29) > article > div:nth-of-type(1) > p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section:nth-of-type(4) > div > div:nth-of-type(30) > article > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R2261476": {
@@ -588,12 +588,12 @@
 		"by": "seed"
 	},
 	"text:R2557374": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "REV-05",
-		"item": "Review split item 'Edit before sending'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "review-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > span",
+		"by": "seed"
 	},
 	"text:R2614665": {
 		"status": "gap",
@@ -644,12 +644,12 @@
 		"by": "seed"
 	},
 	"text:R2631426": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-02",
-		"item": "'Viewed' checkbox on a changed file (Ctrl+V)",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "sidebar-sections",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > div > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R2640313": {
 		"status": "matched",
@@ -669,7 +669,7 @@
 	},
 	"text:R2644707": {
 		"status": "matched",
-		"state": "chat-markdown",
+		"state": "create-github-repo",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section > p",
@@ -686,7 +686,7 @@
 	},
 	"text:R2669333": {
 		"status": "matched",
-		"state": "git-changes-error",
+		"state": "chat-history-button",
 		"via": "text",
 		"role": "heading",
 		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section > h2",
@@ -694,7 +694,7 @@
 	},
 	"text:R2669415": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "REV-01",
 		"item": "Empty: 'Finish rebasing or merging to see changes'",
@@ -709,19 +709,19 @@
 		"by": "seed"
 	},
 	"text:R2673271": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-01",
-		"item": "Note 'Some untracked files are not shown.'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-untracked-truncated",
+		"via": "text",
+		"role": "note",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(2) > p",
+		"by": "seed"
 	},
 	"text:R2739550": {
 		"status": "matched",
 		"state": "first-run",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > nav > button > span:nth-of-type(2)",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > nav > button:nth-of-type(2) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R2754302": {
@@ -734,7 +734,7 @@
 	},
 	"text:R2754470": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "REV-01",
 		"item": "Conductor shows \"Couldn't load branches.\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
@@ -742,7 +742,7 @@
 	},
 	"text:R2754604": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "REV-01",
 		"item": "Conductor shows \"No branch found.\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
@@ -793,16 +793,16 @@
 		"state": "sidebar-sections",
 		"via": "title",
 		"role": "span",
-		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > div > span:nth-of-type(1)",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > div > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R2763588": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "REV-01",
-		"item": "Conductor shows \"Back to all changes\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "git-scope-commit",
+		"via": "title",
+		"role": "button",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(2) > button",
+		"by": "seed"
 	},
 	"text:R2765188": {
 		"status": "matched",
@@ -814,10 +814,10 @@
 	},
 	"text:R2975489": {
 		"status": "matched",
-		"state": "git-changes-error",
+		"state": "chat-error-views",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > button > span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div:nth-of-type(1) > div > div:nth-of-type(3) > div > div > div > div > div > button:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"text:R2975741": {
@@ -829,12 +829,12 @@
 		"by": "seed"
 	},
 	"text:R2978975": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "WS-03",
-		"item": "Conductor shows \"Workspace initialization failed\" (text, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "setup-cancelled",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > div:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"text:R2979610": {
 		"status": "gap",
@@ -873,7 +873,7 @@
 		"state": "setup-cancelled",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > div:nth-of-type(1) > div:nth-of-type(1) > p",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > div:nth-of-type(2) > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R2982552": {
@@ -901,12 +901,12 @@
 		"owner": "rule:quote"
 	},
 	"text:R2990037": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CLOUD-16",
-		"item": "Cloud desktop tab with 'Reconnect' and notices 'You need edit access to use the cloud desktop' and 'Cloud desktop is available in cloud workspaces'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "create-github-repo-owners-error",
+		"via": "text",
+		"role": "button",
+		"selector": "div:nth-of-type(1) > section > ol > li:nth-of-type(1) > button",
+		"by": "seed"
 	},
 	"text:R2991628": {
 		"status": "gap",
@@ -933,7 +933,7 @@
 	},
 	"text:R3012162": {
 		"status": "matched",
-		"state": "composer-empty",
+		"state": "chat-context-unknown",
 		"via": "text",
 		"role": "heading",
 		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > h2",
@@ -1037,7 +1037,7 @@
 		"state": "settings-repo-add-action",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(5) > span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(5) > span",
 		"by": "seed"
 	},
 	"text:R5014678": {
@@ -1082,7 +1082,7 @@
 	},
 	"text:R5019114": {
 		"status": "matched",
-		"state": "setup-no-script",
+		"state": "create-github-repo",
 		"via": "text",
 		"role": "heading",
 		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > section > h2",
@@ -1090,7 +1090,7 @@
 	},
 	"text:R5019283": {
 		"status": "matched",
-		"state": "setup-no-script",
+		"state": "create-github-repo",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > section > div > div > button:nth-of-type(1) > span",
@@ -1098,7 +1098,7 @@
 	},
 	"text:R5019401": {
 		"status": "matched",
-		"state": "setup-no-script",
+		"state": "create-github-repo",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > section > div > div > button:nth-of-type(2) > span",
@@ -1380,7 +1380,7 @@
 	},
 	"text:R5560559": {
 		"status": "matched",
-		"state": "workspace-actions-menu",
+		"state": "sidebar-workspace-actions",
 		"via": "text",
 		"role": "span",
 		"selector": "div:nth-of-type(2) > div > div:nth-of-type(7) > span:nth-of-type(2)",
@@ -1388,7 +1388,7 @@
 	},
 	"text:R5562242": {
 		"status": "matched",
-		"state": "workspace-actions-menu",
+		"state": "sidebar-workspace-actions",
 		"via": "text",
 		"role": "span",
 		"selector": "div:nth-of-type(2) > div > div:nth-of-type(10) > span:nth-of-type(2)",
@@ -1486,7 +1486,7 @@
 	},
 	"text:R5618963": {
 		"status": "matched",
-		"state": "workspace-actions-menu",
+		"state": "sidebar-workspace-actions",
 		"via": "text",
 		"role": "span",
 		"selector": "div:nth-of-type(2) > div > div:nth-of-type(7) > span:nth-of-type(1)",
@@ -1684,12 +1684,12 @@
 		"owner": "rule:cite"
 	},
 	"text:R8136350": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "CHAT-02",
-		"item": "'Message not sent' with Retry and Discard",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-goal-update-error",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R8138015": {
 		"status": "matched",
@@ -1774,12 +1774,12 @@
 		"by": "hand"
 	},
 	"text:R8717420": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Loading MCP servers…\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-mcp-loading",
+		"via": "aria-label",
+		"role": "status",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > section > p",
+		"by": "seed"
 	},
 	"text:R8750078": {
 		"status": "matched",
@@ -1855,10 +1855,10 @@
 	},
 	"text:R8789191": {
 		"status": "matched",
-		"state": "chat-tool-cards-tasks",
+		"state": "chat-tools-loading",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(3) > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > button > span:nth-of-type(2) > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R8789608": {
@@ -2058,7 +2058,7 @@
 		"state": "chat-tool-cards-tasks",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(4) > button > span:nth-of-type(2) > span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(9) > button > span:nth-of-type(2) > span",
 		"by": "seed"
 	},
 	"text:R8831385": {
@@ -2447,7 +2447,7 @@
 		"state": "composer-create-snippet",
 		"via": "text",
 		"role": "heading",
-		"selector": "div:nth-of-type(3) > h2",
+		"selector": "div:nth-of-type(3) > div > h2",
 		"by": "seed"
 	},
 	"text:R9502437": {
@@ -2491,20 +2491,20 @@
 		"owner": "rule:cite"
 	},
 	"text:R9512686": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-06",
-		"item": "Banners 'Authentication required', 'ChatGPT login expired', 'Codex authentication required', 'Cursor API key required'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-errors-chatgpt",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div > div > p",
+		"by": "seed"
 	},
 	"text:R9512754": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-06",
-		"item": "Conductor shows \"Your ChatGPT login has expired. Reconnect ChatGPT, then send your message again.\" (text, inventory-controls Composer); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-errors-chatgpt",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div > div > div > div > span",
+		"by": "seed"
 	},
 	"text:R9521544": {
 		"status": "matched",
@@ -2523,12 +2523,9 @@
 		"by": "seed"
 	},
 	"text:R9534245": {
-		"status": "matched",
-		"state": "chat-errors",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div:nth-of-type(2) > div > div:nth-of-type(2) > div > div > div > div > span",
-		"by": "seed"
+		"status": "gap",
+		"reason": "missing",
+		"screen": "inventory-controls Chat view"
 	},
 	"text:R9539350": {
 		"status": "matched",
@@ -2547,36 +2544,36 @@
 		"by": "seed"
 	},
 	"text:R9542567": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-06",
-		"item": "Banners 'Authentication required', 'ChatGPT login expired', 'Codex authentication required', 'Cursor API key required'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-errors-codex",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div > div > p",
+		"by": "seed"
 	},
 	"text:R9542747": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-06",
-		"item": "Conductor shows \"Please configure Codex authentication in Settings to use Codex.\" (text, inventory-controls Chat view); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-errors-codex",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div > div > div > div > span",
+		"by": "seed"
 	},
 	"text:R9543479": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-06",
-		"item": "Banners 'Authentication required', 'ChatGPT login expired', 'Codex authentication required', 'Cursor API key required'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-errors-cursor",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div > div > p",
+		"by": "seed"
 	},
 	"text:R9543653": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-06",
-		"item": "Conductor shows \"Add a Cursor API key in provider settings to use Cursor.\" (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-errors-cursor",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div > div > div > div > span",
+		"by": "seed"
 	},
 	"text:R9544396": {
 		"status": "gap",
@@ -2588,7 +2585,7 @@
 	},
 	"text:R9544627": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Chat view",
 		"backlog": "CHAT-06",
 		"item": "Conductor shows \"Exceeds Claude Code's size limit (5MB). Please revert to a previous user message by hovering over it, otherwise this chat will fail going forward.\" (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
@@ -2620,10 +2617,10 @@
 	},
 	"text:R9557324": {
 		"status": "matched",
-		"state": "chat-notices",
+		"state": "git-checks-mixed",
 		"via": "text",
-		"role": "note",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div:nth-of-type(2) > div > p",
+		"role": "span",
+		"selector": "[data-testid=\"check-row\"] > div > button:nth-of-type(1) > span:nth-of-type(3)",
 		"by": "seed"
 	},
 	"text:R9562178": {
@@ -2639,7 +2636,7 @@
 		"state": "chat-reset-dialog",
 		"via": "text",
 		"role": "heading",
-		"selector": "div:nth-of-type(3) > h2",
+		"selector": "div:nth-of-type(3) > div > h2",
 		"by": "seed"
 	},
 	"text:R9573354": {
@@ -2647,7 +2644,7 @@
 		"state": "chat-reset-dialog",
 		"via": "text",
 		"role": "p",
-		"selector": "div:nth-of-type(3) > p",
+		"selector": "div:nth-of-type(3) > div > p",
 		"by": "seed"
 	},
 	"text:R9573684": {
@@ -2655,15 +2652,15 @@
 		"state": "chat-reset-dialog",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div > span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div > span",
 		"by": "seed"
 	},
 	"text:R9586422": {
 		"status": "matched",
-		"state": "settings-models-effort-menu",
+		"state": "chat-context-usage",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(7) > span:nth-of-type(2)",
+		"role": "dt",
+		"selector": "div:nth-of-type(2) > div > div > dl > dt:nth-of-type(8)",
 		"by": "seed"
 	},
 	"text:R9586815": {
@@ -2685,19 +2682,20 @@
 		"by": "hand"
 	},
 	"text:R9587290": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-16",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "chat-turn-details",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(3) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R9587550": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-16",
-		"item": "Conductor shows \"Cache write\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-turn-details",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(4) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R9626830": {
 		"status": "gap",
@@ -2720,7 +2718,7 @@
 		"state": "git-diff-view-options",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div > label:nth-of-type(2) > span",
+		"selector": "div:nth-of-type(2) > div > div > label:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"text:R9630110": {
@@ -2728,7 +2726,7 @@
 		"state": "git-diff-view-options",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div > label:nth-of-type(3) > span",
+		"selector": "div:nth-of-type(2) > div > div > label:nth-of-type(2) > span",
 		"by": "seed"
 	},
 	"text:R9637583": {
@@ -2769,10 +2767,10 @@
 	},
 	"text:R9643764": {
 		"status": "matched",
-		"state": "git-diff",
+		"state": "file-svg-preview",
 		"via": "aria-label",
 		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > fieldset > button:nth-of-type(4)",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > fieldset > button:nth-of-type(3)",
 		"by": "seed"
 	},
 	"text:R9652412": {
@@ -2803,12 +2801,12 @@
 		"by": "hand"
 	},
 	"text:R9662211": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-08",
-		"item": "'Empty CSV' and 'Preview not available'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "file-csv-empty",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > section > h2",
+		"by": "seed"
 	},
 	"text:R9730742": {
 		"status": "gap",
@@ -2835,20 +2833,20 @@
 		"by": "seed"
 	},
 	"text:R9741101": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "REV-02",
-		"item": "Warning 'Only whitespace changes found' with 'Show whitespace changes'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-diff-whitespace",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > div > div > div > div > div > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"text:R9741520": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "REV-02",
-		"item": "Warning 'Only whitespace changes found' with 'Show whitespace changes'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-diff-whitespace",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > div > div > div > div > div > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"text:R9756537": {
 		"status": "gap",
@@ -2892,12 +2890,12 @@
 		"owner": "rule:quote"
 	},
 	"text:R9976019": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "REV-01",
-		"item": "Conductor shows \"No changes to this file.\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "git-diff-empty",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > section > h2",
+		"by": "seed"
 	},
 	"text:R9982885": {
 		"status": "matched",
@@ -2989,10 +2987,10 @@
 	},
 	"text:R10057113": {
 		"status": "matched",
-		"state": "chat-tool-cards-tasks",
+		"state": "pr-tab",
 		"via": "text",
-		"role": "dt",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div > dl > dt:nth-of-type(5)",
+		"role": "heading",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > section:nth-of-type(2) > h3",
 		"by": "seed"
 	},
 	"text:R10057491": {
@@ -3086,7 +3084,7 @@
 		"state": "new-workspace",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > form > footer > button:nth-of-type(3) > span",
+		"selector": "div:nth-of-type(3) > div > form > footer > button:nth-of-type(3) > span",
 		"by": "seed"
 	},
 	"text:R10176291": {
@@ -3369,10 +3367,10 @@
 	},
 	"text:R10325382": {
 		"status": "matched",
-		"state": "git-checks-mixed",
+		"state": "sidebar-drags",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"check-row\"] > div > button:nth-of-type(1) > span:nth-of-type(2)",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > section > div:nth-of-type(2) > section:nth-of-type(2) > div > div:nth-of-type(1) > button:nth-of-type(1) > span:nth-of-type(1)",
 		"by": "seed-unsure"
 	},
 	"text:R10325545": {
@@ -3396,7 +3394,7 @@
 		"state": "new-workspace",
 		"via": "text",
 		"role": "heading",
-		"selector": "div:nth-of-type(3) > span > h2",
+		"selector": "div:nth-of-type(3) > div > span > h2",
 		"by": "seed"
 	},
 	"text:R10341617": {
@@ -3408,12 +3406,12 @@
 		"by": "seed"
 	},
 	"text:R10359782": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls App shell",
-		"backlog": "APP-07",
-		"item": "'Resources' table (Name, CPU, Mem) grouped by workspace",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "resources-open",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > p",
+		"by": "seed"
 	},
 	"text:R10362249": {
 		"status": "gap",
@@ -3535,7 +3533,7 @@
 		"state": "cloud-ports",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(2)",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"text:R10462484": {
@@ -3543,7 +3541,7 @@
 		"state": "sidebar-sections",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(1) > div > div:nth-of-type(1) > button > span:nth-of-type(1)",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > section > section > div > div:nth-of-type(1) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R10465481": {
@@ -3555,12 +3553,12 @@
 		"by": "seed"
 	},
 	"text:R10474958": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "NAV-04",
-		"item": "Pinned drop target 'Drag a workspace here'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "sidebar-pinned-drop-hint",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(1) > section > section > div > div:nth-of-type(2) > p > span",
+		"by": "seed"
 	},
 	"text:R10480595": {
 		"status": "decided",
@@ -3621,10 +3619,10 @@
 	},
 	"text:R10574411": {
 		"status": "matched",
-		"state": "settings-general",
+		"state": "diagnostics",
 		"via": "text",
-		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > aside > div:nth-of-type(1) > button",
+		"role": "span",
+		"selector": "div > div > div:nth-of-type(2) > div > div > button > span",
 		"by": "seed"
 	},
 	"text:R10574584": {
@@ -3802,7 +3800,7 @@
 	},
 	"text:R10666456": {
 		"status": "matched",
-		"state": "settings-account",
+		"state": "settings-account-connect-github",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(4) > div > fieldset > button > span",
@@ -3826,10 +3824,10 @@
 	},
 	"text:R10667356": {
 		"status": "matched",
-		"state": "settings-appearance",
+		"state": "settings-search-code-theme",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(6) > div > div > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R10667435": {
@@ -3842,10 +3840,10 @@
 	},
 	"text:R10668642": {
 		"status": "matched",
-		"state": "settings-appearance",
+		"state": "settings-search-mono-font",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(8) > div > div > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li:nth-of-type(2) > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R10668720": {
@@ -3910,10 +3908,10 @@
 	},
 	"text:R10671582": {
 		"status": "matched",
-		"state": "settings-appearance",
+		"state": "settings-search-markdown",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(10) > div > div > div:nth-of-type(1) > p",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > ul > li > button > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R10671665": {
@@ -3992,10 +3990,10 @@
 	},
 	"text:R10686757": {
 		"status": "matched",
-		"state": "settings-agents-bedrock",
+		"state": "settings-agents-anthropic",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div:nth-of-type(3) > button > span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > button > span",
 		"by": "seed"
 	},
 	"text:R10692019": {
@@ -4012,7 +4010,7 @@
 		"state": "new-workspace",
 		"via": "aria-label",
 		"role": "button",
-		"selector": "div:nth-of-type(3) > form > footer > button:nth-of-type(2)",
+		"selector": "div:nth-of-type(3) > div > form > footer > button:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R10695202": {
@@ -4020,7 +4018,7 @@
 		"state": "sidebar-section-edit",
 		"via": "text",
 		"role": "label",
-		"selector": "div:nth-of-type(3) > label",
+		"selector": "div:nth-of-type(3) > div > label",
 		"by": "seed"
 	},
 	"text:R10695776": {
@@ -4033,12 +4031,12 @@
 		"by": "hand"
 	},
 	"text:R10699838": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-04",
-		"item": "Variables table: Name, Value, 'Locally overwritten', 'Not set'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-environment-values",
+		"via": "text",
+		"role": "div",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(1) > section:nth-of-type(2) > div > table > tbody > tr > td:nth-of-type(1) > div > div:nth-of-type(2) > div:nth-of-type(3)",
+		"by": "seed"
 	},
 	"text:R10701209": {
 		"status": "gap",
@@ -4051,7 +4049,7 @@
 	},
 	"text:R10705286": {
 		"status": "matched",
-		"state": "settings-environment",
+		"state": "settings-environment-add-file",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(1) > section > div:nth-of-type(1) > table > tbody > tr > td > div > p:nth-of-type(1)",
@@ -4059,7 +4057,7 @@
 	},
 	"text:R10705371": {
 		"status": "matched",
-		"state": "settings-environment",
+		"state": "settings-environment-add-file",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(1) > section > div:nth-of-type(1) > table > tbody > tr > td > div > p:nth-of-type(2)",
@@ -4225,12 +4223,12 @@
 		"by": "hand"
 	},
 	"text:R10771891": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "SET-05",
-		"item": "MCP servers filter and 'No matching MCP servers.'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-mcp-no-match",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > section > section > h2",
+		"by": "seed"
 	},
 	"text:R10778940": {
 		"status": "decided",
@@ -4300,7 +4298,7 @@
 	},
 	"text:R10809103": {
 		"status": "matched",
-		"state": "settings-account",
+		"state": "settings-account-connect-github",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(2) > p",
@@ -4314,7 +4312,7 @@
 	},
 	"text:R10818111": {
 		"status": "matched",
-		"state": "settings-account",
+		"state": "settings-account-disconnect-github",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div > div:nth-of-type(2) > button > span",
@@ -4554,33 +4552,36 @@
 		"by": "rule:team-wording"
 	},
 	"text:R10926386": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents",
-		"backlog": "SET-03",
-		"item": "Conductor shows \"Authorize Conductor to use your ChatGPT subscription.\" (text, inventory-controls Settings: Agents); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-codex-login",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"text:R10926628": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents",
-		"backlog": "SET-03",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "settings-agents-codex-login",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"text:R10926760": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents",
-		"backlog": "SET-03",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "settings-agents-codex-login",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"text:R10927168": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Agents",
-		"backlog": "SET-03",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "settings-agents-codex-login",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > ol > li:nth-of-type(1) > div > p",
+		"by": "seed"
 	},
 	"text:R10927644": {
 		"status": "gap",
@@ -4627,27 +4628,27 @@
 		"by": "hand"
 	},
 	"text:R10945315": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents",
-		"backlog": "SET-03",
-		"item": "Providers 'No providers match your search.'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-agents-no-match",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section > h2",
+		"by": "seed"
 	},
 	"text:R10948699": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents",
-		"backlog": "SET-03",
-		"item": "Agent card states 'Loaded from env', 'API key configured', 'Validation failed', 'Recommended'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-agents-loaded-from-env",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(3)",
+		"by": "seed"
 	},
 	"text:R10950763": {
 		"status": "matched",
 		"state": "settings-advanced",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(11) > ul > li:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(2) > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(12) > ul > li:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(2) > span",
 		"by": "seed"
 	},
 	"text:R10955177": {
@@ -4684,7 +4685,7 @@
 	},
 	"text:R10976147": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "CLOUD-12",
 		"item": "SSH door: make sure a key exists for cloud workspaces.",
@@ -4784,7 +4785,7 @@
 	},
 	"text:R11026106": {
 		"status": "matched",
-		"state": "settings-repo-add-action",
+		"state": "settings-search-repository-scripts",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(3) > div:nth-of-type(1) > div > button:nth-of-type(3) > span",
@@ -4830,7 +4831,7 @@
 	},
 	"text:R11052560": {
 		"status": "matched",
-		"state": "settings-account",
+		"state": "settings-account-connect-github",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(1) > div > div:nth-of-type(1) > div > p:nth-of-type(2)",
@@ -4850,7 +4851,7 @@
 	},
 	"text:R11094439": {
 		"status": "matched",
-		"state": "settings-account",
+		"state": "settings-account-connect-github",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div > p:nth-of-type(1)",
@@ -4858,7 +4859,7 @@
 	},
 	"text:R11094514": {
 		"status": "matched",
-		"state": "settings-account",
+		"state": "settings-account-connect-github",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > section:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div > p:nth-of-type(2)",
@@ -4911,7 +4912,7 @@
 		"state": "settings-experimental",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(19) > div > div > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(17) > div > div > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R11120103": {
@@ -5132,7 +5133,7 @@
 		"state": "settings-general",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(16) > div > div > p:nth-of-type(1)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(17) > div > div > p:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R11205120": {
@@ -5146,7 +5147,7 @@
 		"state": "settings-advanced",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(11) > ul > li:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(12) > ul > li:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"text:R11217431": {
@@ -5218,7 +5219,7 @@
 	},
 	"text:R11277107": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Settings: Repository",
 		"backlog": "SET-07",
 		"item": "Conductor shows \"Could not preview files to copy.\" (text, inventory-controls Settings: Repository); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
@@ -5233,12 +5234,12 @@
 		"owner": "rule:quote"
 	},
 	"text:R11277725": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Repository",
-		"backlog": "SET-07",
-		"item": "Conductor shows \"No matching gitignored files found.\" (text, inventory-controls Settings: Repository); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-repo-icon-picker",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(4) > div > div:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"text:R11281817": {
 		"status": "gap",
@@ -5278,7 +5279,7 @@
 		"state": "settings-repo-icon-picker",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > button:nth-of-type(1) > span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > button:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"text:R11292330": {
@@ -5286,7 +5287,7 @@
 		"state": "sidebar-section-edit",
 		"via": "aria-label",
 		"role": "textbox",
-		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div > input",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div > input",
 		"by": "seed"
 	},
 	"text:R11292529": {
@@ -5294,7 +5295,7 @@
 		"state": "settings-repo-icon-picker",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > button:nth-of-type(3) > span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > button:nth-of-type(3) > span",
 		"by": "seed"
 	},
 	"text:R11292729": {
@@ -5302,12 +5303,12 @@
 		"state": "settings-repo-icon-picker",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > button:nth-of-type(4) > span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > button:nth-of-type(4) > span",
 		"by": "seed"
 	},
 	"text:R11319971": {
 		"status": "matched",
-		"state": "workspace-actions-menu",
+		"state": "sidebar-workspace-actions",
 		"via": "text",
 		"role": "span",
 		"selector": "div:nth-of-type(2) > div > div:nth-of-type(4) > span:nth-of-type(1)",
@@ -5366,12 +5367,12 @@
 		"by": "hand"
 	},
 	"text:R11385000": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "NAV-08",
-		"item": "Palette empty state 'No results found' and loading spinner",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-slash-goal-unavailable",
+		"via": "text",
+		"role": "status",
+		"selector": "div:nth-of-type(2) > div > div > p",
+		"by": "seed"
 	},
 	"text:R11405274": {
 		"status": "gap",
@@ -5390,20 +5391,20 @@
 		"by": "seed"
 	},
 	"text:R11407412": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "SET-02",
-		"item": "Conductor shows \"Old root path:\" (text, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-advanced-root-path",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R11407755": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "SET-02",
-		"item": "Conductor shows \"New root path:\" (text, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-advanced-root-path",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(2) > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R11419402": {
 		"status": "matched",
@@ -5489,7 +5490,7 @@
 		"state": "new-workspace",
 		"via": "title",
 		"role": "button",
-		"selector": "div:nth-of-type(3) > form > header > button:nth-of-type(3)",
+		"selector": "div:nth-of-type(3) > div > form > header > button:nth-of-type(3)",
 		"by": "seed"
 	},
 	"text:R11464130": {
@@ -5536,7 +5537,7 @@
 		"state": "new-workspace",
 		"via": "aria-label",
 		"role": "button",
-		"selector": "div:nth-of-type(3) > form > footer > div > button",
+		"selector": "div:nth-of-type(3) > div > form > footer > div > button",
 		"by": "seed"
 	},
 	"text:R11504834": {
@@ -5705,27 +5706,27 @@
 	},
 	"text:R11570220": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-ui-text Settings and agents",
 		"backlog": "SET-03",
 		"item": "Conductor shows \"Connected with a setup token.\" (text, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
 		"owner": "rule:cite"
 	},
 	"text:R11570668": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-03",
-		"item": "Agents: CLI sign-in and 'Paste code from Claude'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-agents-claude-login",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(2) > label",
+		"by": "seed"
 	},
 	"text:R11571676": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-03",
-		"item": "Sign-in flow can show the 'claude setup-token' command",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-agents-claude-login",
+		"via": "text",
+		"role": "code",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > div > code",
+		"by": "seed"
 	},
 	"text:R11574947": {
 		"status": "gap",
@@ -5738,10 +5739,10 @@
 	},
 	"text:R11584038": {
 		"status": "matched",
-		"state": "settings-agents-bedrock",
+		"state": "settings-agents-bedrock-api-key",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(1) > button > span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > button > span",
 		"by": "seed"
 	},
 	"text:R11585673": {
@@ -5749,32 +5750,32 @@
 		"state": "settings-agents-bedrock",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > button > span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > button > span",
 		"by": "seed"
 	},
 	"text:R11585847": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-09",
-		"item": "Conductor shows \"Bedrock API key\" (text, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-bedrock-api-key",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > button > span",
+		"by": "seed"
 	},
 	"text:R11587101": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-09",
-		"item": "Agents: 'Anthropic API key' and 'Use the key from this Mac'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-agents-anthropic",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > label",
+		"by": "seed"
 	},
 	"text:R11590939": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-09",
-		"item": "Agent 'Providers' and 'Custom provider' dialogs",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-agents-custom",
+		"via": "text",
+		"role": "heading",
+		"selector": "div:nth-of-type(3) > div > h2",
+		"by": "seed"
 	},
 	"text:R11595958": {
 		"status": "gap",
@@ -5827,28 +5828,28 @@
 		"by": "rule:team-wording"
 	},
 	"text:R11647782": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "SET-02",
-		"item": "'GitHub', 'GitHub account' and 'Connect GitHub' dialogs",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-account-connect-github",
+		"via": "text",
+		"role": "heading",
+		"selector": "div:nth-of-type(3) > div > h2",
+		"by": "seed"
 	},
 	"text:R11647820": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "SET-02",
-		"item": "Conductor shows \"This action needs GitHub access. Sign in with the GitHub CLI to continue.\" (text, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-account-connect-github",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > p",
+		"by": "seed"
 	},
 	"text:R11648197": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "SET-02",
-		"item": "Conductor shows \"Other sign-in options\" (text, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-account-connect-github",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"text:R11648843": {
 		"status": "decided",
@@ -5861,7 +5862,7 @@
 		"state": "feedback-dialog",
 		"via": "text",
 		"role": "heading",
-		"selector": "div:nth-of-type(3) > h2",
+		"selector": "div:nth-of-type(3) > div > h2",
 		"by": "seed"
 	},
 	"text:R11655076": {
@@ -5875,7 +5876,7 @@
 		"state": "feedback-dialog",
 		"via": "text",
 		"role": "label",
-		"selector": "div:nth-of-type(3) > form > div:nth-of-type(1) > label",
+		"selector": "div:nth-of-type(3) > div > form > div:nth-of-type(1) > label",
 		"by": "seed"
 	},
 	"text:R11656078": {
@@ -5883,7 +5884,7 @@
 		"state": "feedback-dialog",
 		"via": "text",
 		"role": "label",
-		"selector": "div:nth-of-type(3) > form > div:nth-of-type(2) > label",
+		"selector": "div:nth-of-type(3) > div > form > div:nth-of-type(2) > label",
 		"by": "seed"
 	},
 	"text:R11656536": {
@@ -5909,7 +5910,7 @@
 		"state": "feedback-dialog",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > form > div:nth-of-type(3) > label > span",
+		"selector": "div:nth-of-type(3) > div > form > div:nth-of-type(3) > label > span",
 		"by": "seed"
 	},
 	"text:R11658123": {

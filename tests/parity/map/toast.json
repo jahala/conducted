@@ -8,12 +8,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:M389857": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "DATA-05",
-		"item": "An invalid settings file blocks saving a setting and the user is told why (\"Can't save setting because your settings file is invalid\").",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "run-load-failed",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > section > p",
+		"by": "seed"
 	},
 	"toast:M390047": {
 		"status": "gap",
@@ -308,7 +308,7 @@
 	},
 	"toast:R2489876": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CLOUD-12",
 		"item": "Opening a cloud workspace remotely works only in VS Code, Cursor and Zed: \"Remote open is only supported for VS Code, Cursor, and Zed\".",
@@ -479,12 +479,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R5453992": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CLOUD-10",
-		"item": "Forwarding ports shows the notice \"Forwarding ports\" while the forward is being set up.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "cloud-ports",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"toast:R5493916": {
 		"status": "gap",
@@ -506,7 +506,7 @@
 	},
 	"toast:R5545832": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "NAV-04",
 		"item": "Deleting, reordering or moving a workspace between sections can fail with a short error.",
@@ -568,7 +568,7 @@
 	},
 	"toast:R5563508": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "CLOUD-12",
 		"item": "A cloud workspace has a copyable SSH command; \"Copied SSH command\" confirms it.",
@@ -576,7 +576,7 @@
 	},
 	"toast:R5563556": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "CLOUD-12",
 		"item": "Conductor shows \"Failed to copy SSH command\" (toast, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
@@ -606,12 +606,12 @@
 		"owner": "hand"
 	},
 	"toast:R8156106": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "CHAT-10",
-		"item": "If an answer or approval cannot be delivered, the card comes back with \"Could not send answers. Try again.\"",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-question-answer-failed",
+		"via": "text",
+		"role": "alert",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > p",
+		"by": "seed"
 	},
 	"toast:R8191557": {
 		"status": "gap",
@@ -757,28 +757,28 @@
 		"owner": "rule:cite"
 	},
 	"toast:R9296109": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "COMP-10",
-		"item": "Using the goal bar or /goal on a chat that cannot do goals shows \"Codex goals are not available in this chat.\"",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "composer-slash-goal-unavailable",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R9299261": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "COMP-06",
-		"item": "A typed slash command the agent or workspace does not offer shows \"This command isn't available in this workspace.\"",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "composer-slash-command-unavailable",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R9299441": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "COMP-06",
-		"item": "Typing /plan for an agent without plan mode shows \"Plan mode is not available in this chat.\"",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "composer-slash-plan-unavailable",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R9299633": {
 		"status": "gap",
@@ -790,12 +790,12 @@
 		"by": "hand"
 	},
 	"toast:R9299687": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "COMP-10",
-		"item": "Setting a goal with empty text shows \"Enter a goal first.\"",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "composer-goal-empty",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R9300528": {
 		"status": "gap",
@@ -978,7 +978,7 @@
 	},
 	"toast:R9953202": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "REV-08",
 		"item": "If a file changed on disk while the user has unsaved edits, ask to keep or discard before saving.",
@@ -1586,7 +1586,7 @@
 	},
 	"toast:R11511925": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Composer",
 		"backlog": "NAV-04",
 		"item": "Creating or editing a section can fail with a short error, and the section list stays as it was.",
@@ -1594,7 +1594,7 @@
 	},
 	"toast:R11512041": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Composer",
 		"backlog": "NAV-04",
 		"item": "Conductor shows \"Section no longer exists\" (toast, inventory-controls Composer); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
@@ -1602,7 +1602,7 @@
 	},
 	"toast:R11512106": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-controls Composer",
 		"backlog": "NAV-04",
 		"item": "Creating or editing a section can fail with a short error, and the section list stays as it was.",
@@ -1782,7 +1782,7 @@
 	},
 	"toast:R11647565": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "SET-02",
 		"item": "Conductor shows \"GitHub isn't connected yet. Finish the sign-in and try again.\" (toast, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
