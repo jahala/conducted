@@ -741,19 +741,6 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		},
 	},
 	{
-		id: "settings-agents-no-match",
-		group: "Settings",
-		title: "Agents: a provider search with no match",
-		seed: async (world) => {
-			await seedCast(world);
-			return {
-				route: "/settings/user/agents",
-				after: ({ document }) => typeInto(document, "input", "Search providers", "kilo"),
-				ready: (document) => shows(document, "No providers match your search."),
-			};
-		},
-	},
-	{
 		id: "settings-account-disconnect-github",
 		group: "Settings",
 		title: "Account: asking before GitHub's token is removed",

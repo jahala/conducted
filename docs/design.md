@@ -114,7 +114,7 @@ The owner ruled that the UI is exactly Conductor's: a control Conductor also has
 - The Connections page (the local port range): in More, after Advanced, with the other rarely changed technical pages; Conductor has no such page.
 - Pairing with the user's cloud Worker (CLOUD-07): a "Cloud Workspaces" block on Connections, below the port range, because it connects this Mac to a Worker; Conductor's cloud is a hosted team feature with no self-hosted Worker to pair with.
 - The Experimental and Advanced pages are Conductor's; the rows of ours on them (the backlog switch, the big terminal command list, the program rows above) sit in Conductor's row style.
-- The MCP servers block and "Search providers" on Agents: the search at the right of the agent tabs, the servers under the tabs, as Conductor's providers page lists its parts.
+- The MCP servers block on Agents: under the agent tabs and their panel, as Conductor's providers page lists its parts.
 - The onboarding agent check and first project: under the step list, above Continue, while their step is current, in Conductor's left column.
 - Import from Conductor (APP-17): a row on General after Sync agent configs, which also brings things in from elsewhere, and an outlined "Import from Conductor" button beside "Add a project" on the first-run project step when Conductor's database is on this Mac. Its dry run is a dialog in Conductor's dialog frame.
 - Create project's description and "Creates folder" line: in Conductor's places, worded for our flow, which creates the folder first and offers the GitHub repository after.
