@@ -1143,3 +1143,13 @@ Chosen:
 Why not register `~/.ssh` as a root: the web view could then read and write every key and `known_hosts`. Why not write the line through the shell, as Conductor does: the shell can reach anything, so it would not narrow the reach at all. Why not one command for all three files: the config text and the host rules are core logic with their tests in TypeScript, and the two files the app owns need no more than a root.
 
 The tests: `workspace.cloud-12.test.ts` runs the door with the file scope on, files.rs's `cloud_12_*` tests hold the roots and the command, and the contract case `fs.include-ssh-config` runs on the stand-in and the Node-backed bindings.
+
+## D141. The UI's programs are checked against the Rust allowlist by a guard, not a Rust test (2026-11-12)
+
+Decided by the agent fixing issue #647, which the owner filed.
+
+Context: the Rust test `git_16_every_program_the_ui_starts_is_allowed` in `shell.rs` read every UI source file for `program: "..."` literals and checked each against `ALLOWED_PROGRAMS`. So every UI change could reach CI's macOS job (D139), and 33 of main's last 80 merges ran the job for that reason alone (issue #647).
+
+Chosen: the `programs` guard in `scripts/guards/structure.ts` already ran the same scan on Linux on every pull request. It now also checks the programs the UI starts through a variable (zsh and the three helper scripts), and fails when the scan finds no `program: "git"`, so a scan of the wrong folder cannot pass. The Rust UI scan is gone; `git_16_allows_the_xcode_licence_programs`, which reads only Rust, stays. `MACOS_JOB` names only the desktop files the job reads: the two the Rust tests read (`platform/tauri.ts`, `core/app-paths.ts`), the macOS tests, the Vitest setup files and what they import. Replayed over main's last 80 merges, 38 skip the job, up from 10.
+
+Why not a TypeScript test: it would repeat the guard's scan, and the guard runs on every pull request whatever changed. Why not compute the macOS tests' imports when `scripts/macos-job.ts` runs: it would end the list's drift, but the list is short and `scripts/macos-job.test.ts` fails on main when a macOS test starts importing a file the list misses.

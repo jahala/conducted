@@ -144,7 +144,24 @@ describe("programs", () => {
 		put("apps/desktop/src/core/b.test.ts", 'run({ program: "curl" });\n');
 		expect(messages(checkShellPrograms(root))).toEqual([
 			'apps/desktop/src/core/b.ts starts "xcodebuild", which is not in ALLOWED_PROGRAMS in apps/desktop/src-tauri/src/shell.rs',
+			'the UI starts "zsh" through a variable, which is not in ALLOWED_PROGRAMS in apps/desktop/src-tauri/src/shell.rs',
+			'the UI starts "checkpointer.sh" through a variable, which is not in ALLOWED_PROGRAMS in apps/desktop/src-tauri/src/shell.rs',
+			'the UI starts "spotlighter.sh" through a variable, which is not in ALLOWED_PROGRAMS in apps/desktop/src-tauri/src/shell.rs',
+			'the UI starts "git-busy-check.sh" through a variable, which is not in ALLOWED_PROGRAMS in apps/desktop/src-tauri/src/shell.rs',
 		]);
+	});
+
+	test("flags a scan that finds no git, so a scan of the wrong folder cannot pass", () => {
+		put(
+			"apps/desktop/src-tauri/src/shell.rs",
+			'pub const ALLOWED_PROGRAMS: &[&str] = &["git", "zsh", "checkpointer.sh", "spotlighter.sh", "git-busy-check.sh"];\n',
+		);
+		put("apps/desktop/src/core/a.ts", 'run({ program: "zsh" });\n');
+		expect(messages(checkShellPrograms(root))).toEqual([
+			'no file in apps/desktop/src starts "git", so the scan is not reading the UI source',
+		]);
+		put("apps/desktop/src/core/b.ts", 'run({ program: "git" });\n');
+		expect(messages(checkShellPrograms(root))).toEqual([]);
 	});
 });
 
