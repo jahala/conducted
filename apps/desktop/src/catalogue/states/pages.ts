@@ -1,7 +1,7 @@
 /**
  * @feature catalogue States of the full pages in the main layout: Home, new workspace, backlog, diagnostics
  * Owns: the seeds for Home with the cast, the new workspace page with a project chosen (and its
- * Create from picker open) and in
+ * Create from picker open, and its slash command menu) and in
  * cloud mode (ready, and waiting for the Worker's GitHub token, CLOUD-19), the backlog with saved
  * workspaces and empty, the Diagnostics page, the sidebar with a workspace still being created and
  * one being archived, an archived workspace's file tab, and an address that matches no page.
@@ -177,6 +177,19 @@ export const PAGE_STATES: CatalogueState[] = [
 				route: `/create?repo=${cast.atlas.id}`,
 				after: ({ document }) => click(document, "button", "Show or hide the create-from picker"),
 				ready: (document) => shows(document, "Starts from"),
+			};
+		},
+	},
+	{
+		id: "new-workspace-slash-menu",
+		group: "Pages",
+		title: "New workspace dialog, the first message's slash command menu",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/create?repo=${cast.atlas.id}`,
+				after: ({ document }) => typeInto(document, "textarea", "First message", "/"),
+				ready: (document) => shows(document, "/compact"),
 			};
 		},
 	},
