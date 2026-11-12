@@ -658,6 +658,19 @@ fn window_toggle_inspector(app: AppHandle) -> CommandResult<()> {
     Ok(())
 }
 
+/// Adds the embedded WebDriver server the end-to-end tests drive the window with (issue #564). Only
+/// the test build turns on the `e2e` feature; it listens on 127.0.0.1 at `TAURI_WEBDRIVER_PORT`.
+#[cfg(feature = "e2e")]
+fn with_test_driver<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
+    builder.plugin(tauri_plugin_wdio_webdriver::init())
+}
+
+/// Every other build has no WebDriver server.
+#[cfg(not(feature = "e2e"))]
+fn with_test_driver<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
+    builder
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let context = tauri::generate_context!();
@@ -688,7 +701,7 @@ pub fn run() {
         eprintln!("could not raise the open-file limit: {error}");
     }
     let shell_state = prepare_shell_state();
-    tauri::Builder::default()
+    with_test_driver(tauri::Builder::default())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(
             tauri_plugin_sql::Builder::default()
