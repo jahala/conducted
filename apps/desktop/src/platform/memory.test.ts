@@ -145,6 +145,7 @@ describe("PLAT-01 in-memory Platform", () => {
 	it("takes time and ids from its options", async () => {
 		const { db, memory } = freshPlatform();
 		try {
+			memory.controls.addFolder("/work");
 			const write = await memory.platform.fs.writeTextAtomic("/work/file.txt", "x");
 			expect(write.ok).toBe(true);
 			const stat = await memory.platform.fs.stat("/work/file.txt");
@@ -223,7 +224,7 @@ describe("PLAT-01 in-memory Platform", () => {
 	it("returns no matches for a grep limit of 0", async () => {
 		const { db, memory } = freshPlatform();
 		try {
-			await memory.platform.fs.writeTextAtomic("/r/a.txt", "needle");
+			memory.controls.addFile("/r/a.txt", "needle");
 			const result = await memory.platform.fileSearch.grep("/r", "needle", {
 				caseSensitive: false,
 				wholeWord: false,

@@ -17,8 +17,11 @@
  * queued dialog answer is used only by the dialog kind it was queued for; an unreadable
  * `listArtifacts` cursor is an Err, and `listArtifacts` leaves out the reserved `.context` files
  * and counts them in `omitted` the way file_search.rs does (the contract cases hold both);
- * `app.writeLog` keeps the level and message, not the data; the file system keeps text only, with
- * folders as path prefixes, and resolves `.` and `..` in a path the way the real one does; with
+ * `app.writeLog` keeps the level and message, not the data; the file system keeps text and bytes,
+ * resolves `.` and `..` in a path the way the real one does, and starts with the home, app data,
+ * temp and resource folders; a write into a missing folder is `fs_not_found` and makes no folder,
+ * as files.rs answers it (the contract case "fs.write-missing-folder" holds it, issue #600), while
+ * a file a test puts on the disk (`controls.files`, `controls.addFile`) brings its folders; with
  * `enforceFileScope` the file commands refuse a path outside the default roots and the registered
  * ones with `fs_out_of_scope`, as files.rs does (the contract case "fs.register-root" holds it),
  * and without it every path is reachable, so a service test can seed files anywhere.
@@ -195,6 +198,11 @@ export interface MemoryPlatformControls {
 	readonly registeredRoots: readonly string[];
 	/** Makes a folder and its parents exist on the user's disk, outside the app's file scope. */
 	addFolder(path: string): void;
+	/**
+	 * Puts a text file on the user's disk with its folders, as another program would, outside the
+	 * app's file scope. Its modified time is the clock's.
+	 */
+	addFile(path: string, text: string): void;
 	/** Lines the app sent to the sidecar, in order. */
 	readonly sidecarSent: readonly string[];
 	/** Delivers a line to `sidecar.onLine` listeners. */
@@ -441,6 +449,25 @@ export const isWithinRoot = (path: string, root: string): boolean => {
 	return target === base || target.startsWith(base === "/" ? "/" : `${base}/`);
 };
 
+/**
+ * Files by absolute path. A file on a disk sits in a folder, so a file a test seeds through
+ * `controls.files` brings its folders with it, as the user's disk would have them. The file
+ * commands check the folder first, so a write into a missing folder still fails (issue #600).
+ */
+class FilesOnDisk<T> extends Map<string, T> {
+	readonly #directories: Set<string>;
+
+	constructor(directories: Set<string>) {
+		super();
+		this.#directories = directories;
+	}
+
+	override set(path: string, value: T): this {
+		for (const ancestor of ancestors(path)) this.#directories.add(ancestor);
+		return super.set(path, value);
+	}
+}
+
 // ---------------------------------------------------------------- the stand-in
 
 export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlatform {
@@ -454,10 +481,17 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 
 	type ValueListener<T> = (value: T) => void;
 
-	const files = new Map<string, string>();
-	/** Binary files the mirror keeps (CLOUD-11); text files stay in `files`. */
-	const blobs = new Map<string, Uint8Array>();
+	// The folders a Mac has before the app writes anything: the home, temp and resource folders,
+	// and the app data folder the shell makes at startup for the database and logs.
 	const directories = new Set<string>(["/"]);
+	for (const folder of [paths.home, paths.appData, paths.temp, paths.resources]) {
+		const target = normalizePath(folder);
+		for (const ancestor of ancestors(target)) directories.add(ancestor);
+		directories.add(target);
+	}
+	const files = new FilesOnDisk<string>(directories);
+	/** Binary files the mirror keeps (CLOUD-11); text files stay in `files`. */
+	const blobs = new FilesOnDisk<Uint8Array>(directories);
 	const registeredRoots: string[] = [];
 	const modified = new Map<string, number>();
 	const trashed = new Map<string, string>();
@@ -548,6 +582,16 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		for (const ancestor of ancestors(path)) directories.add(ancestor);
 	};
 
+	/**
+	 * files.rs writes into a folder that exists and never makes one: a missing folder is
+	 * `fs_not_found` (issue #600). Null means the folder is there.
+	 */
+	const missingFolder = (target: string): AppError | null => {
+		const folder = parentPath(target);
+		if (directories.has(folder)) return null;
+		return platformError("fs_not_found", `${folder} does not exist.`);
+	};
+
 	/** The files.rs scope check, when the test asked for it. Null means the path may be used. */
 	const outOfScope = (path: string): AppError | null => {
 		if (options.enforceFileScope !== true) return null;
@@ -583,7 +627,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		if (directories.has(target)) {
 			return err(platformError("fs_is_a_directory", `${target} is a folder.`));
 		}
-		addParentFolders(target);
+		const missing = missingFolder(target);
+		if (missing !== null) return err(missing);
 		blobs.delete(target);
 		files.set(target, text);
 		modified.set(target, clock.now());
@@ -602,7 +647,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		if (directories.has(target)) {
 			return err(platformError("fs_is_a_directory", `${target} is a folder.`));
 		}
-		addParentFolders(target);
+		const missing = missingFolder(target);
+		if (missing !== null) return err(missing);
 		files.delete(target);
 		blobs.set(target, bytes);
 		modified.set(target, clock.now());
@@ -1348,6 +1394,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 				platformError("attachment_missing", `Attachment source does not exist: ${sourcePath}`),
 			);
 		}
+		// attachments.rs makes the destination's folder, unlike the plain file write.
+		addParentFolders(normalizePath(destinationPath));
 		const written = await writeTextAtomic(destinationPath, text);
 		if (!written.ok) return written;
 		return ok({
@@ -1364,7 +1412,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		materialize: async (sourcePath, destinationPath) => materialize(sourcePath, destinationPath),
 		resizeImage: async (sourcePath, destinationPath) => materialize(sourcePath, destinationPath),
 		writeBytes: async (bytes, destinationPath) => {
-			// The stand-in keeps text only, so the bytes are kept as UTF-8 text.
+			// The stand-in keeps text only, so the bytes are kept as UTF-8 text. attachments.rs makes
+			// the destination's folder.
+			addParentFolders(normalizePath(destinationPath));
 			const written = await writeTextAtomic(destinationPath, new TextDecoder().decode(bytes));
 			if (!written.ok) return written;
 			return ok({
@@ -1792,6 +1842,12 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			const target = normalizePath(path);
 			addParentFolders(target);
 			directories.add(target);
+		},
+		addFile: (path, text) => {
+			const target = normalizePath(path);
+			blobs.delete(target);
+			files.set(target, text);
+			modified.set(target, clock.now());
 		},
 		get sidecarSent() {
 			return sidecarSent;
