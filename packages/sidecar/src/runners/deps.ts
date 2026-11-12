@@ -10,6 +10,7 @@
  */
 import type { AppError, Clock, IdSource, Result } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
+import type { CloudMcpServer } from "./cloud-mcp.ts";
 import type { FindManagedProgram } from "./managed-programs.ts";
 
 /** Runs a short command and returns its output. Used for `--version` and auth status probes. */
@@ -36,4 +37,6 @@ export interface RunnerCommonDeps {
 	findExecutable: FindExecutable;
 	/** The app's managed copy of a program (PLAT-28, D021). Without it a runner has none to find. */
 	findManagedProgram?: FindManagedProgram;
+	/** The cloud MCP servers the Worker set on this sandbox, with placeholders (CLOUD-17). */
+	cloudMcpServers?: readonly CloudMcpServer[];
 }

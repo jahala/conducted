@@ -60,7 +60,7 @@ import type { Env } from "./env.ts";
 import { walkFileTree } from "./file-list.ts";
 import { type TurnSignal, textOf, turnSignalOf } from "./relay.ts";
 import { SANDBOX_GIT_ENV } from "./sandbox-git-env.ts";
-import { cloudSettingsEnv, readCloudSettings } from "./settings.ts";
+import { cloudMcpServersEnv, cloudSettingsEnv, readCloudSettings } from "./settings.ts";
 import { type ServerMessage, TerminalSession } from "./terminal.ts";
 
 /** The port the sandbox image's bridge listens on. */
@@ -233,10 +233,17 @@ export class Workspace extends DurableObject<Env> {
 	private async setUp(): Promise<void> {
 		const container = this.requireContainer();
 		if (!container.running) {
-			// The Mac's personal cloud settings (CLOUD-17): the commit identity and the variables
-			// only cloud workspaces see. They are read here so every start applies the latest save.
+			// The Mac's personal cloud settings (CLOUD-17): the commit identity, the variables only
+			// cloud workspaces see, and its MCP servers with placeholder credentials. They are read
+			// here so every start applies the latest save (D121).
 			const settings = await readCloudSettings(this.env);
-			const env: Record<string, string> = { ...CONTAINER_ENV, ...cloudSettingsEnv(settings) };
+			const env: Record<string, string> = {
+				...CONTAINER_ENV,
+				...cloudSettingsEnv(settings),
+				// The MCP servers' URLs and placeholder headers only; the Worker swaps the real
+				// credentials in at its outbound handler (CLOUD-17).
+				...cloudMcpServersEnv(settings),
+			};
 			const name = this.ctx.id.name;
 			// The callback the entry calls when the last running chat goes idle (D105).
 			if (name !== undefined) env.CONDUCTED_TURN_END_URL = turnEndUrl(name);

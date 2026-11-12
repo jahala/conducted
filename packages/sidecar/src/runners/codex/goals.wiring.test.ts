@@ -157,6 +157,7 @@ async function harness(): Promise<{
 			logDir: path.join(folder, "log"),
 			appVersion: "0.0.0",
 			logLevel: "info",
+			cloudMcpServers: [],
 		},
 		{
 			app,

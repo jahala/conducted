@@ -41,6 +41,7 @@ import { APP_TOOL_SERVER, type Effort, type ModelInfo } from "@conducted/protoco
 import { messageOf } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import { isRecord } from "../../util/records.ts";
+import { withCloudMcpServers } from "../cloud-mcp.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
 import type { AgentSession, Runner, RunnerCapabilities, StartOptions } from "../runner.ts";
 import type { CursorSdkLoader } from "./cursor-sdk.ts";
@@ -279,7 +280,11 @@ export class CursorRunner implements Runner {
 				envLock: this.deps.envLock,
 				translator: new CursorTranslator({ logger: this.log }),
 				apiKey: options.env.CURSOR_API_KEY,
-				mcpServers: withAppToolsServer(userServers, appTools.server, this.log),
+				mcpServers: withAppToolsServer(
+					withCloudMcpServers(userServers, this.deps.cloudMcpServers ?? []),
+					appTools.server,
+					this.log,
+				),
 				storeDir: cursorStoreFolder(this.deps.storeRoot, options.workspace.workspacePath),
 				onDispose: () => appTools.release(),
 				logger: this.deps.logger,

@@ -558,3 +558,62 @@ bucket were deleted by the test.
 - Cleanup: `containers list`, `containers images list` and `r2 bucket list` held no
   `conducted-dev-c11t` entry; the local Docker image was removed by id. The first measurement's
   image and the second's image were both removed.
+
+## CLOUD-17's live attempt (2026-11-07): blocked by Cloudflare's outage
+
+Two throwaway deployments ran with `@cloudflare/sandbox` 1.0.3 and the product image from `apps/cloud/sandbox/Dockerfile`, through a temporary `wrangler.jsonc` with a unique Worker, container application and R2 bucket. No MCP credential was needed: the one server was `context7` with no auth.
+
+What the first deployment showed (Worker `conducted-dev-c17m-183243`):
+
+- A cold start after the deploy: 9,779 ms to the sidecar's health answer, with the sidecar itself ready 478 ms after the entry process started. A warm start was 3 ms.
+- The personal cloud settings route saved the server, and the sandbox's sidecar listed it from Claude's MCP status: `{ name: "context7", transport: "http", status: "pending" }` in 403 ms. The status was `pending`, not `connected`, so the conversation with the server had not completed when the query answered.
+- `claude mcp list` run inside the sandbox exited 0 but printed "No MCP servers configured": the CLI's `mcp list` subcommand does not read a dynamic `--mcp-config` entry.
+- After the first `stop` (which saved `/workspace` and `/root/.claude` to R2), every later `start` failed: one answered `sandbox-shim returned truncated control data`, and later starts hung beyond 240 s.
+
+A second, fresh deployment (Worker `conducted-dev-c17m-185427`, current code with the MCP server set and with none) hung on every start past 240 s. `cloudflarestatus.com` at the time reported "Partial System Outage", with North America, Europe and several other regions at `major_outage` and the platform at `degraded_performance`. The same hang came from the first deployment's image, which had started minutes earlier, so the failure follows the platform, not the image.
+
+Not verified: one MCP server reachable from an agent in a real sandbox. The Worker's settings-to-sandbox path and the MCP registration were observed; the connection and a tool call were not.
+
+Resources deleted after the attempt (checked empty by `wrangler containers list`, `wrangler containers images list`, `wrangler r2 bucket list` and `docker images`):
+
+- Workers `conducted-dev-c17m-183243`, `conducted-dev-c17m-185427` and the temporary `conducted-dev-c17m-cleanup`.
+- Container applications `conducted-dev-c17m-183243-sandbox` (`da2494466e334ec4b256fe8fbb388f28`) and `conducted-dev-c17m-185427-sandbox` (`06082a422efd491da4db0e50d07dcba0`).
+- Images `conducted-dev-c17m-183243-workspace-sandbox:wrangler-mw6qr53b` (`256b324532ee…`), `…:wrangler-mw6qzrsm` and `conducted-dev-c17m-185427-workspace-sandbox:wrangler-mw6rj079` (`e67aad491dbf…`).
+- R2 buckets `conducted-dev-c17m-183243-backups` (9 objects: the settings object and 8 workspace backups) and `conducted-dev-c17m-185427-backups` (1 object: the settings object).
+- Local Docker images `256b324532ee…` and `e67aad491dbf…`, and the temporary folders and image inputs on this Mac.
+
+Two local tools were created for the attempt and removed: `/tmp/c17m-live`, `/tmp/c17m-live2`, `/tmp/c17m-cleanup` and `apps/cloud/sandbox/build/`.
+
+## CLOUD-17's live run (2026-11-12): an agent in the sandbox reaches a bearer-token MCP server
+
+One command: `pnpm cloud:live-mcp` (`scripts/cloud/live-mcp.ts`). It builds the deploy inputs, runs the ignored Rust test `apps/desktop/src-tauri/tests/cloud_c17_live.rs`, and moves the inputs to the Trash after. The test deploys with the app's own `deploy_worker` and removes with `uninstall_worker`. `pnpm cloud:live-mcp --cleanup` removes a deployment that a killed run left.
+
+The test MCP server runs on this Mac on a loopback port, behind a Cloudflare quick tunnel (`cloudflared tunnel --url`, no account resource). It answers only `Authorization: Bearer <token>`, where the token is 24 random bytes made in memory and never printed. The token reaches the Worker only in the `POST /settings` body. The Worker held no model key (`/readiness` said so before the turn), so no model call was made or billed.
+
+What the passing runs showed (`conducted-dev-c17l-191314` and `-191707`, the second through the one command):
+
+- Deploy 36.0 s and 103.9 s; first start 25.4 s and 12.5 s; removal 21.6 s and 38.0 s.
+- `listMcpServers` over the relay: `{ name: "c17probe", status: "connected", toolCount: 1, tools: ["c17_probe"], transport: "http" }`.
+- The server saw, with the real token each time: `server/discover`, `initialize`, `notifications/initialized`, `tools/list` and `prompts/list` from the listing, the same from the warmed chat, then `prompts/get` when the chat was sent `/mcp__c17probe__probe`, then a `tools/call` sent by `curl` inside the sandbox with `authorization: Bearer provided-by-worker` (answered 200). No request arrived without the token.
+- The token search: every 48-character hex window in every process's environment and command line, in every file written since the sandbox started and in every file under `/workspace`, `/root`, `/home`, `/tmp`, `/var`, `/run` and `/etc` (17,533 files, 6 processes, 4,783 windows), hashed with SHA-256 and compared with the token's hash: 0 matches. A decoy planted in `/workspace` was found once, and 5 processes held the placeholder, so the search reads both files and environments. None of the 13 relayed lines held the token.
+- Limits of the search: files over 16 MiB were not read, and `/run/cloudchamber/proc` (Cloudflare's mirror of `/proc`) was skipped because `/proc` is read directly.
+
+What the first eight attempts taught, each fixed in the test:
+
+- A quick tunnel's name is cached as missing if it is looked up too early; the test waits 20 s before its first probe.
+- The relay carries NDJSON: a request needs its newline, and the sidecar's bytes arrive in any chunking.
+- Claude requires the chat id to be a UUID.
+- A first message gets the workspace instruction block in front, so the slash command must go as a later message; and a cold chat can take the command before its MCP servers connect, so the test warms the chat first (`warmAgent`), as the app does.
+- A Node walk of the sandbox's files ran out of the basic instance's memory; `grep` streams them instead, in batches that cannot stop one another. Long commands run on the terminal stream, because one `/exec` request is cut after about 60 s.
+- A new `workers.dev` name answers 404 (error 1042) for its first seconds.
+- **The app's uninstall cannot delete a bucket that holds anything.** `uninstall_worker` deletes the Worker and the container application, then `wrangler r2 bucket delete` refuses with code 10008 if the bucket still holds the settings object or a backup. Any user who saved a cloud setting meets this. The test empties the bucket first (the workspace's `/remove` route deletes its backups; the settings object is deleted by key). The product fix is not made here.
+
+Resources created and deleted (account lists read after each run, and once more at the end: `wrangler containers list`, `containers images list`, `r2 bucket list`, `deployments list --name` for each Worker, and `docker images`, all with no `conducted-dev-c17l` entry):
+
+| Worker (with its container application, image and R2 bucket of the same name) | Deleted by |
+| --- | --- |
+| `conducted-dev-c17l-182520` | nothing deployed: the tunnel probe failed first |
+| `conducted-dev-c17l-182859` | the test, except the bucket (code 10008) and the local image, deleted by hand at 18:44 |
+| `-184546`, `-184932`, `-185519`, `-190039`, `-190240`, `-190641`, `-191314`, `-191707` | the test's teardown |
+
+Each run also made a quick tunnel and a temporary home folder for `cloudflared`; both ended with the run. Cost was not visible from the CLI; the nine deployments each ran a `basic` instance for 2 to 5 minutes.

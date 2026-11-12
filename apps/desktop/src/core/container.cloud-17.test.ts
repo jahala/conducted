@@ -57,6 +57,7 @@ describe("CLOUD-17 cloud settings in the real container", () => {
 			expect(settings.current).toEqual({
 				gitIdentity: { name: "Sam Rivera", email: "sam@example.com" },
 				envVars: {},
+				mcpServers: {},
 			});
 			const posts = test.memory.controls.cloudRequests.filter(
 				(request) => request.method === "POST" && request.path === "/settings",
@@ -76,7 +77,9 @@ describe("CLOUD-17 cloud settings in the real container", () => {
 	it("stops a cloud workspace running while data privacy mode is on, but still saves settings", async () => {
 		const test = await paired();
 		try {
-			const settings = { current: { gitIdentity: null, envVars: { NODE_ENV: "test" } } };
+			const settings = {
+				current: { gitIdentity: null, envVars: { NODE_ENV: "test" }, mcpServers: {} },
+			};
 			scriptWorker(test, settings);
 			expect((await test.container.actions.settings.set("enterprise_data_privacy", true)).ok).toBe(
 				true,
@@ -108,6 +111,48 @@ describe("CLOUD-17 cloud settings in the real container", () => {
 			expect((await test.container.actions.cloud.setCloudEnvVar("API_URL", "https://x")).ok).toBe(
 				true,
 			);
+		} finally {
+			test.container.services.repo.dispose();
+			test.close();
+		}
+	});
+
+	it("saves a cloud MCP server and scans this Mac for one to import", async () => {
+		const test = await paired();
+		try {
+			const settings = { current: { gitIdentity: null, envVars: {}, mcpServers: {} } };
+			scriptWorker(test, settings);
+			const linear = {
+				url: "https://mcp.linear.app/mcp",
+				authType: "bearer" as const,
+				bearerToken: "lin_api_x",
+			};
+			expect((await test.container.actions.cloud.saveMcpServer("linear", linear)).ok).toBe(true);
+			expect(settings.current.mcpServers).toEqual({ linear });
+
+			test.memory.controls.files.set(
+				`${test.memory.platform.fs.paths.home}/.cursor/mcp.json`,
+				JSON.stringify({
+					mcpServers: { localServer: { url: "https://mcp.example.com/mcp" } },
+				}),
+			);
+			const scanned = await test.container.actions.cloud.scanLocalMcpServers();
+			expect(scanned.ok).toBe(true);
+			if (!scanned.ok) return;
+			expect(scanned.value.candidates.map((candidate) => candidate.name)).toEqual(["localServer"]);
+
+			const imported = await test.container.actions.cloud.importMcpServers({
+				localServer: { url: "https://mcp.example.com/mcp", authType: "none" },
+			});
+			expect(imported.ok).toBe(true);
+			expect(settings.current.mcpServers).toEqual({
+				linear,
+				localServer: { url: "https://mcp.example.com/mcp", authType: "none" },
+			});
+			const posts = test.memory.controls.cloudRequests.filter(
+				(request) => request.method === "POST" && request.path === "/settings",
+			);
+			expect(posts).toHaveLength(2);
 		} finally {
 			test.container.services.repo.dispose();
 			test.close();

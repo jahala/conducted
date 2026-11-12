@@ -276,6 +276,10 @@ export const KeyboardIcon = (p: P) => (
 export const HardDriveIcon = (p: P) => (
 	<Icon d="M2.5 8.5h11v4h-11zM4.5 10.5h.01M2.5 8.5l1.5-5h8l1.5 5" {...p} />
 );
+/** A drive with an arrow into it: import from this Mac. */
+export const HardDriveDownloadIcon = (p: P) => (
+	<Icon d="M8 2v6M5.5 5.5L8 8l2.5-2.5M2.5 10h11v4h-11zM4.5 12h.01" {...p} />
+);
 export const InfoIcon = (p: P) => (
 	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 7v4M8 5.2h.01" {...p} />
 );

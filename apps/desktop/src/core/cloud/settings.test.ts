@@ -36,7 +36,11 @@ describe("CLOUD-17 the cloud settings service", () => {
 			pairing: () => ({ paired: false, url: null }),
 		});
 		const loaded = await service.load();
-		expect(loaded.ok && loaded.value).toEqual({ gitIdentity: null, envVars: {} });
+		expect(loaded.ok && loaded.value).toEqual({
+			gitIdentity: null,
+			envVars: {},
+			mcpServers: {},
+		});
 		expect(requests).toHaveLength(0);
 		expect(service.store.getState()).toMatchObject({ state: "ready", paired: false });
 	});
@@ -45,6 +49,7 @@ describe("CLOUD-17 the cloud settings service", () => {
 		const saved = {
 			gitIdentity: { name: "Sam Rivera", email: "sam@example.com" },
 			envVars: { NODE_ENV: "development" },
+			mcpServers: {},
 		};
 		const { cloud, requests } = fakeCloud(() => answered(200, saved));
 		const service = createCloudSettings({ cloud, pairing: () => PAIRED });
@@ -71,7 +76,7 @@ describe("CLOUD-17 the cloud settings service", () => {
 	});
 
 	it("saves the commit identity and a variable over the same object", async () => {
-		let stored = { gitIdentity: null, envVars: {} };
+		let stored = { gitIdentity: null, envVars: {}, mcpServers: {} };
 		const { cloud, requests } = fakeCloud((request) => {
 			if (request.method === "GET") return answered(200, stored);
 			stored = request.body as typeof stored;
@@ -86,12 +91,13 @@ describe("CLOUD-17 the cloud settings service", () => {
 		expect(stored).toEqual({
 			gitIdentity: { name: "Sam Rivera", email: "sam@example.com" },
 			envVars: { NODE_ENV: "test" },
+			mcpServers: {},
 		});
 		expect(requests.map((request) => request.method)).toEqual(["GET", "POST", "POST"]);
 	});
 
 	it("keeps the saved settings when the Worker refuses a variable, and shows the Worker's reason", async () => {
-		const saved = { gitIdentity: null, envVars: { NODE_ENV: "development" } };
+		const saved = { gitIdentity: null, envVars: { NODE_ENV: "development" }, mcpServers: {} };
 		const { cloud } = fakeCloud((request) =>
 			request.method === "GET"
 				? answered(200, saved)
@@ -111,7 +117,7 @@ describe("CLOUD-17 the cloud settings service", () => {
 	});
 
 	it("removes a variable and leaves the rest", async () => {
-		let stored = { gitIdentity: null, envVars: { A: "1", B: "2" } };
+		let stored = { gitIdentity: null, envVars: { A: "1", B: "2" }, mcpServers: {} };
 		const { cloud } = fakeCloud((request) => {
 			if (request.method === "GET") return answered(200, stored);
 			stored = request.body as typeof stored;
@@ -121,5 +127,72 @@ describe("CLOUD-17 the cloud settings service", () => {
 		await service.load();
 		expect((await service.removeEnvVar("A")).ok).toBe(true);
 		expect(stored.envVars).toEqual({ B: "2" });
+	});
+
+	it("reads a Worker from before MCP servers as having none", async () => {
+		const { cloud } = fakeCloud(() => answered(200, { gitIdentity: null, envVars: {} }));
+		const service = createCloudSettings({ cloud, pairing: () => PAIRED });
+		const loaded = await service.load();
+		expect(loaded.ok && loaded.value.mcpServers).toEqual({});
+	});
+
+	it("saves, replaces and removes one MCP server over the same object", async () => {
+		let stored = { gitIdentity: null, envVars: {}, mcpServers: {} };
+		const { cloud, requests } = fakeCloud((request) => {
+			if (request.method === "GET") return answered(200, stored);
+			stored = request.body as typeof stored;
+			return answered(200, stored);
+		});
+		const service = createCloudSettings({ cloud, pairing: () => PAIRED });
+		await service.load();
+		const linear = {
+			url: "https://mcp.linear.app/mcp",
+			authType: "bearer" as const,
+			bearerToken: "lin_api_x",
+		};
+		expect((await service.saveMcpServer("linear", linear)).ok).toBe(true);
+		expect(stored.mcpServers).toEqual({ linear });
+		expect(
+			(
+				await service.saveMcpServer("linear", {
+					url: "https://mcp.linear.app/mcp",
+					authType: "none",
+				})
+			).ok,
+		).toBe(true);
+		expect(stored.mcpServers).toEqual({
+			linear: { url: "https://mcp.linear.app/mcp", authType: "none" },
+		});
+		expect((await service.removeMcpServer("linear")).ok).toBe(true);
+		expect(stored.mcpServers).toEqual({});
+		expect(requests.map((request) => request.method)).toEqual(["GET", "POST", "POST", "POST"]);
+	});
+
+	it("imports several MCP servers in one save without replacing the others", async () => {
+		let stored = {
+			gitIdentity: null,
+			envVars: {},
+			mcpServers: { context: { url: "https://mcp.context7.com/mcp", authType: "none" } },
+		};
+		const { cloud, requests } = fakeCloud((request) => {
+			if (request.method === "GET") return answered(200, stored);
+			stored = request.body as typeof stored;
+			return answered(200, stored);
+		});
+		const service = createCloudSettings({ cloud, pairing: () => PAIRED });
+		await service.load();
+		const imported = {
+			linear: {
+				url: "https://mcp.linear.app/mcp",
+				authType: "headers" as const,
+				headers: { "X-Api-Key": "k" },
+			},
+		};
+		expect((await service.importMcpServers(imported)).ok).toBe(true);
+		expect(stored.mcpServers).toEqual({
+			context: { url: "https://mcp.context7.com/mcp", authType: "none" },
+			...imported,
+		});
+		expect(requests.filter((request) => request.method === "POST")).toHaveLength(1);
 	});
 });
