@@ -3,6 +3,135 @@
 Release notes, newest first. `pnpm release` writes each version's section from the commit subjects
 since the last tag, and the GitHub release body is cut from that section (PLAT-39).
 
+## 0.4.0 (2026-11-12)
+
+### Build
+
+- Bump typescript from 5.9.3 to 7.0.2 (#574)
+- Bump the cargo-minor-and-patch group (#567)
+- Bump taiki-e/install-action (#566)
+
+### Chat
+
+- a background helper's late work shows inside the card that started it (D129) (#552)
+- show a Claude error reply as text, and the error once, as Conductor does (#547)
+- keep a sub-agent's text and todo list inside its card (#545)
+
+### CI
+
+- draw the catalogue in three parts side by side, and run the browser checks apart (#575)
+- a hung artifact upload fails in five minutes, not at the job's limit (#558)
+- a pull request runs only the tests its changes can reach (#544)
+- run the browser jobs in Microsoft's Playwright image (#540) (#543)
+
+### Cloud
+
+- keep a cloud workspace's Sync files switch across restarts (#549) (#561)
+
+### Deps
+
+- sha2 0.11, and core-foundation 0.10 with system-configuration 0.8 (#584)
+- the minor and patch group, with Playwright's image, minus the icon theme (#585)
+- Dependabot leaves muda to move with Tauri (#587)
+
+### Docs
+
+- the overnight report for 11 to 12 November (#583)
+- D125, split large services along feature ids when next changed (#515)
+- the day report for 7 November (#459)
+- record Conductor's success-handler side effects (#500)
+
+### Features
+
+- Claude Code follows its newest compatible release (#541) (#604)
+
+### Fixes
+
+- a failed start logs its whole error, not only the message (#628) (#631)
+- failed setting saves toast as Conductor's do, and no save is ignored (#614) (#620)
+- plan bar Approve sends composer text, and shows only in plan mode (#605)
+- a project's git switch shows its default while its value loads (#615) (#618)
+- switching straight from one model-menu flyout to another opens it (#609) (#612)
+- app shortcuts wait while a dialog is open (#607)
+- Cmd+Shift+Enter approves a waiting plan from the composer; jsdom 31 (#594)
+- bound every wait by time, and let the attachment image load (#593)
+- the lifetime job keeps a chat's items a JSON list on newer SQLite (#582)
+- a deploy's temp paths and the deploy tests' folders never share a name (#559)
+- let Codex visualizations run their scripts without loosening the app's policy (#466) (#514)
+
+### Import
+
+- bring each Claude chat's history from Conductor (APP-18) (#557)
+- the spike leaves ruled orphan work out, and drops turns that show nothing (#555)
+- the spike's Conductor side hides a repeated sign-in text, as Conductor does (#554)
+- read Conductor chat history from session_messages, for every chat (#546)
+
+### Parity
+
+- close 26 of the 27 wording and placement gaps (#602)
+- catalogue states for what we have but did not draw (#579)
+- seed the map from main's catalogue after tonight's parity work (#576)
+- review, diff and file viewer wording as in Conductor (#560)
+- composer, chat banners, sections and workspace wording as in Conductor (#562)
+- settings (agents, providers, environment, MCP, repository) as in Conductor (#563)
+- GitHub notices, Quick start, Run tab and terminal settings as in Conductor (#551)
+- chat wording, turn details, task and image cards as in Conductor (#548)
+- cloud ports, preview URL and Sync files as in Conductor (#550)
+- work down SET-05's MCP gaps (#498)
+- work down SET-02's settings gaps (#499)
+
+### Releases
+
+- end the tap deploy key with a newline (#497)
+
+### Settings
+
+- no sideways scroll, deploy and pairing on the Cloud page, a deploy that keeps its state (#488 to #490) (#531)
+
+### Sidebar
+
+- fold My workspaces from its header, and keep empty projects (#486, #493) (#519)
+
+### Terminals
+
+- drag a terminal between the bottom panel and the centre tabs (#527) (#565)
+
+### Tests
+
+- hang-sized time limits, so a loaded machine does not fail a test (#553)
+- turn off git's background maintenance for every test run (#513)
+
+### Other
+
+- SET-10: search providers in the OpenCode Providers dialog, as Conductor does (#629)
+- End-to-end tests in the real app: the driver and the round trips (part 1 of #564) (#603)
+- The Agents tabs fit their row: Conductor's tab row and clipping rules (#625) (#626)
+- Parity follow-ups: system link dialog, Diagnostics labels, MCP placeholder, map owners (#608) (#621)
+- Import from Conductor: keep the database queue free during a long chat (#598, D136) (#623)
+- The app's database is one connection, so a transaction can no longer save half its writes (#616) (#619)
+- A refused path is never read as missing; typed program and SSH key paths are checked as Conductor does (#601) (#613)
+- Settings save on a new install; the stand-ins refuse a write into a missing folder (#600) (#606)
+- Import from Conductor: fits the disk, and a measure at full size (#556, D132) (#599)
+- file icons: Conductor's tinted brand glyphs for its 107 file kinds (#534) (#578)
+- Every in-app drag works in the real window: one pointer drag, as Conductor's (#529) (#539)
+- The resource usage chip and popover, as Conductor's (#485) (#537)
+- Agent programs: newest compatible versions, and a daily PR that keeps them so (#542)
+- Move workspace creation out of WorkspaceService (D125, #532) (#536)
+- File icons from the Material Icon Theme, where Conductor shows them (#524) (#535)
+- Create cloud workspaces from Conductor's organisation switcher (#491) (#533)
+- Loadout drag works in the real app: pointer drags, as Conductor's (#481) (#530)
+- A terminal opens and stays in the strip that made it (#482) (#528)
+- Code is coloured with Shiki, with line numbers, in every file view (#496) (#525)
+- Archive, merge, unarchive and delete behave as Conductor's do (#502 to #505) (#526)
+- Closing a chat asks first, stops its agent and opens the next (#501, #480) (#523)
+- Every command does something: no more "not available yet" (#478, #479, #492) (#522)
+- What happens after five actions succeed, as Conductor does (#506 to #510) (#521)
+- Diagnostics Back button, and no browser right-click menu (#487, #495) (#520)
+- The chat history spike compares transcripts by content (APP-18, #512) (#518)
+- Remove the per-file diff tool action Conductor does not have (#467) (#517)
+- Make the screens' import boundary real, and have Biome hold it (#396) (#516)
+- APP-17: import from Conductor, read-only dry run then all-or-nothing import (#494)
+
 ## 0.3.3 (2026-11-08)
 
 ### Fixes

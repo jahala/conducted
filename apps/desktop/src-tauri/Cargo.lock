@@ -704,7 +704,7 @@ dependencies = [
 
 [[package]]
 name = "conducted"
-version = "0.3.3"
+version = "0.4.0"
 dependencies = [
  "alacritty_terminal",
  "base64 0.22.1",
