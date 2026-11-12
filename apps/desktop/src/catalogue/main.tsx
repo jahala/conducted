@@ -8,10 +8,11 @@
  * `data-catalogue-error`) and the app route in `data-catalogue-route`, which the screenshot run reads.
  * Behaviour: docs/plans/parallel-build.md section 2, "States catalogue". Run it with
  * `pnpm --dir apps/desktop catalogue`; docs/engineering.md says how.
- * Our design choice: "settled" means the start-up finished, the router is idle, no query or mutation is
- * running, the fonts are loaded, the state's own `ready` check holds, and the page has not changed for
- * ten animation frames in a row. Every wait is bounded by frames, so a state that never settles fails
- * with a reason instead of hanging.
+ * Our design choice: "settled" means the start-up finished, the fonts are loaded, and settle.ts holds:
+ * the router is idle, no query or mutation is running, the state's own `ready` check holds, the page
+ * has not changed for ten animation frames in a row, and the ready check still holds then. The
+ * after-step waits for the page to go quiet first, so it acts on a loaded screen as a user does. Every
+ * wait is bounded by frames, so a state that never settles fails with a reason instead of hanging.
  * Must handle: an unknown state id (the index page with a notice); a seed or after-step that throws
  * (marked failed, with the message on screen); the release build never includes this file
  * (scripts/catalogue/check-bundle.ts fails the build if it does).
@@ -20,31 +21,15 @@
 import { createMemoryHistory } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { type StartedApp, startApp } from "../main.tsx";
+import { startApp } from "../main.tsx";
 import { CatalogueIndex } from "./CatalogueIndex.tsx";
 import { CATALOGUE_MARKER } from "./marker.ts";
 import { setSetting } from "./seeds.ts";
+import { MAX_FRAMES, nextFrame, settle, waitFor, waitForQuiet } from "./settle.ts";
 import { openCatalogueDatabase } from "./sqlite.ts";
-import type { CatalogueState, Scene, Theme } from "./state.ts";
+import type { CatalogueState, Theme } from "./state.ts";
 import { CATALOGUE_STATES } from "./states/index.ts";
 import { createWorld } from "./world.ts";
-
-/** Frames the page must stay unchanged before it counts as settled. */
-const QUIET_FRAMES = 10;
-/** The most frames any wait may take, about twenty seconds at 60 frames a second. */
-const MAX_FRAMES = 1_200;
-
-const nextFrame = (): Promise<void> =>
-	new Promise((resolve) => requestAnimationFrame(() => resolve()));
-
-/** Waits, one frame at a time, until `holds` is true. Fails with `what` after MAX_FRAMES. */
-async function waitFor(what: string, holds: () => boolean): Promise<void> {
-	for (let frame = 0; frame < MAX_FRAMES; frame++) {
-		if (holds()) return;
-		await nextFrame();
-	}
-	throw new Error(`The screen never settled: ${what}.`);
-}
 
 /** Fails with `what` when `work` has not finished after MAX_FRAMES frames. */
 async function withinFrames<T>(what: string, work: Promise<T>): Promise<T> {
@@ -59,45 +44,6 @@ async function withinFrames<T>(what: string, work: Promise<T>): Promise<T> {
 		finished = true;
 		timeout.catch(() => {});
 	}
-}
-
-/** Waits until nothing on the page changed for QUIET_FRAMES frames in a row. */
-async function waitForQuiet(root: Node): Promise<void> {
-	let changed = true;
-	const observer = new MutationObserver(() => {
-		changed = true;
-	});
-	observer.observe(root, { subtree: true, childList: true, attributes: true, characterData: true });
-	try {
-		let quiet = 0;
-		for (let frame = 0; frame < MAX_FRAMES; frame++) {
-			await nextFrame();
-			quiet = changed ? 0 : quiet + 1;
-			changed = false;
-			if (quiet >= QUIET_FRAMES) return;
-		}
-		throw new Error("The screen never settled: the page kept changing.");
-	} finally {
-		observer.disconnect();
-	}
-}
-
-async function settle(state: CatalogueState, scene: Scene, app: StartedApp): Promise<void> {
-	await waitFor("the router is loading", () => app.router.state.status === "idle");
-	await waitFor(
-		"a query or mutation is still running",
-		() => app.queryClient.isFetching() === 0 && app.queryClient.isMutating() === 0,
-	);
-	await document.fonts.ready;
-	if (scene.ready !== undefined) {
-		const ready = scene.ready;
-		await waitFor(`"${state.id}" never showed what it is about`, () => ready(document));
-	}
-	await waitForQuiet(document.body);
-	await waitFor(
-		"a query or mutation started while the page settled",
-		() => app.queryClient.isFetching() === 0 && app.queryClient.isMutating() === 0,
-	);
 }
 
 function mark(status: "ready" | "failed", detail: { route?: string; error?: string }): void {
@@ -126,11 +72,20 @@ async function mountState(
 		const started = await app.started;
 		if (!started.ok) throw new Error(`The app did not start: ${started.error.message}`);
 	}
-	await waitFor("the router is loading", () => app.router.state.status === "idle");
+	const activity = {
+		routerIdle: () => app.router.state.status === "idle",
+		queriesIdle: () => app.queryClient.isFetching() === 0 && app.queryClient.isMutating() === 0,
+	};
+	await waitFor("the router is loading", activity.routerIdle);
 	if (scene.after !== undefined) {
+		// The after-step acts on a loaded screen, as a user does. Until the page is quiet the app may
+		// still move the focus (the composer takes it once it has loaded), which closes a menu the
+		// step opened.
+		await waitForQuiet(document.body);
 		await withinFrames("the state's after-step", scene.after({ world, app, document }));
 	}
-	await settle(state, scene, app);
+	await document.fonts.ready;
+	await settle(state.id, scene.ready, activity);
 	const location = app.router.state.location;
 	mark("ready", { route: `${location.pathname}${location.searchStr}` });
 }
