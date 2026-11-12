@@ -228,13 +228,10 @@
 		"by": "rule:hosted-backend-route"
 	},
 	"route:R5008856": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-07",
-		"owner": "hand",
-		"note": "Conductor's full route is `/settings/repos/$repoId/misc`; our router serves it through `/settings/repos/$repoId/$page` (app/router.tsx). The seed compares the parameterised spec text with a state's literal route, so it cannot match."
+		"status": "decided",
+		"decision": "D086",
+		"note": "The same route with a repository id in place of $repoId; catalogue state settings-repo-preview-urls opens it. The harness matches routes by exact text, so a parameterised address cannot be seeded.",
+		"by": "hand"
 	},
 	"route:R9253487": {
 		"status": "matched",
@@ -375,22 +372,16 @@
 		"by": "hand"
 	},
 	"route:R11783949": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-09",
-		"owner": "hand",
-		"note": "Our provider setup is a dialog on `/settings/agents` (AgentProvidersDialog.tsx), not a page route. Conductor's `/providers` page has no route in ours."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A route object's child path segment under /settings/user, not an address a state opens. Its full route, /settings/user/providers, is Conductor's Agents page and is its own entry (route:R2983757); ours is /settings/user/agents.",
+		"by": "hand"
 	},
 	"route:R11784032": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-04",
-		"owner": "hand",
-		"note": "This is Conductor's child path segment under `/settings/user`; our full route is `/settings/environment`. A segment cannot equal a state's full route."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A route object's child path segment under /settings/user, not an address a state opens; our full route is /settings/user/environment, which catalogue state settings-environment-edit-variable opens.",
+		"by": "hand"
 	},
 	"route:R11784112": {
 		"status": "decided",
@@ -416,13 +407,10 @@
 		"by": "hand"
 	},
 	"route:R11784428": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "NAV-09",
-		"owner": "hand",
-		"note": "This is Conductor's child path segment under `/settings/user`; our full route is `/settings/key-bindings`. A segment cannot equal a state's full route."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A route object's child path segment under /settings/user, not an address a state opens; our full route is /settings/user/key-bindings, which catalogue state settings-key-bindings opens.",
+		"by": "hand"
 	},
 	"route:R11784537": {
 		"status": "decided",
@@ -449,40 +437,28 @@
 		"by": "hand"
 	},
 	"route:R11785937": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-07",
-		"owner": "hand",
-		"note": "This is Conductor's child path segment under `/settings/repos/$repoId`; our router serves that full path through `/settings/repos/$repoId/$page`. A segment cannot equal a state's full route."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A route object's child path segment under /settings/repos/$repoId, not an address a state opens; our router serves /settings/repos/$repoId/git through /settings/repos/$repoId/$page (app/router.tsx), and catalogue state settings-repo-git opens it.",
+		"by": "hand"
 	},
 	"route:R11785995": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-07",
-		"owner": "hand",
-		"note": "This is Conductor's child path segment under `/settings/repos/$repoId`; our router serves that full path through `/settings/repos/$repoId/$page`. A segment cannot equal a state's full route."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A route object's child path segment under /settings/repos/$repoId, not an address a state opens; our router serves /settings/repos/$repoId/scripts through /settings/repos/$repoId/$page (app/router.tsx), and catalogue state settings-repo-scripts opens it.",
+		"by": "hand"
 	},
 	"route:R11786057": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-07",
-		"owner": "hand",
-		"note": "This is Conductor's child path segment under `/settings/repos/$repoId`; our router serves that full path through `/settings/repos/$repoId/$page`. A segment cannot equal a state's full route."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A route object's child path segment under /settings/repos/$repoId, not an address a state opens; our router serves /settings/repos/$repoId/actions through /settings/repos/$repoId/$page (app/router.tsx), and catalogue state settings-repo-add-action opens it.",
+		"by": "hand"
 	},
 	"route:R11786119": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"backlog": "SET-07",
-		"owner": "hand",
-		"note": "This is Conductor's child path segment under `/settings/repos/$repoId`; our router serves that full path through `/settings/repos/$repoId/$page`. A segment cannot equal a state's full route."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A route object's child path segment under /settings/repos/$repoId, not an address a state opens; our router serves /settings/repos/$repoId/misc through /settings/repos/$repoId/$page (app/router.tsx), and catalogue state settings-repo-preview-urls opens it.",
+		"by": "hand"
 	},
 	"route:R11786178": {
 		"status": "decided",

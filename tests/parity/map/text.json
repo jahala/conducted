@@ -43,10 +43,9 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"class": "wording",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it.",
+		"note": "Conductor's only place for these words is the tooltip of Home's 'N/100 cities visited' button (renderApp @1853248), which ours lacks. Ours uses them as the Passport command's title on the key bindings page and the shortcuts dialog.",
 		"backlog": "NAV-13",
-		"item": "Conductor shows \"View workspace world map\" (control, Unplaced); ours says \"Open the place name map\" on Passport command (parity gap, wording).",
+		"item": "Conductor shows \"View workspace world map\" (control, Home) as the tooltip of Home's \"N/100 cities visited\" button, which opens the Passport; ours has no counterpart yet (parity gap).",
 		"owner": "hand",
 		"by": "hand"
 	},
@@ -353,14 +352,11 @@
 		"by": "seed"
 	},
 	"text:R2184278": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Git, review and files",
-		"class": "wording",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it.",
-		"backlog": "GIT-04",
-		"item": "Conductor shows \"View PR status\" (control, inventory-ui-text Git, review and files); ours says \"PR status details\" on git panel PR status chip (parity gap, wording).",
-		"owner": "hand",
+		"status": "matched",
+		"state": "chat-working",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > div > button",
 		"by": "hand"
 	},
 	"text:R2186426": {
@@ -399,10 +395,9 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Git, review and files",
-		"class": "wording",
-		"note": "Conductor shows this only when it has no pending count; with one it shows 'N checks pending...', which is our string. Our checks_pending state always has at least one pending check.",
-		"backlog": "GIT-04",
-		"item": "Conductor shows \"Checks pending...\" (region, inventory-ui-text Git, review and files); ours says \"N checks pending...\" on git panel header (parity gap, wording).",
+		"note": "Conductor shows this in a sidebar row's hover card, as the git action while checks run (surface hoverCard, renderApp @2224224 and @10335702). Ours has no row hover card.",
+		"backlog": "NAV-03",
+		"item": "Conductor shows \"Checks pending...\" (region, sidebar) as the git action in a workspace row's hover card while checks run; ours has no counterpart yet, since the hover card is not built (parity gap).",
 		"owner": "hand",
 		"by": "hand"
 	},
@@ -3187,14 +3182,11 @@
 		"by": "seed"
 	},
 	"text:R10289703": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it.",
-		"backlog": "NAV-01",
-		"item": "Conductor shows \"Toggle sidebar\" (control, Unplaced); ours says \"Toggle left sidebar\" on window controls row (parity gap, wording).",
-		"owner": "hand",
+		"status": "matched",
+		"state": "sidebar",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div > div > div:nth-of-type(1) > button:nth-of-type(1)",
 		"by": "hand"
 	},
 	"text:R10303954": {
@@ -3574,25 +3566,19 @@
 		"by": "seed"
 	},
 	"text:R10574584": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it.",
-		"backlog": "APP-03",
-		"item": "Conductor shows \"Capture information about your environment to help diagnose issues.\" (region, Unplaced); ours says \"Gather details about Conducted, your Mac and its shell to help diagnose a problem.\" on Diagnostics screen (parity gap, wording).",
-		"owner": "hand",
+		"status": "matched",
+		"state": "diagnostics",
+		"via": "text",
+		"role": "p",
+		"selector": "div > div > div:nth-of-type(2) > div > div > header > p",
 		"by": "hand"
 	},
 	"text:R10576215": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it.",
-		"backlog": "APP-03",
-		"item": "Conductor shows \"Copy the full diagnostics report to your clipboard\" (region, Unplaced); ours says \"Copy full report\" on Diagnostics actions (parity gap, wording).",
-		"owner": "hand",
+		"status": "matched",
+		"state": "diagnostics",
+		"via": "title",
+		"role": "button",
+		"selector": "div > div > div:nth-of-type(2) > div > div > div > fieldset > button:nth-of-type(2)",
 		"by": "hand"
 	},
 	"text:R10576554": {
@@ -3604,14 +3590,11 @@
 		"owner": "hand"
 	},
 	"text:R10576999": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"class": "wording",
-		"note": "Ours now uses Conductor's wording; the next seed matches it when a catalogue state draws it.",
-		"backlog": "APP-03",
-		"item": "Conductor shows \"Create a new session with the redacted report attached. Env values are hashed except non-sensitive ones like PATH.\" (region, Unplaced); ours says \"Create a new session with the redacted report attached\" on Diagnostics actions (parity gap, wording).",
-		"owner": "hand",
+		"status": "matched",
+		"state": "diagnostics",
+		"via": "title",
+		"role": "button",
+		"selector": "div > div > div:nth-of-type(2) > div > div > div > fieldset > button:nth-of-type(3)",
 		"by": "hand"
 	},
 	"text:R10577409": {
