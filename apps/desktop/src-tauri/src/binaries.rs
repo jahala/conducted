@@ -621,10 +621,7 @@ pub fn stage_path_overrides(
         hasher.update(path.to_string_lossy().as_bytes());
         hasher.update([0u8]);
     }
-    let hash: String = format!("{:x}", hasher.finalize())
-        .chars()
-        .take(16)
-        .collect();
+    let hash: String = lower_hex(&hasher.finalize()).chars().take(16).collect();
     let root = app_data.join("bin-overrides");
     let shim_dir = root.join(&hash);
     fs::create_dir_all(&shim_dir).map_err(|error| CommandError::Failed {
@@ -1317,7 +1314,7 @@ fn sha256_of_file(path: &Path) -> CommandResult<String> {
         }
         hasher.update(&buffer[..read]);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(lower_hex(&hasher.finalize()))
 }
 
 fn modified_ms(path: &Path) -> CommandResult<u64> {
@@ -1707,7 +1704,7 @@ impl<'a> HashedFile<'a> {
         self.file
             .sync_all()
             .map_err(|error| unpack_failed(self.source, &error))?;
-        Ok(format!("{:x}", self.hasher.finalize()))
+        Ok(lower_hex(&self.hasher.finalize()))
     }
 }
 
@@ -2471,6 +2468,18 @@ pub fn programs_prefetch(app: AppHandle, state: State<'_, ProgramsState>) -> Com
     let ctx = InstallContext::for_app(&app)?;
     prefetch(&ctx, state.inner(), Arc::new(app.clone()))?;
     Ok(())
+}
+
+/// A digest as lowercase hex, two characters a byte. sha2 0.11's digests no longer format with
+/// `{:x}` themselves, so every hash the shell prints or compares goes through this one place.
+fn lower_hex(bytes: &[u8]) -> String {
+    use std::fmt::Write as _;
+    bytes
+        .iter()
+        .fold(String::with_capacity(bytes.len() * 2), |mut out, byte| {
+            let _ = write!(out, "{byte:02x}");
+            out
+        })
 }
 
 #[cfg(test)]
@@ -3512,8 +3521,17 @@ mod tests {
         (format!("http://{address}/program"), server)
     }
 
+    #[test]
+    fn a_digest_prints_as_the_published_sha256_hex() {
+        // FIPS 180-2's test vector for "abc".
+        assert_eq!(
+            sha_hex(b"abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
+
     fn sha_hex(bytes: &[u8]) -> String {
-        format!("{:x}", Sha256::digest(bytes))
+        super::lower_hex(&Sha256::digest(bytes))
     }
 
     fn claude_version() -> &'static str {
