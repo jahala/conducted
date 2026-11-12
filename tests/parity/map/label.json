@@ -874,12 +874,12 @@
 		"by": "hand"
 	},
 	"label:M389969": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "DATA-05",
-		"item": "Conductor shows \"Overwrite file\" (label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-save-file-overwrite",
+		"via": "text",
+		"role": "button",
+		"selector": "div > section > ol > li > button",
+		"by": "hand"
 	},
 	"label:M733487": {
 		"status": "matched",
