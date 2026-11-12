@@ -31,8 +31,10 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	readdirSync,
+	readFileSync,
 	realpathSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
@@ -292,6 +294,21 @@ function listensOn(pid: number, port: number): boolean {
 	return found.stdout.split("\n").some((line) => line.trim() === String(pid));
 }
 
+/**
+ * The last lines of the app's newest log file in the fresh folder (`<app data>/logs`), so a launch
+ * that fails says what the app wrote about it. The folder is removed after the run.
+ */
+export function appLogTail(folder: FreshFolder, lines = 20): string {
+	const logs = join(folder.appData, "logs");
+	if (!existsSync(logs)) return "(no log folder)";
+	const newest = readdirSync(logs)
+		.map((name) => join(logs, name))
+		.filter((path) => statSync(path).isFile())
+		.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
+	if (newest === undefined) return "(no log file)";
+	return readFileSync(newest, "utf8").trim().split("\n").slice(-lines).join("\n");
+}
+
 /** The page's first screen is drawn: the app shell, with the sidebar's Settings link. */
 const FIRST_SCREEN = '[aria-label="Settings"]';
 
@@ -349,7 +366,7 @@ export async function launch(folder: FreshFolder, tracker: Tracker): Promise<Run
 			.catch((error: unknown) => `(the page could not be read: ${String(error)})`);
 		const printed = output.join("").trim().slice(-400);
 		throw new Error(
-			`${cause instanceof Error ? cause.message : String(cause)}; the window showed "${shown}"; the app printed "${printed}"`,
+			`${cause instanceof Error ? cause.message : String(cause)}; the window showed "${shown}"; the app printed "${printed}"; its log ends: ${appLogTail(folder)}`,
 		);
 	}
 	for (const id of descendants(pid)) tracker.seen.add(id);
