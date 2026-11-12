@@ -125,7 +125,7 @@ Tests that create git repos, sidecar sockets or temporary files create them unde
 
 ## End-to-end tests in the real app
 
-`pnpm test:e2e [round-trip|drag|overflow]` drives the app people use: the Tauri shell with WKWebView, the real sidecar and a real database (issue #564, D134). The other tiers run in jsdom, in Chromium or through the service container, and missed bugs that only the real window shows.
+`pnpm test:e2e [round-trip|drag|overflow]` drives the app people use: the Tauri shell with WKWebView, the real sidecar and a real database (issue #564, D135). The other tiers run in jsdom, in Chromium or through the service container, and missed bugs that only the real window shows.
 
 - **The test build** is a debug `.app` bundle with the release config's bundled sidecar (`tauri build --debug --bundles app --features e2e`). The `e2e` Cargo feature compiles in `tauri-plugin-wdio-webdriver`, the WebDriver server inside the app that is how WebdriverIO reaches WKWebView on macOS, and makes the build serve the built UI with no dev server. Nothing else turns the feature on. A release fails when its app binary carries the server (`verifyBundle` in `apps/desktop/src-tauri/release/bundle.ts`), and every e2e run first proves that scan finds the server in the test build.
 - **Where it runs.** `.github/workflows/e2e.yml` runs it on GitHub's hosted macOS runners, on pull requests that touch what the app is built from, nightly on main, and by hand. The repository is public, so it never runs on a runner on the owner's Mac: such a runner would execute any outside pull request's code there.

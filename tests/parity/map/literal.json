@@ -2423,12 +2423,11 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"note": "This is Conductor's raw status label. Our sidebar shows Conductor's displayed 'Working...' (title:R2144510 and text:R10325053 are already matched).",
+		"note": "Conductor names a sidebar row's status icon with its raw labels ('Working', 'Needs permission', 'Waiting for background tasks'), joined with the git label and 'Unread' (renderApp @10245206). Ours names it with the hover card's words ('Working...') from one status, since WorkspaceStatus carries the agent's or the git status, never both.",
 		"by": "hand",
 		"backlog": "NAV-03",
-		"item": "Row subtitles 'Planning...', 'Working...', 'Cancelling...', 'Waiting...'",
-		"owner": "hand",
-		"class": "wording"
+		"item": "Conductor shows \"Working\" (control, sidebar) as a workspace row's status icon name: its raw status label, joined with the git label and \"Unread\" (renderApp @10245206); ours names the icon with the hover card's words, from one status (parity gap).",
+		"owner": "hand"
 	},
 	"literal:R10228299": {
 		"status": "matched",
@@ -2553,15 +2552,10 @@
 		"by": "seed"
 	},
 	"literal:R10902737": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"note": "This is Conductor's prompt-save toast description. Our Agents page retry button uses Conductor's button wording 'Try again' (no period).",
-		"by": "hand",
-		"backlog": "SET-03",
-		"item": "The Agents page error offers 'Try again'.",
-		"owner": "hand",
-		"class": "wording"
+		"status": "decided",
+		"decision": "D004",
+		"note": "The description of the 'Couldn't save prompt' toast (renderApp @10902737), which only the organisation's shared prompts page raises. Team features stay out (D004, kept by D018).",
+		"by": "hand"
 	},
 	"literal:R11034934": {
 		"status": "matched",
@@ -2626,15 +2620,12 @@
 		"by": "seed"
 	},
 	"literal:R11346152": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"note": "Our palette already reads 'Search settings...' (palette-model.ts); it becomes matched once a palette state draws it.",
-		"by": "hand",
-		"backlog": "NAV-08",
-		"item": "Palette placeholder text changes per tab",
-		"owner": "hand",
-		"class": "wording"
+		"status": "matched",
+		"state": "command-palette-settings",
+		"via": "placeholder",
+		"role": "combobox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "hand"
 	},
 	"literal:R11351405": {
 		"status": "matched",
@@ -2781,15 +2772,12 @@
 		"by": "seed"
 	},
 	"literal:R11510134": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"note": "Our section dialog is already titled 'New section' (SectionDialog.tsx); this entry is that title, and the menu item's 'New section…' is a different entry.",
-		"by": "hand",
-		"backlog": "NAV-04",
-		"item": "'New section...' (sidebar background menu and workspace menu)",
-		"owner": "hand",
-		"class": "wording"
+		"status": "matched",
+		"state": "sidebar-new-section",
+		"via": "text",
+		"role": "heading",
+		"selector": "div:nth-of-type(3) > div > h2",
+		"by": "hand"
 	},
 	"literal:R11521402": {
 		"status": "matched",

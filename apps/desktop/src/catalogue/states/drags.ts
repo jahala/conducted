@@ -2,7 +2,8 @@
  * @feature catalogue States that show an in-app drag before the user starts it
  * Owns: a sidebar where a workspace can be pinned, moved into a section, or reordered by project and
  * by row; a sidebar where a workspace is being dragged, so empty Pinned shows its "Drag a workspace
- * here" hint; a workspace with two chat tabs and split panes on; a workspace with a terminal in the
+ * here" hint; a workspace with two chat tabs and split panes on, and the same with one tab being
+ * dragged, so its ghost follows the pointer; a workspace with a terminal in the
  * bottom panel and one in the centre, split panes on; and a working chat with three queued
  * follow-ups.
  * Behaviour: issue #529 (every in-app drag is pointer driven), issue #527 (a terminal drags between
@@ -28,20 +29,34 @@ async function seedSidebarDrags(world: World): Promise<Cast> {
 }
 
 /**
- * Starts a sidebar row drag with real pointer events: a press, then a move past the 4px threshold,
- * so the drag controller publishes it and empty Pinned draws its drop hint.
+ * Starts a drag of `source` with real pointer events: a press, then a move past the 4px threshold,
+ * so the drag controller publishes it. The pointer is never released, so the drag stays on screen.
  */
-async function startWorkspaceDrag(document: Document): Promise<void> {
-	const row = await findFirst(document, "[data-workspace-id]");
-	const rect = row.getBoundingClientRect();
+function startDrag(document: Document, source: Element): void {
+	const rect = source.getBoundingClientRect();
 	const x = rect.left + rect.width / 2;
 	const y = rect.top + rect.height / 2;
 	const init = { bubbles: true, cancelable: true, button: 0, pointerId: 1, pointerType: "mouse" };
-	row.dispatchEvent(new PointerEvent("pointerdown", { ...init, clientX: x, clientY: y }));
+	source.dispatchEvent(new PointerEvent("pointerdown", { ...init, clientX: x, clientY: y }));
 	document.dispatchEvent(
 		new PointerEvent("pointermove", { ...init, clientX: x + 40, clientY: y + 40 }),
 	);
 }
+
+/** A sidebar row being dragged, so empty Pinned draws its drop hint. */
+async function startWorkspaceDrag(document: Document): Promise<void> {
+	startDrag(document, await findFirst(document, "[data-workspace-id]"));
+}
+
+/** arbor with a second chat tab and split panes on, as `workspace-tabs-drag` shows it. */
+async function seedTwoTabs(world: World): Promise<Cast> {
+	const cast = await seedCast(world);
+	await setSetting(world, "experimental_configurable_center_panel", true);
+	await addChat(world, cast.arbor, { title: "Second chat", active: false });
+	return cast;
+}
+
+const SECOND_TAB = '[role="tab"][aria-label="Second chat"]';
 
 export const DRAG_STATES: CatalogueState[] = [
 	{
@@ -80,16 +95,30 @@ export const DRAG_STATES: CatalogueState[] = [
 		group: "Workspace chat",
 		title: "A workspace with two chat tabs and split panes on",
 		seed: async (world) => {
-			const cast = await seedCast(world);
-			await setSetting(world, "experimental_configurable_center_panel", true);
-			await addChat(world, cast.arbor, { title: "Second chat", active: false });
+			const cast = await seedTwoTabs(world);
 			return {
 				route: chatRoute(cast.arbor, cast.chats.arbor),
 				after: async (context) => {
 					await refreshGit(context.app, cast.arbor);
 				},
+				ready: (document) => document.querySelector(SECOND_TAB) !== null,
+			};
+		},
+	},
+	{
+		id: "workspace-tab-drag-ghost",
+		group: "Workspace chat",
+		title: "A chat tab being dragged, its ghost following the pointer",
+		seed: async (world) => {
+			const cast = await seedTwoTabs(world);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async (context) => {
+					await refreshGit(context.app, cast.arbor);
+					startDrag(context.document, await findFirst(context.document, SECOND_TAB));
+				},
 				ready: (document) =>
-					document.querySelector('[role="tab"][aria-label="Second chat"]') !== null,
+					document.querySelector('[data-testid="center-panel-drag-ghost"]') !== null,
 			};
 		},
 	},

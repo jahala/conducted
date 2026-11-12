@@ -62,7 +62,7 @@ describe("DATA-02 data lifetime from the composition root", () => {
 		const file = draftFile(fs.paths, "old-chat");
 
 		now = START - 31 * DAY;
-		expect((await fs.writeTextAtomic(file, "{}")).ok).toBe(true);
+		test.memory.controls.addFile(file, "{}");
 		now = START;
 
 		await startContainer(test);
@@ -81,7 +81,7 @@ describe("DATA-02 data lifetime from the composition root", () => {
 		const fs = test.memory.platform.fs;
 		const userFile = "/code/user-files/report.pdf";
 		now = START - 8 * DAY;
-		must(await fs.writeTextAtomic(userFile, "mine"));
+		test.memory.controls.addFile(userFile, "mine");
 		await test.database.execute(
 			`INSERT INTO attachments (id, session_id, kind, original_name, path, is_draft, created_at)
 			VALUES ($1, $2, 'text', 'report.pdf', $3, 1, $4)`,

@@ -1002,7 +1002,17 @@ Chosen:
 
 Why: the owner's request. New models reach the user without an app release, and the SDK gate keeps the app on releases Claude Code's own tests cover for the SDK the sidecar runs.
 
-## D134. End-to-end tests drive the real app through its own WebDriver server (2026-11-12)
+## D134. A system dialog's title is checked by a test, not a catalogue state (2026-11-12)
+
+Decided in the parity work under the owner's rule "Match Conductor. Nothing made up; gaps are reported."
+
+Context: Conductor titles its system folder pickers "Select project directory", "Select directory to link" and "Select Conductor root directory" (renderApp @1717947, @5685048, @10967435). macOS draws those windows outside the page, so no catalogue state can show them, and the parity harness's check b never sees them. Ours passes the same titles to `Platform.dialogs.pickFolder`, with our product name in the third (D012).
+
+Chosen: a parity entry that is the title of a system dialog is mapped to D134. Its note names the screen that opens the dialog and the test that asserts the title the Platform receives. The test drives the real screen, so changing the title fails it. A dialog the app draws itself stays a catalogue match.
+
+Why: the words are on screen and must match Conductor's. Only a test can see them, so the decision names the test that holds them.
+
+## D135. End-to-end tests drive the real app through its own WebDriver server (2026-11-12)
 
 Decided by the lead's brief for part 1 of #564, under the owner's plan in the issue ("The app runs in a debug build with Tauri's WebdriverIO service ... The plugin is compiled only into the test build. A check fails if it's in the release bundle.").
 
