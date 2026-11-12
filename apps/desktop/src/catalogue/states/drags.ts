@@ -1,7 +1,8 @@
 /**
  * @feature catalogue States that show an in-app drag before the user starts it
  * Owns: a sidebar where a workspace can be pinned, moved into a section, or reordered by project and
- * by row; a workspace with two chat tabs and split panes on; a workspace with a terminal in the
+ * by row; a sidebar where a workspace is being dragged, so empty Pinned shows its "Drag a workspace
+ * here" hint; a workspace with two chat tabs and split panes on; a workspace with a terminal in the
  * bottom panel and one in the centre, split panes on; and a working chat with three queued
  * follow-ups.
  * Behaviour: issue #529 (every in-app drag is pointer driven), issue #527 (a terminal drags between
@@ -10,6 +11,7 @@
  */
 
 import { animateCast, type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
+import { findFirst } from "../dom.ts";
 import { addChat, must, setSetting } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
 import type { World } from "../world.ts";
@@ -25,7 +27,39 @@ async function seedSidebarDrags(world: World): Promise<Cast> {
 	return cast;
 }
 
+/**
+ * Starts a sidebar row drag with real pointer events: a press, then a move past the 4px threshold,
+ * so the drag controller publishes it and empty Pinned draws its drop hint.
+ */
+async function startWorkspaceDrag(document: Document): Promise<void> {
+	const row = await findFirst(document, "[data-workspace-id]");
+	const rect = row.getBoundingClientRect();
+	const x = rect.left + rect.width / 2;
+	const y = rect.top + rect.height / 2;
+	const init = { bubbles: true, cancelable: true, button: 0, pointerId: 1, pointerType: "mouse" };
+	row.dispatchEvent(new PointerEvent("pointerdown", { ...init, clientX: x, clientY: y }));
+	document.dispatchEvent(
+		new PointerEvent("pointermove", { ...init, clientX: x + 40, clientY: y + 40 }),
+	);
+}
+
 export const DRAG_STATES: CatalogueState[] = [
+	{
+		id: "sidebar-pinned-drop-hint",
+		group: "App shell",
+		title: "A workspace is being dragged, so empty Pinned shows 'Drag a workspace here'",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async (context) => {
+					await refreshGit(context.app, cast.arbor);
+					await startWorkspaceDrag(context.document);
+				},
+				ready: (document) => document.body.textContent?.includes("Drag a workspace here") === true,
+			};
+		},
+	},
 	{
 		id: "sidebar-drags",
 		group: "App shell",

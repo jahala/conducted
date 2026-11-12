@@ -1628,12 +1628,10 @@
 		"by": "seed"
 	},
 	"label:R2960400": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "NAV-02",
-		"item": "Conductor shows \"Internal\" (label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Conductor's Internal settings tab is internal-only (renderApp @2960300); staff tools stay out.",
+		"by": "hand"
 	},
 	"label:R2960475": {
 		"status": "decided",
@@ -1648,12 +1646,10 @@
 		"by": "hand"
 	},
 	"label:R2960724": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "NAV-02",
-		"item": "Conductor shows \"Members\" (label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D018",
+		"note": "Conductor's Members settings tab belongs to organisation member management, which D004 and D018 keep out.",
+		"by": "hand"
 	},
 	"label:R3977413": {
 		"status": "gap",
@@ -2649,15 +2645,10 @@
 		"by": "seed"
 	},
 	"label:R10299290": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"note": "This is Conductor's model-usage chart legend. Our question card's 'Other…' placeholder matches Conductor's own question card placeholder.",
-		"by": "hand",
-		"backlog": "CHAT-10",
-		"item": "Question 'Other...' free text (key 0)",
-		"owner": "hand",
-		"class": "wording"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Conductor's model-usage chart legend, not the question card's wording; the card's own free-text row reads 'Other…', which we show.",
+		"by": "hand"
 	},
 	"label:R10300655": {
 		"status": "decided",
@@ -3256,12 +3247,10 @@
 		"by": "seed"
 	},
 	"label:R11440151": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-06",
-		"item": "Agent program and sign-in problems shown inline in the chat",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D018",
+		"note": "The action sets Conductor's provider credentials for its hosted cloud backend; a Worker's model key is a Worker secret this page cannot set, so the line carries no action (CLOUD-17, D127).",
+		"by": "hand"
 	},
 	"label:R11440359": {
 		"status": "matched",

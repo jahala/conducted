@@ -16,12 +16,10 @@
 		"by": "seed"
 	},
 	"title:M1183209": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "NAV-10",
-		"item": "Conductor shows \"You don't have access to this workspace\" (title, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D018",
+		"note": "Conductor's no-access workspace card: its description asks a teammate to share the workspace (renderApp @1183483). Shared workspaces are an organisation feature.",
+		"by": "hand"
 	},
 	"title:M1183322": {
 		"status": "gap",
@@ -32,12 +30,10 @@
 		"owner": "rule:quote"
 	},
 	"title:M1183476": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "NAV-10",
-		"item": "Conductor shows \"You can't open this workspace\" (title, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D018",
+		"note": "Conductor's organization-blocked card: the workspace belongs to a different organisation (renderApp @1183483). Organisations stay out.",
+		"by": "hand"
 	},
 	"title:M3096088": {
 		"status": "gap",

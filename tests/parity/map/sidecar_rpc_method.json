@@ -571,12 +571,10 @@
 		"by": "hand"
 	},
 	"sidecar_rpc_method:S982464": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "NAV-02",
-		"item": "RestoreLastLocation navigates to /first-run-onboarding when chooseRestoreTarget returns onboarding and the stored onboarding_step is below the finished value (app/router.tsx), tested through the real router (moved from APP-02 by the slice 2 step 1 audit).",
-		"owner": "rule:name"
+		"status": "decided",
+		"decision": "D086",
+		"note": "Not a method: the inventory's pattern caught the lucide 'router' icon's name (renderApp @982464).",
+		"by": "hand"
 	},
 	"sidecar_rpc_method:S982482": {
 		"status": "gap",

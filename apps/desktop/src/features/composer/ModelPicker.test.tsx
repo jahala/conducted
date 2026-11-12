@@ -1,5 +1,5 @@
 import type { ModelInfo, SessionConfig } from "@conducted/protocol";
-import { ok, type SessionId, type WorkspaceId } from "@conducted/shared";
+import { appError, ok, type SessionId, type WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -73,6 +73,8 @@ interface HarnessOptions {
 	keybindings?: string;
 	/** Loading another agent's models waits until the test resolves it. */
 	lateModels?: boolean;
+	/** The chat's models failed to load. */
+	modelsError?: boolean;
 }
 
 const harness = (options: HarnessOptions = {}) => {
@@ -138,7 +140,10 @@ const harness = (options: HarnessOptions = {}) => {
 				},
 			],
 		},
-		models: { claude: { state: "ready", data: modelList } },
+		models:
+			options.modelsError === true
+				? { claude: { state: "error", error: appError("models_failed", "No answer.") } }
+				: { claude: { state: "ready", data: modelList } },
 		slashCommands: {},
 	});
 	vi.spyOn(services.agentCatalog, "loadModels").mockImplementation(async () => {
@@ -427,5 +432,78 @@ describe("COMP-02 model picker", () => {
 		await openFlyout("Agent");
 		expect(screen.getByRole("button", { name: "OpenCode" })).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Pi" })).toBeTruthy();
+	});
+
+	it("says Conductor's mid-chat model warning when the model changes in a started chat", async () => {
+		const { wrapper } = harness();
+		test.container.services.sessions.store.setState((state) => ({
+			sessions: {
+				...state.sessions,
+				[sessionId]: { ...state.sessions[sessionId]!, lastUserMessageAt: 1 },
+			},
+		}));
+		render(
+			<>
+				<ModelPicker sessionId={sessionId} />
+				<Toaster />
+			</>,
+			{ wrapper },
+		);
+		const modelTwo = await openPicker();
+		fireEvent.click(modelTwo);
+		expect(
+			await screen.findByText(
+				"FYI: When you switch models mid-chat, your next response will be slower and use more tokens.",
+			),
+		).toBeTruthy();
+	});
+
+	it("says Conductor's mid-chat effort warning when the effort changes", async () => {
+		const { wrapper } = harness();
+		test.container.services.sessions.store.setState((state) => ({
+			sessions: {
+				...state.sessions,
+				[sessionId]: { ...state.sessions[sessionId]!, lastUserMessageAt: 1 },
+			},
+		}));
+		render(
+			<>
+				<ModelPicker sessionId={sessionId} />
+				<Toaster />
+			</>,
+			{ wrapper },
+		);
+		await openPicker();
+		fireEvent.click(screen.getByRole("button", { name: "Effort" }));
+		fireEvent.click(await screen.findByRole("button", { name: "Low" }));
+		expect(
+			await screen.findByText(
+				"FYI: When you switch effort mid-chat with Claude, your next response will be slower and use more tokens.",
+			),
+		).toBeTruthy();
+	});
+
+	it("marks a row that opens a new chat with Conductor's 'Opens in new chat'", async () => {
+		const { wrapper } = harness();
+		test.container.services.sessions.store.setState((state) => ({
+			sessions: {
+				...state.sessions,
+				[sessionId]: { ...state.sessions[sessionId]!, lastUserMessageAt: 1 },
+			},
+		}));
+		render(<ModelPicker sessionId={sessionId} />, { wrapper });
+		await openPicker();
+		await openFlyout("Agent");
+		expect(
+			(await screen.findAllByRole("img", { name: "Opens in new chat" })).length,
+		).toBeGreaterThan(0);
+	});
+
+	it("says 'Could not load models.' when the model list fails", async () => {
+		const { wrapper } = harness({ modelsError: true });
+		render(<ModelPicker sessionId={sessionId} />, { wrapper });
+		fireEvent.click(screen.getByRole("button", { name: "Model picker" }));
+		await openFlyout("Model");
+		expect(await screen.findByText("Could not load models.")).toBeTruthy();
 	});
 });

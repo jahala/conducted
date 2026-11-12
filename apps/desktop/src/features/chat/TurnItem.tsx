@@ -186,6 +186,7 @@ export const TurnItem = memo(function TurnItem({
 			streaming={turn.outcome === "running"}
 			onRetry={retryMessage}
 			retryInNewChat={retryInNewChat}
+			agent={agent}
 		/>
 	);
 
@@ -245,6 +246,7 @@ export const TurnItem = memo(function TurnItem({
 						view={banner.view}
 						onRetry={retryMessage}
 						retryInNewChat={retryInNewChat}
+						agent={agent}
 					/>
 				)}
 				{retry === undefined ? null : (

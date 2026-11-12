@@ -1,7 +1,9 @@
 /**
  * @feature NAV-10 Rename dialog
  * Owns: One small form dialog to rename a workspace, rename a branch or choose the target branch.
- * Behaviour: ui-map.md 3.10 and 5.2 ('Rename workspace', branch rename, target branch).
+ * Behaviour: ui-map.md 3.10 and 5.2 ('Rename workspace', branch rename, target branch). The
+ * workspace dialog reads "Enter a new name for this workspace" to a screen reader (renderApp
+ * @11508087).
  * Our design choice: The label and the submit button are parameters, so the target branch dialog
  * and the chat rename reuse this form instead of copying it. Failure stays in the returned Result.
  * The typed text is reset when the dialog opens, never while it is open, so a background update of
@@ -14,7 +16,7 @@
  * submit button.
  */
 import type { Result } from "@conducted/shared";
-import { useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Dialog, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
@@ -28,6 +30,8 @@ export interface RenameDialogProps {
 	onSubmit: (name: string) => Promise<Result<unknown>>;
 	fieldLabel?: string;
 	submitLabel?: string;
+	/** Read by screen readers, as Conductor's rename dialog reads its hint (renderApp @11508087). */
+	description?: ReactNode;
 }
 
 export function RenameDialog({
@@ -38,6 +42,7 @@ export function RenameDialog({
 	onSubmit,
 	fieldLabel = "Name",
 	submitLabel = "Rename",
+	description,
 }: RenameDialogProps) {
 	const inputId = useId();
 	const [name, setName] = useState(initialName);
@@ -74,7 +79,13 @@ export function RenameDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent title={title} onConfirm={() => void submit()} className="max-w-md" size="md">
+			<DialogContent
+				title={title}
+				description={description}
+				onConfirm={() => void submit()}
+				className="max-w-md"
+				size="md"
+			>
 				<label htmlFor={inputId} className="flex flex-col gap-1.5 text-sm font-medium text-fg">
 					{fieldLabel}
 					<Input

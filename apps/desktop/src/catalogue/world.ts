@@ -121,7 +121,12 @@ const model = (id: string, label: string, options: Partial<ModelInfo> = {}): Mod
 /** The catalogue's model lists. The labels are sample data, not a claim about any provider's list. */
 const MODELS: Record<string, ModelInfo[]> = {
 	claude: [
-		model("default", "Opus 4.7", { shortLabel: "Opus", isDefault: true, supportsFastMode: true }),
+		model("default", "Opus 4.7", {
+			shortLabel: "Opus",
+			isDefault: true,
+			supportsFastMode: true,
+			efforts: ["low", "medium", "high", "max", "ultracode"],
+		}),
 		model("sonnet", "Sonnet 4.6", { shortLabel: "Sonnet", contextWindowTokens: 1_000_000 }),
 		model("haiku", "Haiku 4.5", { shortLabel: "Haiku", isNew: true }),
 	],

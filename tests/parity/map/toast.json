@@ -935,12 +935,10 @@
 		"by": "rule:team-wording"
 	},
 	"toast:R9513542": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-06",
-		"item": "Conductor shows \"Failed to copy request\" (toast, inventory-controls Composer); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Part of Conductor's workspace usage-limit request: it copies a message for a ChatGPT workspace admin (renderApp @9513550). Workspace plan accounting is Conductor's hosted service.",
+		"by": "hand"
 	},
 	"toast:R9549716": {
 		"status": "decided",

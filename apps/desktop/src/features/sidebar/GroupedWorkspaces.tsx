@@ -3,7 +3,8 @@
  * Owns: Showing the sidebar's workspaces in the order the user sees them: Pinned, the user's
  * sections, then the main list grouped by status or by project.
  * Behaviour: ui-map.md 4 items 4 to 7 and the View options menu (group by Status or Project, filter
- * by project, sort by Updated or Created; manual order when it is on). The list opens with
+ * by project, sort by Updated or Created; manual order when it is on). The Pinned, section and
+ * main-list block is one region named "Sections" (renderApp @10470363). The list opens with
  * Conductor's "My workspaces" header, whose hover ellipsis holds that menu (renderApp @10494900).
  * The header is Conductor's button (`Rtr`, @10493990) and folds the main list: aria-expanded, a
  * right chevron while folded, a down chevron on hover or focus while open, and its own remembered
@@ -47,7 +48,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/Co
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
 import { cn } from "../../ui/cn.ts";
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon } from "../../ui/icons.tsx";
-import { toastError } from "../../ui/Toast.tsx";
+import { toast, toastError } from "../../ui/Toast.tsx";
 import { KANBAN_STATUS_MARK } from "../dashboard/kanban.ts";
 import { AddProjectMenu } from "./AddProjectButton.tsx";
 import { PinnedSection } from "./PinnedSection.tsx";
@@ -454,7 +455,8 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 	useCommandHandler("workspace.copyLink", "base", () => {
 		if (selectedId === null) return false;
 		void actions.app.copyText(buildDeepLink(selectedId, null)).then((result) => {
-			if (!result.ok) toastError("Couldn't copy the link", result.error);
+			if (result.ok) toast("Copied link");
+			else toast.error("Failed to copy link");
 		});
 		return true;
 	});
@@ -515,7 +517,7 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 					<ContextMenuItem onSelect={() => setNewSectionOpen(true)}>New section...</ContextMenuItem>
 				}
 			>
-				<div className="flex flex-col" data-sidebar-list="">
+				<section aria-label="Sections" className="flex flex-col" data-sidebar-list="">
 					{/* Conductor's list header (Rtr, renderApp @10493990): "My workspaces" in 12px semibold
 				    muted text, its actions behind an ellipsis that shows on hover (D098). The header
 				    folds the main list and remembers the fold. */}
@@ -585,7 +587,7 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 						)}
 					</div>
 					<SectionDialog open={newSectionOpen} onOpenChange={setNewSectionOpen} section={null} />
-				</div>
+				</section>
 			</ContextMenu>
 		</WorkspaceDragProvider>
 	);
