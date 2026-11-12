@@ -1,6 +1,7 @@
 /**
  * @feature APP-18 Timing the Conductor import at full size: the Node child
- * Owns: `node scripts/conductor-import/measure-node.ts <folder> <bun>`, which measure.ts starts.
+ * Owns: `node scripts/conductor-import/measure-node.ts <folder> <bun> <socket-folder>`, which
+ * measure.ts starts.
  * It loads measure-import.ts through Vite's module runner, as Vitest loads the desktop's tests,
  * because the Node stand-in reads SQLite with node:sqlite, which Bun lacks, and Node alone cannot
  * read the app's TypeScript. It sends measure.ts one JSON line per message on file descriptor 3:
@@ -31,7 +32,7 @@ const send = (message: ChildMessage): void => {
 	writeSync(3, `${JSON.stringify(message)}\n`);
 };
 
-async function main(folder: string, bunPath: string): Promise<number> {
+async function main(folder: string, bunPath: string, socketFolder: string): Promise<number> {
 	const vite = (await import(
 		createRequire(join(DESKTOP, "package.json")).resolve("vite")
 	)) as typeof import("../../apps/desktop/node_modules/vite/dist/node/index.js");
@@ -69,6 +70,7 @@ async function main(folder: string, bunPath: string): Promise<number> {
 			const measured = await module.measureImport({
 				folder,
 				bunPath,
+				socketFolder,
 				onSidecar: (pid) => send({ kind: "sidecar", pid }),
 				onStarted: () => send({ kind: "started" }),
 				onDryRun: (dryRun) => send({ kind: "dryRun", dryRun }),
@@ -88,5 +90,9 @@ async function main(folder: string, bunPath: string): Promise<number> {
 }
 
 // It exits when the run ends, so a handle the app left open cannot keep the child alive.
-const [folder, bunPath] = process.argv.slice(2);
-process.exit(folder === undefined || bunPath === undefined ? 2 : await main(folder, bunPath));
+const [folder, bunPath, socketFolder] = process.argv.slice(2);
+process.exit(
+	folder === undefined || bunPath === undefined || socketFolder === undefined
+		? 2
+		: await main(folder, bunPath, socketFolder),
+);

@@ -10,7 +10,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { SPACE_MARGIN_BYTES } from "../../apps/desktop/src/core/conductor-import/plan.ts";
 import {
 	conductorChatRows,
@@ -18,6 +18,8 @@ import {
 	manyTurns,
 } from "../../apps/desktop/src/test/conductor-chat.ts";
 import { CONDUCTOR_FIXTURE_SCHEMA } from "../../apps/desktop/src/test/conductor-schema.ts";
+
+import { SOCKET_BASE } from "./measure.ts";
 
 const MEASURE = join(import.meta.dir, "measure.ts");
 
@@ -156,8 +158,13 @@ function fixture(): { dir: string; copy: string; project: string } {
 	return { dir, copy, project };
 }
 
-/** Run folders this script makes; none may be left once it ends. */
-const runFolders = (): string[] => readdirSync(tmpdir()).filter((name) => name.startsWith("cim-"));
+/** Run folders and socket folders this script makes; none may be left once it ends. */
+const runFolders = (): string[] => [
+	...readdirSync(tmpdir()).filter((name) => name.startsWith("cim-")),
+	...readdirSync(dirname(SOCKET_BASE))
+		.filter((name) => name.startsWith(basename(SOCKET_BASE)))
+		.map((name) => join(dirname(SOCKET_BASE), name)),
+];
 
 function measure(copy: string): { exitCode: number; stdout: string; stderr: string } {
 	const ran = Bun.spawnSync([process.execPath, MEASURE, copy], { stdout: "pipe", stderr: "pipe" });

@@ -137,6 +137,8 @@ export interface MeasureInput {
 	folder: string;
 	/** Bun, which runs the sidecar as the packaged app's sidecar runs. */
 	bunPath: string;
+	/** A short folder the caller made and removes, for the sidecar's socket. */
+	socketFolder: string;
 	/** Told the sidecar's pid as soon as it runs, so the caller can sample its memory. */
 	onSidecar: (pid: number) => void;
 	/** Told when the app has started and the dry run begins, so memory has a baseline. */
@@ -332,16 +334,20 @@ interface RealSidecar {
 	stop(): Promise<void>;
 }
 
-/** Starts `main.ts sidecar` as the Rust shell does, with every folder inside the run's folder. */
-async function startSidecar(folder: string, bunPath: string): Promise<RealSidecar> {
+/**
+ * Starts `main.ts sidecar` as the Rust shell does, with every folder inside the run's folder but
+ * its socket's, which is short so the socket's path fits.
+ */
+async function startSidecar(
+	folder: string,
+	bunPath: string,
+	socketFolder: string,
+): Promise<RealSidecar> {
 	const dir = (name: string): string => {
 		const path = join(folder, "sidecar", name);
 		mkdirSync(path, { recursive: true });
 		return path;
 	};
-	// A Unix socket path is limited to about 100 characters, so its folder name is short.
-	const socketFolder = join(folder, "s");
-	mkdirSync(socketFolder, { recursive: true });
 	const child: ChildProcess = spawn(bunPath, [SIDECAR_MAIN, "sidecar"], {
 		env: {
 			PATH: "/usr/bin:/bin",
@@ -553,7 +559,7 @@ export async function measureImport(input: MeasureInput): Promise<Measured> {
 			tally,
 		),
 		async () => {
-			const sidecar = await startSidecar(folder, input.bunPath);
+			const sidecar = await startSidecar(folder, input.bunPath, input.socketFolder);
 			input.onSidecar(sidecar.pid);
 			return sidecar;
 		},

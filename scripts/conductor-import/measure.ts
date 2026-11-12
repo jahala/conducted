@@ -14,8 +14,9 @@
  * words only, and every printed number is checked to be one, so a string cannot reach a line; the
  * child's own output is never shown, since an error message could quote a row; a failure prints
  * its stage only; the copy and the folder beside it stay as they were, because only the clone is
- * opened; the folder, with the scratch database and the clone, is removed on every ending, a
- * failure or Ctrl-C included, after the child and the sidecar are stopped by their pids.
+ * opened; the folder, with the scratch database and the clone, and the sidecar's socket folder in
+ * /tmp are removed on every ending, a failure or Ctrl-C included, after the child and the sidecar
+ * are stopped by their pids.
  * Test first: prints only lines from the fixed list, and leaves the copy and the project's folder
  * as they were.
  */
@@ -41,6 +42,8 @@ import type { Measured } from "./measure-import.ts";
 import type { ChildMessage } from "./measure-node.ts";
 
 const CHILD = join(import.meta.dir, "measure-node.ts");
+/** Where the sidecar's socket folder goes: short, whatever TMPDIR is. */
+export const SOCKET_BASE = "/tmp/cim-s-";
 const SAMPLE_MS = 250;
 const STOP_GRACE_MS = 5_000;
 
@@ -220,6 +223,13 @@ export type Outcome = { ok: true; lines: string[] } | { ok: false; stage: string
 /** Runs the measurement on a clone of `source` and returns the lines to print, or the stage that failed. */
 export async function runMeasure(source: string): Promise<Outcome> {
 	const folder = mkdtempSync(join(tmpdir(), "cim-"));
+	// The sidecar's socket. A Unix socket's path holds about 104 bytes on macOS, and a test run's
+	// TMPDIR is long enough to pass that, so the socket has a short folder of its own in /tmp.
+	const socketFolder = mkdtempSync(SOCKET_BASE);
+	const removeFolders = (): void => {
+		rmSync(folder, { recursive: true, force: true });
+		rmSync(socketFolder, { recursive: true, force: true });
+	};
 	let child: ChildProcess | null = null;
 	let sidecarPid: number | null = null;
 	const stopAll = async (): Promise<void> => {
@@ -228,7 +238,7 @@ export async function runMeasure(source: string): Promise<Outcome> {
 	};
 	const onSignal = (): void => {
 		void stopAll().finally(() => {
-			rmSync(folder, { recursive: true, force: true });
+			removeFolders();
 			process.exit(130);
 		});
 	};
@@ -237,7 +247,7 @@ export async function runMeasure(source: string): Promise<Outcome> {
 	try {
 		cloneCopy(source, conductorDatabasePath(join(folder, "home")));
 		mkdirSync(join(folder, "tmp"));
-		const started = spawn("node", [CHILD, folder, process.execPath], {
+		const started = spawn("node", [CHILD, folder, process.execPath, socketFolder], {
 			env: {
 				PATH: process.env.PATH ?? "/usr/bin:/bin:/usr/sbin:/sbin",
 				HOME: join(folder, "home"),
@@ -273,7 +283,7 @@ export async function runMeasure(source: string): Promise<Outcome> {
 		process.off("SIGINT", onSignal);
 		process.off("SIGTERM", onSignal);
 		await stopAll();
-		rmSync(folder, { recursive: true, force: true });
+		removeFolders();
 	}
 }
 
