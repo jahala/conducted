@@ -6,7 +6,8 @@
  * that activates a skill, reads a mockup image, asks the user, retries an edit Claude Code refused
  * and opens the edit that worked; a turn that keeps a task list, runs JavaScript in a Node
  * REPL and generates an image; a turn whose todo list is empty, started and done; a turn that
- * enters plan mode and proposes a plan, with the plan's menu open; a reply with a
+ * enters plan mode and proposes a plan, with the plan's menu open; two HTML visualizations the chat
+ * cannot show; a reply with a
  * Mermaid diagram; and a background helper whose work
  * arrives in the next turn, shown inside the card of the turn that started it (D129).
  * Behaviour: ui-map.md 3.3 (chat, tool cards); the cards are features/chat/tools/cards/.
@@ -447,6 +448,41 @@ async function planModeChat(world: World): Promise<Scene> {
 	};
 }
 
+/** A turn that writes two HTML visualizations the chat cannot show: one outside the workspace, one gone. */
+async function visualizationChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.grove, { title: "Chart the cache hit rate" });
+	const talk = conversation("grove-visualizations", CATALOGUE_NOW - 5 * MINUTE);
+	const turn = talk.user("Chart the cache hit rate for the last week as an HTML page.");
+	talk.tool(turn, {
+		tool: "write",
+		rawName: "Write",
+		input: { file_path: "/tmp/hit-rate.html", content: "<h1>Hit rate</h1>\n" },
+		output: "Wrote /tmp/hit-rate.html",
+	});
+	talk.tool(turn, {
+		tool: "write",
+		rawName: "Write",
+		input: { file_path: "charts/hit-rate.html", content: "<h1>Hit rate</h1>\n" },
+		output: "Wrote charts/hit-rate.html",
+	});
+	talk.usage(turn, 11_000);
+	talk.text(turn, "The chart is in charts/hit-rate.html.");
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	return {
+		route: chatRoute(cast.grove, chat),
+		after: async ({ app, document }) => {
+			await animateCast(world, cast, app);
+			await refreshGit(app, cast.grove);
+			await click(document, "button", "Expand", { prefix: true });
+		},
+		ready: (document) =>
+			shows(document, "Visualization is outside the workspace:") &&
+			shows(document, "Couldn’t load visualization"),
+	};
+}
+
 /** A reply in arbor that explains the sign-in redirect with a Mermaid sequence diagram. */
 async function mermaidChat(world: World): Promise<Scene> {
 	const cast = await seedCast(world);
@@ -610,6 +646,12 @@ export const TOOL_STATES: CatalogueState[] = [
 		group: "Workspace chat",
 		title: "A turn that entered plan mode and proposed a plan, the plan's right-click menu open",
 		seed: planModeChat,
+	},
+	{
+		id: "chat-visualizations-unavailable",
+		group: "Workspace chat",
+		title: "Two HTML visualizations the chat cannot show: outside the workspace, and missing",
+		seed: visualizationChat,
 	},
 	{
 		id: "chat-mermaid",
