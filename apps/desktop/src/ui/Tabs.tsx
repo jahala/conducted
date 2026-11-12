@@ -48,6 +48,9 @@ export function TabsTrigger({
 				"text-sm font-medium text-fg-muted transition-colors hover:text-fg",
 				"data-[state=active]:text-fg",
 				"disabled:pointer-events-none disabled:opacity-50",
+				// The list clips what passes its edges, as Conductor's does, so the keyboard focus outline
+				// is drawn inside the tab to stay visible (D023).
+				"focus-visible:-outline-offset-2",
 				className,
 			)}
 			{...rest}

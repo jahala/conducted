@@ -169,6 +169,30 @@ async function main(): Promise<number> {
 				`the tab list spans the page, as Conductor's does (list ${atSize.clientWidth}px, page ${atSize.panelWidth}px)`,
 			);
 
+			// Keyboard focus stays visible (D023): the focused tab's outline lies inside the tab list,
+			// which clips whatever passes its edges.
+			const outline = await page.evaluate(() => {
+				const list = document.querySelector('[role="tablist"][aria-label="Agents"]');
+				const tab = list?.querySelector('[role="tab"]');
+				if (!(list instanceof HTMLElement) || !(tab instanceof HTMLElement)) return null;
+				tab.focus();
+				const style = getComputedStyle(tab);
+				const reach = Number.parseFloat(style.outlineOffset) + Number.parseFloat(style.outlineWidth);
+				const box = tab.getBoundingClientRect();
+				const edge = list.getBoundingClientRect();
+				const inside =
+					box.top - reach >= edge.top - 0.5 &&
+					box.bottom + reach <= edge.bottom + 0.5 &&
+					box.left - reach >= edge.left - 0.5;
+				const shown = tab.matches(":focus-visible") && style.outlineStyle !== "none";
+				tab.blur();
+				return { inside, shown, reach };
+			});
+			check(
+				outline !== null && outline.shown && outline.inside,
+				`a focused tab's outline shows inside the tab list (reaches ${outline?.reach ?? "?"}px past the tab)`,
+			);
+
 			// A wider system font: every label drawn 4% larger, nothing else touched.
 			await page.evaluate((scale) => {
 				const list = document.querySelector('[role="tablist"][aria-label="Agents"]');
