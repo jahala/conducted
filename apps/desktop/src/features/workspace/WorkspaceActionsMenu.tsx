@@ -98,6 +98,7 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 			{pausingForwarding ? (
 				<AlertDialog open onOpenChange={setPausingForwarding}>
 					<AlertDialogContent
+						letShortcutsThrough
 						title="Pause port forwarding?"
 						description="Every forward of this workspace stops, and its forwards are removed."
 						confirmLabel="Pause"

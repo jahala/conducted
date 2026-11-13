@@ -20,8 +20,10 @@
  * While a plan waits for review, the placeholder reads Conductor's "Enter your plan adjustments
  * here..." and sending answers the plan as not approved with the text as its feedback (CHAT-12,
  * renderApp @9294541, @9299794; D098). Cmd+Shift+Enter ("Approve plan") and the plan bar's Approve
- * send that text the same way, and with no text the bar approves (renderApp @9313268). The key acts
- * only while plan mode is on, as Conductor's does (renderApp @9295497).
+ * send that text as the plan's feedback too, and with no text the bar approves (renderApp @9313268).
+ * In a chat that is not Codex they then turn plan mode off and queue the text, with the
+ * attachments, as a new message (renderApp @9313048). The key acts only while plan mode is on, as
+ * Conductor's does (renderApp @9295497).
  * Keyboard: Cmd+L focuses the editor and Cmd+Shift+Backspace cancels the running agent. Both are
  * command handlers (NAV-14), so a shortcut the user rebinds moves with it.
  * Must handle: agent working (send becomes queue or steer, a stop button appears); draft restored
@@ -673,14 +675,56 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		}
 	};
 
+	/**
+	 * Conductor's approve action with text, in a chat that is not Codex (renderApp @9313048): the
+	 * plan is answered as not approved with the text as its feedback, plan mode goes off, and the
+	 * text is queued as a new message with the composer's attachments.
+	 * Our design choice: the composer clears only once the message is queued, where Conductor clears
+	 * it first, so a step that fails keeps what the user typed.
+	 */
+	const approveWithAdjustments = async (current: Editor, interactionId: InteractionId) => {
+		const feedback = current.getText().trim();
+		if (feedback.length === 0) return;
+		setBusy(true);
+		try {
+			const answered = await actions.sessions.answer(sessionId, interactionId, {
+				kind: "plan_approval",
+				approved: false,
+				feedback,
+			});
+			if (!answered.ok) {
+				toastError("Couldn't send the plan adjustments", answered.error);
+				return;
+			}
+			const config = services.sessions.store.getState().sessions[sessionId]?.config;
+			if (config?.planMode === true) {
+				const left = await actions.sessions.updateConfig(sessionId, { ...config, planMode: false });
+				if (!left.ok) {
+					toastError("Couldn't turn plan mode off", left.error);
+					return;
+				}
+			}
+			const queued = await actions.sessions.send(sessionId, feedback, attachments, "queue");
+			if (!queued.ok) {
+				toastError("Couldn't queue the message", queued.error);
+				return;
+			}
+			await clearEditor(current);
+		} finally {
+			setBusy(false);
+		}
+	};
+
 	// Conductor's approve action, from its button or its shortcut, sends the composer's text as the
-	// plan's adjustments when there is any (renderApp @9313268). The plan bar asks here first.
+	// plan's adjustments when there is any (renderApp @9313268). The plan bar asks here first. A
+	// Codex chat keeps the plain adjustments for now (issue #651).
 	const sendAdjustments = (): PlanAdjustmentsOutcome => {
 		if (planInteractionId === null || editor === null) return "none";
 		// Adjustments already on their way: approving under them would answer the plan twice.
 		if (busy) return "busy";
 		if (editor.getText().trim().length === 0) return "none";
-		void sendPlanFeedback(editor, planInteractionId);
+		if (session?.config.agent === "codex") void sendPlanFeedback(editor, planInteractionId);
+		else void approveWithAdjustments(editor, planInteractionId);
 		return "sent";
 	};
 	useProvidePlanAdjustments(sendAdjustments);

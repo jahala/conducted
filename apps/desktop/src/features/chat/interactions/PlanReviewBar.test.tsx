@@ -19,6 +19,7 @@ import { ServicesProvider } from "../../../core/context.tsx";
 import type { Session } from "../../../core/model.ts";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../../test/container.ts";
 import { answerSidecar, sidecarRefuses } from "../../../test/sidecar-answers.ts";
+import { Toaster } from "../../../ui/Toast.tsx";
 import { Composer } from "../../composer/Composer.tsx";
 import { PlanAdjustmentsProvider } from "../../composer/plan-adjustments.tsx";
 import { InteractionDock } from "./InteractionDock.tsx";
@@ -153,6 +154,7 @@ async function renderBarAndComposer(test: TestContainer, session: Session): Prom
 					/>
 				</PlanAdjustmentsProvider>
 			</CommandDispatcher>
+			<Toaster />
 		</ServicesProvider>,
 	);
 	await waitFor(() => expect(editor).not.toBeNull());
@@ -377,14 +379,61 @@ describe("CHAT-12 plan review bar", () => {
 		expect(await screen.findByText("Approved")).toBeTruthy();
 	});
 
-	// Conductor's approve action sends the composer's text as the plan's adjustments when there is
-	// any, and approves only an empty composer (renderApp @9313268).
-	it("sends the composer's text as the plan feedback on Cmd+Shift+Enter, without approving", async () => {
+	// Conductor's approve action, for a chat that is not Codex, with text in the composer: it answers
+	// the plan as not approved with the text as feedback, turns plan mode off, clears the composer
+	// and queues the text, with the composer's attachments, as a new message (renderApp @9313048).
+	// An empty composer approves (@9313268). Issue #610.
+	it("on Cmd+Shift+Enter with text, answers the plan with it, turns plan mode off and queues the text as a message", async () => {
 		const { test, session } = await setup();
+		await acceptConfigChanges(test);
 		const answer = vi
 			.spyOn(test.container.services.sessions, "answer")
 			.mockResolvedValue(ok(undefined));
-		const updateConfig = vi.spyOn(test.container.services.sessions, "updateConfig");
+		const send = vi
+			.spyOn(test.container.services.sessions, "send")
+			.mockResolvedValue(ok(undefined));
+		test.memory.controls.files.set("/tmp/notes.md", "notes");
+
+		const editor = await renderBarAndComposer(test, session);
+		test.memory.controls.emitFileDrop({ kind: "drop", paths: ["/tmp/notes.md"], x: 10, y: 10 });
+		await waitFor(() =>
+			expect(test.container.services.composer.draftOf(session.id).attachmentPaths).toHaveLength(1),
+		);
+		const attached = test.container.services.composer.draftOf(session.id).attachmentPaths;
+		act(() => {
+			editor.commands.insertContent("Keep the old cache for reads.");
+		});
+		fireEvent.keyDown(screen.getByRole("textbox", { name: "composer" }), APPROVE_KEY);
+
+		await waitFor(() =>
+			expect(send).toHaveBeenCalledWith(
+				session.id,
+				"Keep the old cache for reads.",
+				attached,
+				"queue",
+			),
+		);
+		expect(answer).toHaveBeenCalledTimes(1);
+		expect(answer).toHaveBeenCalledWith(session.id, interactionId, {
+			kind: "plan_approval",
+			approved: false,
+			feedback: "Keep the old cache for reads.",
+		});
+		expect(
+			test.container.services.sessions.store.getState().sessions[session.id]?.config.planMode,
+		).toBe(false);
+		await waitFor(() => expect(editor.getText()).toBe(""));
+		expect(test.container.services.composer.draftOf(session.id).attachmentPaths).toEqual([]);
+	});
+
+	// A failed step keeps the user's text, so nothing typed is lost (the composer's rule).
+	it("keeps the composer's text when plan mode cannot be turned off after the adjustments", async () => {
+		const { test, session } = await setup();
+		vi.spyOn(test.container.services.sessions, "answer").mockResolvedValue(ok(undefined));
+		vi.spyOn(test.container.services.sessions, "updateConfig").mockResolvedValue(
+			err(appError("db_write_failed", "The disk is full.")),
+		);
+		const send = vi.spyOn(test.container.services.sessions, "send");
 
 		const editor = await renderBarAndComposer(test, session);
 		act(() => {
@@ -392,15 +441,9 @@ describe("CHAT-12 plan review bar", () => {
 		});
 		fireEvent.keyDown(screen.getByRole("textbox", { name: "composer" }), APPROVE_KEY);
 
-		await waitFor(() =>
-			expect(answer).toHaveBeenCalledWith(session.id, interactionId, {
-				kind: "plan_approval",
-				approved: false,
-				feedback: "Keep the old cache for reads.",
-			}),
-		);
-		expect(answer).toHaveBeenCalledTimes(1);
-		expect(updateConfig).not.toHaveBeenCalled();
+		expect(await screen.findByText("Couldn't turn plan mode off")).toBeTruthy();
+		expect(send).not.toHaveBeenCalled();
+		expect(editor.getText()).toBe("Keep the old cache for reads.");
 	});
 
 	// The key is the chat pane's, so with no plan waiting it must do nothing there: no message,

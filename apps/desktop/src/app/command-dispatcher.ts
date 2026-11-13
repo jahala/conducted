@@ -30,9 +30,12 @@
  * character or caret key in a focused text field, which is the field's typing (`fieldOwnsKey`); a
  * key pressed while a dialog is open, which runs only the dialog's own keys and the global commands
  * marked `overDialogs`, as Conductor's listener does (renderApp @680362), so fork or approve plan
- * cannot act behind a dialog; a popover, which is not a dialog.
+ * cannot act behind a dialog; a dialog Conductor keeps off its dialog store, under which app
+ * shortcuts still run (ui/dialog-shortcuts.ts); a popover, which is not a dialog.
  * Our design choice: priorities are three named levels (`base`, `area`, `modal`), not numbers. A terminal
- * or diff area registers at `area`; a dialog registers at `modal`, so it wins while it is open.
+ * or diff area registers at `area`; a dialog registers at `modal`, so it wins while it is open. Under
+ * a dialog that holds app shortcuts, only `modal` handlers run for a command not marked
+ * `overDialogs`: the dialog's own keys, as Conductor binds a handler registered inside a dialog to it.
  * Our design choice: a focus area marks itself with `data-command-scope="chat-input"` (or several scope
  * names, space separated). Without a mark, editable fields count as `chat-input` and the shared
  * `.xterm` and `[data-diff]` wrappers count as their area. A field inside a diff area (marked, or
@@ -44,9 +47,12 @@
  * helpers keep a registry of their own so screens that have not moved to the provider still work; the
  * container owning that registry is APP-01's change.
  * Our design choice: menu accelerators are the live first binding in Tauri's syntax, so a rebind changes
- * the menu bar without a second table. The Rust shell keeps Cmd+Q and Cmd+, fixed (menu.rs's
- * FIXED_MENU_IDS); the dispatcher leaves those commands out, so Rust keeps their accelerators and never
- * reports them as rejected. Every deep link goes to the caller's `onDeepLink` opener, which
+ * the menu bar without a second table. Only the menu items Conductor gives a key carry one (A5): the
+ * sidebar toggles do not, so Cmd+B reaches the page and waits under a dialog that holds app
+ * shortcuts. A menu pick runs under a dialog, as Conductor's menu listeners do, except Close Window,
+ * which Conductor's page never hears; it follows the key's rule. The Rust shell keeps Cmd+Q and
+ * Cmd+, fixed (menu.rs's FIXED_MENU_IDS); the dispatcher leaves those commands out, so Rust keeps
+ * their accelerators and never reports them as rejected. Every deep link goes to the caller's `onDeepLink` opener, which
  * NAV-17 owns; without one the link is reported to the log rather than parsed in a second place. A link the
  * Rust shell refused before any parser saw it (over 64 KiB, PLAT-16) shows "Invalid deep link", the
  * toast Conductor shows for a link it cannot read, and the reason goes to the app log.
@@ -81,6 +87,7 @@ import {
 import { resolveSendKey, type SendIntent, type SendWith } from "../features/composer/send-key.ts";
 import { TERMINAL_OWNED_COMMAND_IDS } from "../features/terminal/terminal-keys.ts";
 import type { MenuShortcut } from "../platform/platform.ts";
+import { LETS_SHORTCUTS_THROUGH } from "../ui/dialog-shortcuts.ts";
 import { Kbd } from "../ui/Kbd.tsx";
 import { toast, toastError } from "../ui/Toast.tsx";
 import { type OverlayId, useOverlayStore } from "./overlay-store.ts";
@@ -445,20 +452,46 @@ export function liveBinding(
  */
 export const FIXED_MENU_COMMAND_IDS: readonly string[] = ["app.quit", "app.openSettings"];
 
-/** The menu accelerators in Tauri's syntax. Unbound commands send null, which clears the item. */
+/**
+ * The menu items that carry a key, as Conductor's do (native-and-sidecar-map.md A5): Settings,
+ * Quit, Send Feedback, Debug, and the system's Close Window. Its sidebar toggles, Keyboard
+ * Shortcuts, Documentation and Changelog items have none: its page binds those keys itself, so
+ * they reach the page and wait under a dialog that holds app shortcuts.
+ */
+const MENU_ITEMS_WITH_KEYS: readonly string[] = [
+	"app.openSettings",
+	"app.quit",
+	"app.sendFeedback",
+	"app.openDebugTools",
+	"tab.close",
+];
+
+/**
+ * Menu picks that follow the key's rule under a dialog. Conductor's page acts on every menu event
+ * it hears, dialog or not (renderApp @11395986 to @11396604), but hears none for Close Window; its
+ * tab close is the page's Cmd+W, which waits under a store dialog. Ours sends Close Window to the
+ * tab close, so that pick waits too.
+ */
+const MENU_PICKS_UNDER_KEY_RULE: readonly string[] = ["tab.close"];
+
+/**
+ * The menu accelerators in Tauri's syntax, for the menu items that carry a key and whose key the
+ * user may change. Unbound commands send null, which clears the item.
+ */
 export function menuShortcuts(
 	overrides: ShortcutOverrides = {},
 	sendKeyMode: SendKeyMode = "enter",
 ): MenuShortcut[] {
-	return COMMANDS.filter((command) => !FIXED_MENU_COMMAND_IDS.includes(command.id)).map(
-		(command) => {
-			const live = liveBinding(command.id, overrides, sendKeyMode);
-			return {
-				commandId: command.id,
-				accelerator: live === null ? null : toAccelerator(live),
-			};
-		},
-	);
+	return COMMANDS.filter(
+		(command) =>
+			MENU_ITEMS_WITH_KEYS.includes(command.id) && !FIXED_MENU_COMMAND_IDS.includes(command.id),
+	).map((command) => {
+		const live = liveBinding(command.id, overrides, sendKeyMode);
+		return {
+			commandId: command.id,
+			accelerator: live === null ? null : toAccelerator(live),
+		};
+	});
 }
 
 function toAccelerator(spec: string): string | null {
@@ -532,9 +565,11 @@ export function isTextEntry(element: Element): boolean {
 }
 
 /**
- * True while a dialog is open over the app: an overlay (the palette, quick open), or a modal dialog
- * anywhere in the page, whether or not it has focus. Conductor's key listener asks its dialog store
- * the same question (renderApp @681094). A popover's panel has the dialog role too, but Conductor
+ * True while a dialog that holds app shortcuts is open: an overlay (the palette, quick open), or a
+ * modal dialog anywhere in the page, whether or not it has focus. Conductor's key listener asks its
+ * dialog store the same question (renderApp @681094), and only the dialogs that go through that
+ * store answer yes. A dialog Conductor keeps off its store carries `LETS_SHORTCUTS_THROUGH` and
+ * does not count (ui/dialog-shortcuts.ts). A popover's panel has the dialog role too, but Conductor
  * does not count a popover as a dialog. Radix draws a popover inside its popper wrapper, which
  * tells the two apart. A dialog that is closing (data-state "closed") no longer counts.
  */
@@ -542,6 +577,7 @@ function dialogOpen(root: ParentNode, openOverlay: OverlayId | null): boolean {
 	if (openOverlay !== null) return true;
 	for (const element of root.querySelectorAll("[role='dialog'], [role='alertdialog']")) {
 		if (element.getAttribute("data-state") === "closed") continue;
+		if (element.hasAttribute(LETS_SHORTCUTS_THROUGH)) continue;
 		if (element.closest("[data-radix-popper-content-wrapper]") === null) return true;
 	}
 	return false;
@@ -570,8 +606,11 @@ interface HandlerRegistration {
 export interface CommandRegistry {
 	/** Registers a handler and returns the function that removes it. */
 	register(commandId: string, priority: HandlerPriority, handler: CommandHandlerFn): () => void;
-	/** Runs the registered handlers, highest priority first. True means one took the command. */
-	run(commandId: string): boolean;
+	/**
+	 * Runs the registered handlers, highest priority first. True means one took the command. With
+	 * `from`, only handlers at that priority or above run: under a dialog, `modal` (the dialog's own).
+	 */
+	run(commandId: string, from?: HandlerPriority): boolean;
 	/** True while a screen has any handler registered for the command, whether or not it takes it. */
 	has(commandId: string): boolean;
 	/** Removes every registered handler. Test support, so one test cannot leak into the next. */
@@ -602,12 +641,12 @@ export function createCommandRegistry(): CommandRegistry {
 		has(commandId) {
 			return (registrations.get(commandId)?.length ?? 0) > 0;
 		},
-		run(commandId) {
+		run(commandId, from = "base") {
 			const list = registrations.get(commandId);
 			if (list === undefined) return false;
-			const ordered = [...list].sort(
-				(a, b) => PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority] || b.order - a.order,
-			);
+			const ordered = list
+				.filter((registration) => PRIORITY_RANK[registration.priority] >= PRIORITY_RANK[from])
+				.sort((a, b) => PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority] || b.order - a.order);
 			for (const registration of ordered) {
 				if (registration.handler() !== false) return true;
 			}
@@ -813,10 +852,15 @@ export function useCommandDispatcher(
 			);
 			if (commandId === null) return false;
 			if (!deps.isEnabled(commandId)) return false;
+			// Under a dialog that holds app shortcuts, a command Conductor does not keep over dialogs
+			// runs only the open dialog's own handler, as Conductor's listener runs only the handlers
+			// registered inside the active dialog (renderApp @680362). A dialog registers at `modal`;
+			// the Settings screen's Cmd+F, registered on the screen, does not run behind one.
+			const dialogsOwn = underDialog && getCommand(commandId)?.overDialogs !== true;
 			// A dialog command acts on the open dialog and has no app-wide handler, so a press no open
 			// dialog takes (Cmd+Enter in quick open, which has no confirm action) passes on unswallowed.
-			if (getCommand(commandId)?.scope === "dialog") {
-				if (!deps.registry.run(commandId)) return false;
+			if (dialogsOwn || getCommand(commandId)?.scope === "dialog") {
+				if (!deps.registry.run(commandId, dialogsOwn ? "modal" : "base")) return false;
 				event.preventDefault();
 				return true;
 			}
@@ -851,7 +895,16 @@ export function useCommandDispatcher(
 	}, [accelerators, platform]);
 
 	useEffect(
-		() => platform.menu.onCommand((commandId) => dispatchCommand(commandId, deps)),
+		() =>
+			platform.menu.onCommand((commandId) => {
+				const underDialog = dialogOpen(document, useOverlayStore.getState().open);
+				if (underDialog && MENU_PICKS_UNDER_KEY_RULE.includes(commandId)) {
+					// As its key would: only the open dialog's own handler, and none has one for this.
+					deps.registry.run(commandId, "modal");
+					return;
+				}
+				dispatchCommand(commandId, deps);
+			}),
 		[deps, platform],
 	);
 

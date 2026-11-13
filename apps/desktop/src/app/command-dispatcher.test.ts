@@ -5,8 +5,8 @@
  * Test first: with a base and a modal handler registered for "palette.open", only the modal one runs.
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
 import { appError, err, type Result } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { effectiveShortcuts, getCommand } from "../core/registries/commands.ts";
@@ -19,6 +19,7 @@ import {
 	type KeyBinding,
 	type KeyPress,
 	keyBindings,
+	liveBinding,
 	menuShortcuts,
 	scopesForTarget,
 } from "./command-dispatcher.ts";
@@ -240,15 +241,69 @@ describe("NAV-14 dispatchCommand", () => {
 	});
 });
 
+/**
+ * The dialogs Conductor keeps off its dialog store, so app shortcuts still run under them, with how
+ * many each file draws. Every other dialog holds app shortcuts, as Conductor's store dialogs do.
+ * The evidence for each is in ui-map.md 5.4 ("Which dialogs hold app shortcuts").
+ */
+const DIALOGS_THAT_LET_SHORTCUTS_THROUGH: Readonly<Record<string, number>> = {
+	"features/chat/ResetChatDialog.tsx": 1,
+	"features/chat/MermaidDiagram.tsx": 1,
+	"features/diff/DiscardCommentDialog.tsx": 1,
+	"features/git-panel/changes/StackView.tsx": 1,
+	"features/scripts-panel/run/AddActionDialog.tsx": 1,
+	"features/settings/cloud/McpServersSection.tsx": 2,
+	"features/settings/environment/AddEnvVarForm.tsx": 1,
+	"features/settings/environment/EnvVarTable.tsx": 1,
+	"features/settings/pages/AccountPage.tsx": 3,
+	"features/settings/repo/RemoveRepoDialog.tsx": 1,
+	"features/workspace/WorkspaceActionsMenu.tsx": 1,
+};
+
+/** The desktop's source folder, found from the working directory as the menu.rs check does. */
+function desktopSourceRoot(): string {
+	const root = [resolve(process.cwd(), "src"), resolve(process.cwd(), "apps/desktop/src")].find(
+		(candidate) => existsSync(resolve(candidate, "app/command-dispatcher.ts")),
+	);
+	if (root === undefined) throw new Error("The desktop's src folder was not found.");
+	return root;
+}
+
+function sourceFiles(folder: string): string[] {
+	return readdirSync(folder, { withFileTypes: true }).flatMap((entry) => {
+		const path = resolve(folder, entry.name);
+		if (entry.isDirectory()) return sourceFiles(path);
+		return /\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) ? [path] : [];
+	});
+}
+
+describe("NAV-14 which dialogs hold app shortcuts", () => {
+	it("lets shortcuts through exactly the dialogs Conductor keeps off its dialog store", () => {
+		const root = desktopSourceRoot();
+		const found: Record<string, number> = {};
+		for (const path of sourceFiles(resolve(root, "features"))) {
+			const marks = /\bletShortcutsThrough\b|\bletShortcutsThroughProps\(true\)/g;
+			const count = readFileSync(path, "utf8").match(marks)?.length ?? 0;
+			if (count > 0) found[relative(root, path)] = count;
+		}
+		expect(found).toEqual(DIALOGS_THAT_LET_SHORTCUTS_THROUGH);
+	});
+});
+
 describe("NAV-14 menuShortcuts", () => {
-	it("writes the live first binding in Tauri's syntax", () => {
+	// Conductor's menu carries keys only on Settings, Quit, Send Feedback, Debug and the system's
+	// Close Window; its sidebar toggles have none, and its UI binds Cmd+B itself
+	// (native-and-sidecar-map.md A5), so the key follows the dialog rule. Issue #610.
+	it("gives the menu only the keys Conductor's menu carries, in Tauri's syntax", () => {
 		const shortcuts = menuShortcuts();
-		expect(
-			shortcuts.find((shortcut) => shortcut.commandId === "view.toggleLeftSidebar")?.accelerator,
-		).toBe("CmdOrCtrl+B");
-		expect(
-			shortcuts.find((shortcut) => shortcut.commandId === "view.toggleRightSidebar")?.accelerator,
-		).toBe("CmdOrCtrl+Alt+B");
+		const accelerator = (commandId: string) =>
+			shortcuts.find((shortcut) => shortcut.commandId === commandId)?.accelerator;
+		expect(accelerator("tab.close")).toBe("CmdOrCtrl+W");
+		expect(accelerator("app.sendFeedback")).toBe("CmdOrCtrl+Alt+F");
+		expect(accelerator("app.openDebugTools")).toBe("CmdOrCtrl+Alt+I");
+		expect(accelerator("view.toggleLeftSidebar")).toBeUndefined();
+		expect(accelerator("view.toggleRightSidebar")).toBeUndefined();
+		expect(accelerator("app.showShortcuts")).toBeUndefined();
 	});
 
 	it("leaves the fixed menu items to the Rust shell", () => {
@@ -273,30 +328,25 @@ describe("NAV-14 menuShortcuts", () => {
 	});
 
 	it("follows a rebind", () => {
-		const shortcuts = menuShortcuts({ "view.toggleLeftSidebar": ["Cmd+Shift+B"] });
-		expect(
-			shortcuts.find((shortcut) => shortcut.commandId === "view.toggleLeftSidebar")?.accelerator,
-		).toBe("CmdOrCtrl+Shift+B");
+		const shortcuts = menuShortcuts({ "tab.close": ["Cmd+Shift+W"] });
+		expect(shortcuts.find((shortcut) => shortcut.commandId === "tab.close")?.accelerator).toBe(
+			"CmdOrCtrl+Shift+W",
+		);
 	});
 
 	it("clears the accelerator of an unbound command", () => {
-		const shortcuts = menuShortcuts({ "view.toggleLeftSidebar": [] });
+		const shortcuts = menuShortcuts({ "tab.close": [] });
 		expect(
-			shortcuts.find((shortcut) => shortcut.commandId === "view.toggleLeftSidebar")?.accelerator,
+			shortcuts.find((shortcut) => shortcut.commandId === "tab.close")?.accelerator,
 		).toBeNull();
 	});
 
+	// The live binding is what the menus and the shortcuts dialog show. No chat command is a menu
+	// item, so the swap is read where they read it.
 	it("uses the send-key swap for a chat command", () => {
-		const shortcuts = menuShortcuts({}, "mod_enter");
-		expect(shortcuts.find((shortcut) => shortcut.commandId === "chat.submit")?.accelerator).toBe(
-			"CmdOrCtrl+Enter",
-		);
-		expect(
-			shortcuts.find((shortcut) => shortcut.commandId === "chat.submitOpposite")?.accelerator,
-		).toBe("Alt+Enter");
-		expect(shortcuts.find((shortcut) => shortcut.commandId === "chat.newLine")?.accelerator).toBe(
-			"Enter",
-		);
+		expect(liveBinding("chat.submit", {}, "mod_enter")).toBe("Cmd+Enter");
+		expect(liveBinding("chat.submitOpposite", {}, "mod_enter")).toBe("Alt+Enter");
+		expect(liveBinding("chat.newLine", {}, "mod_enter")).toBe("Enter");
 	});
 });
 

@@ -14,6 +14,7 @@
  */
 import { Dialog as Radix } from "radix-ui";
 import type { ReactNode } from "react";
+import { letShortcutsThroughProps } from "./dialog-shortcuts.ts";
 import { CloseIcon } from "./icons.tsx";
 
 export const Sheet = Radix.Root;
@@ -23,10 +24,21 @@ export interface SheetContentProps {
 	description?: ReactNode;
 	/** The footer's buttons; the primary one carries `data-primary-action`. */
 	footer: ReactNode;
+	/**
+	 * App shortcuts keep running while this is open, as under the dialogs Conductor keeps off its
+	 * dialog store (ui-map.md 5.4). Off by default: a dialog holds them.
+	 */
+	letShortcutsThrough?: boolean;
 	children: ReactNode;
 }
 
-export function SheetContent({ title, description, footer, children }: SheetContentProps) {
+export function SheetContent({
+	title,
+	description,
+	footer,
+	letShortcutsThrough = false,
+	children,
+}: SheetContentProps) {
 	return (
 		<Radix.Portal>
 			<Radix.Overlay className="fixed inset-0 z-40 bg-overlay" />
@@ -41,6 +53,7 @@ export function SheetContent({ title, description, footer, children }: SheetCont
 					primary.click();
 				}}
 				{...(description === undefined ? { "aria-describedby": undefined } : {})}
+				{...letShortcutsThroughProps(letShortcutsThrough)}
 			>
 				<Radix.Close
 					aria-label="Close"
