@@ -8,10 +8,15 @@
 	"compatibility_flags": ["nodejs_compat"],
 	"vars": { "INSTANCE_TYPE": "basic" },
 	"durable_objects": {
-		"bindings": [{ "class_name": "Workspace", "name": "WORKSPACE" }]
+		"bindings": [
+			{ "class_name": "Workspace", "name": "WORKSPACE" },
+			// CLOUD-17: the one store of the cloud MCP servers' OAuth tokens.
+			{ "class_name": "McpOAuth", "name": "MCP_OAUTH" }
+		]
 	},
 	"exports": {
-		"Workspace": { "type": "durable-object", "storage": "sqlite" }
+		"Workspace": { "type": "durable-object", "storage": "sqlite" },
+		"McpOAuth": { "type": "durable-object", "storage": "sqlite" }
 	},
 	// CLOUD-17: the personal cloud settings object lives in the same bucket as the backups.
 	"r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "conducted-cloud-test-backups" }]

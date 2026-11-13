@@ -12,6 +12,7 @@
  * so `pnpm typecheck` runs without a deploy tool.
  * Test first: a request without the pairing token gets 401 before any Durable Object is touched.
  */
+import type { McpOAuth } from "./mcp-oauth-store.ts";
 import type { Workspace } from "./workspace.ts";
 
 /** The instance sizes Cloudflare's container platform offers (Containers limits, read 2026-11-06). */
@@ -40,4 +41,6 @@ export interface Env {
 	INSTANCE_TYPE: InstanceType;
 	/** The R2 bucket that holds each workspace's latest backup (CLOUD-06). */
 	BACKUPS: R2Bucket;
+	/** The one store of the cloud MCP servers' OAuth tokens (CLOUD-17, mcp-oauth-store.ts). */
+	MCP_OAUTH: DurableObjectNamespace<McpOAuth>;
 }
