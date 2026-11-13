@@ -1201,7 +1201,7 @@ Why: the owner's rule. The chat behaves as Conductor's does, and opening it cost
 
 The tests: `apps/desktop/src/core/services/sessions.chat-06-memory.container.test.ts` (the bound), `sessions.chat-06.container.test.ts` and `features/chat/MessageList.chat-06.test.tsx` (the behaviour), and the measure's bound on the open in `scripts/conductor-import/measure.test.ts`.
 
-## D146. A project config save is a patch, applied to the local file as it stands (2026-11-13)
+## D146. A project config save is a patch, applied to the local file as it stands, and run actions by id (2026-11-13)
 
 Decided by the agent fixing issue #670, which the owner filed. The owner's ruling: "Match Conductor. Nothing made up; gaps are reported."
 
@@ -1216,4 +1216,7 @@ Chosen:
 
 Why not read the files again after the write, as Conductor does: for a cloud project that is a second git fetch per save, and the written contents are already what the read would return. Why not a queue of whole configs in each page: the pages would still each start from what they last read, and two pages (the Actions page holds the prompt rows) would still undo each other.
 
-Not covered: run actions are one field, the whole list. Conductor's updateTask changes one task by id, so two quick edits of different actions on the Actions page can still undo each other here. And a renamed action keeps its id, while its typed name was only ever kept in the store; with the store showing the file, the name reverts to the id's label at once rather than at the next read.
+- **Run actions change one at a time, by id** (issue #673, added 2026-11-13). The patch carries `runActions`, a list of changes: set an action, or delete one, by its id. Conductor's updateTask writes one task the same way (main @405635, through M8e @356875). A set replaces the action with the same id in its place, adds a new one last, and puts an action named "run" first. Every other action, and every other action's invalid entry, stays as the file has it. A set that leaves an action equal to its shared version removes the local one, as before. A Reset is a delete of that id. "Make default" sets each action whose flag changes.
+- **An action's name is its id.** The dialog's name field shows the id's label, and the typed name, normalised, is saved as the id, as Conductor's draft does (renderApp W$a @11010494). A rename sets the action under its new id with `replaceId`, the old id, so it keeps its place in the file (renderApp @11014363). A rename of a shared action, or of a shared action changed on this Mac, writes a local action under the new name, and the shared one shows again under its own name, as Conductor's writer leaves it. An edit that keeps the name can change the id's case ("dev" saved as "Dev"), as Conductor's does; ids compare without case.
+
+Not covered: Conductor moves a shared action's per-user hidden flag to the new id on a rename (updateActionHidden with `previousTaskId`). Here the hidden flag of a shared action stays with the shared action, because the renamed copy is a local action, whose hidden flag lives in the file.
