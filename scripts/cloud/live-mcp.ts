@@ -4,7 +4,9 @@
  * - Builds the deploy inputs (`pnpm cloud:prepare`), then runs the ignored Rust test
  *   `apps/desktop/src-tauri/tests/cloud_c17_live.rs`, which deploys a throwaway
  *   `conducted-dev-c17l-<time>` Worker and sandbox, proves an agent in the sandbox lists and calls
- *   a bearer-token MCP server, searches the sandbox for the token, and deletes what it made.
+ *   a bearer-token MCP server, searches the sandbox for the token, and deletes what it made; then
+ *   does the same for an OAuth server, signing in through the Worker's callback against a test
+ *   provider on this Mac and checking the Worker refreshes the token. One deployment at a time.
  * - On every ending, failure included, moves the deploy inputs this run built to the Trash, so a
  *   checkout that had none is left with none.
  * - With `--cleanup` it runs the test's `remove_leftover_c17_deployments` instead, for a run that
