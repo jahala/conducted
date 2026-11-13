@@ -24,14 +24,18 @@ describe("ourAdapter", () => {
 	for (const scenario of SCENARIOS) {
 		test(`${scenario.id}: every call is one our protocol accepts`, () => {
 			const ctx: RunContext = { seal, scenario, turn: 0, lastTurnId: undefined };
+			expect(scenario.steps.length).toBeGreaterThan(0);
+			let checked = 0;
 			for (const step of scenario.steps) {
 				const call = ourAdapter.call(step, ctx);
 				if (call === undefined) continue;
+				checked += 1;
 				const spec = appToSidecarRequests[call.method as keyof typeof appToSidecarRequests];
 				expect(spec, `${call.method} is one of our requests`).toBeDefined();
 				const parsed = spec.params.safeParse(call.params);
 				expect(parsed.error?.issues ?? [], `${scenario.id} ${step.do}`).toEqual([]);
 			}
+			expect(checked).toBeGreaterThan(0);
 		});
 	}
 });
