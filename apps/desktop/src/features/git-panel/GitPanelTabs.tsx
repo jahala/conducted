@@ -14,7 +14,7 @@
  * setting is off.
  * Test first: with changedCount 3 the Changes tab shows the badge "3".
  */
-import type { ReactNode } from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import type { GitPanelTab } from "../../core/model.ts";
 import { Tabs, TabsList, TabsTrigger } from "../../ui/Tabs.tsx";
 import { ReviewButton } from "./ReviewButton.tsx";
@@ -40,6 +40,41 @@ export interface GitPanelTabsProps {
 
 const countLabel = (count: number): string => (count > 99 ? "99+" : String(count));
 
+/** Conductor's fade on a side the tabs scroll past (renderApp `kKe`): clear for 8px, solid by 40px. */
+function fadeMask(left: boolean, right: boolean): string | undefined {
+	if (left && right) {
+		return "linear-gradient(to right, transparent 8px, black 40px, black calc(100% - 40px), transparent calc(100% - 8px))";
+	}
+	if (left) return "linear-gradient(to right, transparent 8px, black 40px)";
+	if (right)
+		return "linear-gradient(to right, black calc(100% - 40px), transparent calc(100% - 8px))";
+	return undefined;
+}
+
+/** Which sides of the tab scroller hide tabs, kept as it scrolls or resizes. */
+function useOverflowSides() {
+	const ref = useRef<HTMLDivElement>(null);
+	const [sides, setSides] = useState({ left: false, right: false });
+	const measure = () => {
+		const node = ref.current;
+		if (node === null) return;
+		const left = node.scrollLeft > 1;
+		const right = node.scrollLeft + node.clientWidth < node.scrollWidth - 1;
+		setSides((old) => (old.left === left && old.right === right ? old : { left, right }));
+	};
+	// biome-ignore lint/correctness/useExhaustiveDependencies: measure reads only the ref and a stable setter.
+	useLayoutEffect(() => {
+		const node = ref.current;
+		if (node === null || typeof ResizeObserver === "undefined") return;
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(node);
+		if (node.firstElementChild !== null) observer.observe(node.firstElementChild);
+		return () => observer.disconnect();
+	}, []);
+	return { ref, sides, measure };
+}
+
 export function GitPanelTabs({
 	active,
 	onSelect,
@@ -52,13 +87,26 @@ export function GitPanelTabs({
 	onReviewWithEdit,
 	actions,
 }: GitPanelTabsProps) {
+	const scroller = useOverflowSides();
+	const mask = fadeMask(scroller.sides.left, scroller.sides.right);
 	return (
 		<Tabs value={active} onValueChange={(value) => onSelect(value as GitPanelViewTab)}>
 			{/* Conductor's strip (renderApp `POs` @2553124): the tabs take the room left and scroll
 			    sideways when it runs out, and Review with the tab's buttons never shrinks. Our TabsList
 			    keeps its width and clips, which pushed Review past the panel's edge. */}
 			<div className="flex min-w-0 shrink-0 items-center gap-2 overflow-hidden border-b border-separator pr-2">
-				<div className="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]">
+				<div
+					ref={scroller.ref}
+					className="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]"
+					style={mask === undefined ? undefined : { maskImage: mask, WebkitMaskImage: mask }}
+					onScroll={scroller.measure}
+					// A mouse wheel scrolls the tabs sideways, as Conductor's strip does.
+					onWheel={(event) => {
+						if (event.deltaY !== 0 && event.deltaX === 0) {
+							event.currentTarget.scrollLeft += event.deltaY;
+						}
+					}}
+				>
 					<TabsList className="max-w-none! gap-1 overflow-visible! border-b-0 font-normal">
 						{showArtifacts ? (
 							<TabsTrigger variant="pill" value="artifacts">
