@@ -3,7 +3,8 @@
  * Owns: the Setup tab before setup ever ran, for a project with no setup script (Add setup
  * script, Ask agent, Add manually), while the script runs, after it failed and was run again
  * (with the failure toast), and after the user stopped it, when the project's settings cannot be
- * read, and Ask agent in a workspace with no chat; and the dashboard while a workspace
+ * read, and Ask agent in a workspace with no chat; a new workspace's setup timeline in its first chat
+ * after its script failed and after the workspace could not be made; and the dashboard while a workspace
  * sets up beside one whose creation failed.
  * Behaviour: ui-map.md 3.7 (Setup states); services-map.md 5A.1.2 (idle, running, completed,
  * failed, cancelled); features/scripts-panel/setup/setup-state.ts picks what the tab shows;
@@ -14,9 +15,9 @@
  */
 
 import type { Workspace } from "../../core/model.ts";
-import { animateCast, refreshGit, seedCast, workspaceRoute } from "../cast.ts";
+import { animateCast, chatRoute, refreshGit, seedCast, workspaceRoute } from "../cast.ts";
 import { click, shows } from "../dom.ts";
-import { addWorkspace, setSetting } from "../seeds.ts";
+import { addChat, addWorkspace, setSetting } from "../seeds.ts";
 import type { AfterContext, CatalogueState } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
 import type { World } from "../world.ts";
@@ -69,6 +70,42 @@ function startHeldSetup({ app, world }: AfterContext, workspace: Workspace): voi
 	world.memory.controls.holdNextPty();
 	void app.container.services.workspace.runSetup(workspace.id);
 }
+
+/**
+ * A new atlas workspace open on its first, empty chat. A ready one has just run its setup script,
+ * which failed; a failed one could not be made.
+ */
+const timelineState = (
+	id: string,
+	title: string,
+	text: string,
+	state: "ready" | "failed",
+): CatalogueState => ({
+	id,
+	group: "Setup",
+	title,
+	seed: async (world) => {
+		const cast = await seedCast(world);
+		const fresh = await addWorkspace(world, cast.atlas, {
+			name: "lisbon",
+			branch: "sam/lisbon",
+			state,
+			lastActivityAt: CATALOGUE_NOW - MINUTE,
+		});
+		const chat = await addChat(world, fresh, { title: null });
+		return {
+			route: chatRoute(fresh, chat),
+			after: async ({ app }) => {
+				await animateCast(world, cast, app);
+				if (state === "ready") {
+					world.memory.controls.queuePtyExit(1);
+					await app.container.services.workspace.runSetup(fresh.id);
+				}
+			},
+			ready: (document) => shows(document, text),
+		};
+	},
+});
 
 export const SETUP_STATES: CatalogueState[] = [
 	setupState(
@@ -151,6 +188,18 @@ export const SETUP_STATES: CatalogueState[] = [
 			};
 		},
 	},
+	timelineState(
+		"setup-timeline-failed",
+		"A new workspace's first chat: the setup timeline after the setup script failed",
+		"Setup script failed — fix it?",
+		"ready",
+	),
+	timelineState(
+		"setup-timeline-init-failed",
+		"A new workspace's first chat: the setup timeline after the workspace could not be made",
+		"Setup did not start",
+		"failed",
+	),
 	{
 		id: "dashboard",
 		group: "Pages",

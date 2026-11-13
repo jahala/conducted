@@ -18,12 +18,14 @@
  * Scripts page has no route of its own yet.
  * Test first: kind "failed" shows the failure log and a fix action that calls the chat action once.
  */
-import type { Result, TerminalId, WorkspaceId } from "@conducted/shared";
+import type { Result, SessionId, TerminalId, WorkspaceId } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import type { Actions } from "../../../core/api.ts";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useSessions, useSetupState, useWorkspace } from "../../../core/hooks.ts";
-import type { SetupView } from "../../../core/model.ts";
+import type { Session, SetupView, Workspace } from "../../../core/model.ts";
+import type { WorkspaceService } from "../../../core/services/workspace.ts";
 import { isArchivedWorkspace } from "../../../core/status/archived.ts";
 import {
 	SETUP_FAILED_MESSAGE,
@@ -57,6 +59,34 @@ export function setupFixPrompt(log: string | null): string {
 /** Sent to the chat when the user asks the agent to add a setup script. */
 export const ADD_SETUP_PROMPT =
 	"Add a setup script for this repository that installs dependencies and prepares the environment when a workspace is created.";
+
+/** The chat a setup request goes to: the workspace's active chat, else its first. */
+export function setupRequestChat(
+	workspace: Pick<Workspace, "activeSessionId">,
+	sessions: readonly Session[],
+): Session | undefined {
+	return workspace.activeSessionId === null
+		? sessions[0]
+		: (sessions.find((session) => session.id === workspace.activeSessionId) ?? sessions[0]);
+}
+
+/**
+ * Asks the agent to fix a failed setup: the fix request with the end of the saved log, sent to
+ * `sessionId`. A log that cannot be read is said in a toast and the request goes without it.
+ */
+export async function requestSetupFix(
+	actions: Pick<Actions, "sessions">,
+	workspaceService: Pick<WorkspaceService, "readSetupLog">,
+	input: { workspaceId: WorkspaceId; sessionId: SessionId; hasSavedLog: boolean },
+): Promise<Result<unknown>> {
+	let log: string | null = null;
+	if (input.hasSavedLog) {
+		const read = await workspaceService.readSetupLog(input.workspaceId);
+		if (read.ok) log = read.value;
+		else toastError("Failed to attach setup logs", read.error);
+	}
+	return actions.sessions.send(input.sessionId, setupFixPrompt(log), [], "auto");
+}
 
 export interface SetupTabProps {
 	workspaceId: WorkspaceId;
@@ -158,11 +188,7 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 	const text = SETUP_TAB_TEXT[kind];
 	const terminalId: TerminalId | null = view.terminalId;
 	const archived = isArchivedWorkspace(workspaceRow) || workspaceRow.state === "archiving";
-	const activeSession =
-		workspaceRow.activeSessionId === null
-			? sessions.data[0]
-			: (sessions.data.find((session) => session.id === workspaceRow.activeSessionId) ??
-				sessions.data[0]);
+	const activeSession = setupRequestChat(workspaceRow, sessions.data);
 	const canSendToChat = !archived && activeSession !== undefined;
 
 	const run = async (
@@ -218,18 +244,12 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 		if (activeSession === undefined) return;
 		const sessionId = activeSession.id;
 		void run(
-			async () => {
-				let log: string | null = null;
-				if (view.log === "saved") {
-					const read = await workspaceService.readSetupLog(workspaceId);
-					if (read.ok) {
-						log = read.value;
-					} else {
-						toastError("Failed to attach setup logs", read.error);
-					}
-				}
-				return actions.sessions.send(sessionId, setupFixPrompt(log), [], "auto");
-			},
+			() =>
+				requestSetupFix(actions, workspaceService, {
+					workspaceId,
+					sessionId,
+					hasSavedLog: view.log === "saved",
+				}),
 			(error) => toastError("Failed to attach setup context", error),
 		);
 	};
