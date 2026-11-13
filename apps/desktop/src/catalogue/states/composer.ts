@@ -982,35 +982,4 @@ export const COMPOSER_STATES: CatalogueState[] = [
 			);
 		},
 	},
-	{
-		id: "composer-slash-skills",
-		group: "Composer",
-		title: "The / menu with the agent's skills listed under Skills",
-		seed: (world) => {
-			world.answerSidecar({
-				listSlashCommands: () => ({
-					commands: [
-						{
-							name: "review",
-							description: "Review the current diff",
-							source: "builtin",
-							kind: "command",
-						},
-						{
-							name: "release-notes",
-							description: "Write release notes from the merged pull requests",
-							source: "user",
-							kind: "skill",
-						},
-					],
-					fromCache: false,
-				}),
-			});
-			return newChat(
-				world,
-				({ document }) => typeInComposer(document, "/"),
-				(document) => shows(document, "release-notes"),
-			);
-		},
-	},
 ];
