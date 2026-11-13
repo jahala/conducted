@@ -119,6 +119,20 @@ export const READ_WHOLE: readonly FolderRule[] = [
 		why: "the Worker the cloud tests start imports the shared package",
 		tests: ["apps/cloud"],
 	},
+	{
+		glob: "{apps/desktop/src,apps/cloud,packages}/**",
+		why: "the notices test builds every shipped bundle and reads which packages it took",
+		tests: ["scripts/notices/bundles.build.test.ts"],
+	},
+	{
+		glob: "apps/desktop/src-tauri/THIRD-PARTY-NOTICES.txt",
+		why: "these tests read the notices file by its path",
+		tests: [
+			"scripts/notices/bundles.build.test.ts",
+			"scripts/notices/notices.test.ts",
+			"apps/desktop/src-tauri/release/bundle.test.ts",
+		],
+	},
 ];
 
 export const ALWAYS: readonly AlwaysTest[] = [
