@@ -133,6 +133,19 @@ function imageTooLargeChat(): Conversation {
 	return chat;
 }
 
+/** A turn the API refused because the chat outgrew Claude's context window. */
+function contextWindowChat(): Conversation {
+	const chat = conversation("context-window", CATALOGUE_NOW - 12 * MINUTE);
+	const turn = chat.user("Read every file under src and summarise how the routes are built.");
+	chat.end(
+		turn,
+		undefined,
+		"error",
+		"API Error: 400 prompt is too long: 214031 tokens > 200000 maximum",
+	);
+	return chat;
+}
+
 /** A turn that is still running, delivered once the app is up. */
 function runningTurn(
 	prefix: string,
@@ -259,6 +272,16 @@ export const BANNER_STATES: CatalogueState[] = [
 		group: "Workspace chat",
 		title: "Error: an image over Claude Code's 5 MB limit",
 		seed: arborChat("Layout screenshot", () => imageTooLargeChat(), "Image too large"),
+	},
+	{
+		id: "chat-error-context-window",
+		group: "Workspace chat",
+		title: "Error: a chat over Claude's context window",
+		seed: arborChat(
+			"Route overview",
+			() => contextWindowChat(),
+			"Exceeded Claude's context window. Please compact using /compact, or summarize into a new chat.",
+		),
 	},
 	{
 		id: "chat-error-views",

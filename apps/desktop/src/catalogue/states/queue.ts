@@ -181,4 +181,10 @@ export const QUEUE_STATES: CatalogueState[] = [
 			await dragFirstBelowLast(document);
 		},
 	),
+	queueState(
+		"chat-close-running",
+		"Working: closing the chat's tab asks first",
+		(document) => shows(document, "Close running chat?"),
+		({ document }) => click(document, "[role=tablist] button", "Close ", { prefix: true }),
+	),
 ];

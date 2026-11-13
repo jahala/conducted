@@ -108,6 +108,27 @@ const markdownChat = async (world: World): Promise<Scene> => {
 	};
 };
 
+/** arbor's chat whose reply offers a shell command, run from its code block and still running. */
+const runningCodeBlockChat = async (world: World): Promise<Scene> => {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.arbor, { title: "Run the auth tests" });
+	const talk = conversation("arbor-run-block", CATALOGUE_NOW - 10 * MINUTE);
+	const turn = talk.user("How do I run only the auth tests?");
+	talk.text(turn, "Run them on their own with:\n\n```bash\npnpm test src/auth\n```\n");
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	// The command keeps running until it is stopped.
+	world.memory.controls.holdNextPty();
+	return {
+		route: chatRoute(cast.arbor, chat),
+		after: async ({ app, document }) => {
+			await refreshGit(app, cast.arbor);
+			await click(document, "button", "Run");
+		},
+		ready: (document) => shows(document, "Stop command"),
+	};
+};
+
 /** arbor's chat with a screenshot attached, and its attachment viewer open. */
 /**
  * The screenshot the user attached: a browser window whose address ends at `/`. A picture the browser
@@ -244,6 +265,12 @@ export const CHAT_STATES: CatalogueState[] = [
 				text: "Copied image to clipboard",
 			});
 		},
+	},
+	{
+		id: "chat-code-block-running",
+		group: "Workspace chat",
+		title: "A shell code block in a reply, run and still running: Stop command",
+		seed: runningCodeBlockChat,
 	},
 	{
 		id: "chat-attachment-copy-failed",

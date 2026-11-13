@@ -424,6 +424,35 @@ export const REVIEW_STATES: CatalogueState[] = [
 	DIFF_ERROR,
 	DIFF_EMPTY,
 	WHITESPACE_DIFF,
+	{
+		id: "git-changes-rebasing",
+		group: "Git panel",
+		title: "The Changes tab while a rebase in arbor is stopped part way",
+		seed: async (world) => {
+			const scene = await arborScene({
+				git: { arborDetached: true },
+				ready: (document) => shows(document, "Finish rebasing or merging to see changes"),
+			})(world);
+			// git keeps .git/rebase-merge while a rebase waits; a later script is asked first.
+			world.scriptShell((command) =>
+				command.program === "stat" &&
+				command.cwd.endsWith("/arbor") &&
+				(command.args.at(-1) ?? "").endsWith("/.git/rebase-merge")
+					? { ok: true, value: { stdout: "96\n", stderr: "", exitCode: 0 } }
+					: null,
+			);
+			return scene;
+		},
+	},
+	{
+		id: "git-create-pr-menu",
+		group: "Git panel",
+		title: "The Create PR button's menu: a draft, or a pull request made by hand",
+		seed: arborScene({
+			after: ({ document }) => click(document, "button", "More ways to create a PR"),
+			ready: (document) => has(document, "[role=menuitem]", "Create PR manually"),
+		}),
+	},
 	changedFileDiff(
 		"git-diff-binary",
 		"A changed image, which the diff cannot draw",

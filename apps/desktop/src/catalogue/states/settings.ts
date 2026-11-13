@@ -416,6 +416,31 @@ async function editMcpServer(document: Document, shown: string): Promise<void> {
 	await click(document, "[role=menuitem]", "Edit");
 }
 
+/** The Environment page with ANTHROPIC_API_KEY set and its Add environment variable panel open. */
+const envAddPanel = (
+	id: string,
+	title: string,
+	then: (document: Document, world: World) => Promise<void>,
+	text: string,
+): CatalogueState => ({
+	id,
+	group: "Settings",
+	title,
+	seed: async (world) => {
+		await seedCast(world);
+		await seedEnvVar(world, "ANTHROPIC_API_KEY", "sk-ant-example");
+		return {
+			route: "/settings/user/environment",
+			after: async ({ document, world: shown }) => {
+				await click(document, "button", "Add environment variable");
+				await findField(document, "input#env-add-name");
+				await then(document, shown);
+			},
+			ready: (document) => shows(document, text),
+		};
+	},
+});
+
 export const SETTINGS_STATES: CatalogueState[] = [
 	page("settings-general", "General", "general", "General"),
 	// Settings search results, which draw Conductor's search copy for a setting or page.
@@ -2054,5 +2079,96 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				},
 				(document) => has(document, "[role=dialog] button", "Add and connect"),
 			),
+	},
+	envAddPanel(
+		"settings-environment-add-panel",
+		"Environment, the Add environment variable panel",
+		async () => {},
+		"Paste a block of KEY=VALUE lines into the name field to add several at once.",
+	),
+	envAddPanel(
+		"settings-environment-add-no-name",
+		"Environment, a variable saved with no name",
+		(document) => click(document, "[role=dialog] button", "Save", { prefix: true }),
+		"Variable name is required.",
+	),
+	envAddPanel(
+		"settings-environment-add-taken",
+		"Environment, a variable whose name is already set",
+		async (document) => {
+			fillIn(await findField(document, "input#env-add-name"), "ANTHROPIC_API_KEY");
+			await click(document, "[role=dialog] button", "Save", { prefix: true });
+		},
+		"That variable already exists.",
+	),
+	envAddPanel(
+		"settings-environment-add-failed",
+		"Environment, a variable whose save the database refuses",
+		async (document, world) => {
+			fillIn(await findField(document, "input#env-add-name"), "LOG_LEVEL");
+			await world.failWrites("env_vars", "INSERT");
+			await click(document, "[role=dialog] button", "Save", { prefix: true });
+		},
+		"Failed to add environment variable",
+	),
+	{
+		id: "settings-repo-review-prompt",
+		group: "Settings",
+		title: "atlas: Actions, the instructions for the Review button opened",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/actions`,
+				after: ({ document }) =>
+					click(document, "button", "Code review preferences", { prefix: true }),
+				ready: (document) =>
+					document.querySelector(
+						'[placeholder="Add your preferences here. The agent will be told to prioritize these instructions over its default instructions."]',
+					) !== null,
+			};
+		},
+	},
+	{
+		id: "settings-account-github-not-yet",
+		group: "Settings",
+		title: "Account: Check again in the Connect GitHub dialog while gh is still signed out",
+		seed: async (world) => {
+			await seedCast(world);
+			world.scriptShell(scriptGitHub({ signedOut: true }));
+			return {
+				route: "/settings/user/account",
+				after: async ({ document }) => {
+					await click(document, "button", "Connect");
+					await click(document, "[role=dialog] button", "Check again");
+				},
+				ready: (document) =>
+					shows(document, "GitHub isn't connected yet. Finish the sign-in and try again."),
+			};
+		},
+	},
+	{
+		id: "settings-root",
+		group: "Settings",
+		title: "Settings opened at /settings, which shows General",
+		seed: async (world) => {
+			await seedCast(world);
+			return { route: "/settings", ready: (document) => shows(document, "Send messages with") };
+		},
+	},
+	{
+		id: "settings-agents-bedrock-missing",
+		group: "Settings",
+		title: "Agents: Claude Code's Amazon Bedrock form saved with its fields empty",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/agents",
+				after: async ({ document }) => {
+					await openProviders(document, null, "Amazon Bedrock");
+					await click(document, "[role=dialog] button", "Save", { prefix: true });
+				},
+				ready: (document) => shows(document, "Enter all required Bedrock fields."),
+			};
+		},
 	},
 ];

@@ -714,4 +714,47 @@ export const PAR_RUN_STATES: CatalogueState[] = [
 			};
 		},
 	},
+	{
+		id: "run-spotlight",
+		group: "Overlays and panels",
+		title: "Scripts panel, Run tab with spotlight testing on: Start spotlight",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			world.memory.controls.files.set(
+				`${cast.atlas.rootPath}/.conducted/settings.toml`,
+				'spotlight_testing = true\n\n[scripts]\nsetup = "pnpm install"\n\n[scripts.run.dev]\ncommand = "pnpm dev"\ndefault = true\n',
+			);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await click(document, "button,[role=tab]", "Run");
+				},
+				ready: (document) => shows(document, "Start spotlight"),
+			};
+		},
+	},
+	{
+		id: "run-preview-urls",
+		group: "Overlays and panels",
+		title: "Scripts panel, Run tab with two preview addresses: Open and its menu",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					const saved = await app.container.actions.projects.updateConfig(cast.atlas.id, {
+						previewUrls: [
+							{ name: "App", url: "http://localhost:$CONDUCTED_PORT" },
+							{ name: "Storybook", url: "http://localhost:6006" },
+						],
+					});
+					if (!saved.ok) throw new Error(`Saving atlas's settings failed: ${saved.error.message}`);
+					await refreshGit(app, cast.arbor);
+					await click(document, "button,[role=tab]", "Run");
+				},
+				ready: (document) => document.querySelector('[aria-label="Choose preview URL"]') !== null,
+			};
+		},
+	},
 ];

@@ -16,7 +16,7 @@ import type { AfterContext, CatalogueState } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
 import type { World } from "../world.ts";
 
-const CODEX_CONFIG: SessionConfig = { ...CLAUDE_CONFIG, agent: "codex", model: "gpt-5.5" };
+export const CODEX_CONFIG: SessionConfig = { ...CLAUDE_CONFIG, agent: "codex", model: "gpt-5.5" };
 
 const OBJECTIVE = "Every page of the dashboard loads in under one second on the largest account.";
 

@@ -13,16 +13,28 @@
  * COMP-01 (drafts and attachments).
  * Test first: not applicable; the screenshot run opens every state.
  */
+import type { SessionConfig } from "@conducted/protocol";
 import { draftAttachmentsDir } from "../../core/app-paths.ts";
 import type { Session, Workspace } from "../../core/model.ts";
 import { animateCast, chatRoute, type GitWorld, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, find, has, hover, pressUntilTaken, shows, typeInto } from "../dom.ts";
+import {
+	click,
+	clickOn,
+	find,
+	findFirst,
+	has,
+	hover,
+	pressUntilTaken,
+	shows,
+	typeInto,
+} from "../dom.ts";
 import { setLiveState } from "../live.ts";
 import { addChat, addEvents, CLAUDE_CONFIG, must, setSetting } from "../seeds.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, DAY, HOUR } from "../time.ts";
-import type { World } from "../world.ts";
+import { HOME, type World } from "../world.ts";
+import { CODEX_CONFIG } from "./goals.ts";
 
 /** The cast, with a new, empty chat open in arbor. */
 async function newChat(
@@ -207,6 +219,42 @@ const shelvesState = (
 				await then(context, earlier);
 			},
 			ready,
+		};
+	},
+});
+
+/**
+ * arbor's started chat with one favourite added, which the user then picks from the model picker.
+ * Changing the agent opens a new chat; changing only the effort warns about the next reply.
+ */
+const midChatSwitch = (
+	id: string,
+	title: string,
+	favourite: { agent: "claude" | "codex"; model: string; effort: SessionConfig["effort"] },
+	row: string,
+	text: string,
+): CatalogueState => ({
+	id,
+	group: "Composer",
+	title,
+	seed: async (world): Promise<Scene> => {
+		const cast = await seedCast(world);
+		must(
+			await world.repositories.sessions.recordUserMessage(
+				cast.chats.arbor.id,
+				CATALOGUE_NOW - HOUR,
+			),
+		);
+		return {
+			route: chatRoute(cast.arbor, cast.chats.arbor),
+			after: async ({ app, document }) => {
+				await refreshGit(app, cast.arbor);
+				must(await app.container.services.favoriteModels.add({ ...favourite, fastMode: false }));
+				await click(document, "button", "Model picker");
+				// The favourite, not the current choice, which can carry the same name.
+				clickOn(await findFirst(document, `button[aria-label="${row}"]:not([data-selected])`));
+			},
+			ready: (document) => shows(document, text),
 		};
 	},
 });
@@ -803,6 +851,86 @@ export const COMPOSER_STATES: CatalogueState[] = [
 					await click(document, "button", "Done");
 				},
 				(document) => shows(document, "Configuration refreshed."),
+			);
+		},
+	},
+	midChatSwitch(
+		"composer-agent-switch-mid-chat",
+		"Choosing Codex in a chat Claude started: it opens in a new chat",
+		{ agent: "codex", model: "gpt-5.5", effort: "high" },
+		"Select Codex · gpt-5.5",
+		"Opens in new chat",
+	),
+	midChatSwitch(
+		"composer-effort-switch-mid-chat",
+		"Lowering Claude's effort in a chat that has started: the toast about the next reply",
+		{ agent: "claude", model: "default", effort: "low" },
+		"Select Claude Code · default",
+		"FYI: When you switch effort mid-chat with Claude",
+	),
+	{
+		id: "composer-goal-mode",
+		group: "Composer",
+		title: "A new Codex chat after /goal: the composer asks for the goal",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			const chat = await addChat(world, cast.arbor, { title: null, config: CODEX_CONFIG });
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await submitSlash(document, "/goal");
+				},
+				ready: (document) => shows(document, "Set a goal"),
+			};
+		},
+	},
+	{
+		id: "composer-attach-folder",
+		group: "Composer",
+		title: "A folder picked as an attachment from the + menu, which the composer refuses",
+		seed: (world) => {
+			const folder = `${HOME}/Desktop/designs`;
+			world.memory.controls.addFolder(folder);
+			world.memory.controls.queueDialogAnswers({ files: [folder] });
+			return newChat(
+				world,
+				async ({ document }) => {
+					await click(document, "button", PLUS_MENU);
+					await click(document, "[role=menuitem]", "Add attachment", { prefix: true });
+				},
+				(document) => shows(document, "Folders can't be uploaded"),
+			);
+		},
+	},
+	{
+		id: "composer-slash-skills",
+		group: "Composer",
+		title: "The / menu with the agent's skills listed under Skills",
+		seed: (world) => {
+			world.answerSidecar({
+				listSlashCommands: () => ({
+					commands: [
+						{
+							name: "review",
+							description: "Review the current diff",
+							source: "builtin",
+							kind: "command",
+						},
+						{
+							name: "release-notes",
+							description: "Write release notes from the merged pull requests",
+							source: "user",
+							kind: "skill",
+						},
+					],
+					fromCache: false,
+				}),
+			});
+			return newChat(
+				world,
+				({ document }) => typeInComposer(document, "/"),
+				(document) => shows(document, "release-notes"),
 			);
 		},
 	},
