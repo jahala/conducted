@@ -35,8 +35,8 @@
  * The editor loads the `@` trigger (COMP-04), the `#` trigger (COMP-05), the `/` trigger
  * (COMP-06) and the `§` snippet trigger (COMP-09) from this composer, so all read the chat's
  * service. The `@` menu lists the workspace's files and its linked folders, read again each time
- * the menu opens, and offers "Attach current terminal output" and "Select working directories"
- * (WS-07). The `#` menu lists the project's pull requests and issues
+ * the menu opens, and offers Conductor's "terminal" row ("Attach current terminal output") and its
+ * "add directory" row ("Link a directory or workspace", WS-07). The `#` menu lists the project's pull requests and issues
  * (core/services/mention-search.ts), writes the chosen item's context file and inserts a chip; a
  * failed write shows "Failed to save PR context". A slash command the user picks does what
  * `slashCommandAction` says: /clear opens a new
@@ -453,14 +453,17 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					],
 					onOpen: () => void loadFiles(),
 					actions: [
+						// Conductor's rows: a word to type, then what it does (renderApp @9083009, @9301900).
 						{
 							id: "terminal-output",
-							label: "Attach current terminal output",
+							label: "terminal",
+							detail: "Attach current terminal output",
 							onChoose: () => void attachTerminalOutput(),
 						},
 						{
 							id: "working-directories",
-							label: "Select working directories",
+							label: "add directory",
+							detail: "Link a directory or workspace",
 							onChoose: () => setLinkDialogOpen(true),
 						},
 					],
