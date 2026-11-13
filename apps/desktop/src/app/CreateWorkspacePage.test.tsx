@@ -345,8 +345,10 @@ describe("NAV-04 Create in section", () => {
 	});
 });
 
-describe("APP-04 Create with no projects yet", () => {
-	it("offers the same three ways to add a project as the first screen", async () => {
+// Conductor's new-workspace dialog opens with no project too: its repository picker reads "Select
+// repo" and its menu adds one (renderApp `Wwa` @10189388). The first-run screen is the other place.
+describe("WS-01 Create with no projects yet", () => {
+	it("opens the dialog on Select repo, whose menu adds a project", async () => {
 		test.container.services.repo.store.setState({
 			loaded: true,
 			reposById: {},
@@ -370,9 +372,14 @@ describe("APP-04 Create with no projects yet", () => {
 		);
 		await router.load();
 
-		expect(await screen.findByText("Add a project to get started")).toBeTruthy();
-		expect(screen.getByRole("button", { name: /Open project/ })).toBeTruthy();
-		expect(screen.getByRole("button", { name: /Open GitHub project/ })).toBeTruthy();
-		expect(screen.getByRole("button", { name: /Quick start/ })).toBeTruthy();
+		const picker = await screen.findByRole("button", { name: "Select repo" });
+		expect(picker.textContent).toContain("Select repo");
+		expect(screen.getByRole("textbox", { name: "First message" })).toBeTruthy();
+		expect(screen.queryByText("Add a project to get started")).toBeNull();
+
+		fireEvent.pointerDown(picker, { button: 0, ctrlKey: false });
+		expect(await screen.findByRole("menuitem", { name: /Open project/ })).toBeTruthy();
+		expect(screen.getByRole("menuitem", { name: /Open GitHub project/ })).toBeTruthy();
+		expect(screen.getByRole("menuitem", { name: /Quick start/ })).toBeTruthy();
 	});
 });

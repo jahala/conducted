@@ -1,7 +1,7 @@
 /**
  * @feature catalogue States of the full pages in the main layout: Home, new workspace, backlog, diagnostics
  * Owns: the seeds for Home with the cast, the new workspace page with a project chosen (and its
- * Create from picker open, and its slash command menu) and in
+ * Create from picker open, and its slash command menu), with no project yet (its menu open), and in
  * cloud mode (ready, with no project on GitHub, and waiting for the Worker's GitHub token, CLOUD-19), the backlog with saved
  * workspaces and empty, the Diagnostics page, an archived workspace's file tab, and an address that matches no page.
  * Behaviour: ui-map.md 2 (routes /all-workspaces, /create, /backlog, /diagnostics), WS-11 (backlog),
@@ -260,6 +260,17 @@ export const PAGE_STATES: CatalogueState[] = [
 				ready: (document) => shows(document, "Recents"),
 			};
 		},
+	},
+	{
+		// No project yet: Conductor's dialog still opens, its picker on "Select repo" (renderApp @10189388).
+		id: "new-workspace-no-project",
+		group: "Pages",
+		title: "New workspace dialog with no project yet, its project menu open",
+		seed: async () => ({
+			route: "/create",
+			after: ({ document }) => click(document, "button", "Select repo"),
+			ready: (document) => shows(document, "Quick start"),
+		}),
 	},
 	{
 		id: "create-project",
