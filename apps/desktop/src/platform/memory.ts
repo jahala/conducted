@@ -234,6 +234,8 @@ export interface MemoryPlatformControls {
 	readonly dockBadge: number | null;
 	/** The last text written to the clipboard. */
 	readonly clipboardText: string | null;
+	/** Makes every later text written to the clipboard fail, as a clipboard another app holds would. */
+	refuseClipboard(): void;
 	/** Puts files on the clipboard, as if copied in Finder. */
 	setClipboardFilePaths(paths: readonly string[]): void;
 	/** Answers for dialogs, consumed in order. */
@@ -1356,8 +1358,10 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		appIcon: async () => ok(null),
 	};
 
+	let clipboardRefused = false;
 	const clipboard: Clipboard = {
 		writeText: async (text) => {
+			if (clipboardRefused) throw new Error("The clipboard refused the text.");
 			clipboardText = text;
 		},
 		writeImage: async () => {},
@@ -1936,6 +1940,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		get clipboardText() {
 			return clipboardText;
+		},
+		refuseClipboard: () => {
+			clipboardRefused = true;
 		},
 		setClipboardFilePaths: (paths) => {
 			clipboardFilePaths = [...paths];

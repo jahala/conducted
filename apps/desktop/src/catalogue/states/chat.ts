@@ -9,7 +9,8 @@
  * table, a quote, a callout, links and a rule); a long user message shortened with Show more; the reply just copied; the
  * plan review bar's three tooltips; and the toast
  * after copying a chat image; Conductor's toasts when a chat tab, the other chat tabs or a closed
- * chat could not close or reopen; and the warning when a chat with no messages is copied.
+ * chat could not close or reopen; the warning when a chat with no messages is copied; and the toasts
+ * when the clipboard refuses a reply or a plan.
  * Behaviour: ui-map.md 3.3 (chat), sessions-and-chats.md "Questions, approvals and plans".
  * Test first: not applicable; the screenshot run opens every state.
  */
@@ -209,6 +210,42 @@ export const CHAT_STATES: CatalogueState[] = [
 				},
 				// An icon button: its name says Copied for a moment.
 				ready: (document) => has(document, "button", "Copied"),
+			};
+		},
+	},
+	{
+		id: "chat-copy-failed",
+		group: "Workspace chat",
+		title: "The turn footer's copy button when the clipboard refused the text: Conductor's toast",
+		seed: async (world: World): Promise<Scene> => {
+			const cast = await seedCast(world);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await animateCast(world, cast, app);
+					await refreshGit(app, cast.arbor);
+					world.memory.controls.refuseClipboard();
+					await click(document, "button", "Copy final message");
+				},
+				ready: (document) => shows(document, "Please try again."),
+			};
+		},
+	},
+	{
+		id: "chat-plan-copy-failed",
+		group: "Workspace chat",
+		title: "Plan review, its copy button when the clipboard refused the plan: Conductor's toast",
+		seed: async (world: World): Promise<Scene> => {
+			const cast = await seedCast(world);
+			return {
+				route: chatRoute(cast.fjord, cast.chats.fjord),
+				after: async ({ app, document }) => {
+					await animateCast(world, cast, app);
+					await refreshGit(app, cast.fjord);
+					world.memory.controls.refuseClipboard();
+					await click(document, "button", "Copy");
+				},
+				ready: (document) => shows(document, "Failed to copy plan"),
 			};
 		},
 	},
