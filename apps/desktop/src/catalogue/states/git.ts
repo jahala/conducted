@@ -6,7 +6,8 @@
  * failed check, one ready to merge and a merged one, the Changes tab when the tree is clean and when git fails,
  * the Changes tab as a folder tree with a filter that matches nothing, the tab strip's new tab menu,
  * a file's right-click menu in All files, a changed file's discard confirm, the Rename workspace dialog, the toast
- * after Copy link, the question before archiving a workspace whose agent works, the Artifacts tab
+ * after Copy link, the question before archiving a workspace whose agent works, the toast when
+ * Archive workspace finds no workspace open, the Artifacts tab
  * with one file, and the All files tab holding every kind in Conductor's brand file icon table, in
  * parts.
  * Behaviour: ui-map.md 3.6 (Git panel), 3.4 (diff view), 3.7.x (pull request header); core/status/
@@ -25,7 +26,7 @@ import {
 	seedCast,
 	workspaceRoute,
 } from "../cast.ts";
-import { click, find, has, rightClick, shows, typeInto } from "../dom.ts";
+import { click, find, has, pressUntilTaken, rightClick, shows, typeInto } from "../dom.ts";
 import type { PrKind, ScriptedPr } from "../github.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, DAY } from "../time.ts";
@@ -246,6 +247,22 @@ export const GIT_STATES: CatalogueState[] = [
 					await click(document, "[role=menuitem]", "Archive", { prefix: true });
 				},
 				ready: (document) => shows(document, "Agents are still running in this workspace."),
+			};
+		},
+	},
+	{
+		id: "archive-no-workspace",
+		group: "Workspace chat",
+		title: "Archive workspace pressed on Home, with no workspace open",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/all-workspaces",
+				after: async ({ document }) => {
+					await find(document, "a,button,span", "Rate limit api");
+					await pressUntilTaken(document, "a", { meta: true, shift: true });
+				},
+				ready: (document) => shows(document, "No workspace selected to archive"),
 			};
 		},
 	},
