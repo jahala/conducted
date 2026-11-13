@@ -22,7 +22,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { RELEASE_TARGET } from "../../apps/desktop/src-tauri/release/bundle.ts";
 import { appError, err, ok, type Result } from "../../packages/shared/src/result.ts";
-import { NOT_DECLARED, type NoticeEntry, type NoticeFile } from "./notices.ts";
+import { entryKey, NOT_DECLARED, type NoticeEntry, type NoticeFile } from "./notices.ts";
 
 /** Runs one program and returns its standard output, or an error value with its own words. */
 export type RunCommand = (argv: readonly string[], cwd: string) => Result<string>;
@@ -177,7 +177,7 @@ function readManifest(path: string): Result<PackageJson> {
 
 /** Adds a package to `byKey`, joining the parts when it ships in more than one. */
 function addEntry(byKey: Map<string, NoticeEntry>, entry: NoticeEntry): void {
-	const key = `${entry.ecosystem} ${entry.name} ${entry.version}`;
+	const key = entryKey(entry);
 	const known = byKey.get(key);
 	if (known === undefined) {
 		byKey.set(key, entry);
