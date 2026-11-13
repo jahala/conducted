@@ -15,7 +15,7 @@
  */
 import { draftAttachmentsDir } from "../../core/app-paths.ts";
 import type { Session, Workspace } from "../../core/model.ts";
-import { chatRoute, type GitWorld, refreshGit, seedCast } from "../cast.ts";
+import { animateCast, chatRoute, type GitWorld, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
 import { click, find, has, hover, pressUntilTaken, shows, typeInto } from "../dom.ts";
 import { setLiveState } from "../live.ts";
@@ -726,5 +726,36 @@ export const COMPOSER_STATES: CatalogueState[] = [
 				},
 				(document) => shows(document, "No terminal output available for this workspace"),
 			),
+	},
+	{
+		id: "composer-dictation-recording",
+		group: "Composer",
+		title: "Voice mode on, dictation recording into a new chat's composer",
+		seed: async (world) => {
+			await setSetting(world, "voice_mode", true);
+			return newChat(
+				world,
+				({ document }) => click(document, "button", "Start dictation", { prefix: true }),
+				(document) => has(document, "button", "Stop recording"),
+			);
+		},
+	},
+	{
+		id: "composer-queue-message",
+		group: "Composer",
+		title: "A working chat set to queue follow-ups, with a follow-up typed: Queue message",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			await setSetting(world, "default_message_send_mode", "queue");
+			return {
+				route: chatRoute(cast.beacon, cast.chats.beacon),
+				after: async ({ app, document }) => {
+					await animateCast(world, cast, app);
+					await refreshGit(app, cast.beacon);
+					await typeInComposer(document, "Then add the header to the docs.");
+				},
+				ready: (document) => has(document, "button", "Queue message"),
+			};
+		},
 	},
 ];

@@ -202,6 +202,54 @@ async function groveChecks(world: World): Promise<Scene> {
 	};
 }
 
+/** arbor's pull request with three review threads: one open, one outdated and one resolved. */
+const REVIEWED_PR: ScriptedPr = {
+	...ARBOR_PR,
+	reviewComments: [
+		{
+			path: "src/auth/sign-in.ts",
+			line: 7,
+			body: "Should a refused next value be logged, so we can see if someone is trying it?",
+			author: "lee",
+			at: CATALOGUE_NOW - 2 * HOUR,
+		},
+		{
+			path: "src/auth/safe-next.ts",
+			line: 3,
+			body: "This check moved; the comment is on the old line.",
+			author: "lee",
+			at: CATALOGUE_NOW - 3 * HOUR,
+			outdated: true,
+		},
+		{
+			path: "src/auth/safe-next.test.ts",
+			line: 12,
+			body: "Add a case for a protocol-relative URL.",
+			author: "lee",
+			at: CATALOGUE_NOW - 4 * HOUR,
+			resolved: true,
+		},
+	],
+};
+
+/** arbor's Checks tab over REVIEWED_PR, then `then`. */
+const reviewedChecks =
+	(then: (document: Document) => Promise<void>, ready: Scene["ready"]) =>
+	async (world: World): Promise<Scene> => {
+		const cast = await seedCast(world, { arborFiles: COMMITTED_ONLY, prs: [REVIEWED_PR] });
+		return {
+			route: chatRoute(cast.arbor, cast.chats.arbor),
+			after: async ({ app, document }) => {
+				await refreshGit(app, cast.arbor);
+				await openChecks(document);
+				await then(document);
+				// The comments sit below the checks and deployments; bring them into the picture.
+				document.querySelector("[aria-label=Comments]")?.scrollIntoView({ block: "start" });
+			},
+			ready,
+		};
+	};
+
 export const CHECKS_STATES: CatalogueState[] = [
 	{
 		id: "git-checks-mixed",
@@ -220,5 +268,23 @@ export const CHECKS_STATES: CatalogueState[] = [
 		group: "Git panel",
 		title: "Checks tab on relay: deployments on Railway, Render, Amplify, GitHub Pages and Heroku",
 		seed: groveChecks,
+	},
+	{
+		id: "git-checks-comment-states",
+		group: "Git panel",
+		title: "Checks tab: review comments open, outdated and resolved, with resolved ones shown",
+		seed: reviewedChecks(
+			(document) => click(document, "button", "Show resolved", { prefix: true }),
+			(document) => shows(document, "Resolved") && shows(document, "Outdated"),
+		),
+	},
+	{
+		id: "git-checks-comment-resolved",
+		group: "Git panel",
+		title: "Checks tab: a review comment resolved on GitHub from the app",
+		seed: reviewedChecks(
+			(document) => click(document, "[aria-label=Comments] button", "Resolve"),
+			(document) => shows(document, "Comment resolved on GitHub"),
+		),
 	},
 ];
