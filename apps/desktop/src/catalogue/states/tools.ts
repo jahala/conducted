@@ -8,7 +8,7 @@
  * REPL and generates an image; a turn whose todo list is empty, started and done; a turn that
  * enters plan mode and proposes a plan, with the plan's menu open; two HTML visualizations the chat
  * cannot show; a reply with a
- * Mermaid diagram; and a background helper whose work
+ * Mermaid diagram, and one that does not parse; and a background helper whose work
  * arrives in the next turn, shown inside the card of the turn that started it (D129).
  * Behaviour: ui-map.md 3.3 (chat, tool cards); the cards are features/chat/tools/cards/.
  * Test first: not applicable; the screenshot run opens every state.
@@ -484,6 +484,35 @@ async function visualizationChat(world: World): Promise<Scene> {
 	};
 }
 
+/** A reply in arbor whose Mermaid diagram the agent got wrong: an arrow with no target. */
+async function brokenMermaidChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.arbor, { title: "How the redirect works" });
+	const talk = conversation("arbor-mermaid-broken", CATALOGUE_NOW - 6 * MINUTE);
+	const turn = talk.user("Draw how a sign-in keeps the page the user asked for.");
+	talk.text(
+		turn,
+		[
+			"Here is the path a request takes now:",
+			"",
+			"```mermaid",
+			"sequenceDiagram",
+			"  Browser->>: GET /billing",
+			"```",
+		].join("\n"),
+	);
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	return {
+		route: chatRoute(cast.arbor, chat),
+		after: async ({ app }) => {
+			await animateCast(world, cast, app);
+			await refreshGit(app, cast.arbor);
+		},
+		ready: (document) => shows(document, "Failed to render diagram"),
+	};
+}
+
 /** A reply in arbor that explains the sign-in redirect with a Mermaid sequence diagram. */
 async function mermaidChat(world: World): Promise<Scene> {
 	const cast = await seedCast(world);
@@ -659,6 +688,12 @@ export const TOOL_STATES: CatalogueState[] = [
 		group: "Workspace chat",
 		title: "A reply with a Mermaid sequence diagram",
 		seed: mermaidChat,
+	},
+	{
+		id: "chat-mermaid-failed",
+		group: "Workspace chat",
+		title: "A reply with a Mermaid diagram that does not parse",
+		seed: brokenMermaidChat,
 	},
 	{
 		id: "chat-subagent-late-work",

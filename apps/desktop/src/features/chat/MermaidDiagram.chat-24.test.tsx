@@ -37,21 +37,19 @@ function mount(ui: ReactNode) {
 }
 
 describe("CHAT-24 mermaid diagram", () => {
-	it("shows the source in a code block with a plain message when it does not parse", async () => {
+	it("says Failed to render diagram, as Conductor does, when the source does not parse (renderApp @8047788)", async () => {
 		state.render.mockRejectedValue(new Error("Parse error on line 1"));
 		mount(<MermaidDiagram source={"graph TD\nA --> B"} streaming={false} />);
 
-		expect(
-			await screen.findByText("This diagram could not be drawn. The source is shown below."),
-		).toBeTruthy();
-		expect(screen.getByText(/graph TD/)).toBeTruthy();
+		expect(await screen.findByText("Failed to render diagram")).toBeTruthy();
+		expect(screen.queryByText(/graph TD/)).toBeNull();
 	});
 
 	it("logs why a diagram could not be drawn", async () => {
 		state.render.mockRejectedValue(new Error("Parse error on line 1"));
 		mount(<MermaidDiagram source={"graph TD\nA --> B"} streaming={false} />);
 
-		await screen.findByText("This diagram could not be drawn. The source is shown below.");
+		await screen.findByText("Failed to render diagram");
 		expect(test.memory.controls.logs).toContainEqual({
 			level: "warn",
 			message: "The Mermaid diagram could not be drawn: Parse error on line 1",

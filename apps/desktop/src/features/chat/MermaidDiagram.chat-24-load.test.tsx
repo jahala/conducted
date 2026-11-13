@@ -29,16 +29,14 @@ afterEach(() => {
 });
 
 describe("CHAT-24 mermaid library that fails to load", () => {
-	it("shows the source and logs a load failure, not a parse failure", async () => {
+	it("says Failed to render diagram and logs a load failure, not a parse failure", async () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<MermaidDiagram source={"graph TD\nA --> B"} streaming={false} />
 			</ServicesProvider>,
 		);
 
-		expect(
-			await screen.findByText("This diagram could not be drawn. The source is shown below."),
-		).toBeTruthy();
+		expect(await screen.findByText("Failed to render diagram")).toBeTruthy();
 		const warnings = test.memory.controls.logs.filter((line) => line.level === "warn");
 		expect(warnings).toHaveLength(1);
 		expect(warnings[0]?.message).toMatch(/^The Mermaid library could not be loaded: /);
