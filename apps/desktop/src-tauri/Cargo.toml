@@ -64,7 +64,7 @@ nucleo-matcher = "0.3"
 reqwest = { version = "0.13", default-features = false, features = ["native-tls", "stream", "system-proxy", "charset", "http2"] }
 futures-util = "0.3"
 # The Rust shell owns the cloud WebSocket because the web view cannot set its headers (CLOUD-03).
-tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
+tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
 sha2 = "0.11"
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
