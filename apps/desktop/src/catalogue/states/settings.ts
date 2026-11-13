@@ -8,7 +8,7 @@
  * saved, for a settings file that does not parse, and for one that does not parse after an earlier
  * save, which offers "Overwrite file"; the Advanced page asking before it changes the root
  * folder, and Home after it changed; the MCP page with OAuth servers in each state (CLOUD-17); the Agents page's MCP servers for the chat last open; the Environment page's documented
- * variables; atlas's Add action dialog and icon picker (an emoji search with no match, the Favicon source, a
+ * variables; atlas's Add action dialog and icon picker (an emoji search with no match, the Upload source, the Favicon source, a
  * project hosted outside GitHub, and a project with no remote, which has no favicon); Files to copy locked by a .worktreeinclude; the Agents page's provider forms (Anthropic,
  * subscription, Vertex, both Bedrock modes, ChatGPT, Cursor, custom), OpenCode's Providers dialog
  * searched (its matches in the open Provider select, and no match), its card badges and both
@@ -1409,6 +1409,22 @@ export const SETTINGS_STATES: CatalogueState[] = [
 					await typeInto(document, "input", "Search emoji", "spaceship");
 				},
 				ready: (document) => shows(document, "No emoji found"),
+			};
+		},
+	},
+	{
+		id: "settings-repo-icon-upload",
+		group: "Settings",
+		title: "atlas: Misc, the icon picker's Upload source",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/misc`,
+				after: async ({ document }) => {
+					await click(document, "button", "Change repository icon");
+					await click(document, "[role=tab]", "Upload");
+				},
+				ready: (document) => shows(document, "resizes it to icon size"),
 			};
 		},
 	},

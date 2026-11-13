@@ -9,8 +9,9 @@ name: Catalogue shots
 # (scripts/catalogue/loadout-drag.browser.ts, issue #481), the pointer checks for every in-app
 # drag (scripts/catalogue/pointer-drag.browser.ts, issue #529), the Settings sidebar's measure
 # (scripts/settings-nav.browser.ts, issue #488), the plan review shortcut from the composer
-# (scripts/catalogue/plan-approve.browser.ts, issue #586) and the Agents page's tab row
-# (scripts/catalogue/agents-tabs.browser.ts, issue #625).
+# (scripts/catalogue/plan-approve.browser.ts, issue #586), the Agents page's tab row
+# (scripts/catalogue/agents-tabs.browser.ts, issue #625) and an uploaded repository icon drawn at
+# icon size (scripts/catalogue/icon-resize.browser.ts, PRJ-05).
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -111,3 +112,6 @@ jobs:
       - name: The Agents page's tabs fit their row, with scrollbars that take space too
         if: ${{ !cancelled() }}
         run: bun scripts/catalogue/agents-tabs.browser.ts
+      - name: An uploaded repository icon is drawn at icon size
+        if: ${{ !cancelled() }}
+        run: bun scripts/catalogue/icon-resize.browser.ts

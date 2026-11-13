@@ -11,10 +11,11 @@
  * `.conducted/settings.local.toml` overriding it. For a repository with a cloud workspace, the
  * shared file is read from the shared clone's committed branch (CLOUD-04). Also owns Quick start: creating a project from
  * one of the three templates and creating its private GitHub repository (PRJ-03). Also owns the
- * repository icon (PRJ-05): validating and copying an uploaded image, saving an emoji, and clearing
- * the icon back to its fallback. An upload is copied to a new file in the icons folder
- * (`<repoId>-<uuid>.<ext>`), the database then points to it, and only then is the earlier upload
- * trashed; a failed write trashes the new copy and keeps the old icon. Clearing or replacing an
+ * repository icon (PRJ-05): validating an uploaded image and drawing it at icon size, saving an
+ * emoji, and clearing the icon back to its fallback. An upload is drawn as a PNG of at most 128
+ * pixels square (Platform `attachments.iconPng`, as Conductor's `UWa` does), written to a new file
+ * in the icons folder (`<repoId>-<uuid>.png`), the database then points to it, and only then is the
+ * earlier upload trashed; a failed write trashes the new file and keeps the old icon. Clearing or replacing an
  * icon, or removing its project, trashes the uploaded file. The web view is given the icons
  * folder (at start) and the one picked file (to read its size), never the folder it came from.
  * Behaviour: ui-map.md 3.9 (add project, Create project), 4 item 8 (Add project menu),
@@ -59,7 +60,7 @@
  * CLOUD-04 test first: a cloud repo reads the shared settings from the clone's branch, not the
  * working tree.
  * PRJ-03 test first: an empty template creates its folder, first commit and project row.
- * PRJ-05 test first: an uploaded PNG is copied into app storage and saved as a file icon.
+ * PRJ-05 test first: an uploaded image is drawn at icon size and saved in app storage as a PNG.
  */
 import {
 	type AppError,
@@ -75,7 +76,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 import { appDataPath, localSettingsFile, sharedSettingsFile } from "../app-paths.ts";
 import type { Repositories } from "../db/repositories.ts";
-import { copyFileKeepingMode, trashIfPresent } from "../fs-helpers.ts";
+import { trashIfPresent } from "../fs-helpers.ts";
 import {
 	addAll,
 	addPath,
@@ -315,8 +316,15 @@ export function defaultBranchFrom(
 	);
 }
 
-/** The image types an uploaded repository icon may be. */
-const ICON_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"]);
+/** The image types an uploaded repository icon may be, by extension, and what each is read as. */
+const ICON_TYPES: Readonly<Record<string, string>> = {
+	png: "image/png",
+	jpg: "image/jpeg",
+	jpeg: "image/jpeg",
+	gif: "image/gif",
+	webp: "image/webp",
+	svg: "image/svg+xml",
+};
 /** Largest uploaded icon. The message says 10MB; the cut is 10 MiB. */
 const MAX_ICON_BYTES = 10 * 1024 * 1024;
 const ICON_TYPE_MESSAGE = "Choose a PNG, JPEG, GIF, WebP, or SVG image";
@@ -341,7 +349,7 @@ export interface RepoRemovalPort {
 }
 
 export interface RepoServiceDeps {
-	platform: Pick<Platform, "fs" | "opener" | "dialogs" | "shell"> & {
+	platform: Pick<Platform, "fs" | "opener" | "dialogs" | "shell" | "attachments"> & {
 		window?: Pick<Platform["window"], "onFocusChanged">;
 	};
 	git: GitRunner;
@@ -1358,8 +1366,9 @@ export class RepoService {
 
 	/**
 	 * Backs `Actions.projects.setIcon`. An uploaded file must be a PNG, JPEG, GIF, WebP or SVG under
-	 * 10 MB; it is copied into the app's icon folder and the saved value names the copy. An emoji is
-	 * saved as text, and null clears the icon so the favicon, owner avatar or letter shows again.
+	 * 10 MB; it is drawn at icon size as a PNG in the app's icon folder and the saved value names that
+	 * file. An emoji is saved as text, and null clears the icon so the favicon, owner avatar or letter
+	 * shows again.
 	 */
 	async setIcon(repoId: RepoId, icon: RepoIconChoice): Promise<Result<void>> {
 		const found = await this.#deps.repos.repos.get(repoId);
@@ -1379,9 +1388,8 @@ export class RepoService {
 			stored = emojiIconValue(emoji);
 		} else {
 			const extension = iconExtension(icon.path);
-			if (extension === null || !ICON_EXTENSIONS.has(extension)) {
-				return err(appError("repo_icon_type", ICON_TYPE_MESSAGE));
-			}
+			const mimeType = extension === null ? undefined : ICON_TYPES[extension];
+			if (mimeType === undefined) return err(appError("repo_icon_type", ICON_TYPE_MESSAGE));
 			// Only the picked file is opened to the file commands for its size, never its folder.
 			const reachable = await this.#deps.platform.fs.registerRoot(icon.path);
 			if (!reachable.ok) {
@@ -1400,13 +1408,15 @@ export class RepoService {
 			}
 			const made = await this.#deps.platform.fs.mkdirp(folder);
 			if (!made.ok) return err(appError("repo_icon_failed", ICON_FAILED_MESSAGE, made.error));
+			const source = await this.#deps.platform.fs.readBytes(icon.path);
+			if (!source.ok) return err(appError("repo_icon_failed", ICON_FAILED_MESSAGE, source.error));
+			const drawn = await this.#deps.platform.attachments.iconPng(source.value, mimeType);
+			if (!drawn.ok) return err(appError("repo_icon_failed", ICON_FAILED_MESSAGE, drawn.error));
 			// A new name for every upload: the old file stays until the database points away from it,
 			// and the web view cannot show a cached image from the same address.
-			const destination = `${folder}/${repoId}-${this.#deps.ids.uuid()}.${extension}`;
-			const copied = await copyFileKeepingMode(this.#deps.platform.shell, icon.path, destination);
-			if (!copied.ok) {
-				return err(appError("repo_icon_failed", ICON_FAILED_MESSAGE, copied.error));
-			}
+			const destination = `${folder}/${repoId}-${this.#deps.ids.uuid()}.png`;
+			const saved = await this.#deps.platform.fs.writeBytes(destination, drawn.value);
+			if (!saved.ok) return err(appError("repo_icon_failed", ICON_FAILED_MESSAGE, saved.error));
 			stored = fileIconValue(destination);
 			copiedTo = destination;
 		}

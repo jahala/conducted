@@ -60,6 +60,7 @@ import {
 	save as saveDialog,
 } from "@tauri-apps/plugin-dialog";
 import { openUrl as openUrlInDefaultApp } from "@tauri-apps/plugin-opener";
+import { drawIconPng } from "./icon-image.ts";
 import type {
 	AppInfo,
 	AppMenu,
@@ -1301,7 +1302,7 @@ export function createTauriSystem(bindings: TauriBindings): SystemFacts {
 	};
 }
 
-/** `attachment_materialize { sourcePath, destinationPath, resizeImage }`, `image_resize { sourcePath, destinationPath }`, `attachment_write_bytes { data, destinationPath, resizeImage }` (data is base64). */
+/** `attachment_materialize { sourcePath, destinationPath, resizeImage }`, `image_resize { sourcePath, destinationPath }`, `attachment_write_bytes { data, destinationPath, resizeImage }` (data is base64); `iconPng` draws in the web view. */
 export function createTauriAttachments(bindings: TauriBindings): AttachmentFiles {
 	return {
 		materialize: (sourcePath, destinationPath, options) =>
@@ -1318,6 +1319,8 @@ export function createTauriAttachments(bindings: TauriBindings): AttachmentFiles
 				destinationPath,
 				resizeImage: options.resizeImage,
 			}),
+		// No command: the web view's canvas draws it, as Conductor's does.
+		iconPng: (bytes, mimeType) => drawIconPng(bytes, mimeType),
 	};
 }
 
