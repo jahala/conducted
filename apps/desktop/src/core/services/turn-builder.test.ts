@@ -9,7 +9,7 @@ import { idleLiveState } from "@conducted/protocol";
 import type { CheckpointId, EventId, MessageId, ToolUseId, TurnId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { ChatBlock, ChatTurn, ToolCallView } from "../model.ts";
-import { buildTurns, reuseUnchangedTurns, type StoredEvent } from "./turn-builder.ts";
+import { buildTurns, type StoredEvent, TurnBuilder } from "./turn-builder.ts";
 
 const config: SessionConfig = {
 	agent: "claude",
@@ -564,16 +564,17 @@ describe("CHAT-07 turn builder", () => {
 			);
 		}
 
-		const turns = buildTurns(stored(events), live());
+		const rows = stored(events);
+		const builder = new TurnBuilder();
+		const turns = builder.update(rows, live());
 
 		expect(turns).toHaveLength(5000);
 		expect(turns[0]?.turnId).toBe("turn-0");
 		expect(turns[4999]?.turnId).toBe("turn-4999");
 
-		const rebuilt = buildTurns(stored(events), live());
-		expect(reuseUnchangedTurns(turns, rebuilt).every((turn, index) => turn === turns[index])).toBe(
-			true,
-		);
+		const rebuilt = builder.update([...rows], live());
+		expect(rebuilt).toHaveLength(5000);
+		expect(rebuilt.every((turn, index) => turn === turns[index])).toBe(true);
 	});
 
 	it("keeps the error from a failed turn", () => {
@@ -814,7 +815,9 @@ describe("CHAT-07 a long chat with background helpers (D129)", () => {
 
 	it("in a 1,400-turn chat, an appended event replaces only the turn whose view it changes", () => {
 		const events = longChat();
-		const turns = buildTurns(stored(events), live({ status: "working" }));
+		const rows = stored(events);
+		const builder = new TurnBuilder();
+		const turns = builder.update(rows, live({ status: "working" }));
 		expect(turns).toHaveLength(TURNS);
 		const firstCard = asToolBlock(must(turns[0], "the first turn").blocks[0]);
 		expect(firstCard.blocks).toHaveLength(HELPER_SPAN * 2);
@@ -824,95 +827,142 @@ describe("CHAT-07 a long chat with background helpers (D129)", () => {
 
 		// One event appended to the last turn: every earlier turn keeps its object.
 		const lastIndex = TURNS - 1;
-		const streamed = [...events, agent(`turn-${lastIndex}`, 10_000_000, [text("streaming")])];
-		const rebuilt = reuseUnchangedTurns(
-			turns,
-			buildTurns(stored(streamed), live({ status: "working" })),
-		);
+		const streamed = [
+			...rows,
+			...stored([agent(`turn-${lastIndex}`, 10_000_000, [text("streaming")])]).map((row) => ({
+				...row,
+				idx: rows.length,
+			})),
+		];
+		const rebuilt = builder.update(streamed, live({ status: "working" }));
 		const changed = rebuilt.flatMap((turn, index) => (turn === turns[index] ? [] : [index]));
 		expect(changed).toEqual([lastIndex]);
+		expect(rebuilt).toEqual(buildTurns(streamed, live({ status: "working" })));
 
 		// A helper's late event in the last turn: only the turn that started it gets a new object.
 		const owner = lastIndex - (lastIndex % HELPER_EVERY);
 		const late = [
-			...events,
-			subAgent(`turn-${lastIndex}`, 10_000_000, [text("one more")], `bg-${owner}`),
+			...streamed,
+			...stored([subAgent(`turn-${lastIndex}`, 10_000_001, [text("one more")], `bg-${owner}`)]).map(
+				(row) => ({ ...row, idx: streamed.length }),
+			),
 		];
-		const replaced = reuseUnchangedTurns(
-			turns,
-			buildTurns(stored(late), live({ status: "working" })),
-		).flatMap((turn, index) => (turn === turns[index] ? [] : [index]));
+		const replaced = builder
+			.update(late, live({ status: "working" }))
+			.flatMap((turn, index) => (turn === rebuilt[index] ? [] : [index]));
 		expect(replaced).toEqual([owner]);
 	});
 });
 
-describe("CHAT-07 reusing unchanged turns", () => {
-	const turnsFor = (ids: readonly string[], value = "same"): ReturnType<typeof buildTurns> =>
-		buildTurns(stored(ids.flatMap((id, index) => simpleTurn(id, value, 100 + index * 10))), live());
+describe("CHAT-07 an update rebuilds only the turns it changes (#653)", () => {
+	/** Rows for the events, numbered from `from`. */
+	const rowsFrom = (from: number, events: readonly SessionEvent[]): StoredEvent[] =>
+		stored(events).map((row, index) => ({ ...row, idx: from + index }));
+	const simpleRows = (ids: readonly string[], value = "same"): StoredEvent[] =>
+		stored(ids.flatMap((id, index) => simpleTurn(id, value, 100 + index * 10)));
 
-	/** For each turn of `next`, whether it is the object from `previous`. */
-	const kept = (previous: readonly ChatTurn[], next: readonly ChatTurn[]): boolean[] => {
-		const reused = reuseUnchangedTurns(previous, next);
-		return reused.map((turn) => previous.includes(turn));
+	/** For each turn of the second update, whether it is the first update's object. */
+	const kept = (first: readonly StoredEvent[], second: readonly StoredEvent[]): boolean[] => {
+		const builder = new TurnBuilder();
+		const before = builder.update(first, live());
+		const after = builder.update(second, live());
+		expect(after).toEqual(buildTurns(second, live()));
+		return after.map((turn) => before.includes(turn));
 	};
 
-	it("takes the new turns on the first build", () => {
-		const next = turnsFor(["turn-1"]);
-		expect(reuseUnchangedTurns([], next)).toEqual(next);
-	});
-
-	it("keeps every turn of an equal build", () => {
-		expect(kept(turnsFor(["turn-1", "turn-2"]), turnsFor(["turn-1", "turn-2"]))).toEqual([
-			true,
-			true,
-		]);
+	it("keeps every turn when the rows are the same", () => {
+		const rows = simpleRows(["turn-1", "turn-2"]);
+		expect(kept(rows, [...rows])).toEqual([true, true]);
 	});
 
 	it("keeps the earlier turns and takes a turn appended at the end", () => {
-		expect(kept(turnsFor(["turn-1"]), turnsFor(["turn-1", "turn-2"]))).toEqual([true, false]);
+		const rows = simpleRows(["turn-1"]);
+		expect(kept(rows, [...rows, ...rowsFrom(rows.length, simpleTurn("turn-2", "x", 500))])).toEqual(
+			[true, false],
+		);
 	});
 
 	it("takes the last turn while a reply streams into it", () => {
-		const before = buildTurns(
-			stored([...simpleTurn("turn-1", "a", 100), ...simpleTurn("turn-2", "before", 200)]),
-			live(),
-		);
-		const after = buildTurns(
-			stored([...simpleTurn("turn-1", "a", 100), ...simpleTurn("turn-2", "after", 200)]),
-			live(),
-		);
-		expect(kept(before, after)).toEqual([true, false]);
+		const rows = simpleRows(["turn-1", "turn-2"]);
+		const more = rowsFrom(rows.length, [agent("turn-2", 900, [text("more")])]);
+		expect(kept(rows, [...rows, ...more])).toEqual([true, false]);
 	});
 
 	it("takes only the past turn whose card gained a helper's late work, and keeps the turns after it", () => {
-		const head = [
+		const rows = stored([
 			...backgroundTask("turn-a", 100),
 			...simpleTurn("turn-b", "b", 200),
 			user("turn-c", "message-c", "c", 300),
-		];
-		const before = buildTurns(stored(head), live({ status: "working" }));
-		const after = buildTurns(
-			stored([...head, subAgent("turn-c", 301, [text("late")], "task")]),
-			live({ status: "working" }),
-		);
-		expect(kept(before, after)).toEqual([false, true, true]);
-	});
-
-	it("drops turns lost from the end", () => {
-		const previous = turnsFor(["turn-1", "turn-2"]);
-		const reused = reuseUnchangedTurns(previous, turnsFor(["turn-1"]));
-		expect(reused).toEqual([previous[0]]);
-	});
-
-	it("keeps the turns around one inserted in the middle", () => {
-		expect(kept(turnsFor(["turn-1", "turn-3"]), turnsFor(["turn-1", "turn-2", "turn-3"]))).toEqual([
-			true,
-			false,
-			false,
 		]);
+		const builder = new TurnBuilder();
+		const before = builder.update(rows, live({ status: "working" }));
+		const late = [
+			...rows,
+			...rowsFrom(rows.length, [subAgent("turn-c", 301, [text("late")], "task")]),
+		];
+		const after = builder.update(late, live({ status: "working" }));
+		expect(after.map((turn) => before.includes(turn))).toEqual([false, true, true]);
+		expect(after).toEqual(buildTurns(late, live({ status: "working" })));
 	});
 
-	it("gives an empty list when every turn is gone", () => {
-		expect(reuseUnchangedTurns(turnsFor(["turn-1"]), [])).toEqual([]);
+	it("takes the turns a revert changed and keeps the turns before them", () => {
+		const rows = simpleRows(["turn-1", "turn-2", "turn-3"]);
+		// The revert of turn 2 marks its rows and every later one, as the store's revert does.
+		const reverted = rows.map((row, index) => (index >= 3 ? { ...row, revertedAt: 999 } : row));
+		const builder = new TurnBuilder();
+		const before = builder.update(rows, live());
+		const after = builder.update(reverted, live());
+		expect(after).toHaveLength(1);
+		expect(after[0]).toBe(before[0]);
+	});
+
+	it("keeps the loaded turns when an older turn is merged in at the top", () => {
+		const all = simpleRows(["turn-1", "turn-2", "turn-3"]);
+		const builder = new TurnBuilder();
+		const before = builder.update(all.slice(3), live());
+		const after = builder.update(all, live());
+		expect(after.map((turn) => before.includes(turn))).toEqual([false, true, true]);
+		expect(after).toEqual(buildTurns(all, live()));
+	});
+
+	it("takes the turns that lost their rows and gives an empty list when every turn is gone", () => {
+		const rows = simpleRows(["turn-1", "turn-2"]);
+		const builder = new TurnBuilder();
+		const before = builder.update(rows, live());
+		expect(builder.update(rows.slice(0, 3), live())).toEqual([before[0]]);
+		expect(builder.update([], live())).toEqual([]);
+	});
+
+	it("takes only the turn whose steer the agent read", () => {
+		const rows = stored([
+			...simpleTurn("turn-1", "a", 100),
+			user("turn-2", "message-2", "b", 200),
+			user("turn-2", "steer-2", "also this", 210, "steer"),
+		]);
+		const builder = new TurnBuilder();
+		const before = builder.update(
+			rows,
+			live({ status: "working", pendingSteerIds: ["steer-2" as MessageId] }),
+		);
+		expect(before[1]?.steers[0]?.consumed).toBe(false);
+		const after = builder.update(rows, live({ status: "working", pendingSteerIds: [] }));
+		expect(after[0]).toBe(before[0]);
+		expect(after[1]?.steers[0]?.consumed).toBe(true);
+	});
+
+	it("keeps the turns when a pending send is laid over them, and drops it once its event is stored", () => {
+		const rows = simpleRows(["turn-1"]);
+		const builder = new TurnBuilder();
+		const send = { messageId: "message-2" as MessageId, text: "next", at: 500 };
+		const before = builder.update(rows, live(), [send]);
+		expect(before.map((turn) => turn.userMessage?.text)).toEqual(["same", "next"]);
+		const storedSend = [
+			...rows,
+			...rowsFrom(rows.length, [user("turn-2", "message-2", "next", 500)]),
+		];
+		const after = builder.update(storedSend, live(), [send]);
+		expect(after).toHaveLength(2);
+		expect(after[0]).toBe(before[0]);
+		expect(after).toEqual(buildTurns(storedSend, live()));
 	});
 });

@@ -394,12 +394,20 @@ export interface ChatView {
 	outline: OutlineTurn[];
 }
 
+/** Which side of a gap a fill loads: the turn after the earlier run, or before the later one (#652). */
+export type GapSide = "after-earlier" | "before-later";
+
 /** How much of a chat's stored history the list holds (CHAT-06). */
 export interface ChatHistoryView {
 	/** The turn just before the first loaded one, which reaching the top loads next. Null: none. */
 	olderTurnId: TurnId | null;
 	/** A load of older turns: running, failed and waiting for Retry, or neither. */
 	older: "idle" | "loading" | "failed";
+	/**
+	 * The gaps between loaded runs of turns, each by the first loaded turn after it, with its fill:
+	 * running, failed and waiting for Retry, or neither (CHAT-06, #652).
+	 */
+	gaps: { beforeTurnId: TurnId; state: "idle" | "loading" | "failed" }[];
 }
 
 /** One turn of a chat's outline (CHAT-25), loaded or not (CHAT-06). */

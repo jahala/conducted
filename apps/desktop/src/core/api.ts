@@ -64,6 +64,7 @@ import type {
 	EnvScope,
 	EnvVarView,
 	FileContent,
+	GapSide,
 	GitHubAccess,
 	GitHubOwner,
 	GitHubRepoSummary,
@@ -560,8 +561,13 @@ export interface Actions {
 		reopen: Act<[id: SessionId]>;
 		/** Loads the turn just before the chat's first loaded one, when the list's top is near (CHAT-06). */
 		loadOlder: Act<[id: SessionId]>;
-		/** Loads every turn back to this one, so the outline can scroll to it (CHAT-06, CHAT-25). */
+		/** Loads this turn alone, so the outline can scroll to it (CHAT-06, CHAT-25, #652). */
 		revealTurn: Act<[id: SessionId, turnId: TurnId]>;
+		/**
+		 * Loads one turn of the gap before `beforeTurnId`: the one after the earlier run, or the one
+		 * before the later run (CHAT-06, #652).
+		 */
+		fillGap: Act<[id: SessionId, beforeTurnId: TurnId, side: GapSide]>;
 		rename: Act<[id: SessionId, title: string]>;
 		/** Sends now, queues, or steers, depending on state and the follow-up setting. */
 		send: Act<

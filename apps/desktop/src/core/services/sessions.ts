@@ -165,7 +165,14 @@ import { agentCanSteer } from "../follow-up-queue.ts";
 import { trashIfPresent } from "../fs-helpers.ts";
 import { turnCheckpointId } from "../git/refs.ts";
 import { parseEffortSetting } from "../lookups.ts";
-import type { ChatTurn, ChatView, DiagnosticsCapture, PlanEntry, Session } from "../model.ts";
+import type {
+	ChatTurn,
+	ChatView,
+	DiagnosticsCapture,
+	GapSide,
+	PlanEntry,
+	Session,
+} from "../model.ts";
 import {
 	chatIsWorking,
 	type FailedSend,
@@ -176,15 +183,18 @@ import {
 import type { SidecarClient } from "../sidecar/tunnel.ts";
 import type { HistoryHit } from "../transcript.ts";
 import {
+	allLoaded,
 	type ChatHistoryState,
+	gapTurn,
 	historyView,
 	isNotLoaded,
 	loadedTurnIds,
 	mergeEvents,
 	newChatHistory,
+	olderCount,
 	outlineOf,
-	storedOutline,
 	turnIdsBetween,
+	withLoadedTurn,
 } from "./chat-history.ts";
 import type { ComposerService } from "./composer.ts";
 import { chooseDelivery, type FollowUpQueue } from "./follow-up-queue.ts";
@@ -198,12 +208,7 @@ import {
 	planTitleOf,
 	searchHistory,
 } from "./transcript.ts";
-import {
-	buildTurns,
-	callsNamedButMissing,
-	reuseUnchangedTurns,
-	type StoredEvent,
-} from "./turn-builder.ts";
+import { buildTurns, callsNamedButMissing, type StoredEvent, TurnBuilder } from "./turn-builder.ts";
 
 /**
  * How the git and GitHub services ask the agent to do work. The text lands in the workspace's
@@ -321,6 +326,8 @@ function sameConfig(a: SessionConfig, b: SessionConfig): boolean {
 
 /** A config write is tried this many times before its failure is reported. */
 const CONFIG_WRITE_ATTEMPTS = 3;
+/** One empty event list, so a chat with none keeps the same input for its turn builder. */
+const NO_EVENTS: readonly StoredEvent[] = [];
 
 /**
  * The config of a review chat: the agent stored with the review model, then the model, effort and
@@ -511,7 +518,16 @@ export class SessionsService implements AgentMessenger {
 	readonly store: StoreApi<SessionsState>;
 	readonly #deps: SessionsServiceDeps;
 	/** The last turn list built per chat, so unchanged turns keep their identity. */
-	readonly #turns = new Map<string, ChatView["turns"]>();
+	/** Each opened chat's turn builder, which rebuilds only the turns a change reaches (#653). */
+	readonly #builders = new Map<string, TurnBuilder>();
+	readonly #outlines = new Map<
+		string,
+		{
+			history: ChatHistoryState | undefined;
+			turns: ChatView["turns"];
+			outline: ChatView["outline"];
+		}
+	>();
 	/** Resolvers for the sidecar's open interaction requests, keyed by interaction id. */
 	readonly #interactionResolvers = new Map<string, (answer: InteractionAnswer) => void>();
 	readonly #interactionPromises = new Map<string, Promise<InteractionAnswer>>();
@@ -551,7 +567,6 @@ export class SessionsService implements AgentMessenger {
 	 */
 	readonly #loadingTurns = new Map<string, { turnIds: Set<TurnId>; buffered: StoredEvent[] }>();
 	/** The outline entries of each chat's turns that are not loaded, built once per load. */
-	readonly #outlineHeads = new WeakMap<ChatHistoryState, ChatView["outline"]>();
 
 	constructor(deps: SessionsServiceDeps) {
 		this.#deps = deps;
@@ -857,7 +872,8 @@ export class SessionsService implements AgentMessenger {
 		if (pruned !== undefined && !pruned.ok) return err(pruned.error);
 		const removed = await this.#deps.repositories().sessions.delete(id);
 		if (!removed.ok) return removed;
-		this.#turns.delete(id);
+		this.#builders.delete(id);
+		this.#outlines.delete(id);
 		this.#cancelVersions.delete(id);
 		// An open card would leave the sidecar's request waiting for an answer that never comes.
 		const openCard = this.store.getState().openInteractions[id];
@@ -929,7 +945,7 @@ export class SessionsService implements AgentMessenger {
 		const opened = newChatHistory(stored.value);
 		const read = await repository.listTurns(
 			id,
-			turnIdsBetween(opened, opened.unloaded, opened.stored.length),
+			turnIdsBetween(opened, olderCount(opened), opened.stored.length),
 		);
 		if (!read.ok) return read;
 		// Events applied before the chat was opened, or while it opened, join the ones read; one of
@@ -955,45 +971,72 @@ export class SessionsService implements AgentMessenger {
 	 * as Conductor's list does each time its top comes near (CHAT-06).
 	 */
 	loadOlder(id: SessionId): Promise<Result<void>> {
-		return this.#loadBack(id, (history) => history.unloaded - 1);
+		return this.#loadTurn(id, { kind: "older" }, (history) => olderCount(history) - 1);
 	}
 
 	/**
-	 * Backs `Actions.sessions.revealTurn`: loads every turn back to this one, so the turn outline
-	 * can scroll to it. Conductor loads only the turn and leaves a gap the list fills as it
-	 * scrolls; ours keeps one run of turns to the end, so the list only grows at its top (D144).
+	 * Backs `Actions.sessions.revealTurn`: loads the turn alone, so the turn outline can scroll to
+	 * it, as Conductor's `revealTurn` adds a range of its own. The list then shows a gap between it
+	 * and the turns loaded after it (#652, D144).
 	 */
 	revealTurn(id: SessionId, turnId: TurnId): Promise<Result<void>> {
-		return this.#loadBack(id, (history) => history.positions.get(turnId) ?? history.unloaded);
+		return this.#loadTurn(id, null, (history) => history.positions.get(turnId) ?? -1);
 	}
 
-	/** Loads the stored turns from the one `target` picks up to the first loaded one. */
-	#loadBack(id: SessionId, target: (history: ChatHistoryState) => number): Promise<Result<void>> {
+	/**
+	 * Backs `Actions.sessions.fillGap`: loads one turn of the gap just before `beforeTurnId`, next
+	 * to the earlier run or the later one, as Conductor's gap marker does when it comes near.
+	 */
+	fillGap(id: SessionId, beforeTurnId: TurnId, side: GapSide): Promise<Result<void>> {
+		return this.#loadTurn(
+			id,
+			{ kind: "gap", beforeTurnId },
+			(history) => gapTurn(history, beforeTurnId, side) ?? -1,
+		);
+	}
+
+	/**
+	 * Loads the one stored turn `target` picks, when it is not loaded yet. `mark` names the load the
+	 * list shows: the header's for older turns, a gap's, or none for a turn the outline picked.
+	 */
+	#loadTurn(
+		id: SessionId,
+		mark: { kind: "older" } | { kind: "gap"; beforeTurnId: TurnId } | null,
+		target: (history: ChatHistoryState) => number,
+	): Promise<Result<void>> {
+		const marked = (history: ChatHistoryState, state: "idle" | "loading" | "failed") => {
+			if (mark === null) return history;
+			if (mark.kind === "older") return { ...history, older: state };
+			const gaps = new Map(history.gaps);
+			if (state === "idle") gaps.delete(mark.beforeTurnId);
+			else gaps.set(mark.beforeTurnId, state);
+			return { ...history, gaps };
+		};
 		return this.#historyLoads.run(id, async () => {
 			const start = this.store.getState().histories[id];
 			if (start === undefined) return ok(undefined);
-			const from = Math.max(0, Math.min(target(start), start.unloaded));
-			if (from >= start.unloaded) return ok(undefined);
-			const turnIds = turnIdsBetween(start, from, start.unloaded);
-			const loading = { turnIds: new Set(turnIds), buffered: [] as StoredEvent[] };
+			const position = target(start);
+			const turn = start.stored[position];
+			if (turn === undefined || !isNotLoaded(start, turn.turnId)) return ok(undefined);
+			const loading = { turnIds: new Set([turn.turnId]), buffered: [] as StoredEvent[] };
 			this.#loadingTurns.set(id, loading);
-			this.#setHistory(id, (history) => ({ ...history, older: "loading" }));
+			this.#setHistory(id, (history) => marked(history, "loading"));
 			try {
-				const read = await this.#deps.repositories().sessionEvents.listTurns(id, turnIds);
+				const read = await this.#deps.repositories().sessionEvents.listTurns(id, [turn.turnId]);
 				const kept = this.store.getState();
 				const history = kept.histories[id];
 				const loaded = kept.events[id];
 				// The chat was closed meanwhile; nothing is left to add to.
 				if (history === undefined || loaded === undefined) return ok(undefined);
 				if (!read.ok) {
-					this.#setHistory(id, (current) => ({ ...current, older: "failed" }));
+					this.#setHistory(id, (current) => marked(current, "failed"));
 					return read;
 				}
 				const events = mergeEvents(loaded, [...read.value.map(toStoredEvent), ...loading.buffered]);
-				const grown = { ...history, unloaded: from, older: "idle" as const };
+				const grown = marked(withLoadedTurn(history, position), "idle");
 				const withCalls = await this.#withCallsNotLoaded(id, grown, events);
 				if (!withCalls.ok) {
-					this.#setHistory(id, (current) => ({ ...current, older: "failed" }));
+					this.#setHistory(id, (current) => marked(current, "failed"));
 					return withCalls;
 				}
 				this.store.setState((state) => {
@@ -1030,7 +1073,7 @@ export class SessionsService implements AgentMessenger {
 		history: ChatHistoryState,
 		events: readonly StoredEvent[],
 	): Promise<Result<ChatHistoryState>> {
-		if (history.unloaded === 0) return ok(history);
+		if (allLoaded(history)) return ok(history);
 		const fresh = callsNamedButMissing(events).filter((callId) => !history.asked.has(callId));
 		if (fresh.length === 0) return ok(history);
 		const found = await this.#deps
@@ -2325,20 +2368,18 @@ export class SessionsService implements AgentMessenger {
 		if (session === undefined) return null;
 
 		const liveState = state.liveStates[sessionId] ?? idleLiveState;
-		const pending = (state.sending[sessionId] ?? []).map((send) => ({
-			...send,
-			messageId: send.messageId as MessageId,
-		}));
 		const history = state.histories[sessionId];
-		const fresh = buildTurns(
-			state.events[sessionId] ?? [],
+		let builder = this.#builders.get(sessionId);
+		if (builder === undefined) {
+			builder = new TurnBuilder();
+			this.#builders.set(sessionId, builder);
+		}
+		const turns = builder.update(
+			state.events[sessionId] ?? NO_EVENTS,
 			liveState,
-			pending,
+			state.sending[sessionId],
 			history?.callsNotLoaded,
 		);
-		const previous = this.#turns.get(sessionId);
-		const turns = previous === undefined ? fresh : reuseUnchangedTurns(previous, fresh);
-		this.#turns.set(sessionId, turns);
 
 		const open = state.openInteractions[sessionId];
 		return {
@@ -2358,18 +2399,21 @@ export class SessionsService implements AgentMessenger {
 			progress: state.progress[sessionId] ?? null,
 			goal: state.goals?.[sessionId] ?? null,
 			history: historyView(history),
-			outline: outlineOf(this.#outlineHead(history), turns),
+			outline: this.#outline(sessionId, history, turns),
 		};
 	}
 
-	/** The outline entries of the turns that are not loaded, built once for each load. */
-	#outlineHead(history: ChatHistoryState | undefined): ChatView["outline"] {
-		if (history === undefined) return [];
-		const kept = this.#outlineHeads.get(history);
-		if (kept !== undefined) return kept;
-		const head = storedOutline(history);
-		this.#outlineHeads.set(history, head);
-		return head;
+	/** The chat's outline, made again only when its turns or what is loaded change. */
+	#outline(
+		sessionId: SessionId,
+		history: ChatHistoryState | undefined,
+		turns: ChatView["turns"],
+	): ChatView["outline"] {
+		const kept = this.#outlines.get(sessionId);
+		if (kept !== undefined && kept.history === history && kept.turns === turns) return kept.outline;
+		const outline = outlineOf(history, turns);
+		this.#outlines.set(sessionId, { history, turns, outline });
+		return outline;
 	}
 
 	/** Backs `useDraft` through the composer service; kept here so the view model has one source. */
