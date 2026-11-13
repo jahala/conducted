@@ -1,8 +1,10 @@
 import { appError, err, ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { localSettingsFile } from "../../../core/app-paths.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { RepoConfig } from "../../../core/model.ts";
+import { tomlCodec } from "../../../core/services/toml-codec.ts";
 import {
 	createTestContainer,
 	seedInvalidLocalSettings,
@@ -62,7 +64,7 @@ async function renderPage(initial: RepoConfig) {
 }
 
 describe("SET-07 RepoScriptsPage", () => {
-	it("saves the new setup script with every other field unchanged", async () => {
+	it("saves the new setup script alone", async () => {
 		const initial = config();
 		const { updateConfig } = await renderPage(initial);
 
@@ -71,10 +73,7 @@ describe("SET-07 RepoScriptsPage", () => {
 		fireEvent.blur(setup);
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(updateConfig.mock.calls[0]?.[1]).toEqual({
-			...initial,
-			setupScript: "pnpm setup",
-		});
+		expect(updateConfig.mock.calls[0]?.[1]).toEqual({ setupScript: "pnpm setup" });
 	});
 
 	it("keeps text typed in the archive field when the setup script is saved", async () => {
@@ -90,11 +89,9 @@ describe("SET-07 RepoScriptsPage", () => {
 		fireEvent.blur(screen.getByLabelText("Setup script"));
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(updateConfig.mock.calls[0]?.[1]).toMatchObject({
+		expect(updateConfig.mock.calls[0]?.[1]).toEqual({
 			setupScript: "pnpm setup",
 			archiveScript: "pnpm archive",
-			runMode: "concurrent",
-			autoRunAfterSetup: false,
 		});
 	});
 
@@ -110,7 +107,7 @@ describe("SET-07 RepoScriptsPage", () => {
 		fireEvent.blur(setup);
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(updateConfig.mock.calls[0]?.[1]).toMatchObject({ setupScript: null });
+		expect(updateConfig.mock.calls[0]?.[1]).toEqual({ setupScript: null });
 	});
 
 	it("keeps the text and shows the failure when the save fails", async () => {
@@ -137,7 +134,7 @@ describe("SET-07 RepoScriptsPage", () => {
 		fireEvent.click(screen.getByRole("switch", { name: "Start the default action after setup" }));
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(updateConfig.mock.calls[0]?.[1]).toMatchObject({ autoRunAfterSetup: true });
+		expect(updateConfig.mock.calls[0]?.[1]).toEqual({ autoRunAfterSetup: true });
 	});
 
 	it("saves the run mode", async () => {
@@ -149,7 +146,7 @@ describe("SET-07 RepoScriptsPage", () => {
 		fireEvent.keyDown(oneAtATime, { key: "Enter" });
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(updateConfig.mock.calls[0]?.[1]).toMatchObject({ runMode: "exclusive" });
+		expect(updateConfig.mock.calls[0]?.[1]).toEqual({ runMode: "exclusive" });
 	});
 
 	it("names the variables the app gives a script", async () => {
@@ -195,5 +192,35 @@ describe("SET-07 RepoScriptsPage", () => {
 				setup_script: "pnpm setup",
 			});
 		});
+	});
+});
+
+describe("SET-07 RepoScriptsPage saves (issue #670)", () => {
+	it("keeps both of two quick saves of different fields", async () => {
+		test = createTestContainer();
+		const repo = await seedRepo(test.container);
+		render(
+			<ServicesProvider container={test.container}>
+				<RepoScriptsPage repoId={repo.id} />
+			</ServicesProvider>,
+		);
+		await screen.findByLabelText("Setup script");
+
+		// The second save is issued before the first has landed and been read again.
+		fireEvent.keyDown(screen.getByRole("combobox", { name: "Run mode" }), { key: "Enter" });
+		fireEvent.keyDown(await screen.findByRole("option", { name: "One at a time" }), {
+			key: "Enter",
+		});
+		fireEvent.click(screen.getByRole("switch", { name: "Start the default action after setup" }));
+
+		const file = localSettingsFile(repo.rootPath);
+		await waitFor(() =>
+			expect(tomlCodec.parse(test?.memory.controls.files.get(file) ?? "")).toMatchObject({
+				ok: true,
+				value: { scripts: { run_mode: "exclusive", auto_run_after_setup: true } },
+			}),
+		);
+		const saved = test.container.services.repo.store.getState().configs[repo.id];
+		expect(saved).toMatchObject({ runMode: "exclusive", autoRunAfterSetup: true });
 	});
 });

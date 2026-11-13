@@ -33,7 +33,7 @@ import {
 	useSetting,
 	useWorkspaces,
 } from "../../../core/hooks.ts";
-import type { RepoConfig } from "../../../core/model.ts";
+import type { RepoConfigPatch } from "../../../core/model.ts";
 import { expandPreviewUrl } from "../../../core/ports.ts";
 import { previewUrlsToText } from "../../../core/registries/settings.ts";
 import { Button } from "../../../ui/Button.tsx";
@@ -88,7 +88,6 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 	const nextRowId = useRef(0);
 	const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const lastSaved = useRef<string | null>(null);
-	const configRef = useRef<RepoConfig | null>(null);
 	const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
 	const [removing, setRemoving] = useState(false);
 	const [iconOpen, setIconOpen] = useState(false);
@@ -96,7 +95,6 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 		{ state: "detecting" } | { state: "ready"; paths: string[] } | { state: "error" } | null
 	>(null);
 	const readyConfig = config.state === "ready" ? config.data : null;
-	configRef.current = readyConfig;
 
 	/** Asks the repository which ignored files its copy patterns match (SET-07). */
 	const refreshCopyPreview = useCallback(async (): Promise<void> => {
@@ -133,7 +131,7 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 		[],
 	);
 
-	const save = async (next: RepoConfig): Promise<boolean> => {
+	const save = async (next: RepoConfigPatch): Promise<boolean> => {
 		const saved = await actions.projects.updateConfig(repoId, next);
 		if (!saved.ok) {
 			toastSettingSaveFailed(saved.error, () =>
@@ -156,11 +154,9 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 			.filter((entry) => entry.url !== "");
 		const text = previewUrlsToText(entries);
 		if (text === lastSaved.current) return;
-		const current = configRef.current;
-		if (current === null) return;
 		const previous = lastSaved.current;
 		lastSaved.current = text;
-		void save({ ...current, previewUrls: entries }).then((saved) => {
+		void save({ previewUrls: entries }).then((saved) => {
 			if (!saved) lastSaved.current = previous;
 		});
 	};
@@ -379,7 +375,7 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 										<FilesToCopyField
 											patterns={settings.copyFiles}
 											matches={copyPreview}
-											onChange={(patterns) => void save({ ...settings, copyFiles: patterns })}
+											onChange={(patterns) => void save({ copyFiles: patterns })}
 											onRefresh={() => void refreshCopyPreview()}
 										/>
 									</div>
