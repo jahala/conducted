@@ -1172,6 +1172,16 @@ Why not match the lost change: it reverts a setting the user saw saved, which is
 
 Not covered: settings saved on the user's behalf (`last_clone_directory`, `always_allow_local_execution`) live in the settings table, so they never meet an invalid file. A setting's Reset and a project's config pages do not show this toast yet; Conductor offers the button there too (issue #654).
 
+## D143. A dialog holds app shortcuts unless Conductor keeps it off its dialog store, and the menu carries only Conductor's keys (2026-11-12)
+
+Decided by the agent fixing issue #610, which the owner filed. The owner's rulings: "Match Conductor. Nothing made up; gaps are reported", and on changes people see, "whatever conductor does?".
+
+Context: Conductor holds app shortcuts only while its dialog store has an active id (renderApp @681094). Its 23 `F0` dialogs and 8 alert dialogs set one; 15 dialogs on the bare root `S_` and 19 alert dialogs with their own state, many on Settings pages, do not. Its Settings registers Cmd+F as a plain handler, so the key waits under a store dialog. Its native menu gives a key only to Settings, Quit, Send Feedback, Debug and Close Window, and its page acts on every menu event it hears. Ours held app shortcuts under every modal, ran Settings' Cmd+F behind any dialog over Settings, and gave every menu item the registry's key, so Cmd+B and Cmd+W ran under any dialog through the menu.
+
+Chosen: a dialog holds app shortcuts unless it carries `letShortcutsThrough` (ui/dialog-shortcuts.ts); the eleven dialogs Conductor keeps off its store carry it, listed with their evidence in ui-map.md 5.4 and by a test. Under a holding dialog, a command not marked `overDialogs` runs only `modal` handlers, which is where every dialog registers its own keys, and Settings registers at `base`. The menu carries keys only for Send Feedback, Debug and Close Window (Settings and Quit stay fixed in Rust). A menu pick runs under a dialog, as Conductor's listeners do, except Close Window, which Conductor's page never hears and ours sends to the tab close: it follows the key's rule. The View menu's sidebar toggles no longer show a key.
+
+Why a mark on the dialogs that let shortcuts through, not on those that hold them: most of Conductor's dialogs hold, and ours with no Conductor counterpart keep today's behaviour. Why the `modal` priority, not a context that binds a handler to the dialog it sits in, as Conductor's `Kn` does: our dialogs register their keys in the component that draws the dialog, outside its content, so a context would miss them; the priority already marks them.
+
 ## D144. A chat opens on its last five turns and loads older ones as the list reaches its top (2026-11-12)
 
 Decided by the agent fixing issue #617, which the owner filed, under the owner's rule "Match Conductor. Nothing made up; gaps are reported."

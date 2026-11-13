@@ -14,6 +14,7 @@ import { AlertDialog as Radix } from "radix-ui";
 import type { ReactNode } from "react";
 import { Button } from "./Button.tsx";
 import { cn } from "./cn.ts";
+import { letShortcutsThroughProps } from "./dialog-shortcuts.ts";
 
 export const AlertDialog = Radix.Root;
 export const AlertDialogTrigger = Radix.Trigger;
@@ -32,6 +33,11 @@ export interface AlertDialogContentProps {
 	tone?: AlertDialogTone;
 	onConfirm?: () => void;
 	className?: string;
+	/**
+	 * App shortcuts keep running while this is open, as under the dialogs Conductor keeps off its
+	 * dialog store (ui-map.md 5.4). Off by default: a dialog holds them.
+	 */
+	letShortcutsThrough?: boolean;
 }
 
 export function AlertDialogContent({
@@ -43,6 +49,7 @@ export function AlertDialogContent({
 	tone = "default",
 	onConfirm,
 	className,
+	letShortcutsThrough = false,
 }: AlertDialogContentProps) {
 	return (
 		<Radix.Portal>
@@ -55,6 +62,7 @@ export function AlertDialogContent({
 					className,
 				)}
 				{...(description ? {} : { "aria-describedby": undefined })}
+				{...letShortcutsThroughProps(letShortcutsThrough)}
 			>
 				<AlertDialogHeader>
 					<Radix.Title className="text-lg leading-none font-medium tracking-tight text-fg">

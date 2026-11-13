@@ -348,7 +348,8 @@ describe("s1-ui-1 join", () => {
 
 	// Conductor's Approve button runs the same action as its shortcut: with text in the composer it
 	// sends the text as the plan's adjustments, and approves only an empty composer (renderApp
-	// @9313268; the bar's onApprovePlan at @9315041). Issue #595.
+	// @9313268; the bar's onApprovePlan at @9315041). Issue #595. In a chat that is not Codex the
+	// action also turns plan mode off and queues the text as a new message (@9313048). Issue #610.
 	it("CHAT-12 the plan bar's Approve sends the composer's text as the plan's adjustments", async () => {
 		const test = createTestContainer();
 		try {
@@ -356,7 +357,9 @@ describe("s1-ui-1 join", () => {
 			const answer = vi
 				.spyOn(test.container.services.sessions, "answer")
 				.mockResolvedValue(ok(undefined));
-			const updateConfig = vi.spyOn(test.container.services.sessions, "updateConfig");
+			const send = vi
+				.spyOn(test.container.services.sessions, "send")
+				.mockResolvedValue(ok(undefined));
 
 			await mountChatPane(test, workspaceId, sessionId);
 			const field = await screen.findByRole("textbox", { name: "composer" });
@@ -375,7 +378,12 @@ describe("s1-ui-1 join", () => {
 				}),
 			);
 			expect(answer).toHaveBeenCalledTimes(1);
-			expect(updateConfig).not.toHaveBeenCalled();
+			await waitFor(() =>
+				expect(send).toHaveBeenCalledWith(sessionId, "Keep the old cache for reads.", [], "queue"),
+			);
+			expect(
+				test.container.services.sessions.store.getState().sessions[sessionId]?.config.planMode,
+			).toBe(false);
 			await waitFor(() => expect(editor.getText()).toBe(""));
 		} finally {
 			await test.container.stop();
