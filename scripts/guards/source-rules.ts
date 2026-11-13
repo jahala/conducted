@@ -99,8 +99,8 @@ export function checkMarkers(root: string): Problem[] {
 		const text = read(path);
 		for (const marker of MARKERS) {
 			if (!marker.files.test(file)) continue;
-			const read = marker.skipStrings === true ? withoutStringLiterals(text) : text;
-			const lines = (marker.skipComments === true ? withoutComments(read) : read).split("\n");
+			const source = marker.skipStrings === true ? withoutStringLiterals(text) : text;
+			const lines = (marker.skipComments === true ? withoutComments(source) : source).split("\n");
 			const at = lines.findIndex((line) => marker.pattern.test(line));
 			if (at !== -1)
 				problems.push({ guard: "markers", message: `${file}:${at + 1} ${marker.message}` });

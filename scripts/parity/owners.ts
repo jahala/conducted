@@ -11,7 +11,6 @@
  *
  * Usage: bun scripts/parity/owners.ts
  */
-
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
