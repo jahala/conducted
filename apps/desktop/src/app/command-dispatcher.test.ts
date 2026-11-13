@@ -252,7 +252,7 @@ const DIALOGS_THAT_LET_SHORTCUTS_THROUGH: Readonly<Record<string, number>> = {
 	"features/diff/DiscardCommentDialog.tsx": 1,
 	"features/git-panel/changes/StackView.tsx": 1,
 	"features/scripts-panel/run/AddActionDialog.tsx": 1,
-	"features/settings/cloud/McpServersSection.tsx": 2,
+	"features/settings/cloud/McpServersSection.tsx": 5,
 	"features/settings/environment/AddEnvVarForm.tsx": 1,
 	"features/settings/environment/EnvVarTable.tsx": 1,
 	"features/settings/pages/AccountPage.tsx": 3,

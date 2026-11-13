@@ -867,6 +867,7 @@ function OAuthRow({
 					title={`Disconnect ${name}?`}
 					confirmLabel="Disconnect"
 					tone="destructive"
+					letShortcutsThrough
 					onConfirm={() => void disconnect()}
 				/>
 			</AlertDialog>

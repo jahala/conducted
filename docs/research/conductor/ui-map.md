@@ -443,6 +443,7 @@ Which dialogs hold app shortcuts (VERIFIED, issue #610). Only a dialog opened th
 | Switch branch? (stack view) | `h0` @2187137, no store id |
 | Add or edit action | `S_` @4985460 |
 | Add or edit MCP server, Select MCP servers | `S_` @10778481, @10768061 |
+| Connect <server> (client setup), Connect Datadog, Disconnect <server>? (MCP) | `S_` @10780981 for both setup dialogs, `h0` with its own state @8684032 (in `yGo`) |
 | Add and edit environment variable sheets | the sheet root with its own state, @10712780, @10706717 |
 | GitHub on the Account page, its token warning, Disconnect GitHub? | `S_` @11053513 (the warning is a line inside it, @11048121), `h0` @11032759 |
 | Remove repository | `h0` with its own state, @11298444 |
