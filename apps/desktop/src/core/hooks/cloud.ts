@@ -94,6 +94,27 @@ export const useCloudSettings: Queries["useCloudSettings"] = () => {
 	return { state: "ready", data: { settings: state.settings, paired: state.paired } };
 };
 
+export const useCloudMcpOAuth: Queries["useCloudMcpOAuth"] = () => {
+	const services = useServices().services;
+	const service = services.cloudMcpOAuth;
+	const state = useStore(service.store, (current) => current);
+	const paired = useStore(services.cloudPairing.store, (current) =>
+		current.state === "ready" ? current.pairing.paired : false,
+	);
+	// A pair or an unpair changes whose servers these are, so the list is read again.
+	useEffect(() => {
+		if (paired) void service.load();
+	}, [service, paired]);
+	if (state.state === "unknown") return { state: "loading" };
+	if (state.state === "error") {
+		return {
+			state: "error",
+			error: { code: "cloud_mcp_oauth_unreachable", message: state.message },
+		};
+	}
+	return { state: "ready", data: state.view };
+};
+
 /**
  * CLOUD-10: the forwarding switches, forwards and discovered ports of one cloud workspace.
  * Subscribes only to that workspace's slice, so an update on another workspace does not redraw.

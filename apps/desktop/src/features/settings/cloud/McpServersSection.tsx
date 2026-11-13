@@ -1,45 +1,69 @@
 /**
  * @feature CLOUD-17 MCP servers in the cloud sandbox
- * Owns: the Cloud page's MCP section: the servers every cloud workspace's agents get, in
- * Conductor's Installed and Recommended tabs, the add and edit dialog, and "Import from local".
- * Behaviour: Conductor's MCP settings page in renderApp-DeUrsznk.js, read 2026-11-12 (offsets are
- * characters): the "MCP" heading (`NHe` @8717783) and the entry's description (@11304259); the
- * tabs, the installed search, the empty lines and the newest-first list (`$Pa` @10778950 to
- * @10779710); a row's name and its actions menu with Edit and Delete (`KAt` @8719151); the add and
- * edit dialog's fields, choices, placeholders and messages (`BDa` and `$Da` @10721094 to @10728036);
- * the Recommended tab's search and "Import from local" card (`TPa` @10763650, `OPa` @10766909);
- * and the "Select MCP servers" dialog, which chooses every server at first (`MPa` @10769053, `LPa`
- * for its empty lines). Conductor's page is an organisation page, which D004 and D018 keep out;
- * ours is the personal Cloud page on the Mac's own Worker (D121).
- * Left out, as gaps: OAuth (Conductor completes it through its hosted callback and token store,
- * D121), the Recommended catalogue (22 of its 24 entries are OAuth servers), the brand logos and
- * favicons a row's icon shows (Conductor's own assets and Google's favicon service; the row keeps
- * Conductor's fallback initial), and the brand display names (`GXo`); a name is shown with its
- * first letter raised, Conductor's rule for every other name.
- * Data: the `mcpServers` of useCloudSettings; Actions.cloud.scanLocalMcpServers. Saves, deletes and
- * imports go through the page's callbacks, which toast Conductor's failure titles.
- * Must handle: no servers and a search that matches none (Conductor's lines); a save the Worker
- * refuses (the dialog stays open, the page toasts why); a scan that finds nothing or cannot read
- * (the right one of Conductor's lines); a server already saved (not offered again); a name the
- * Worker reserves (Conductor's name message); every secret never shown once saved.
- * Test first: adding a bearer-token server saves it and the list shows it without its token.
+ * Owns: the MCP page's body: the servers every cloud workspace's agents get, in Conductor's
+ * Installed and Recommended tabs; the add and edit dialog; an OAuth server's status, its
+ * Authenticate, Stop waiting and Disconnect; the Recommended catalogue and the setup dialogs a few
+ * of its servers need; and "Import from local".
+ * Behaviour: Conductor's MCP settings page in renderApp-DeUrsznk.js, read 2026-11-12 and
+ * 2026-11-13 (offsets are characters): the page `$Pa` @10773184 (tabs, the installed search, the
+ * empty lines, newest first, rows being added, the dialogs); a row and its actions menu (`KAt`
+ * @8719663), an OAuth row's status, buttons, waiting and its Disconnect confirmation (`yGo`
+ * @8677052, `CGo` @8684560, `EGo` @8685406, the toasts `xGo` @8684239 and after); the add and edit
+ * dialog (`BDa` @10722882, its defaults `Anr` and the edit mapping `MDa` @10720649, the save
+ * rules `$Da` @10721785, the callback URL `bGt` @10719908); the Recommended tab (`TPa` @10763650,
+ * its cards `mci` @10760464, the catalogue `$nr` in core/cloud-mcp-catalogue.ts); the client
+ * setup dialog (`zDa` @10729727, `UDa` @10734297) and Datadog's (`HDa` @10738336); and the
+ * "Select MCP servers" import dialog (`MPa`, `LPa`). Conductor's page is an organisation page; ours
+ * is the paired Worker's (D121), whose token store does the OAuth (apps/cloud mcp-oauth.ts).
+ * Left out, as gaps: the "Used in your organization" section and its members (D004); Conductor's
+ * first-party OAuth apps, so Asana, Slack and Snowflake always ask for the user's own client; and
+ * favicons (McpServerIcon.tsx says why).
+ * Data: the `mcpServers` of useCloudSettings, passed in; useCloudMcpOAuth for each OAuth server's
+ * credential and the callback URL; Actions.cloud.connectMcpServer, mcpConnectStatus,
+ * cancelMcpConnect, disconnectMcpServer, loadMcpOAuth, detectMcpAuth and scanLocalMcpServers;
+ * Actions.app.openUrl and copyText. Saves, deletes and imports go through the page's callbacks,
+ * which toast Conductor's failure titles.
+ * Must handle: no servers and a search that matches none; a save the Worker refuses (the dialog
+ * stays open); a sign-in that fails, is cancelled, finishes while the page waits, or runs past
+ * 600 s (Conductor's toasts); a browser that will not open; a second answer arriving after a newer
+ * attempt started (dropped); a recommended server already installed (marked, not offered); every
+ * secret never shown once saved.
+ * Test first: a new server starts on OAuth, and saving it opens the provider's sign-in.
  */
-import { type ReactNode, useEffect, useState } from "react";
+import { trimTrailingSlashes } from "@conducted/shared";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
+	CLOUD_MCP_CONNECT_FAILED,
+	CLOUD_MCP_DISCONNECT_FAILED,
 	type CloudMcpAuth,
+	type CloudMcpCredential,
 	type CloudMcpServer,
 	headerLines,
 	type ImportedMcpServer,
+	mcpDisplayName,
 	RESERVED_NAMES,
 	SERVER_NAME,
 	uniqueMcpServerName,
 } from "../../../core/cloud-mcp.ts";
-import { useActions } from "../../../core/hooks.ts";
+import {
+	DATADOG_SITES,
+	IMPORT_SEARCH_WORDS,
+	RECOMMENDED_MCP_SERVERS,
+	type RecommendedMcpServer,
+	recommendedInstalled,
+} from "../../../core/cloud-mcp-catalogue.ts";
+import { useActions, useCloudMcpOAuth } from "../../../core/hooks.ts";
+import { AlertDialog, AlertDialogContent } from "../../../ui/AlertDialog.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { Checkbox } from "../../../ui/Checkbox.tsx";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../ui/Collapsible.tsx";
+import { CopyButton } from "../../../ui/CopyButton.tsx";
+import { cn } from "../../../ui/cn.ts";
 import { Dialog, DialogContent, DialogFooter } from "../../../ui/Dialog.tsx";
 import { Input, Label, Textarea } from "../../../ui/Input.tsx";
 import {
+	CheckIcon,
+	ChevronRightIcon,
 	HardDriveDownloadIcon,
 	MoreVerticalIcon,
 	PencilIcon,
@@ -52,10 +76,13 @@ import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../../ui/Menu.tsx";
 import { Select } from "../../../ui/Select.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../ui/Tabs.tsx";
-import { toast } from "../../../ui/Toast.tsx";
+import { toast, toastError } from "../../../ui/Toast.tsx";
+import { Tooltip } from "../../../ui/Tooltip.tsx";
+import { McpServerIcon } from "./McpServerIcon.tsx";
 
-/** Conductor's choices, in its order, without OAuth (D121). */
+/** Conductor's choices, in its order (`BDa`). */
 const AUTH_OPTIONS: readonly { value: CloudMcpAuth; label: string }[] = [
+	{ value: "oauth", label: "OAuth" },
 	{ value: "bearer", label: "Bearer token" },
 	{ value: "headers", label: "Custom headers" },
 	{ value: "none", label: "None" },
@@ -66,18 +93,11 @@ const NAME_MESSAGE =
 
 const BEARER = "Bearer ";
 
-/** The words the Recommended search finds "Import from local" by (Conductor's `vPa`). */
-const IMPORT_KEYWORDS = [
-	"import from local",
-	"Claude Code",
-	"Claude Desktop",
-	"Claude",
-	"Codex",
-	"Cursor",
-	"OpenCode",
-]
-	.join(" ")
-	.toLowerCase();
+/** How long a sign-in is waited for, and how often it is checked (Conductor's `_Go`, `BWi`). */
+const CONNECT_WAIT_MS = 600_000;
+const CONNECT_POLL_MS = 2_000;
+
+const AGAIN = "Try connecting the MCP server again.";
 
 const EMPTY_LINE = "flex min-h-16 items-center justify-center text-sm text-fg-muted";
 const FIELD_INPUT = {
@@ -86,17 +106,15 @@ const FIELD_INPUT = {
 	autoCapitalize: "off",
 	spellCheck: false,
 } as const;
-
-/** The name a row shows: the first letter raised, as Conductor shows a name it has no brand for. */
-function displayName(name: string): string {
-	return name.charAt(0).toUpperCase() + name.slice(1);
-}
+const CARD =
+	"flex min-h-14 min-w-0 items-center gap-2.5 rounded-lg border border-border bg-canvas p-2.5 text-left";
+const CARD_BUTTON = `${CARD} transition-[background-color,scale] duration-100 hover:bg-hover focus-visible:ring-2 focus-visible:ring-focus active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50`;
 
 /** A URL without its trailing slashes, so two spellings of one server compare equal. */
 function normalizedUrl(url: string): string | null {
 	try {
 		const parsed = new URL(url);
-		parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+		parsed.pathname = trimTrailingSlashes(parsed.pathname);
 		return parsed.href;
 	} catch {
 		return null;
@@ -174,18 +192,35 @@ interface Draft {
 	authType: CloudMcpAuth;
 	bearerToken: string;
 	headersText: string;
-	/** True when the saved server holds a credential an empty field keeps. */
+	/** True when the saved server holds a bearer token or headers that an empty field keeps. */
 	credentialConfigured: boolean;
+	oauthClientId: string;
+	oauthClientSecret: string;
+	oauthClientSecretConfigured: boolean;
 }
 
+/**
+ * The dialog's first state. A new server starts on OAuth (`Anr`). A saved one opens as Conductor
+ * reopens it (`MDa`): a bearer token is a header to Conductor, so a bearer server opens as Custom
+ * headers, with its credential kept until new headers replace it.
+ */
 function draftFor(name: string, server: CloudMcpServer | null): Draft {
+	const authType: CloudMcpAuth =
+		server === null
+			? "oauth"
+			: server.authType === "bearer" || server.authType === "headers"
+				? "headers"
+				: server.authType;
 	return {
 		name,
 		url: server?.url ?? "",
-		authType: server?.authType ?? "none",
+		authType,
 		bearerToken: "",
 		headersText: "",
-		credentialConfigured: server !== null && server.authType !== "none",
+		credentialConfigured: server?.authType === "bearer" || server?.authType === "headers",
+		oauthClientId: server?.oauthClientId ?? "",
+		oauthClientSecret: "",
+		oauthClientSecretConfigured: (server?.oauthClientSecret ?? "") !== "",
 	};
 }
 
@@ -207,24 +242,143 @@ function checkedDraft(
 	const urlIssue = urlProblem(url);
 	if (urlIssue !== null) return { message: urlIssue };
 	if (draft.authType === "none") return { server: { url, authType: "none" } };
+	if (draft.authType === "oauth") {
+		const clientId = draft.oauthClientId.trim();
+		const secret = draft.oauthClientSecret.trim();
+		if (clientId === "" && secret !== "") return { message: "Enter a client ID" };
+		const kept = previous?.authType === "oauth" ? (previous.oauthClientSecret ?? "") : "";
+		if (
+			previous?.authType === "oauth" &&
+			kept !== "" &&
+			clientId !== "" &&
+			clientId !== (previous.oauthClientId ?? "") &&
+			secret === ""
+		) {
+			return { message: "Enter the client secret for the new client ID" };
+		}
+		// An untouched secret field keeps the saved secret, which is never shown again.
+		const clientSecret = secret !== "" ? secret : clientId !== "" ? kept : "";
+		return {
+			server: {
+				url,
+				authType: "oauth",
+				...(clientId === "" ? {} : { oauthClientId: clientId }),
+				...(clientSecret === "" ? {} : { oauthClientSecret: clientSecret }),
+			},
+		};
+	}
 	if (draft.authType === "bearer") {
 		const token = draft.bearerToken.trim();
-		if (token !== "") return { server: { url, authType: "bearer", bearerToken: token } };
-		// The token is never shown again; an untouched field keeps the saved one.
-		if (draft.credentialConfigured && previous?.authType === "bearer") {
-			return { server: { url, authType: "bearer", bearerToken: previous.bearerToken } };
-		}
-		return { message: "Enter a bearer token" };
+		if (token === "") return { message: "Enter a bearer token" };
+		return { server: { url, authType: "bearer", bearerToken: token } };
 	}
 	const lines = headerLines(draft.headersText);
 	if (!lines.ok) return { message: lines.message };
 	if (Object.keys(lines.headers).length > 0) {
 		return { server: { url, authType: "headers", headers: lines.headers } };
 	}
+	// Empty headers keep the saved credential, whichever form it was saved in.
+	if (draft.credentialConfigured && previous?.authType === "bearer") {
+		return { server: { url, authType: "bearer", bearerToken: previous.bearerToken } };
+	}
 	if (draft.credentialConfigured && previous?.authType === "headers") {
 		return { server: { url, authType: "headers", headers: previous.headers } };
 	}
 	return { server: { url, authType: "none" } };
+}
+
+/** How a sign-in ended, for the toast or the dialog line that says so. */
+type ConnectEnd = "connected" | "failed" | "absent" | "timeout" | "browser";
+
+/**
+ * One server's sign-in: asks the Worker for the provider's URL, opens it in the browser, and
+ * checks every 2 s until the Worker has the tokens, the attempt failed, or 600 s passed. Only the
+ * newest attempt's answers change anything.
+ */
+function useConnect(name: string, onEnd: (end: ConnectEnd) => void) {
+	const actions = useActions();
+	const [attempt, setAttempt] = useState<{ state: string; deadline: number } | null>(null);
+	const [starting, setStarting] = useState(false);
+	const ended = useRef(onEnd);
+	ended.current = onEnd;
+
+	const finish = useCallback((end: ConnectEnd) => {
+		setAttempt(null);
+		ended.current(end);
+	}, []);
+
+	/** The sign-in is no longer waited for: connected when the Worker now holds the tokens. */
+	const settle = useCallback(
+		async (otherwise: ConnectEnd) => {
+			const loaded = await actions.cloud.loadMcpOAuth();
+			const connected = loaded.ok && loaded.value.credentials[name]?.status === "active";
+			finish(connected ? "connected" : otherwise);
+		},
+		[actions, name, finish],
+	);
+
+	useEffect(() => {
+		if (attempt === null) return;
+		let live = true;
+		let checking = false;
+		const check = async () => {
+			if (checking) return;
+			checking = true;
+			try {
+				if (Date.now() >= attempt.deadline) {
+					const cancelled = await actions.cloud.cancelMcpConnect(name, attempt.state);
+					if (!live) return;
+					if (cancelled.ok && cancelled.value) finish("timeout");
+					else await settle("timeout");
+					return;
+				}
+				const status = await actions.cloud.mcpConnectStatus(name, attempt.state);
+				if (!live || !status.ok) return;
+				if (status.value === "failed") finish("failed");
+				else if (status.value === "absent") await settle("absent");
+			} finally {
+				checking = false;
+			}
+		};
+		void check();
+		const timer = setInterval(() => void check(), CONNECT_POLL_MS);
+		return () => {
+			live = false;
+			clearInterval(timer);
+		};
+	}, [attempt, actions, name, finish, settle]);
+
+	const start = useCallback(async (): Promise<boolean> => {
+		setStarting(true);
+		const started = await actions.cloud.connectMcpServer(name);
+		setStarting(false);
+		if (!started.ok) {
+			toastError(CLOUD_MCP_CONNECT_FAILED, started.error);
+			return false;
+		}
+		const next = { state: started.value.state, deadline: Date.now() + CONNECT_WAIT_MS };
+		setAttempt(next);
+		const opened = await actions.app.openUrl(started.value.authorizationUrl);
+		if (!opened.ok) {
+			await actions.cloud.cancelMcpConnect(name, next.state);
+			finish("browser");
+			return false;
+		}
+		return true;
+	}, [actions, name, finish]);
+
+	const stop = useCallback(async () => {
+		if (attempt === null) return;
+		const cancelled = await actions.cloud.cancelMcpConnect(name, attempt.state);
+		if (!cancelled.ok) {
+			toast.error("Couldn't stop waiting", { description: "Check your connection and try again." });
+			return;
+		}
+		if (cancelled.value) setAttempt(null);
+		else await settle("absent");
+	}, [actions, attempt, name, settle]);
+
+	return { waiting: attempt !== null, starting, start, stop };
 }
 
 export interface CloudMcpServersSectionProps {
@@ -241,55 +395,125 @@ export function CloudMcpServersSection({
 	onRemove,
 	onImport,
 }: CloudMcpServersSectionProps) {
+	const actions = useActions();
+	const oauth = useCloudMcpOAuth();
+	const credentials = oauth.state === "ready" ? oauth.data.credentials : {};
+	const callbackUrl = oauth.state === "ready" ? oauth.data.callbackUrl : undefined;
 	const [tab, setTab] = useState("installed");
 	const [installedQuery, setInstalledQuery] = useState("");
 	const [recommendedQuery, setRecommendedQuery] = useState("");
 	const [editing, setEditing] = useState<string | null | undefined>(undefined);
 	const [importing, setImporting] = useState(false);
+	const [setup, setSetup] = useState<RecommendedMcpServer | null>(null);
+	/** Servers saved here that start their sign-in as soon as their row appears (Conductor's `b`). */
+	const [autoConnect, setAutoConnect] = useState<ReadonlySet<string>>(new Set());
+	/** Recommended servers being added, shown as rows until the save answers (Conductor's `y`). */
+	const [adding, setAdding] = useState<Readonly<Record<string, CloudMcpServer>>>({});
 	const names = Object.keys(servers);
 	const needle = installedQuery.trim().toLowerCase();
+	const matches = (name: string, url: string) =>
+		needle === "" || name.toLowerCase().includes(needle) || url.toLowerCase().includes(needle);
 	// Newest first, as Conductor lists them.
 	const shown = names
-		.filter(
-			(name) =>
-				needle === "" ||
-				name.toLowerCase().includes(needle) ||
-				(servers[name] as CloudMcpServer).url.toLowerCase().includes(needle),
-		)
+		.filter((name) => matches(name, (servers[name] as CloudMcpServer).url))
 		.reverse();
-	const recommended = recommendedQuery.trim().toLowerCase();
-	const importMatches = recommended === "" || IMPORT_KEYWORDS.includes(recommended);
+	const pendingRows = Object.entries(adding).filter(
+		([name, server]) => servers[name] === undefined && matches(name, server.url),
+	);
 
-	const runImport = (chosen: readonly ImportedMcpServer[]) => {
+	const connectSoon = (name: string) =>
+		setAutoConnect((current) => (current.has(name) ? current : new Set(current).add(name)));
+	const connectStarted = useCallback(
+		(name: string) =>
+			setAutoConnect((current) => {
+				if (!current.has(name)) return current;
+				const next = new Set(current);
+				next.delete(name);
+				return next;
+			}),
+		[],
+	);
+
+	/** A saved change can drop an OAuth server's tokens in the Worker, so the list is read again. */
+	const reloadCredentials = () => void actions.cloud.loadMcpOAuth();
+
+	const save = async (name: string, server: CloudMcpServer, isNew: boolean): Promise<boolean> => {
+		const saved = await onSave(name, server);
+		if (!saved) return false;
+		reloadCredentials();
+		if (isNew && server.authType === "oauth") connectSoon(name);
+		return true;
+	};
+
+	const remove = async (name: string): Promise<boolean> => {
+		const removed = await onRemove(name);
+		if (removed) reloadCredentials();
+		return removed;
+	};
+
+	const showInstalled = () => {
+		setInstalledQuery("");
+		setTab("installed");
+	};
+
+	/** A recommended server with nothing to set up is added at once (Conductor's `ae`). */
+	const addRecommended = async (entry: RecommendedMcpServer) => {
+		showInstalled();
+		const server: CloudMcpServer = { url: entry.url, authType: entry.authType };
+		setAdding((current) => ({ ...current, [entry.name]: server }));
+		await save(entry.name, server, true);
+		setAdding((current) => {
+			const { [entry.name]: _done, ...rest } = current;
+			return rest;
+		});
+	};
+
+	const chooseRecommended = (entry: RecommendedMcpServer) => {
+		if (entry.oauthSetup !== undefined) setSetup(entry);
+		else void addRecommended(entry);
+	};
+
+	const runImport = async (chosen: readonly ImportedMcpServer[]) => {
 		setImporting(false);
 		const taken = [...names];
 		const toImport: Record<string, CloudMcpServer> = {};
 		for (const candidate of chosen) {
 			const name = uniqueMcpServerName(candidate.name, taken);
 			taken.push(name);
-			toImport[name] =
-				Object.keys(candidate.headers).length > 0
-					? { url: candidate.url, authType: "headers", headers: candidate.headers }
-					: { url: candidate.url, authType: "none" };
+			if (Object.keys(candidate.headers).length > 0) {
+				toImport[name] = { url: candidate.url, authType: "headers", headers: candidate.headers };
+				continue;
+			}
+			// Conductor saves a server without headers as OAuth and lets its service detect the
+			// truth (`detectAuth`); the Worker asks the server. One it cannot ask stays OAuth.
+			const detected = await actions.cloud.detectMcpAuth(candidate.url);
+			toImport[name] = {
+				url: candidate.url,
+				authType: detected.ok ? detected.value : "oauth",
+			};
 		}
 		const added = Object.keys(toImport).length;
-		void onImport(toImport).then((imported) => {
-			if (!imported) return;
-			// Conductor's import ends on the Installed tab with the search cleared.
-			setInstalledQuery("");
-			setTab("installed");
-			toast.success(added === 1 ? "Added 1 MCP server" : `Added ${added} MCP servers`);
-		});
+		const imported = await onImport(toImport);
+		if (!imported) return;
+		reloadCredentials();
+		// Conductor's import ends on the Installed tab with the search cleared.
+		showInstalled();
+		toast.success(added === 1 ? "Added 1 MCP server" : `Added ${added} MCP servers`);
 	};
 
+	const recommended = recommendedQuery.trim().toLowerCase();
+	const importMatches = recommended === "" || IMPORT_SEARCH_WORDS.includes(recommended);
+	const catalogue = RECOMMENDED_MCP_SERVERS.filter(
+		(entry) =>
+			recommended === "" ||
+			[mcpDisplayName(entry.name), entry.name].some((text) =>
+				text.toLowerCase().includes(recommended),
+			),
+	);
+	const installedOrAdding = { ...servers, ...adding };
+
 	return (
-		<div className="flex flex-col gap-3 border-t border-border py-4">
-			<div className="flex flex-col gap-1">
-				<h3 className="text-sm font-medium text-fg">MCP</h3>
-				<p className="max-w-prose text-sm text-fg-muted">
-					Configure MCP servers for cloud workspaces.
-				</p>
-			</div>
+		<>
 			<Tabs value={tab} onValueChange={setTab} className="w-full">
 				<TabsList className="justify-start gap-6 px-0">
 					<TabsTrigger value="installed" className="px-0">
@@ -316,7 +540,7 @@ export function CloudMcpServersSection({
 							Add MCP server
 						</Button>
 					</div>
-					{shown.length === 0 ? (
+					{shown.length === 0 && pendingRows.length === 0 ? (
 						<div className={EMPTY_LINE}>
 							{names.length === 0
 								? "No MCP servers installed"
@@ -324,14 +548,44 @@ export function CloudMcpServersSection({
 						</div>
 					) : (
 						<div className="divide-y divide-border overflow-hidden rounded-md border border-border">
-							{shown.map((name) => (
-								<ServerRow
-									key={name}
+							{pendingRows.map(([name, server]) => (
+								<RowFrame
+									key={`pending:${name}`}
 									name={name}
-									onEdit={() => setEditing(name)}
-									onDelete={() => void onRemove(name)}
+									url={server.url}
+									status={
+										<StatusLine
+											dot="bg-info"
+											label={server.authType === "oauth" ? "Connecting…" : "Adding…"}
+										/>
+									}
 								/>
 							))}
+							{shown.map((name) => {
+								const server = servers[name] as CloudMcpServer;
+								const onEdit = () => setEditing(name);
+								const onDelete = () => void remove(name);
+								return server.authType === "oauth" ? (
+									<OAuthRow
+										key={name}
+										name={name}
+										url={server.url}
+										credential={credentials[name]}
+										autoConnect={autoConnect.has(name)}
+										onAutoConnectStarted={connectStarted}
+										onEdit={onEdit}
+										onDelete={onDelete}
+									/>
+								) : (
+									<RowFrame
+										key={name}
+										name={name}
+										url={server.url}
+										onEdit={onEdit}
+										onDelete={onDelete}
+									/>
+								);
+							})}
 						</div>
 					)}
 				</TabsContent>
@@ -343,23 +597,29 @@ export function CloudMcpServersSection({
 							placeholder="Search recommended MCPs"
 							value={recommendedQuery}
 							onChange={(event) => setRecommendedQuery(event.target.value)}
-							className="pl-8"
+							className="w-full pl-8"
 						/>
 					</div>
-					{importMatches ? (
+					{importMatches || catalogue.length > 0 ? (
 						<div className="grid grid-cols-3 gap-3">
-							<button
-								type="button"
-								onClick={() => setImporting(true)}
-								className="flex min-h-14 min-w-0 items-center gap-2.5 rounded-lg border border-border bg-canvas p-2.5 text-left transition-[background-color,scale] duration-100 hover:bg-hover active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50"
-							>
-								<span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-fg">
-									<HardDriveDownloadIcon className="size-4" />
-								</span>
-								<span className="min-w-0 truncate text-sm font-medium text-fg">
-									Import from local
-								</span>
-							</button>
+							{importMatches ? (
+								<button type="button" onClick={() => setImporting(true)} className={CARD_BUTTON}>
+									<span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-fg">
+										<HardDriveDownloadIcon className="size-4" />
+									</span>
+									<span className="min-w-0 truncate text-sm font-medium text-fg">
+										Import from local
+									</span>
+								</button>
+							) : null}
+							{catalogue.map((entry) => (
+								<RecommendedCard
+									key={entry.name}
+									entry={entry}
+									installed={recommendedInstalled(entry, installedOrAdding)}
+									onChoose={() => chooseRecommended(entry)}
+								/>
+							))}
 						</div>
 					) : (
 						<div className={EMPTY_LINE}>No recommended MCPs match your search</div>
@@ -371,28 +631,78 @@ export function CloudMcpServersSection({
 					editing={editing}
 					server={editing === null ? null : (servers[editing] ?? null)}
 					taken={names}
+					callbackUrl={callbackUrl}
 					onClose={() => setEditing(undefined)}
-					onSave={onSave}
-					onRemove={onRemove}
+					onSave={(name, server) => save(name, server, editing === null)}
+					onRemove={remove}
 				/>
 			) : null}
 			{importing ? (
-				<ImportDialog servers={servers} onClose={() => setImporting(false)} onChoose={runImport} />
+				<ImportDialog
+					servers={servers}
+					onClose={() => setImporting(false)}
+					onChoose={(chosen) => void runImport(chosen)}
+				/>
 			) : null}
-		</div>
+			{setup?.oauthSetup?.type === "redirect_allowlist" && callbackUrl !== undefined ? (
+				<DatadogDialog
+					entry={setup}
+					callbackUrl={callbackUrl}
+					onClose={() => setSetup(null)}
+					onAdd={async (url) => {
+						const saved = await save(setup.name, { url, authType: "oauth" }, true);
+						if (saved) setSetup(null);
+					}}
+				/>
+			) : null}
+			{setup !== null &&
+			setup.oauthSetup?.type !== "redirect_allowlist" &&
+			callbackUrl !== undefined ? (
+				<ClientSetupDialog
+					entry={setup}
+					callbackUrl={callbackUrl}
+					saved={servers[setup.name] ?? null}
+					onSave={(server) => save(setup.name, server, false)}
+					onClose={() => setSetup(null)}
+				/>
+			) : null}
+		</>
 	);
 }
 
-function ServerRow({
+/** A row's status: a dot and a word, with the Worker's detail as its tooltip (`CGo`). */
+function StatusLine({ dot, label, detail }: { dot: string; label: string; detail?: string }) {
+	const line = (
+		<span
+			tabIndex={detail === undefined ? undefined : 0}
+			className="flex shrink-0 items-center gap-1.5"
+		>
+			<span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", dot)} />
+			{label}
+		</span>
+	);
+	return detail === undefined ? line : <Tooltip content={detail}>{line}</Tooltip>;
+}
+
+/** Conductor's row (`KAt`): the mark, the name, an optional status, buttons and the actions menu. */
+function RowFrame({
 	name,
+	url,
+	status,
+	actions,
+	menuDisabled = false,
 	onEdit,
 	onDelete,
 }: {
 	name: string;
-	onEdit: () => void;
-	onDelete: () => void;
+	url: string;
+	status?: ReactNode;
+	actions?: ReactNode;
+	menuDisabled?: boolean;
+	onEdit?: () => void;
+	onDelete?: () => void;
 }) {
-	const shown = displayName(name);
+	const shown = mcpDisplayName(name);
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: Conductor's row is a named group of a list, not a form's fieldset.
 		<div
@@ -401,36 +711,226 @@ function ServerRow({
 			className="flex min-h-16 items-center gap-3 px-3"
 		>
 			<span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
-				<span
-					aria-hidden="true"
-					className="flex size-4 shrink-0 items-center justify-center text-xs leading-none font-medium text-fg-muted"
-				>
-					{shown.trim().charAt(0).toUpperCase()}
-				</span>
+				<McpServerIcon name={name} url={url} />
 			</span>
 			<div className="min-w-0 flex-1">
 				<div className="truncate text-sm font-medium text-fg">{shown}</div>
+				{status === undefined ? null : (
+					<div className="mt-0.5 flex min-w-0 items-center text-xs text-fg-muted">{status}</div>
+				)}
 			</div>
-			<Menu>
-				<MenuTrigger asChild>
-					<Button
-						variant="ghost"
-						size="xs"
-						aria-label={`${shown} actions`}
-						className="w-6 shrink-0 px-0 text-fg-muted"
-					>
-						<MoreVerticalIcon className="size-3.5" />
-					</Button>
-				</MenuTrigger>
-				<MenuContent align="end">
-					<MenuItem icon={<PencilIcon className="size-4" />} onSelect={onEdit}>
-						Edit
-					</MenuItem>
-					<MenuItem destructive icon={<TrashIcon className="size-4" />} onSelect={onDelete}>
-						Delete
-					</MenuItem>
-				</MenuContent>
-			</Menu>
+			{actions}
+			{onEdit !== undefined && onDelete !== undefined ? (
+				<Menu>
+					<MenuTrigger asChild>
+						<Button
+							variant="ghost"
+							size="xs"
+							aria-label={`${shown} actions`}
+							className="w-6 shrink-0 px-0 text-fg-muted"
+						>
+							<MoreVerticalIcon className="size-3.5" />
+						</Button>
+					</MenuTrigger>
+					<MenuContent align="end">
+						<MenuItem
+							disabled={menuDisabled}
+							icon={<PencilIcon className="size-4" />}
+							onSelect={onEdit}
+						>
+							Edit
+						</MenuItem>
+						<MenuItem
+							destructive
+							disabled={menuDisabled}
+							icon={<TrashIcon className="size-4" />}
+							onSelect={onDelete}
+						>
+							Delete
+						</MenuItem>
+					</MenuContent>
+				</Menu>
+			) : null}
+		</div>
+	);
+}
+
+/** An OAuth server's row: its status, Authenticate or Stop waiting, and Disconnect (`yGo`, `EGo`). */
+function OAuthRow({
+	name,
+	url,
+	credential,
+	autoConnect,
+	onAutoConnectStarted,
+	onEdit,
+	onDelete,
+}: {
+	name: string;
+	url: string;
+	credential: CloudMcpCredential | undefined;
+	autoConnect: boolean;
+	onAutoConnectStarted: (name: string) => void;
+	onEdit: () => void;
+	onDelete: () => void;
+}) {
+	const actions = useActions();
+	const [confirming, setConfirming] = useState(false);
+	const [disconnecting, setDisconnecting] = useState(false);
+	const connect = useConnect(name, (end) => {
+		if (end === "failed") {
+			toast.error(CLOUD_MCP_CONNECT_FAILED, {
+				description: "Authorization failed. Try connecting the MCP server again.",
+			});
+		} else if (end === "absent") {
+			toast.info(AGAIN);
+		} else if (end === "timeout") {
+			toast.error("Connection timed out", { description: AGAIN });
+		} else if (end === "browser") {
+			toast.error("Couldn't open your browser to connect", { description: AGAIN });
+		}
+	});
+	const status = credential?.status;
+	const active = status === "active";
+	const connecting = (autoConnect && !active) || ((connect.waiting || connect.starting) && !active);
+
+	const { start } = connect;
+	useEffect(() => {
+		if (!autoConnect) return;
+		onAutoConnectStarted(name);
+		if (!active) void start();
+	}, [autoConnect, active, name, onAutoConnectStarted, start]);
+
+	const disconnect = async () => {
+		setConfirming(false);
+		setDisconnecting(true);
+		const done = await actions.cloud.disconnectMcpServer(name);
+		setDisconnecting(false);
+		if (!done.ok) toastError(CLOUD_MCP_DISCONNECT_FAILED, done.error);
+	};
+
+	const label = connecting
+		? "Connecting…"
+		: active
+			? "Connected"
+			: status === "needs_reauth"
+				? "Needs re-auth"
+				: "Disconnected";
+	const dot = connecting
+		? "bg-info"
+		: active
+			? "bg-success"
+			: status === "needs_reauth"
+				? "bg-warning"
+				: "bg-fg-muted";
+
+	const buttons = (
+		<>
+			{connecting && connect.waiting ? (
+				<Button
+					variant="ghost"
+					size="sm"
+					className="shrink-0 text-link hover:text-link"
+					onClick={() => void connect.stop()}
+				>
+					Stop waiting
+				</Button>
+			) : !connecting && !active ? (
+				<Button
+					size="sm"
+					className="shrink-0"
+					disabled={connect.starting}
+					onClick={() => void connect.start()}
+				>
+					{status === "needs_reauth" ? "Re-authenticate" : "Authenticate"}
+				</Button>
+			) : null}
+			{!connecting && (active || status === "needs_reauth") ? (
+				<Button variant="ghost" size="sm" className="shrink-0" onClick={() => setConfirming(true)}>
+					Disconnect
+				</Button>
+			) : null}
+		</>
+	);
+
+	return (
+		<>
+			<RowFrame
+				name={name}
+				url={url}
+				status={<StatusLine dot={dot} label={label} detail={credential?.statusDetail} />}
+				actions={buttons}
+				menuDisabled={connecting || disconnecting}
+				onEdit={onEdit}
+				onDelete={onDelete}
+			/>
+			<AlertDialog open={confirming} onOpenChange={setConfirming}>
+				<AlertDialogContent
+					title={`Disconnect ${name}?`}
+					confirmLabel="Disconnect"
+					tone="destructive"
+					letShortcutsThrough
+					onConfirm={() => void disconnect()}
+				/>
+			</AlertDialog>
+		</>
+	);
+}
+
+/** A Recommended card (`mci`): a button, or a marked group once installed. */
+function RecommendedCard({
+	entry,
+	installed,
+	onChoose,
+}: {
+	entry: RecommendedMcpServer;
+	installed: boolean;
+	onChoose: () => void;
+}) {
+	const shown = mcpDisplayName(entry.name);
+	const body = (
+		<>
+			<span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
+				<McpServerIcon name={entry.name} url={entry.url} />
+			</span>
+			<span className="min-w-0 flex-1">
+				<span className="block truncate text-sm font-medium text-fg">{shown}</span>
+			</span>
+			{installed ? (
+				<span aria-hidden="true" className="flex shrink-0 items-center gap-1 text-xs text-fg-muted">
+					<CheckIcon className="size-3.5" />
+					Installed
+				</span>
+			) : null}
+		</>
+	);
+	if (installed) {
+		return (
+			// biome-ignore lint/a11y/useSemanticElements: Conductor's installed card is a named group, not a form's fieldset.
+			<div role="group" aria-label={`${shown}, installed`} className={CARD}>
+				{body}
+			</div>
+		);
+	}
+	return (
+		<button type="button" aria-label={shown} className={CARD_BUTTON} onClick={onChoose}>
+			{body}
+		</button>
+	);
+}
+
+/** The Worker's callback URL with a copy button (`bGt`). */
+function CallbackUrl({ url }: { url: string }) {
+	const actions = useActions();
+	return (
+		<div className="flex items-center gap-2 rounded-md bg-muted p-2 pl-3">
+			<code className="min-w-0 flex-1 font-mono text-xs break-all">{url}</code>
+			<CopyButton
+				text={url}
+				onCopy={(text) => actions.app.copyText(text)}
+				iconOnly
+				label="Copy OAuth callback URL"
+				className="size-8 shrink-0 px-0 text-fg-muted"
+			/>
 		</div>
 	);
 }
@@ -439,6 +939,7 @@ function ServerDialog({
 	editing,
 	server,
 	taken,
+	callbackUrl,
 	onClose,
 	onSave,
 	onRemove,
@@ -446,11 +947,15 @@ function ServerDialog({
 	editing: string | null;
 	server: CloudMcpServer | null;
 	taken: readonly string[];
+	callbackUrl: string | undefined;
 	onClose: () => void;
 	onSave: (name: string, server: CloudMcpServer) => Promise<boolean>;
 	onRemove: (name: string) => Promise<boolean>;
 }) {
 	const [draft, setDraft] = useState<Draft>(() => draftFor(editing ?? "", server));
+	const [advanced, setAdvanced] = useState(
+		() => draft.oauthClientId.trim() !== "" || draft.oauthClientSecretConfigured,
+	);
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
 	const adding = editing === null;
@@ -525,6 +1030,49 @@ function ServerDialog({
 							onValueChange={changeAuth}
 						/>
 					</Field>
+					{draft.authType === "oauth" ? (
+						<Collapsible open={advanced} onOpenChange={setAdvanced} className="flex flex-col gap-2">
+							<CollapsibleTrigger className="flex min-h-8 w-fit items-center gap-1 px-0 text-left text-xs font-medium text-fg-muted transition-colors hover:bg-transparent hover:text-fg">
+								<span>Advanced client identity</span>
+								<ChevronRightIcon
+									aria-hidden="true"
+									className={cn("size-3.5 shrink-0 transition-transform", advanced && "rotate-90")}
+								/>
+							</CollapsibleTrigger>
+							<CollapsibleContent className="grid grid-cols-2 gap-3">
+								{callbackUrl !== undefined ? (
+									<div className="col-span-2 flex flex-col gap-1.5">
+										<Label>OAuth callback URL</Label>
+										<CallbackUrl url={callbackUrl} />
+									</div>
+								) : null}
+								<Field label="Client ID" htmlFor="mcp-server-oauth-client-id">
+									<Input
+										id="mcp-server-oauth-client-id"
+										value={draft.oauthClientId}
+										onChange={(event) => update({ oauthClientId: event.target.value })}
+										className="font-mono"
+										{...FIELD_INPUT}
+									/>
+								</Field>
+								<Field label="Client secret" htmlFor="mcp-server-oauth-client-secret">
+									<Input
+										id="mcp-server-oauth-client-secret"
+										type="password"
+										value={draft.oauthClientSecret}
+										onChange={(event) => update({ oauthClientSecret: event.target.value })}
+										placeholder={
+											draft.oauthClientSecretConfigured
+												? "Configured — enter to replace"
+												: undefined
+										}
+										className="font-mono"
+										{...FIELD_INPUT}
+									/>
+								</Field>
+							</CollapsibleContent>
+						</Collapsible>
+					) : null}
 					{draft.authType === "bearer" ? (
 						<Field label="Token" htmlFor="mcp-server-token">
 							<Input
@@ -572,6 +1120,236 @@ function ServerDialog({
 									</span>
 								</>
 							)}
+						</Button>
+					</DialogFooter>
+				</div>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+/**
+ * The setup a server needs before it connects with the user's own client (`zDa`, `UDa`): the
+ * server's URL when it has one per account (Snowflake), the callback URL to register, the client
+ * ID and secret. Connect saves the server, opens the sign-in and waits for it.
+ */
+function ClientSetupDialog({
+	entry,
+	callbackUrl,
+	saved,
+	onSave,
+	onClose,
+}: {
+	entry: RecommendedMcpServer;
+	callbackUrl: string;
+	saved: CloudMcpServer | null;
+	onSave: (server: CloudMcpServer) => Promise<boolean>;
+	onClose: () => void;
+}) {
+	const shown = mcpDisplayName(entry.name);
+	const asksUrl = entry.oauthSetup?.type === "server_url_and_client_credentials";
+	const docsUrl =
+		entry.oauthSetup?.type === "redirect_allowlist" ? undefined : entry.oauthSetup?.docsUrl;
+	const actions = useActions();
+	const [serverUrl, setServerUrl] = useState(asksUrl ? "" : entry.url);
+	const [clientId, setClientId] = useState("");
+	const [clientSecret, setClientSecret] = useState("");
+	const [error, setError] = useState<string | null>(null);
+	const [saving, setSaving] = useState(false);
+	const last = useRef<CloudMcpServer | null>(saved);
+	const connect = useConnect(entry.name, (end) => {
+		if (end === "connected") onClose();
+		else if (end === "failed") setError("Authorization failed. Try connecting again.");
+		else if (end === "browser") setError("Couldn't open your browser to connect. Try again.");
+		else setError("Authorization timed out. Try connecting again.");
+	});
+	const waiting = connect.waiting;
+	const busy = saving || connect.starting;
+
+	const submit = async () => {
+		if (busy || waiting) return;
+		let url: string;
+		try {
+			const parsed = new URL(serverUrl.trim());
+			if (parsed.protocol !== "https:") {
+				setError("Enter an HTTPS server URL");
+				return;
+			}
+			url = parsed.toString();
+		} catch {
+			setError("Enter a valid server URL");
+			return;
+		}
+		if (clientId.trim() === "") {
+			setError("Enter a client ID");
+			return;
+		}
+		if (clientSecret.trim() === "") {
+			setError("Enter a client secret");
+			return;
+		}
+		setError(null);
+		const server: CloudMcpServer = {
+			url,
+			authType: "oauth",
+			oauthClientId: clientId.trim(),
+			oauthClientSecret: clientSecret.trim(),
+		};
+		const previous = last.current;
+		const changed =
+			previous === null ||
+			previous.url !== server.url ||
+			previous.oauthClientId !== server.oauthClientId ||
+			previous.oauthClientSecret !== server.oauthClientSecret;
+		if (changed) {
+			setSaving(true);
+			const ok = await onSave(server);
+			setSaving(false);
+			if (!ok) return;
+			last.current = server;
+		}
+		await connect.start();
+	};
+
+	return (
+		<Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
+			<DialogContent letShortcutsThrough title={`Connect ${shown}`} size="md">
+				<div className="flex flex-col gap-3">
+					<p className="text-sm text-fg-muted">
+						{asksUrl
+							? `Create a ${shown} MCP server and OAuth security integration. `
+							: `${shown} requires credentials from your own ${shown} app. `}
+						Follow the{" "}
+						<button
+							type="button"
+							className="underline hover:text-fg"
+							onClick={() => {
+								if (docsUrl !== undefined) void actions.app.openUrl(docsUrl);
+							}}
+						>
+							setup guide
+						</button>{" "}
+						to get its client ID and secret.
+					</p>
+					{asksUrl ? (
+						<Field label="MCP server URL" htmlFor="mcp-setup-server-url">
+							<Input
+								id="mcp-setup-server-url"
+								type="url"
+								value={serverUrl}
+								onChange={(event) => setServerUrl(event.target.value)}
+								placeholder="https://…/mcp-servers/…"
+								className="font-mono"
+								autoFocus
+								{...FIELD_INPUT}
+							/>
+						</Field>
+					) : null}
+					<div className="flex flex-col gap-1.5">
+						<Label>OAuth callback URL</Label>
+						<CallbackUrl url={callbackUrl} />
+					</div>
+					<Field label="Client ID" htmlFor="mcp-setup-client-id">
+						<Input
+							id="mcp-setup-client-id"
+							value={clientId}
+							onChange={(event) => setClientId(event.target.value)}
+							className="font-mono"
+							autoFocus={!asksUrl}
+							{...FIELD_INPUT}
+						/>
+					</Field>
+					<Field label="Client secret" htmlFor="mcp-setup-client-secret">
+						<Input
+							id="mcp-setup-client-secret"
+							type="password"
+							value={clientSecret}
+							onChange={(event) => setClientSecret(event.target.value)}
+							className="font-mono"
+							{...FIELD_INPUT}
+						/>
+					</Field>
+					{error === null ? null : <p className="text-sm text-danger">{error}</p>}
+					{waiting ? (
+						<p className="text-sm text-fg-muted">Finish connecting in your browser.</p>
+					) : null}
+					<DialogFooter>
+						<Button variant="ghost" size="sm" onClick={onClose}>
+							Cancel
+						</Button>
+						<Button
+							size="sm"
+							data-primary-action
+							disabled={busy || waiting}
+							onClick={() => void submit()}
+						>
+							{waiting ? "Waiting…" : busy ? "Connecting…" : "Connect"}
+						</Button>
+					</DialogFooter>
+				</div>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+/** Datadog's setup (`HDa`): its site, and the redirect URL to allow before connecting. */
+function DatadogDialog({
+	entry,
+	callbackUrl,
+	onClose,
+	onAdd,
+}: {
+	entry: RecommendedMcpServer;
+	callbackUrl: string;
+	onClose: () => void;
+	onAdd: (url: string) => Promise<void>;
+}) {
+	const [site, setSite] = useState(
+		() => (DATADOG_SITES.find((option) => option.url === entry.url) ?? DATADOG_SITES[0])?.url ?? "",
+	);
+	const [adding, setAdding] = useState(false);
+	return (
+		<Dialog open onOpenChange={(open) => (open || adding ? undefined : onClose())}>
+			<DialogContent
+				letShortcutsThrough
+				title="Connect Datadog"
+				description="Before connecting, allow Conducted’s OAuth redirect URL in Datadog."
+				size="md"
+			>
+				<div className="flex flex-col gap-4">
+					<Field label="Datadog site" htmlFor="datadog-site">
+						<Select
+							id="datadog-site"
+							value={site}
+							options={DATADOG_SITES.map((option) => ({ value: option.url, label: option.label }))}
+							onValueChange={setSite}
+						/>
+					</Field>
+					<div className="flex flex-col gap-2 text-sm">
+						<p>
+							In Datadog, open{" "}
+							<span className="font-medium">
+								Organization Settings → Preferences → MCP OAuth Redirect URLs
+							</span>
+							.
+						</p>
+						<p>Add this URL:</p>
+						<CallbackUrl url={callbackUrl} />
+					</div>
+					<DialogFooter>
+						<Button variant="ghost" size="sm" disabled={adding} onClick={onClose}>
+							Cancel
+						</Button>
+						<Button
+							size="sm"
+							data-primary-action
+							disabled={adding}
+							onClick={() => {
+								setAdding(true);
+								void onAdd(site).finally(() => setAdding(false));
+							}}
+						>
+							{adding ? "Adding…" : "Add and connect"}
 						</Button>
 					</DialogFooter>
 				</div>

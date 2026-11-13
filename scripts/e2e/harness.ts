@@ -15,7 +15,8 @@
  * the release config's bundled sidecar, so the app finds its resources and its sidecar the way a
  * shipped app does, and serves the built UI with no dev server. Each folder holds its own clone of
  * the bundle (APFS clones share the bytes), so another build into the shared Cargo target folder
- * cannot swap the app under a running check.
+ * cannot swap the app under a running check. The live reference run (stage 2) starts the same
+ * build, with its override merged in last and in a target folder of its own (D145).
  * Our design choice: `CFFIXED_USER_HOME` points Foundation's home folder into the fresh folder as
  * well as `HOME`. Without it WebKit keeps the page's storage in the owner's `~/Library/WebKit`,
  * shared with every other copy of the app that has the same bundle identifier.
@@ -77,10 +78,10 @@ export type Browser = WebdriverIO.Browser;
 export const TEST_BUILD_CONFIG = { bundle: { externalBin: releaseConfig.bundle.externalBin } };
 
 /** Runs one build step quietly; its output is printed only when it fails. */
-function runStep(command: string, args: string[], tmp: string): void {
+function runStep(command: string, args: string[], env: NodeJS.ProcessEnv): void {
 	const done = spawnSync(command, args, {
 		cwd: ROOT,
-		env: { ...process.env, TMPDIR: `${tmp}/` },
+		env,
 		encoding: "utf8",
 		maxBuffer: 256 * 1024 * 1024,
 	});
@@ -93,8 +94,8 @@ function runStep(command: string, args: string[], tmp: string): void {
 }
 
 /** The sidecar, then the test app bundle with the WebDriver server, each built quietly. */
-function buildSteps(tmp: string): void {
-	runStep("pnpm", ["--filter", "@conducted/sidecar", "build"], tmp);
+function buildSteps(env: NodeJS.ProcessEnv, configs: readonly Record<string, unknown>[]): void {
+	runStep("pnpm", ["--filter", "@conducted/sidecar", "build"], env);
 	runStep(
 		"pnpm",
 		[
@@ -108,27 +109,45 @@ function buildSteps(tmp: string): void {
 			"--features",
 			"e2e",
 			"--ci",
-			"--config",
-			JSON.stringify(TEST_BUILD_CONFIG),
+			// Merged in order, so a later config overrides the test build's own.
+			...configs.flatMap((config) => ["--config", JSON.stringify(config)]),
 		],
-		tmp,
+		env,
 	);
+}
+
+/** The Cargo target folder the e2e run builds into: `CARGO_TARGET_DIR`, else the crate's own. */
+export const e2eTarget = (): string =>
+	process.env.CARGO_TARGET_DIR ?? join(DESKTOP, "src-tauri/target");
+
+/** What a caller other than the e2e run changes about the test build. */
+export interface TestBuildOptions {
+	/**
+	 * The Cargo target folder; `e2eTarget()` unless given. A build with
+	 * `config` needs a folder of its own, so it never replaces the bundle an e2e run clones.
+	 */
+	target?: string;
+	/** A config merged after the test build's own: the live reference run's override (D145). */
+	config?: Record<string, unknown>;
 }
 
 /**
  * Builds the test app and returns its bundle. Cargo, Vite and Bun each rebuild only what changed.
  * The bundle must carry the WebDriver server: a build without it could not reach the window.
  */
-export async function buildTestApp(): Promise<string> {
+export async function buildTestApp(options: TestBuildOptions = {}): Promise<string> {
+	const target = options.target ?? e2eTarget();
 	// The build's own temp folder, removed after it: Vite's command line keeps Node's compile
 	// cache in the temp folder, which would outlive the run.
 	const tmp = mkdtempSync(join(tmpdir(), "e2e-build-"));
 	try {
-		buildSteps(tmp);
+		buildSteps({ ...process.env, TMPDIR: `${tmp}/`, CARGO_TARGET_DIR: target }, [
+			TEST_BUILD_CONFIG,
+			...(options.config === undefined ? [] : [options.config]),
+		]);
 	} finally {
 		rmSync(tmp, { recursive: true, force: true });
 	}
-	const target = process.env.CARGO_TARGET_DIR ?? join(DESKTOP, "src-tauri/target");
 	const app = join(target, "debug/bundle/macos/Conducted.app");
 	const scanned = await hasWebDriver(runTool, join(app, "Contents/MacOS/conducted"));
 	if (!scanned.ok) throw new Error(scanned.error.message);
@@ -258,7 +277,7 @@ export function appEnvironment(folder: FreshFolder, port: number): Record<string
 }
 
 /** A port nothing listens on now. The app's server must then prove the port is its own. */
-async function freePort(): Promise<number> {
+export async function freePort(): Promise<number> {
 	return await new Promise((resolvePort, reject) => {
 		const server = createServer();
 		server.once("error", reject);

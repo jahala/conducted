@@ -617,3 +617,24 @@ Resources created and deleted (account lists read after each run, and once more 
 | `-184546`, `-184932`, `-185519`, `-190039`, `-190240`, `-190641`, `-191314`, `-191707` | the test's teardown |
 
 Each run also made a quick tunnel and a temporary home folder for `cloudflared`; both ended with the run. Cost was not visible from the CLI; the nine deployments each ran a `basic` instance for 2 to 5 minutes.
+
+## CLOUD-17 OAuth live run (2026-11-13): an agent in the sandbox reaches an OAuth MCP server through the Worker
+
+Command: `pnpm cloud:live-mcp` runs both CLOUD-17 tests, one deployment at a time; the OAuth one is `an_agent_in_the_sandbox_reaches_an_oauth_mcp_server` in `apps/desktop/src-tauri/tests/cloud_c17_live.rs` (D147). A test provider on this Mac, behind a quick tunnel, is both the OAuth authorization server and the MCP server: it publishes protected resource and authorization server metadata, registers clients, checks PKCE, the redirect and the `resource`, issues 90-second access tokens with refresh tokens it spends once, and answers MCP only with an access token valid now. Every token is made in memory and never printed.
+
+What the passing run showed (`conducted-dev-c17l-113619`; the same steps passed in `-112938` and `-113300` too):
+
+- Connect through `POST /mcp-oauth/c17oauth/connect`; the test, as the browser, followed the provider's 302 to the Worker's callback without the pairing token, which answered 200 "c17oauth is connected". The Worker registered one client.
+- `GET /mcp-oauth` listed the server `active` with its expiry; the answer held none of the 6 tokens the provider issued.
+- `listMcpServers` over the relay: `c17oauth` `connected`, one tool, over http. The server saw `initialize`, `tools/list` and `prompts/list` with a valid token.
+- Two `tools/call` requests from inside the sandbox, holding only `provided-by-worker`, both answered 200: the first, and one 35 s later, after the Worker had refreshed the token. The provider saw `authorization_code` then two `refresh_token` grants, and refused none, so no rotated refresh token was spent twice.
+- The only request without a token was the Worker's own discovery probe, an unauthenticated `initialize`.
+- The hash search (17,526 files, 5 processes) found 0 of the 6 tokens and the planted decoy once; 4 processes held the placeholder; no relayed line held a token.
+
+What the attempts before it taught:
+
+- `-112732`: a new `workers.dev` name answered 404 with error 1042 on the connect, after `/readiness` had already answered 200. Every Worker call in the test now waits out 1042.
+- `-112938`: the steps passed, but the app's uninstall stopped: Cloudflare answered 401 (code 10000) to deleting `settings/user.json`, although the same login had just listed the bucket and the run before had emptied its bucket the same way. The Worker and container were gone; the bucket and its object were deleted by hand with wrangler. The cause was wrangler's OAuth token expiring partway through the uninstall (#675, D138); the uninstall now reads the login again once.
+- `-113300`: the steps and the teardown passed; the test's own check read the curl answer wrongly and was fixed.
+
+Created and deleted on the account: Workers `conducted-dev-c17l-{112046, 112732, 112938, 113300, 113619}` (`-112046` is the bearer-token run, which passed), each with its container application, image, R2 bucket and local Docker image. Afterwards wrangler's container, image and bucket lists and `docker images` held no `c17l` entry, and `deployments list` said "does not exist" for all five. Whether a deleted Worker's `McpOAuth` storage goes with it was not checked: no Durable Object list was read.

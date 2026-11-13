@@ -32,7 +32,7 @@ const localOnly: RunAction = {
 };
 
 const config: RepoConfigPatch = {
-	runScripts: [localOnly],
+	runActions: [{ kind: "set", action: localOnly }],
 	previewUrls: [{ name: "", url: "http://localhost:$CONDUCTED_PORT" }],
 };
 
