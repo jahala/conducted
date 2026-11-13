@@ -5924,12 +5924,10 @@
 		"by": "seed"
 	},
 	"text:R11772171": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-07",
-		"item": "Conductor shows \"Loading...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D150",
+		"note": "The app starts its project service before it draws the first screen (app/startup.ts) and a reload keeps the list loaded, so Settings never sees the projects loading (D150).",
+		"by": "hand"
 	},
 	"text:R11775650": {
 		"status": "decided",

@@ -312,12 +312,10 @@
 		"by": "hand"
 	},
 	"toast:R2504925": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Conductor shows \"Workspace is still loading, try again\" (toast, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D150",
+		"note": "Our workspace header shows \"Loading workspace…\" in place of Open in until the workspace has loaded (WorkspaceHeader), so Open in is never pressed before then (D150).",
+		"by": "hand"
 	},
 	"toast:R2505067": {
 		"status": "matched",
