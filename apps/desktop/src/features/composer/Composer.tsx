@@ -344,7 +344,9 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	const attachTerminalOutput = useCallback(async () => {
 		const added = await actions.attachments.addTerminalOutput(sessionId);
 		if (!added.ok) {
-			toastError("Couldn't attach the terminal output", added.error);
+			// Conductor toasts the reason alone (renderApp @9300822): "No terminal output available
+			// for this workspace", or "Failed to attach terminal output" when the copy fails.
+			toast.error(added.error.message);
 			return;
 		}
 		setAttachments((current) =>

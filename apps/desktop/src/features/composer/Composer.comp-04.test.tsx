@@ -2,8 +2,10 @@
  * @feature COMP-04 @ file mentions
  * Owns: tests over the real container that Enter on the composer's open '@' menu goes to the menu,
  * not to the send key, and that unmounting with that menu open leaves no update for React's
- * scheduler after the test.
- * Behaviour: ui-map.md 3.5 ('@' mentions: Enter chooses a row), 5.4 (Enter sends).
+ * scheduler after the test; and that the menu's terminal output row, with nothing to attach, says
+ * so in Conductor's own words as the toast's title.
+ * Behaviour: ui-map.md 3.5 ('@' mentions: Enter chooses a row), 5.4 (Enter sends); Conductor's
+ * attach handler toasts the error itself (renderApp @9300822).
  * Test first: Enter on the open '@' menu inserts the row's chip and sends nothing.
  */
 import type { SessionConfig } from "@conducted/protocol";
@@ -15,6 +17,7 @@ import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import { unmountComposer } from "../../test/composer-teardown.ts";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
+import { Toaster, toast } from "../../ui/Toast.tsx";
 import { Composer } from "./Composer.tsx";
 
 const CONFIG: SessionConfig = {
@@ -34,6 +37,7 @@ let mountedEditor: Editor | null = null;
 afterEach(async () => {
 	await unmountComposer(mountedEditor);
 	mountedEditor = null;
+	toast.dismiss();
 	vi.restoreAllMocks();
 	active?.close();
 	active = undefined;
@@ -54,6 +58,7 @@ async function setup() {
 	const wrapper = ({ children }: { children: ReactNode }) => (
 		<ServicesProvider container={test.container}>
 			<CommandDispatcher>{children}</CommandDispatcher>
+			<Toaster />
 		</ServicesProvider>
 	);
 	let editor: Editor | null = null;
@@ -135,5 +140,21 @@ describe("COMP-04 Enter on the open '@' menu", () => {
 			reported.mockRestore();
 			environment.IS_REACT_ACT_ENVIRONMENT = previous;
 		}
+	});
+});
+
+describe("COMP-04 the '@' menu's terminal output row", () => {
+	it("titles the toast with Conductor's words when the workspace has no terminal output", async () => {
+		const { editor } = await setup();
+
+		act(() => editor().commands.insertContent("@"));
+		fireEvent.click(await screen.findByRole("option", { name: /Attach current terminal output/ }));
+
+		// The toast holds Conductor's words alone, with no title of ours above them.
+		await waitFor(() =>
+			expect(document.querySelector("[data-sonner-toast]")?.textContent).toBe(
+				"No terminal output available for this workspace",
+			),
+		);
 	});
 });
