@@ -653,13 +653,15 @@ export class WorkspaceCreation {
 
 	/**
 	 * The git work a created or retried workspace needs: the worktree when the folder is missing,
-	 * then the worktree config, then the move to ready. Both `create` and `retrySetup` use it.
+	 * then the worktree config, then the setup run, which moves it to ready. Both `create` and
+	 * `retrySetup` use it. A setup script that fails leaves a ready workspace, as Conductor's does
+	 * (main @1101155): its error comes back as `setupError`, not as a failed creation.
 	 */
 	async materialise(
 		workspace: Workspace,
 		repo: Repo,
 		remote: string,
-	): Promise<Result<{ workspace: Workspace; warnings: string[] }>> {
+	): Promise<Result<{ workspace: Workspace; warnings: string[]; setupError: AppError | null }>> {
 		const placed =
 			workspace.host.kind === "cloud"
 				? await this.#placeInSandbox(workspace, workspace.host, repo)
@@ -671,7 +673,6 @@ export class WorkspaceCreation {
 		if (!counted.ok) return this.fail(workspace, counted.error);
 
 		const setup = await this.#host.runSetup(workspace.id);
-		if (!setup.ok) return this.fail(workspace, setup.error);
 
 		const final = await this.#deps.repos.workspaces.get(workspace.id);
 		if (!final.ok) return this.fail(workspace, final.error);
@@ -681,7 +682,10 @@ export class WorkspaceCreation {
 				appError("workspace_unknown", "That workspace no longer exists."),
 			);
 		}
-		return ok({ workspace: final.value, warnings });
+		// A setup run that ended moved the row to ready. A setup that never got that far (the row
+		// or its log path could not be written) leaves it initializing, and the creation fails.
+		if (!setup.ok && final.value.state !== "ready") return this.fail(workspace, setup.error);
+		return ok({ workspace: final.value, warnings, setupError: setup.ok ? null : setup.error });
 	}
 
 	/**

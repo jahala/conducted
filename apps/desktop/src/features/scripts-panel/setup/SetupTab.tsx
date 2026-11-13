@@ -258,7 +258,7 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			{workspaceRow.state === "failed" && view.state !== "failed" ? (
+			{workspaceRow.state === "failed" ? (
 				<div
 					role="alert"
 					className="mx-3 mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-raised p-3"

@@ -236,34 +236,33 @@ describe("WS-01 CreateWorkspacePage", () => {
 		);
 	});
 
-	it("offers View logs on a failed setup script and opens its log, as Conductor does", async () => {
+	// Conductor makes the workspace ready when its setup script fails and says so in an error toast
+	// (main @1101155); the creation itself succeeded.
+	it("opens the new workspace and says its setup script failed", async () => {
 		const { create, workspaceStore } = await renderCreatePage();
-		const logPath = "/logs/ws-1.log";
 		create.mockImplementationOnce(async () => {
 			workspaceStore.setState({
-				lastFailedCreate: { ...workspace, state: "failed" },
 				setupRuns: {
 					[workspace.id]: {
 						state: "failed",
 						exitCode: 1,
 						terminalId: null,
-						logPath,
+						logPath: "/logs/ws-1.log",
 						log: "saved",
 						interruptedReason: null,
 					},
 				},
 			});
-			return err(appError("setup_failed", "Setup script failed. Check the setup tab for logs."));
+			return ok(workspace);
 		});
-		const open = vi
-			.spyOn(test.container.actions.attachments, "openExternally")
-			.mockResolvedValue(ok(undefined));
 
 		fireEvent.click(await screen.findByRole("button", { name: "Create workspace" }));
 
-		const viewLogs = await screen.findByRole("button", { name: "View logs" });
-		fireEvent.click(viewLogs);
-		await waitFor(() => expect(open).toHaveBeenCalledWith(logPath));
+		expect(
+			await screen.findByText("Setup script failed. Check the setup tab for logs."),
+		).toBeTruthy();
+		expect(await screen.findByText("Workspace opened")).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "Retry setup" })).toBeNull();
 	});
 
 	it("starts a chat on the model default when the settings leave model and effort empty", async () => {

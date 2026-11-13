@@ -1106,7 +1106,7 @@ CLOUD-13	operation	Create a cloud placeholder workspace, import or refresh a clo
 DATA-01	operation	List workspaces: all, by repo, by state.	services-map 2.3.1	covered
 WS-03	operation	Start setup: record state and the setup log path.	services-map 2.3.1	covered
 WS-03	operation	Finish setup moves the workspace from initializing to ready with a compare-and-set.	services-map 2.3.1	covered
-WS-03	operation	Fail setup or init moves the workspace to failed with a compare-and-set.	services-map 2.3.1	covered
+WS-03	operation	Fail init moves the workspace to failed with a compare-and-set; a failed setup script ends in ready.	services-map 2.3.1	covered
 WS-05	operation	Archive records the state, the branch name and the archive commit, and sets the archive time.	services-map 2.3.1	partly
 WS-06	operation	Unarchive sets state, branch, directory and path, even when the worktree returns at a new folder, and clears the archive time.	services-map 2.3.1	partly
 GIT-08	operation	Set the intended target branch of a workspace.	services-map 2.3.1	covered
@@ -1189,7 +1189,7 @@ WS-01	operation	Symlinks pending deletion: not needed.	services-map 2.3.5	covere
 WS-01	state	Workspace lifecycle: none to initializing when it is created.	services-map 2.4.1	covered
 WS-03	state	Workspace lifecycle: initializing to setting_up; setup runs while the row is initializing.	services-map 2.4.1	covered
 WS-03	state	Workspace lifecycle: setting_up to ready, as initializing to ready.	services-map 2.4.1	covered
-WS-03	state	Workspace lifecycle: to failed from setup or init.	services-map 2.4.1	covered
+WS-03	state	Workspace lifecycle: to failed from init; a failed setup script ends in ready.	services-map 2.4.1	covered
 WS-05	state	Workspace lifecycle: ready to archived, with an archiving step and an archive time.	services-map 2.4.1	partly
 WS-06	state	Workspace lifecycle: archived to initializing to ready on unarchive.	services-map 2.4.1	covered
 DATA-03	state	At startup, half-created local workspaces stay in the list as failed, with Retry (D034).	services-map 2.4.1	covered

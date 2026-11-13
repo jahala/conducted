@@ -114,11 +114,9 @@ function Timeline({
 	const workspaceService = useServices().services.workspace;
 	const [busy, setBusy] = useState(false);
 	const workspaceId = row.id;
-	// Ours marks a workspace failed when its setup script fails, where Conductor keeps it ready and
-	// fails only the script. A failed script run is read as Conductor's script failure, so only a
-	// workspace that could not be made reads as an initialization failure.
-	const scriptFailed = view?.state === "failed";
-	const initFailed = row.state === "failed" && !scriptFailed;
+	// A setup run always leaves its workspace ready, so a failed workspace is one that could not be
+	// made (Conductor's "Workspace initialization failed").
+	const initFailed = row.state === "failed";
 
 	const once = (work: () => Promise<void>) => {
 		if (busy) return;

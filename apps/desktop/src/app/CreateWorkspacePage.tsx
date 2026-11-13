@@ -33,9 +33,10 @@
  * attachment is staged into a chat and none exists yet. Conductor shows "Add to backlog" for cloud
  * organisations only; ours shows it whenever unstarted workspaces are on.
  * Must handle: no project yet (point to "Add a project"); a failed create keeps the draft with Retry setup
- * and Recover prompt, and a failed setup script keeps a toast with "View logs" open (renderApp
- * @3745419); the workspace replaces the create page in history, standing in for Conductor's
- * replaceNewTabId; creation warnings are toasted; an empty prompt creates the workspace without a chat;
+ * and Recover prompt; a setup script that fails still opens the ready workspace and says "Setup script
+ * failed. Check the setup tab for logs." (main @1101155); the workspace replaces the create page in
+ * history, standing in for Conductor's replaceNewTabId; creation warnings are toasted; an empty prompt
+ * creates the workspace without a chat;
  * "Create from" a branch with no branch name is refused with a message under the field; a pull request that
  * was not loaded and an issue that was not picked are refused with a message; a second press while a create,
  * a backlog save or a start runs does nothing; "Add to backlog" is hidden when unstarted workspaces are off;
@@ -92,6 +93,7 @@ import {
 	cloudRepositories,
 } from "../core/organization.ts";
 import { newWorkspaceSessionConfig } from "../core/services/workspace-creation.ts";
+import { SETUP_FAILED_MESSAGE } from "../core/workspace-helpers.ts";
 import { useNewWorkspaceDraft } from "../features/composer/draft-sources.ts";
 import { type ModelChoice, ModelMenu } from "../features/composer/ModelPicker.tsx";
 import { SuggestionPopup } from "../features/composer/mentions/SuggestionPopup.tsx";
@@ -500,9 +502,11 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 		});
 	};
 
+	/** The creation's warnings, and Conductor's note when the new workspace's setup script failed. */
 	const toastWarnings = (workspaceId: WorkspaceId) => {
-		const warnings = services.services.workspace.store.getState().warnings?.[workspaceId] ?? [];
-		for (const warning of warnings) toast.warning(warning);
+		const state = services.services.workspace.store.getState();
+		for (const warning of state.warnings?.[workspaceId] ?? []) toast.warning(warning);
+		if (state.setupRuns?.[workspaceId]?.state === "failed") toast.error(SETUP_FAILED_MESSAGE);
 	};
 
 	const branchMissing = fromKind === "branch" && branchName.trim() === "";
@@ -622,25 +626,8 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			toast.dismiss(progress);
 			setBusy(false);
 			if (!result.ok) {
-				const state = services.services.workspace.store.getState();
-				const failed = state.lastFailedCreate;
+				const failed = services.services.workspace.store.getState().lastFailedCreate;
 				if (failed !== null && failed !== undefined) setFailedId(failed.id);
-				const logPath =
-					failed === null || failed === undefined
-						? null
-						: (state.setupRuns?.[failed.id]?.logPath ?? null);
-				if (result.error.code === "setup_failed" && logPath !== null) {
-					// Conductor keeps this toast until the user closes it and offers "View logs"
-					// (renderApp @3745419).
-					toast.error(result.error.message, {
-						duration: Number.POSITIVE_INFINITY,
-						action: {
-							label: "View logs",
-							onClick: () => void actions.attachments.openExternally(logPath),
-						},
-					});
-					return;
-				}
 				toastError("Failed to create workspace", result.error);
 				return;
 			}
