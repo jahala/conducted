@@ -116,10 +116,14 @@ function buildSteps(env: NodeJS.ProcessEnv, configs: readonly Record<string, unk
 	);
 }
 
+/** The Cargo target folder the e2e run builds into: `CARGO_TARGET_DIR`, else the crate's own. */
+export const e2eTarget = (): string =>
+	process.env.CARGO_TARGET_DIR ?? join(DESKTOP, "src-tauri/target");
+
 /** What a caller other than the e2e run changes about the test build. */
 export interface TestBuildOptions {
 	/**
-	 * The Cargo target folder; `CARGO_TARGET_DIR` or the crate's own unless given. A build with
+	 * The Cargo target folder; `e2eTarget()` unless given. A build with
 	 * `config` needs a folder of its own, so it never replaces the bundle an e2e run clones.
 	 */
 	target?: string;
@@ -132,8 +136,7 @@ export interface TestBuildOptions {
  * The bundle must carry the WebDriver server: a build without it could not reach the window.
  */
 export async function buildTestApp(options: TestBuildOptions = {}): Promise<string> {
-	const target =
-		options.target ?? process.env.CARGO_TARGET_DIR ?? join(DESKTOP, "src-tauri/target");
+	const target = options.target ?? e2eTarget();
 	// The build's own temp folder, removed after it: Vite's command line keeps Node's compile
 	// cache in the temp folder, which would outlive the run.
 	const tmp = mkdtempSync(join(tmpdir(), "e2e-build-"));

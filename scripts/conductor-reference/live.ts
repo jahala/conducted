@@ -43,11 +43,11 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { type Browser, chromium } from "playwright-core";
 import type { ScriptedRepo } from "../../apps/desktop/src/catalogue/git-repo.ts";
 import { stopApp } from "../app-process.ts";
-import { buildTestApp, freePort } from "../e2e/harness.ts";
+import { buildTestApp, e2eTarget, freePort } from "../e2e/harness.ts";
 import { loadCatalogue, ROOT, type SeededState } from "./catalogue.ts";
 import { checkOverride, DEV_ORIGIN, referenceOverride } from "./live-config.ts";
 import { type CallTally, type Front, type LiveServer, startLiveServer } from "./live-server.ts";
@@ -442,6 +442,10 @@ async function main(args: string[]): Promise<number> {
 		(arg, index) => !arg.startsWith("--") && !args[index - 1]?.startsWith("--"),
 	);
 	const givenTarget = flag(args, "target");
+	if (givenTarget !== undefined && resolve(givenTarget) === resolve(e2eTarget()))
+		throw new Error(
+			`--target ${givenTarget} is the e2e run's target folder; the override would replace the bundle its checks clone.`,
+		);
 	const target = givenTarget ?? realpathSync(mkdtempSync(join(tmpdir(), "conductor-live-target-")));
 	mkdirSync(join(out, "ours"), { recursive: true });
 
