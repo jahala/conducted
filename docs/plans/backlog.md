@@ -53,7 +53,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | PLAT-39 | Release notes and CHANGELOG.md from the commits since the last tag    | scripts/release.ts, CHANGELOG.md                            | release-pipeline.md 3                                | 3   | done    | PLAT-37                            |
 | PLAT-40 | Branch protection on main: pull requests only, CI must pass           | scripts/guards, GitHub settings                             | release-pipeline.md 4                                | 2   | done    |                                    |
 | PLAT-41 | CodeQL code scanning for TypeScript and Rust                          | .github/workflows                                           | release-pipeline.md 5                                | 3   | done    |                                    |
-| PLAT-42 | Homebrew cask that follows the latest release                         | jahala/homebrew-tap, .github/workflows                      | release-pipeline.md 6                                | 3   | planned | PLAT-37                            |
+| PLAT-42 | Homebrew cask that follows the latest release                         | jahala/homebrew-tap, .github/workflows                      | release-pipeline.md 6                                | 3   | done    | PLAT-37                            |
 
 ## Sidecar core (SIDE)
 
