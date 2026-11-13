@@ -212,6 +212,21 @@ function applyItem(draft: TurnDraft, item: AgentItem, parent: string | undefined
 		case "usage":
 			draft.usage = addUsage(draft.usage, item);
 			return;
+		case "background_task": {
+			// The call that started it, when it came first in this turn, as Conductor looks it up.
+			const at = item.toolUseId === undefined ? undefined : draft.calls.get(item.toolUseId);
+			const started = at === undefined ? undefined : draft.entries[at];
+			draft.entries.push({
+				kind: "block",
+				block: {
+					kind: "background_task",
+					item,
+					source: started?.kind === "tool" ? started.item : null,
+				},
+				parent,
+			});
+			return;
+		}
 		default: {
 			const unknown = item as unknown as { kind?: unknown };
 			const kind = typeof unknown.kind === "string" ? `: ${unknown.kind}` : ".";

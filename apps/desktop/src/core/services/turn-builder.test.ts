@@ -1006,3 +1006,33 @@ describe("CHAT-07 an update rebuilds only the turns it changes (#653)", () => {
 		expect(after).toEqual(buildTurns(storedSend, live()));
 	});
 });
+
+describe("CHAT-07 a task started in the background (main @1420230)", () => {
+	it("shows as its own block in the turn, with the call that started it", () => {
+		const events = [
+			user("turn-1", "message-1", "run the suite", 100),
+			agent("turn-1", 110, [call("bash-1")]),
+			agent("turn-1", 120, [
+				{
+					kind: "background_task",
+					taskId: "task-1",
+					description: "Watch the test run",
+					toolUseId: "bash-1" as ToolUseId,
+				},
+			]),
+			ended("turn-1", 130),
+		];
+		const turn = firstTurn(stored(events), live());
+		const block = turn.blocks.find((entry) => entry.kind === "background_task");
+		expect(block).toEqual({
+			kind: "background_task",
+			item: {
+				kind: "background_task",
+				taskId: "task-1",
+				description: "Watch the test run",
+				toolUseId: "bash-1",
+			},
+			source: asToolBlock(turn.blocks[0]).item,
+		});
+	});
+});

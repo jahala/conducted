@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { AgentItem } from "@conducted/protocol";
 import type { ToolUseId } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import { MAX_TOOL_OUTPUT_CHARS } from "../output.ts";
@@ -504,13 +505,54 @@ describe("AGENT-03 Claude translation", () => {
 		});
 	});
 
+	test("a task started in the background shows in the transcript, as Conductor's Background Task row (main @1420230)", () => {
+		const t = translator();
+		const [message] = t.translate(
+			system("task_started", {
+				task_id: "task-7",
+				description: "Watch the test run",
+				prompt: "Report when the suite finishes",
+				tool_use_id: "toolu_9",
+				task_type: "local_bash",
+				is_backgrounded: true,
+			}),
+		);
+		const expected: AgentItem[] = [
+			{
+				kind: "background_task",
+				taskId: "task-7",
+				description: "Watch the test run",
+				prompt: "Report when the suite finishes",
+				toolUseId: "toolu_9" as ToolUseId,
+			},
+		];
+		expect(message?.items).toEqual(expected);
+	});
+
+	test("a task Conductor keeps out of the transcript stays out: housekeeping, a foreground task, an agent", () => {
+		const t = translator();
+		for (const extra of [
+			{ skip_transcript: true },
+			{ ambient: true },
+			{ is_backgrounded: false },
+			{ subagent_type: "general-purpose" },
+			{ task_type: "local_agent" },
+			{ task_type: "remote_agent" },
+			{ task_type: "subagent" },
+		]) {
+			expect(
+				t.translate(system("task_started", { task_id: "t", description: "work", ...extra })),
+			).toEqual([]);
+		}
+	});
+
 	test("stream deltas, thinking tokens and task progress are dropped", () => {
 		const t = translator();
 		for (const message of [
 			{ type: "stream_event", event: { type: "content_block_delta" } },
 			system("thinking_tokens", { estimated_tokens: 1 }),
 			system("task_progress", { task_id: "t" }),
-			system("task_started", { task_id: "t", description: "work" }),
+			system("task_started", { task_id: "t", description: "work", skip_transcript: true }),
 			system("task_notification", { task_id: "t", status: "completed" }),
 			system("task_updated", { task_id: "t", patch: {} }),
 			{ type: "keep_alive" },
@@ -531,7 +573,7 @@ describe("AGENT-03 Claude translation", () => {
 			{ type: "control_cancel_request", request_id: "1" },
 			system("thinking_tokens", { estimated_tokens: 1 }),
 			system("task_progress", { task_id: "t" }),
-			system("task_started", { task_id: "t", description: "work" }),
+			system("task_started", { task_id: "t", description: "work", skip_transcript: true }),
 			system("task_notification", { task_id: "t", status: "completed" }),
 			system("task_updated", { task_id: "t", patch: {} }),
 			system("session_state_changed", { state: "running" }),

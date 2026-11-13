@@ -343,7 +343,16 @@ export type ChatBlock =
 	| { kind: "tool"; call: ToolCallView }
 	| { kind: "todo"; item: Extract<AgentItem, { kind: "todo" }> }
 	| { kind: "notice"; item: Extract<AgentItem, { kind: "notice" }> }
-	| { kind: "error"; item: Extract<AgentItem, { kind: "error" }> };
+	| { kind: "error"; item: Extract<AgentItem, { kind: "error" }> }
+	/**
+	 * A task the agent started in the background, with the call that started it when that call is
+	 * in the same turn before it (Conductor's "Background Task" row, main @1420230).
+	 */
+	| {
+			kind: "background_task";
+			item: Extract<AgentItem, { kind: "background_task" }>;
+			source: Extract<AgentItem, { kind: "tool_call" }> | null;
+	  };
 
 /** One turn: the user's message and everything the agent did in reply. */
 export interface ChatTurn {

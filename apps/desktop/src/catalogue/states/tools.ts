@@ -312,6 +312,20 @@ async function taskToolsChat(world: World): Promise<Scene> {
 		input: { chat: "Release checklist", message: "The banner is ready for the post." },
 		output: "Message sent.",
 	});
+	const watch = talk.tool(turn, {
+		tool: "bash",
+		rawName: "Bash",
+		input: { command: "pnpm test --watch", run_in_background: true },
+		output: "Command running in the background.",
+	});
+	talk.agent(turn, [
+		{
+			kind: "background_task",
+			taskId: "task-watch",
+			description: "Watch the release tests",
+			toolUseId: watch,
+		},
+	]);
 	talk.tool(turn, {
 		tool: "teammate",
 		rawName: "Teammate",
@@ -369,6 +383,7 @@ async function taskToolsChat(world: World): Promise<Scene> {
 			await openClosedRow(document, "Preview image");
 			await openClosedRow(document, "Send message");
 			await openClosedRow(document, "Spawn swarm");
+			await openClosedRow(document, "Background Task");
 			await openClosedRow(document, "Subagent");
 			await openRow(document, "Node REPL");
 			await openClosedRow(document, "Loading image");
