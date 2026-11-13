@@ -9,10 +9,10 @@
 	},
 	"toast:M389857": {
 		"status": "matched",
-		"state": "run-load-failed",
+		"state": "settings-save-file-invalid",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > section > p",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
 		"by": "seed"
 	},
 	"toast:M390047": {
@@ -154,7 +154,7 @@
 	"toast:M3735892": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced",
+		"screen": "ui-map 5.4 Keyboard shortcuts",
 		"backlog": "WS-03",
 		"item": "Sending the setup failure to the agent can fail with \"Failed to attach setup context\".",
 		"owner": "rule:quote"
@@ -1059,7 +1059,7 @@
 	},
 	"toast:R10572663": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "APP-03",
 		"item": "Conductor shows \"Failed to copy report to clipboard\" (message, Unplaced); ours has no counterpart yet (parity gap).",
@@ -1419,7 +1419,7 @@
 	},
 	"toast:R11265782": {
 		"status": "gap",
-		"reason": "unshown",
+		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "RUN-02",
 		"item": "Turning Spotlight testing on or off says \"Failed to update spotlight testing\" only when the call throws; a refused or failed write gets the settings writer's toast, with \"Overwrite file\" for an invalid file (issue #654).",
@@ -1478,7 +1478,7 @@
 	"toast:R11392647": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"screen": "ui-map 5.4 Keyboard shortcuts",
 		"backlog": "APP-06",
 		"item": "Checking for an update while one check is running shows \"An update check is already in progress.\"",
 		"owner": "rule:cite"
