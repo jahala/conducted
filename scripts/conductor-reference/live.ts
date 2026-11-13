@@ -21,7 +21,8 @@
  *
  * Output, in `<out>` (default `.context/shots/conductor-live/` of the main checkout):
  * `<state>-dark.png` (Conductor's frontend), `ours/<state>-dark.png` (our UI), `index.json` and
- * `live.json` (every call, by state, front, name and outcome, and the totals check e reads).
+ * `live.json` (every call, by state, front, name and outcome, the totals check e reads, and how long
+ * our app took to answer each command).
  *
  * Usage: bun scripts/conductor-reference/live.ts [state-id ...] [--out <dir>] [--fronts conductor,ours]
  *        [--target <cargo target dir>]
@@ -392,7 +393,7 @@ function writeLogs(out: string, server: LiveServer, live: LiveMappingModule, sho
 	const calls = server.calls();
 	writeFileSync(
 		join(out, "live.json"),
-		`${JSON.stringify({ commit: gitHead(), gaps: live.GAPS, summary: liveSummary(calls), calls }, null, "\t")}\n`,
+		`${JSON.stringify({ commit: gitHead(), gaps: live.GAPS, summary: liveSummary(calls), durations: server.durations(), calls }, null, "\t")}\n`,
 	);
 	writeFileSync(
 		join(out, "index.json"),
