@@ -43,3 +43,9 @@ if (hasWindow) window.scrollTo = () => {};
 if (hasWindow && typeof Element.prototype.scrollIntoView !== "function") {
 	Element.prototype.scrollIntoView = () => {};
 }
+
+// jsdom has no scrollBy, which the message list calls to keep its view still when older turns
+// join at its top (CHAT-06).
+if (hasWindow && typeof Element.prototype.scrollBy !== "function") {
+	Element.prototype.scrollBy = () => {};
+}

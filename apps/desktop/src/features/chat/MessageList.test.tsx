@@ -5,6 +5,7 @@ import { VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCommandHandlers, runCommandHandlers } from "../../app/command-dispatcher.ts";
 import type { ChatTurn, ChatView, Session, Workspace } from "../../core/model.ts";
+import { outlineOf } from "../../core/services/chat-history.ts";
 
 const state = vi.hoisted(() => ({
 	chat: null as unknown,
@@ -145,6 +146,8 @@ function view(turns: ChatTurn[]): ChatView {
 		openInteraction: null,
 		progress: null,
 		goal: null,
+		history: { olderTurnId: null, older: "idle" },
+		outline: outlineOf([], turns),
 	};
 }
 

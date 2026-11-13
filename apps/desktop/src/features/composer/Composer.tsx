@@ -18,10 +18,10 @@
  * While a tool approval waits, the approval card (CHAT-11) takes the place of the text box and its
  * rows, which stay mounted and hidden, as Conductor draws it (renderApp @9315874; D098).
  * While a plan waits for review, the placeholder reads Conductor's "Enter your plan adjustments
- * here..." and sending answers the plan as not approved with the text as its feedback (CHAT-12,
- * renderApp @9294541, @9299794; D098). Cmd+Shift+Enter ("Approve plan") and the plan bar's Approve
- * send that text as the plan's feedback too, and with no text the bar approves (renderApp @9313268).
- * In a chat that is not Codex they then turn plan mode off and queue the text, with the
+ * here..." and sending answers the plan as not approved, with no feedback, then sends the text and
+ * files as any message (CHAT-12, renderApp @9294541, @9393948; D098). Cmd+Shift+Enter ("Approve
+ * plan") and the plan bar's Approve send that text as the plan's feedback, and with no text the bar
+ * approves (renderApp @9313268). They then turn plan mode off and queue the text, with the
  * attachments, as a new message (renderApp @9313048). The key acts only while plan mode is on, as
  * Conductor's does (renderApp @9295497).
  * Keyboard: Cmd+L focuses the editor and Cmd+Shift+Backspace cancels the running agent. Both are
@@ -280,8 +280,9 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		return open !== undefined && open.interaction.kind === "tool_approval" ? open : null;
 	});
 	const empty = text.trim().length === 0;
-	const textOnly = goalMode || planInteractionId !== null;
-	const disabled = busy || (textOnly ? empty : empty && attachments.length === 0);
+	// A goal takes text only. A waiting plan does not change what can be sent (Dca, renderApp
+	// @9279453, has no plan case).
+	const disabled = busy || (goalMode ? empty : empty && attachments.length === 0);
 
 	const runCommand = useRunCommandHandlers();
 	const slashCommands = useRef<readonly SlashCommand[]>([]);
@@ -621,40 +622,10 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		}
 	};
 
-	/**
-	 * Conductor's plan feedback: text sent while a plan waits answers it as not approved, with the
-	 * text as the adjustments (renderApp @9299794). Attachments stay in the draft for the next message.
-	 */
-	const sendPlanFeedback = async (current: Editor, interactionId: InteractionId) => {
-		const feedback = current.getText().trim();
-		if (feedback.length === 0) return;
-		setBusy(true);
-		try {
-			const result = await actions.sessions.answer(sessionId, interactionId, {
-				kind: "plan_approval",
-				approved: false,
-				feedback,
-			});
-			if (!result.ok) {
-				toastError("Couldn't send the plan adjustments", result.error);
-				return;
-			}
-			current.commands.setContent("", { emitUpdate: true });
-			setText("");
-			current.commands.focus();
-		} finally {
-			setBusy(false);
-		}
-	};
-
 	const send = async (intent: SendIntent) => {
 		if (editor === null) return;
 		if (goalMode) {
 			await saveGoal(editor);
-			return;
-		}
-		if (planInteractionId !== null) {
-			await sendPlanFeedback(editor, planInteractionId);
 			return;
 		}
 		const body = editor.getText();
@@ -662,6 +633,19 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		const delivery = intent === "submit" ? "auto" : queueByDefault ? "steer" : "queue";
 		setBusy(true);
 		try {
+			// Conductor's send answers a waiting plan as not approved, with no feedback, then sends
+			// the text as any message (its onSubmit, renderApp @9393948; the answer @9394185). Plan
+			// mode stays as it is.
+			if (planInteractionId !== null) {
+				const answered = await actions.sessions.answer(sessionId, planInteractionId, {
+					kind: "plan_approval",
+					approved: false,
+				});
+				if (!answered.ok) {
+					toastError("Couldn't send the message", answered.error);
+					return;
+				}
+			}
 			const result = await actions.sessions.send(sessionId, body, attachments, delivery);
 			if (!result.ok) {
 				// A cancel during an in-flight send restores the text to the draft; keep the editor.
@@ -716,15 +700,15 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	};
 
 	// Conductor's approve action, from its button or its shortcut, sends the composer's text as the
-	// plan's adjustments when there is any (renderApp @9313268). The plan bar asks here first. A
-	// Codex chat keeps the plain adjustments for now (issue #651).
+	// plan's adjustments when there is any (renderApp @9313268). The plan bar asks here first.
+	// Conductor's Codex chats approve with the text instead (@9312390 to @9313048); ours never wait
+	// on a plan, because Codex plan mode is not built (issue #668).
 	const sendAdjustments = (): PlanAdjustmentsOutcome => {
 		if (planInteractionId === null || editor === null) return "none";
 		// Adjustments already on their way: approving under them would answer the plan twice.
 		if (busy) return "busy";
 		if (editor.getText().trim().length === 0) return "none";
-		if (session?.config.agent === "codex") void sendPlanFeedback(editor, planInteractionId);
-		else void approveWithAdjustments(editor, planInteractionId);
+		void approveWithAdjustments(editor, planInteractionId);
 		return "sent";
 	};
 	useProvidePlanAdjustments(sendAdjustments);
