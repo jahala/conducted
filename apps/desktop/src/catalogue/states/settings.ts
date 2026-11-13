@@ -2233,4 +2233,17 @@ export const SETTINGS_STATES: CatalogueState[] = [
 			};
 		},
 	},
+	{
+		id: "settings-sync-agent-configs",
+		group: "Settings",
+		title: "General, the Sync agent configs dialog and what it can copy",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/general",
+				after: ({ document }) => click(document, "button", "Sync"),
+				ready: (document) => shows(document, "Slash commands"),
+			};
+		},
+	},
 ];
