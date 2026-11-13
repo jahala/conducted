@@ -161,12 +161,16 @@ export function RepoGitPage({ repoId }: { repoId: RepoId }) {
 	const [branchOpen, setBranchOpen] = useState(false);
 	const readyConfig = config.state === "ready" ? config.data : null;
 
+	// The stored remote, once the config has loaded. Reading the config again makes a new object
+	// with the same values (any save on this page does it), so the field follows the stored value,
+	// not the object: text being typed stays until it is saved (issue #658).
+	const storedRemote = readyConfig === null ? undefined : (readyConfig.remoteName ?? "");
 	useEffect(() => {
-		if (readyConfig === null) return;
+		if (storedRemote === undefined) return;
 		// A repository with no remote_name uses "origin" when it creates a workspace. The field
 		// shows the saved value only, so the invented default never looks like saved text.
-		setRemote(readyConfig.remoteName ?? "");
-	}, [readyConfig]);
+		setRemote(storedRemote);
+	}, [storedRemote]);
 
 	const repoValue =
 		repos.state === "ready" ? repos.data.find((entry) => entry.id === repoId) : undefined;
