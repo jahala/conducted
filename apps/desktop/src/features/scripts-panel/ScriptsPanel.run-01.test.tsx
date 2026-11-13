@@ -11,7 +11,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RunState } from "../../core/api.ts";
 import { ServicesProvider } from "../../core/context.tsx";
-import type { RepoConfig, RunAction, Workspace } from "../../core/model.ts";
+import type { RunAction, Workspace } from "../../core/model.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
 import { WithSurfaces } from "../../test/surfaces.tsx";
 import { toast } from "../../ui/Toast.tsx";
@@ -19,7 +19,7 @@ import { TabDragProvider } from "../workspace/tab-drag.tsx";
 import { ScriptsPanel } from "./ScriptsPanel.tsx";
 
 const dev: RunAction = {
-	id: "dev",
+	id: "dev-server",
 	label: "Dev server",
 	command: "bun dev",
 	args: [],
@@ -29,26 +29,6 @@ const dev: RunAction = {
 	icon: null,
 	origin: "local",
 	availableIn: ["local", "cloud"],
-};
-
-const config: RepoConfig = {
-	setupScript: null,
-	runScripts: [dev],
-	runMode: "concurrent",
-	archiveScript: null,
-	copyFiles: [],
-	previewUrls: [],
-	spotlightTesting: false,
-	autoRunAfterSetup: false,
-	remoteName: "origin",
-	prompts: {
-		general: null,
-		codeReview: null,
-		createPr: null,
-		fixErrors: null,
-		resolveConflicts: null,
-		renameBranch: null,
-	},
 };
 
 const containers: ReturnType<typeof createTestContainer>[] = [];
@@ -66,10 +46,7 @@ async function setup(runScripts: RunAction[] = [dev]): Promise<{
 	containers.push(test);
 	const repo = await seedRepo(test.container);
 	const workspace = await seedWorkspace(test.container, { repoId: repo.id });
-	const updated = await test.container.services.repo.updateConfig(repo.id, {
-		...config,
-		runScripts,
-	});
+	const updated = await test.container.services.repo.updateConfig(repo.id, { runScripts });
 	if (!updated.ok) throw new Error(updated.error.message);
 	// The Setup tab reads the workspace's chats, which the app loads when the sessions service
 	// starts; the panel waits on "Loading setup" until it has.
@@ -131,7 +108,7 @@ describe("RUN-01 scripts panel", () => {
 			actions: [dev],
 			running: [
 				{
-					actionId: "dev",
+					actionId: "dev-server",
 					terminalId: "t1" as TerminalId,
 					url: null,
 					phase: "running",

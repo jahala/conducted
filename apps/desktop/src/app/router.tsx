@@ -53,6 +53,7 @@ import { DiagnosticsScreen } from "../features/diagnostics/DiagnosticsScreen.tsx
 import { HomeScreen } from "../features/home/HomeScreen.tsx";
 import { OnboardingScreen } from "../features/onboarding/OnboardingScreen.tsx";
 import { AppearanceController } from "../features/settings/appearance/AppearanceController.tsx";
+import { McpReauthNotice } from "../features/settings/cloud/McpReauthNotice.tsx";
 import { SettingsScreen } from "../features/settings/SettingsScreen.tsx";
 import { BacklogScreen } from "../features/workspace/BacklogScreen.tsx";
 import { WorkspaceScreen } from "../features/workspace/WorkspaceScreen.tsx";
@@ -197,6 +198,7 @@ function RootLayout() {
 	return (
 		<CommandDispatcher onDeepLink={onDeepLink}>
 			<AppearanceController />
+			<McpReauthNotice />
 			<NavigationShortcuts />
 			<NextUnreadController />
 			<RouteLocationPersistence />

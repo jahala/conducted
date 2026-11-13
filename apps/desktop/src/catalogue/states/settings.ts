@@ -7,7 +7,7 @@
  * Git page with a custom branch prefix, and with Conductor's toasts for a switch that cannot be
  * saved, for a settings file that does not parse, and for one that does not parse after an earlier
  * save, which offers "Overwrite file"; the Advanced page asking before it changes the root
- * folder, and Home after it changed; the Agents page's MCP servers for the chat last open; the Environment page's documented
+ * folder, and Home after it changed; the MCP page with OAuth servers in each state (CLOUD-17); the Agents page's MCP servers for the chat last open; the Environment page's documented
  * variables; atlas's Add action dialog and icon picker (an emoji search with no match, the Favicon source); the Agents page's provider forms (Anthropic,
  * subscription, Vertex, both Bedrock modes, ChatGPT, Cursor, custom), OpenCode's Providers dialog
  * searched (its matches in the open Provider select, and no match), its card badges and both
@@ -23,7 +23,7 @@
  * Test first: not applicable; the screenshot run opens every state.
  */
 import { agentProviders } from "@conducted/protocol";
-import type { EventId, TurnId } from "@conducted/shared";
+import { type EventId, ok, type TurnId } from "@conducted/shared";
 import { chatRoute, seedCast } from "../cast.ts";
 import { type ConductorRows, seedConductorDatabase } from "../conductor-database.ts";
 import { click, fillIn, find, findFirst, has, shows, typeInto } from "../dom.ts";
@@ -943,6 +943,50 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		"cloud",
 		"Deploy to Cloudflare",
 	),
+	{
+		id: "settings-mcp",
+		group: "Settings",
+		title: "MCP: the paired Worker's servers, connected, needing re-auth, disconnected and keyless",
+		seed: async (world) => {
+			await seedCast(world);
+			await setSetting(world, "active_organization", "cloud");
+			const settings = {
+				gitIdentity: null,
+				envVars: {},
+				mcpServers: {
+					context7: { url: "https://mcp.context7.com/mcp", authType: "none" },
+					notion: { url: "https://mcp.notion.com/mcp", authType: "oauth" },
+					sentry: { url: "https://mcp.sentry.dev/mcp", authType: "oauth" },
+					linear: { url: "https://mcp.linear.app/mcp", authType: "oauth" },
+				},
+			};
+			world.memory.controls.scriptCloud((request) => {
+				if (request.path === "/settings" && request.method === "GET") {
+					return ok({ status: 200, body: JSON.stringify(settings) });
+				}
+				if (request.path === "/mcp-oauth") {
+					return ok({
+						status: 200,
+						body: JSON.stringify({
+							callbackUrl: "https://conducted-cloud.example.workers.dev/mcp-oauth/callback",
+							servers: {
+								linear: { status: "active" },
+								sentry: {
+									status: "needs_reauth",
+									statusDetail: "The refresh token is not valid.",
+								},
+							},
+						}),
+					});
+				}
+				return null;
+			});
+			return {
+				route: "/settings/user/mcp",
+				ready: (document) => shows(document, "Needs re-auth"),
+			};
+		},
+	},
 	page("settings-environment", "Environment", "environment", "Environment"),
 	page("settings-remote-control", "Remote control", "remote-control", "Remote control"),
 	page("settings-experimental", "Experimental", "experimental", "Experimental"),
@@ -1198,12 +1242,7 @@ export const SETTINGS_STATES: CatalogueState[] = [
 			return {
 				route: "/settings/user/general",
 				after: async ({ app }) => {
-					const { actions, services } = app.container;
-					const loaded = await services.repo.loadConfig(repoId);
-					if (!loaded.ok)
-						throw new Error(`Loading atlas's settings failed: ${loaded.error.message}`);
-					const saved = await actions.projects.updateConfig(repoId, {
-						...loaded.value,
+					const saved = await app.container.actions.projects.updateConfig(repoId, {
 						previewUrls: [
 							{ name: "App", url: "http://localhost:$CONDUCTED_PORT" },
 							{ name: "Storybook", url: "http://localhost:6006" },
@@ -1261,7 +1300,6 @@ export const SETTINGS_STATES: CatalogueState[] = [
 					const dev = shared.find((action) => action.id === "dev");
 					if (dev === undefined) throw new Error("atlas has no dev action.");
 					const saved = await actions.projects.updateConfig(repoId, {
-						...loaded.value,
 						runScripts: [
 							// The origins the Edit and Add dialogs give: a shared action edited on this Mac,
 							// and an action of this Mac only.

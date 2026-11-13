@@ -225,6 +225,23 @@ describe("CLOUD-17 the outbound handler's cloud MCP servers", () => {
 		expect(refusal("https://mcp.context7.com:8443/mcp", SECRETS, MCP).status).toBe(403);
 	});
 
+	it("puts an OAuth server's current token in place of the placeholder", () => {
+		const servers: Record<string, CloudMcpServer> = {
+			notion: { url: "https://mcp.notion.com/mcp", authType: "oauth" },
+		};
+		const sent = outboundRequest(
+			request("https://mcp.notion.com/mcp", { authorization: `Bearer ${CLOUD_MCP_PLACEHOLDER}` }),
+			SECRETS,
+			servers,
+			{ notion: "oauth-access" },
+		);
+		if (sent instanceof Response) throw new Error(`Expected a request, got ${sent.status}`);
+		expect(sent.headers.get("authorization")).toBe("Bearer oauth-access");
+		// Not connected: no token to send, so nothing is sent.
+		const unconnected = outboundRequest(request("https://mcp.notion.com/mcp"), SECRETS, servers);
+		expect(unconnected instanceof Response && unconnected.status).toBe(503);
+	});
+
 	it("refuses a server whose credential the Worker does not hold", () => {
 		const response = refusal("https://mcp.unkeyed.example/mcp", SECRETS, MCP);
 		expect(response.status).toBe(503);

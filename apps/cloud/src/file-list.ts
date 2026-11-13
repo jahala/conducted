@@ -12,6 +12,7 @@
  * desktop polls this list and fetches each file, so a bound here bounds one sync.
  * Test first: lists nested files, skips .git and does not follow a symlink.
  */
+import { trimTrailingSlashes } from "@conducted/shared";
 
 /** Most entries one list may return. A bigger tree is reported as truncated. */
 export const FILE_LIST_LIMIT = 20_000;
@@ -46,7 +47,7 @@ export interface FileTree {
 
 /** Joins a folder and a child name without a doubled slash. */
 const childOf = (folder: string, name: string): string =>
-	`${folder === "/" ? "" : folder.replace(/\/+$/, "")}/${name}`;
+	`${folder === "/" ? "" : trimTrailingSlashes(folder)}/${name}`;
 
 /**
  * Lists every descendant of `root` except `.git` and the contents of symlinks. The root itself

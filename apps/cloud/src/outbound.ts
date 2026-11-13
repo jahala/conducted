@@ -2,8 +2,8 @@
  * @feature CLOUD-05 Secrets stay outside the sandbox: the outbound handler swaps in the model key and GitHub token
  * Owns: every HTTP and HTTPS request from the sandbox's container. It allows GitHub's hosts, the
  * model APIs, the package registries CLOUD-04 lists and the personal cloud MCP servers' URL
- * prefixes, swaps the sandbox's placeholder credentials for the Worker's secrets, and refuses
- * every other host.
+ * prefixes, swaps the sandbox's placeholder credentials for the Worker's secrets (an OAuth MCP
+ * server's from the token store, CLOUD-17), and refuses every other host.
  * Behaviour: cloud-and-remote.md Part 1 ("Secrets never enter the sandbox"; the sandbox gets a
  * placeholder key and the Worker's outbound handler swaps in the real credential for the model
  * API and for `git` and `gh`), services-map.md 3.9 (git and `gh` reach GitHub without a token
@@ -20,6 +20,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { WORKSPACE_NAME } from "./args.ts";
 import { turnEndWorkspaceName } from "./backup.ts";
 import type { Env } from "./env.ts";
+import { mcpOAuthStore } from "./mcp-oauth-routes.ts";
 import {
 	gitHubAuthFor,
 	gitHubAuthorization,
@@ -55,6 +56,7 @@ export function outboundRequest(
 	request: Request,
 	secrets: OutboundSecrets,
 	mcpServers: Readonly<Record<string, CloudMcpServer>> = {},
+	mcpTokens: Readonly<Record<string, string>> = {},
 ): Request | Response {
 	const url = new URL(request.url);
 
@@ -67,11 +69,13 @@ export function outboundRequest(
 		}
 		const headers = new Headers(request.headers);
 		const server = mcp.server;
-		if (server.authType === "bearer") {
-			if (server.bearerToken === undefined || server.bearerToken === "") {
+		if (server.authType === "bearer" || server.authType === "oauth") {
+			// An OAuth server's token is the store's current one (mcp-oauth.ts), looked up by the caller.
+			const token = server.authType === "bearer" ? server.bearerToken : mcpTokens[mcp.name];
+			if (token === undefined || token === "") {
 				return sentence(`The Workspace has no MCP credential for ${mcp.name}.`, 503);
 			}
-			headers.set("authorization", `Bearer ${server.bearerToken}`);
+			headers.set("authorization", `Bearer ${token}`);
 		} else if (server.authType === "headers") {
 			for (const [name, value] of Object.entries(server.headers ?? {})) {
 				headers.set(name, value);
@@ -147,8 +151,33 @@ export class Outbound extends WorkerEntrypoint<Env> {
 		} catch (error) {
 			console.error(`outbound could not read cloud MCP settings: ${String(error)}`);
 		}
-		const prepared = outboundRequest(request, this.env, mcpServers);
+		// An OAuth server's token comes from the one store, refreshed there when it is about to expire.
+		const mcp = cloudMcpServerForUrl(request.url, mcpServers);
+		const mcpTokens: Record<string, string> = {};
+		let sentToken: string | null = null;
+		if (mcp !== null && mcp.server.authType === "oauth") {
+			try {
+				sentToken = await mcpOAuthStore(this.env).accessToken(mcp.name, mcp.server);
+			} catch (error) {
+				console.error(`outbound could not read the MCP OAuth store: ${String(error)}`);
+			}
+			if (sentToken !== null) mcpTokens[mcp.name] = sentToken;
+		}
+		const prepared = outboundRequest(request, this.env, mcpServers, mcpTokens);
 		if (prepared instanceof Response) return prepared;
-		return fetch(prepared);
+		const answer = await fetch(prepared);
+		// A refused token is refreshed on the next request (or the server needs re-auth).
+		if (answer.status === 401 && mcp !== null && sentToken !== null) {
+			const name = mcp.name;
+			const token = sentToken;
+			this.ctx.waitUntil(
+				mcpOAuthStore(this.env)
+					.tokenRejected(name, token)
+					.catch((error: unknown) => {
+						console.error(`outbound could not mark a refused MCP token: ${String(error)}`);
+					}),
+			);
+		}
+		return answer;
 	}
 }

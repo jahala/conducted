@@ -16,7 +16,7 @@ import { WithSurfaces } from "../../../test/surfaces.tsx";
 import { RunTab } from "./RunTab.tsx";
 
 const dev: RunAction = {
-	id: "dev",
+	id: "dev-server",
 	label: "Dev server",
 	command: "bun dev",
 	args: [],
@@ -66,7 +66,7 @@ async function setup(runScripts: RunAction[]): Promise<{
 	containers.push(test);
 	const repo = await seedRepo(test.container);
 	const workspace = await seedWorkspace(test.container, { repoId: repo.id });
-	const updated = await test.container.services.repo.updateConfig(repo.id, config(runScripts));
+	const updated = await test.container.services.repo.updateConfig(repo.id, { runScripts });
 	if (!updated.ok) throw new Error(updated.error.message);
 	return { test, workspace, repo };
 }
@@ -92,7 +92,7 @@ describe("RUN-01 run tab", () => {
 			actions: [dev],
 			running: [
 				{
-					actionId: "dev",
+					actionId: "dev-server",
 					terminalId: "t1" as TerminalId,
 					url: null,
 					phase: "running",
@@ -134,7 +134,7 @@ describe("RUN-01 run tab", () => {
 		await screen.findByRole("button", { name: "Run Dev server" });
 
 		expect(runCommandHandlers("workspace.toggleRun")).toBe(true);
-		expect(start).toHaveBeenCalledWith(workspace.id, "dev");
+		expect(start).toHaveBeenCalledWith(workspace.id, "dev-server");
 	});
 
 	it("keeps a stop that was not confirmed in view", async () => {

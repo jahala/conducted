@@ -231,7 +231,7 @@ describe("NAV-15 terminal tabs draw through the shell's surface layer", () => {
 });
 
 const DEV_ACTION: RunAction = {
-	id: "dev",
+	id: "dev-server",
 	label: "Dev server",
 	command: "bun dev",
 	args: [],
@@ -257,10 +257,7 @@ async function openRunWorkspace() {
 	}
 	must(await container.services.workspace.start());
 	must(await container.services.settings.start());
-	const config = must(await container.services.repo.loadConfig(repo.id));
-	must(
-		await container.services.repo.updateConfig(repo.id, { ...config, runScripts: [DEV_ACTION] }),
-	);
+	must(await container.services.repo.updateConfig(repo.id, { runScripts: [DEV_ACTION] }));
 	const realSpawn = container.platform.pty.spawn.bind(container.platform.pty);
 	// seam: NAV-15 the memory PTY ends a script at once; a dev server keeps running until stopped.
 	const spawns = vi
@@ -289,7 +286,7 @@ describe("NAV-15 the Run tab's terminal draws through the shell's surface layer"
 		const { test, router, repoId, first, second, spawns } = await openRunWorkspace();
 		await screen.findByRole("button", { name: "Run Dev server" });
 
-		must(await test.container.actions.run.start(first.id as WorkspaceId, "dev"));
+		must(await test.container.actions.run.start(first.id as WorkspaceId, "dev-server"));
 		const running = test.container.services.runScripts.store.getState().byWorkspace[first.id];
 		const terminalId = running?.running[0]?.terminalId;
 		if (terminalId === undefined) throw new Error("The action did not start.");
@@ -321,13 +318,13 @@ describe("NAV-15 the Run tab's terminal draws through the shell's surface layer"
 	it("shows the stopped action's output again after a workspace switch", async () => {
 		const { test, router, repoId, first, second } = await openRunWorkspace();
 		await screen.findByRole("button", { name: "Run Dev server" });
-		must(await test.container.actions.run.start(first.id as WorkspaceId, "dev"));
+		must(await test.container.actions.run.start(first.id as WorkspaceId, "dev-server"));
 		const running = test.container.services.runScripts.store.getState().byWorkspace[first.id];
 		const terminalId = running?.running[0]?.terminalId;
 		if (terminalId === undefined) throw new Error("The action did not start.");
 		await waitFor(() => expect(surfaceOf(terminalId).dataset.surfaceVisible).toBe("true"));
 		const shown = terminalElement(terminalId);
-		must(await test.container.actions.run.stop(first.id as WorkspaceId, "dev"));
+		must(await test.container.actions.run.stop(first.id as WorkspaceId, "dev-server"));
 		await waitFor(() =>
 			expect(test.container.services.runScripts.store.getState().phases[first.id]).toBe("stopped"),
 		);

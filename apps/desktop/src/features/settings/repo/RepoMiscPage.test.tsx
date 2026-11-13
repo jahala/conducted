@@ -189,15 +189,12 @@ describe("SET-07 RepoMiscPage", () => {
 		fireEvent.click(screen.getAllByRole("button", { name: "Move preview URL down" })[0] as Element);
 		await advanceSave();
 
-		expect(updateConfig).toHaveBeenLastCalledWith(
-			repo.id,
-			expect.objectContaining({
-				previewUrls: [
-					{ name: "Preview", url: "https://example.test/preview" },
-					{ name: "Local", url: "http://localhost:$CONDUCTED_PORT" },
-				],
-			}),
-		);
+		expect(updateConfig).toHaveBeenLastCalledWith(repo.id, {
+			previewUrls: [
+				{ name: "Preview", url: "https://example.test/preview" },
+				{ name: "Local", url: "http://localhost:$CONDUCTED_PORT" },
+			],
+		});
 		expect(nameInputs().map((input) => input.value)).toEqual(["Preview", "Local"]);
 
 		fireEvent.click(screen.getByRole("button", { name: "Add preview URL" }));
@@ -207,29 +204,23 @@ describe("SET-07 RepoMiscPage", () => {
 		});
 		await advanceSave();
 
-		expect(updateConfig).toHaveBeenLastCalledWith(
-			repo.id,
-			expect.objectContaining({
-				previewUrls: [
-					{ name: "Preview", url: "https://example.test/preview" },
-					{ name: "Local", url: "http://localhost:$CONDUCTED_PORT" },
-					{ name: "Docs", url: "https://docs.example.test" },
-				],
-			}),
-		);
+		expect(updateConfig).toHaveBeenLastCalledWith(repo.id, {
+			previewUrls: [
+				{ name: "Preview", url: "https://example.test/preview" },
+				{ name: "Local", url: "http://localhost:$CONDUCTED_PORT" },
+				{ name: "Docs", url: "https://docs.example.test" },
+			],
+		});
 
 		fireEvent.click(screen.getAllByRole("button", { name: "Remove preview URL" })[1] as Element);
 		await advanceSave();
 
-		expect(updateConfig).toHaveBeenLastCalledWith(
-			repo.id,
-			expect.objectContaining({
-				previewUrls: [
-					{ name: "Preview", url: "https://example.test/preview" },
-					{ name: "Docs", url: "https://docs.example.test" },
-				],
-			}),
-		);
+		expect(updateConfig).toHaveBeenLastCalledWith(repo.id, {
+			previewUrls: [
+				{ name: "Preview", url: "https://example.test/preview" },
+				{ name: "Docs", url: "https://docs.example.test" },
+			],
+		});
 		expect(nameInputs()).toHaveLength(2);
 	});
 
@@ -265,7 +256,7 @@ describe("SET-07 RepoMiscPage", () => {
 
 		expect(updateConfig).toHaveBeenCalledTimes(1);
 		expect(updateConfig.mock.calls[0]?.[0]).toBe(repo.id);
-		expect(updateConfig.mock.calls[0]?.[1]).toMatchObject({
+		expect(updateConfig.mock.calls[0]?.[1]).toEqual({
 			previewUrls: [{ name: "", url: "http://localhost:$CONDUCTED_PORT" }],
 		});
 	});
@@ -287,15 +278,12 @@ describe("SET-07 RepoMiscPage", () => {
 		});
 		await advanceSave();
 
-		expect(updateConfig).toHaveBeenLastCalledWith(
-			repo.id,
-			expect.objectContaining({
-				previewUrls: [
-					{ name: "App", url: "http://localhost:$CONDUCTED_PORT" },
-					{ name: "Docs", url: "https://example.test/preview" },
-				],
-			}),
-		);
+		expect(updateConfig).toHaveBeenLastCalledWith(repo.id, {
+			previewUrls: [
+				{ name: "App", url: "http://localhost:$CONDUCTED_PORT" },
+				{ name: "Docs", url: "https://example.test/preview" },
+			],
+		});
 	});
 
 	it("does not write an unchanged list", async () => {
@@ -323,7 +311,7 @@ describe("SET-07 RepoMiscPage", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Remove .env" }));
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(updateConfig.mock.calls[0]?.[1]).toMatchObject({ copyFiles: [] });
+		expect(updateConfig.mock.calls[0]?.[1]).toEqual({ copyFiles: [] });
 	});
 
 	it("shows the saved icon and opens the icon picker", async () => {

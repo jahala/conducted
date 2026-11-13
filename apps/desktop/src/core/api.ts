@@ -45,7 +45,7 @@ import type { CloudDeployState } from "./cloud/deploy.ts";
 import type { LocalMcpScan } from "./cloud/mcp-import.ts";
 import type { CloudGitIdentity, CloudSettings } from "./cloud/settings.ts";
 import type { CloudWorkspaceResources } from "./cloud/state.ts";
-import type { CloudMcpServer } from "./cloud-mcp.ts";
+import type { CloudMcpConnectStatus, CloudMcpOAuthView, CloudMcpServer } from "./cloud-mcp.ts";
 import type { ImportPreview } from "./conductor-import/plan.ts";
 import type { ConductorImportState, ImportOutcome } from "./conductor-import/service.ts";
 import type { FileSyncView } from "./file-sync-view.ts";
@@ -78,6 +78,7 @@ import type {
 	PullRequestSummary,
 	Repo,
 	RepoConfig,
+	RepoConfigPatch,
 	RepoIconChoice,
 	RepoNameCheck,
 	RunAction,
@@ -446,6 +447,11 @@ export interface Queries {
 	useCloudReadiness(url: string | null): Loadable<CloudReadiness>;
 	/** The Mac's personal cloud settings, for the Git and Cloud pages (CLOUD-17). */
 	useCloudSettings(): Loadable<{ settings: CloudSettings; paired: boolean }>;
+	/**
+	 * The cloud MCP servers' OAuth side, for the MCP page and the re-auth notice (CLOUD-17): the
+	 * Worker's callback URL and each OAuth server's credential. Read when a paired Mac mounts it.
+	 */
+	useCloudMcpOAuth(): Loadable<CloudMcpOAuthView>;
 	/** A cloud workspace's file-sync state, for the scripts panel (CLOUD-11). */
 	useFileSyncStatus(workspaceId: WorkspaceId): FileSyncView;
 	/** The terminals of a repository's main clone (the repository terminal and its earlier runs). */
@@ -479,8 +485,11 @@ export interface Actions {
 		setDefaultBranch: Act<[repoId: RepoId, branch: string]>;
 		/** Saves the sidebar's project order by drag (NAV-04). */
 		reorder: Act<[orderedIds: RepoId[]]>;
-		/** `overwrite` saves over an invalid local settings file, Conductor's "Overwrite file". */
-		updateConfig: Act<[repoId: RepoId, config: RepoConfig, options?: { overwrite?: boolean }]>;
+		/**
+		 * Saves the fields the patch names into the local file, leaving every other field alone.
+		 * `overwrite` saves over an invalid local settings file, Conductor's "Overwrite file".
+		 */
+		updateConfig: Act<[repoId: RepoId, patch: RepoConfigPatch, options?: { overwrite?: boolean }]>;
 		/** The gitignored files a new workspace would copy, for the Misc page's preview (SET-07). */
 		copyPreview: Act<[repoId: RepoId], string[]>;
 		setIcon: Act<[repoId: RepoId, icon: RepoIconChoice]>;
@@ -879,6 +888,18 @@ export interface Actions {
 		importMcpServers: Act<[servers: Record<string, CloudMcpServer>], CloudSettings>;
 		/** Scans this Mac's agent configs for remote MCP servers to import (CLOUD-17). */
 		scanLocalMcpServers: Act<[], LocalMcpScan>;
+		/** Reads the OAuth servers' credentials and the callback URL again (CLOUD-17). */
+		loadMcpOAuth: Act<[], CloudMcpOAuthView>;
+		/** Starts an OAuth server's sign-in: the URL to open and the state to watch (CLOUD-17). */
+		connectMcpServer: Act<[name: string], { authorizationUrl: string; state: string }>;
+		/** Where a sign-in stands (CLOUD-17). */
+		mcpConnectStatus: Act<[name: string, state: string], CloudMcpConnectStatus>;
+		/** Stops waiting for a sign-in; false when it had already finished (CLOUD-17). */
+		cancelMcpConnect: Act<[name: string, state: string], boolean>;
+		/** Forgets an OAuth server's tokens (CLOUD-17). */
+		disconnectMcpServer: Act<[name: string], CloudMcpOAuthView>;
+		/** Whether a server needs OAuth, for an import (CLOUD-17). */
+		detectMcpAuth: Act<[url: string], "oauth" | "none">;
 	};
 	portForwards: {
 		/** The workspace's Start forwarding switch (Cmd+Y). Exclusive mode turns others off first. */
