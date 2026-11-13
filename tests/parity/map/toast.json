@@ -52,20 +52,20 @@
 		"owner": "rule:quote"
 	},
 	"toast:M2099774": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-03",
-		"item": "Conductor shows \"Failed to add comment to chat\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "comment-tab-add-to-chat-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:M2100103": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-03",
-		"item": "Conductor shows \"Failed to save comment\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "comment-tab-save-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:M3139338": {
 		"status": "decided",
@@ -236,12 +236,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R675642": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "CHAT-29",
-		"item": "A chat image has a menu with \"Save image\": a save dialog, then \"Image saved\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-attachment-saved",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R677318": {
 		"status": "matched",
@@ -252,12 +252,12 @@
 		"by": "seed"
 	},
 	"toast:R677447": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "CHAT-29",
-		"item": "A chat image has a menu with \"Copy image\": shows \"Copied image to clipboard\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-attachment-copy-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R1714656": {
 		"status": "gap",
@@ -402,12 +402,12 @@
 		"by": "hand"
 	},
 	"toast:R3020329": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "COMP-07",
-		"item": "Dropping a folder into the composer is refused with \"Folders can't be uploaded\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "composer-attach-folder",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R3992715": {
 		"status": "gap",
@@ -652,20 +652,20 @@
 		"by": "seed"
 	},
 	"toast:R8730441": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-29",
-		"item": "A chat image has a menu with \"Save image\": a save dialog, then \"Image saved\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-attachment-save-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R8889053": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "COMP-02",
-		"item": "Conductor shows \"FYI: When you switch effort mid-chat with Claude, your next response will be slower and use more tokens.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "composer-effort-switch-mid-chat",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div > div",
+		"by": "seed"
 	},
 	"toast:R8889231": {
 		"status": "matched",
@@ -778,12 +778,12 @@
 		"by": "seed"
 	},
 	"toast:R9300528": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "SET-05",
-		"item": "Conductor shows \"Configuration refreshed.\" (message, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "composer-mcp-refreshed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R9300822": {
 		"status": "matched",
@@ -1148,12 +1148,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R10925387": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: Agents",
-		"backlog": "SET-03",
-		"item": "The Codex device-code login shows a verification code that can be copied: \"Copied Codex verification code.\"",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-codex-code-copied",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div > div",
+		"by": "seed"
 	},
 	"toast:R10925446": {
 		"status": "gap",
@@ -1578,12 +1578,12 @@
 		"by": "hand"
 	},
 	"toast:R11583093": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-03",
-		"item": "The Agents page asks for all required Bedrock fields: \"Enter all required Bedrock fields.\"",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-agents-bedrock-missing",
+		"via": "text",
+		"role": "alert",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(2) > p",
+		"by": "seed"
 	},
 	"toast:R11608299": {
 		"status": "decided",
@@ -1742,12 +1742,12 @@
 		"by": "seed"
 	},
 	"toast:R11647565": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "SET-02",
-		"item": "Conductor shows \"GitHub isn't connected yet. Finish the sign-in and try again.\" (toast, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-account-github-not-yet",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R11652358": {
 		"status": "gap",

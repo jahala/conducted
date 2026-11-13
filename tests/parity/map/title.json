@@ -3288,20 +3288,20 @@
 		"by": "seed"
 	},
 	"title:R11415905": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-08",
-		"item": "Sync dialog has three categories: 'MCP servers', 'Slash commands', 'Skills'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-sync-agent-configs",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > fieldset > label:nth-of-type(2)",
+		"by": "seed"
 	},
 	"title:R11416042": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "COMP-06",
-		"item": "'/' lists built-in commands, project commands and a 'Skills' group",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-sync-agent-configs",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > fieldset > label:nth-of-type(3)",
+		"by": "seed"
 	},
 	"title:R11425962": {
 		"status": "gap",

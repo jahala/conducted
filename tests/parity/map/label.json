@@ -1034,12 +1034,12 @@
 		"by": "hand"
 	},
 	"label:M3072009": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-02",
-		"item": "'Start spotlight' in the Run tab",
-		"owner": "hand"
+		"status": "matched",
+		"state": "run-spotlight",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > button:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"label:M3099042": {
 		"status": "matched",
@@ -2032,10 +2032,10 @@
 	},
 	"label:R8853060": {
 		"status": "matched",
-		"state": "settings-agents",
+		"state": "chat-context-account",
 		"via": "text",
-		"role": "th",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(2) > table > tbody > tr:nth-of-type(3) > th",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > ul > li:nth-of-type(3) > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"label:R8853292": {
@@ -2048,19 +2048,19 @@
 	},
 	"label:R8853353": {
 		"status": "matched",
-		"state": "settings-git",
-		"via": "placeholder",
-		"role": "textbox",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(2) > input:nth-of-type(2)",
+		"state": "chat-context-account",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > ul > li:nth-of-type(4) > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"label:R8853853": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-28",
-		"item": "Usage popover lists account rows: login method, organization, email, plan, and Codex limits",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-context-account",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > ul > li:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R8857286": {
 		"status": "matched",
@@ -2227,12 +2227,12 @@
 		"by": "seed"
 	},
 	"label:R9278910": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "COMP-06",
-		"item": "'/' lists built-in commands, project commands and a 'Skills' group",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "settings-sync-agent-configs",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > fieldset > label:nth-of-type(3)",
+		"by": "seed"
 	},
 	"label:R9301900": {
 		"status": "matched",
@@ -2347,12 +2347,12 @@
 		"by": "seed"
 	},
 	"label:R9406669": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-26",
-		"item": "Empty chat shelves 'Add chat transcripts:' and 'Add plans:' with 'New chat in <directory>.'",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "composer-empty-shelves-plans",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div > div:nth-of-type(1) > div > div:nth-of-type(2) > p",
+		"by": "seed"
 	},
 	"label:R9537511": {
 		"status": "matched",

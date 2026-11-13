@@ -158,12 +158,12 @@
 		"owner": "rule:quote"
 	},
 	"aria_label:R4419387": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "RUN-03",
-		"item": "'Open' button and 'Choose preview URL'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "run-preview-urls",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > div > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R4421044": {
 		"status": "matched",
@@ -328,36 +328,36 @@
 		"by": "seed"
 	},
 	"aria_label:R8075890": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "REV-08",
-		"item": "Video preview",
-		"owner": "hand"
+		"status": "matched",
+		"state": "file-video-player",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > section > div > input:nth-of-type(1)",
+		"by": "seed"
 	},
 	"aria_label:R8082977": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-08",
-		"item": "Video preview",
-		"owner": "hand"
+		"status": "matched",
+		"state": "file-video-player",
+		"via": "aria-label",
+		"role": "section",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > section",
+		"by": "seed"
 	},
 	"aria_label:R8085928": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-08",
-		"item": "Video preview",
-		"owner": "hand"
+		"status": "matched",
+		"state": "file-video-player",
+		"via": "aria-label",
+		"role": "combobox",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > section > div > select",
+		"by": "seed"
 	},
 	"aria_label:R8087654": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-08",
-		"item": "Video preview",
-		"owner": "hand"
+		"status": "matched",
+		"state": "file-video-player",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > section > div > input:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R8147878": {
 		"status": "matched",
@@ -448,12 +448,12 @@
 		"by": "seed"
 	},
 	"aria_label:R9226139": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "COMP-02",
-		"item": "'Opens in new chat' when switching agent in a started chat, with mid-chat switch warnings",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-agent-switch-mid-chat",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"aria_label:R9227258": {
 		"status": "matched",
@@ -593,10 +593,10 @@
 	},
 	"aria_label:R9643573": {
 		"status": "matched",
-		"state": "file-svg-preview",
+		"state": "git-diff-binary",
 		"via": "aria-label",
 		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > fieldset > button:nth-of-type(3)",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > fieldset > button:nth-of-type(5)",
 		"by": "seed"
 	},
 	"aria_label:R9734762": {
