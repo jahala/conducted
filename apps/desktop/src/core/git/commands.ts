@@ -441,6 +441,9 @@ export const sparseCheckoutDisable = (): GitCommand => git(["sparse-checkout", "
 /** The top-level folders of the checked-out commit, the choices a cone-mode sparse checkout has. */
 export const lsTreeTopLevelDirectories = (): GitCommand =>
 	git(["ls-tree", "-d", "--name-only", "HEAD"]);
+/** The folders directly inside `parent` at HEAD, by their paths from the repository root. */
+export const lsTreeSubdirectories = (parent: string): GitCommand =>
+	git(["ls-tree", "-d", "--name-only", "HEAD", "--", `${parent.replace(/\/+$/, "")}/`]);
 
 // ---------------------------------------------------------------- restoring files (3.11)
 

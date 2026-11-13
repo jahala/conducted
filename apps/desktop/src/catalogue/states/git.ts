@@ -8,7 +8,8 @@
  * a file's right-click menu in All files, a changed file's discard confirm, the Rename workspace dialog, the toast
  * after Copy link, the question before archiving a workspace whose agent works, the toast when
  * Archive workspace finds no workspace open, the Artifacts tab
- * with one file, and the All files tab holding every kind in Conductor's brand file icon table, in
+ * with one file, the working directories picker (and while git lists the folders), and the All
+ * files tab holding every kind in Conductor's brand file icon table, in
  * parts.
  * Behaviour: ui-map.md 3.6 (Git panel), 3.4 (diff view), 3.7.x (pull request header); core/status/
  * git-header.ts decides the header state and its main action.
@@ -131,7 +132,57 @@ const kindsState = (names: readonly string[], part: number): CatalogueState => (
 	}),
 });
 
+/**
+ * arbor's All files tab with the working directories picker open. Git lists arbor's folders, with
+ * sparse checkout off; `hold` keeps the listing running.
+ */
+const workingDirectoriesState = (
+	id: string,
+	title: string,
+	text: string,
+	hold: boolean,
+): CatalogueState => ({
+	id,
+	group: "Git panel",
+	title,
+	seed: async (world) => {
+		const scene = await arborScene({
+			after: async ({ document }) => {
+				await click(document, "button,[role=tab]", "All files");
+				await click(document, "button", "Select working directories");
+			},
+			ready: (document) => shows(document, text),
+		})(world);
+		world.scriptShell((command) => {
+			if (command.program !== "git") return null;
+			const args = command.args[0] === "-c" ? command.args.slice(2) : command.args;
+			if (args[0] === "config" && args.at(-1) === "core.sparseCheckout") {
+				return { ok: true, value: { stdout: "", stderr: "", exitCode: 1 } };
+			}
+			if (args[0] !== "ls-tree" || args[1] !== "-d") return null;
+			if (hold) return new Promise(() => {});
+			return {
+				ok: true,
+				value: { stdout: "docs\npublic\nscripts\nsrc\ntests\n", stderr: "", exitCode: 0 },
+			};
+		});
+		return scene;
+	},
+});
+
 export const GIT_STATES: CatalogueState[] = [
+	workingDirectoriesState(
+		"git-working-directories",
+		"All files tab, the Select working directories picker",
+		"Working directories",
+		false,
+	),
+	workingDirectoriesState(
+		"git-working-directories-loading",
+		"All files tab, the working directories picker while git lists the folders",
+		"Loading directories...",
+		true,
+	),
 	{
 		id: "git-changes",
 		group: "Git panel",

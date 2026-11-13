@@ -634,6 +634,8 @@ export interface Actions {
 		sparseCheckoutSettings: Act<[workspaceId: WorkspaceId], SparseCheckoutSettings>;
 		/** Includes only these directories in the worktree. An empty list turns sparse checkout off. */
 		setSparseCheckoutDirectories: Act<[workspaceId: WorkspaceId, directories: string[]]>;
+		/** The folders directly inside a folder at HEAD, for a nested path typed in the picker. */
+		sparseCheckoutSubdirectories: Act<[workspaceId: WorkspaceId, parent: string], string[]>;
 	};
 	pullRequests: {
 		/** Asks the agent to open the PR, with written instructions; `draft` asks for a draft PR. */
