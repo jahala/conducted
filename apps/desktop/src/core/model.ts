@@ -90,6 +90,14 @@ export interface PreviewUrlEntry {
 	url: string;
 }
 
+/** What a new workspace of a repository would copy, for the Misc page's Files to copy preview. */
+export interface CopyPreview {
+	/** The gitignored files the patterns match. */
+	paths: string[];
+	/** The patterns of the repository's `.worktreeinclude`, which replace the setting; null without one. */
+	worktreeInclude: string[] | null;
+}
+
 /** Per-repo configuration from `.conducted/settings.toml` (shared) merged with local settings. */
 export interface RepoConfig {
 	setupScript: string | null;

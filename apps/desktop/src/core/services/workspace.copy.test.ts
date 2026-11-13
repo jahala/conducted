@@ -13,7 +13,7 @@ import { appError, err, ok, type RepoId, type Result, type WorkspaceId } from "@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ShellOutput } from "../../platform/platform.ts";
 import type { GitRunner } from "../git/runner.ts";
-import type { Repo, Workspace } from "../model.ts";
+import type { Repo, RepoConfig, Workspace } from "../model.ts";
 import {
 	COPY_FILE_SIZE_LIMIT,
 	type CopyIncludedFilesDeps,
@@ -252,6 +252,31 @@ describe("WS-03 copyIncludedFiles on real files", () => {
 		if (!result.ok) return;
 		expect(result.value).toContain("Couldn't read the repository's file list: The file is broken.");
 		expect(await fsAdapter.exists(join(workspacePath, ".env"))).toEqual(ok(true));
+	});
+
+	it("copies only .worktreeinclude's paths when the repository has one, as Conductor does", async () => {
+		const repoRoot = join(root, "repo");
+		const workspacePath = join(root, "worktree");
+		await mkdir(repoRoot, { recursive: true });
+		await mkdir(workspacePath, { recursive: true });
+		await writeFile(join(repoRoot, ".worktreeinclude"), "from-file.txt\n");
+		await writeFile(join(repoRoot, "from-file.txt"), "file\n");
+		await writeFile(join(repoRoot, "from-settings.txt"), "settings\n");
+
+		const result = await copyIncludedFiles(
+			{
+				fs: fsAdapter,
+				shell,
+				git: gitListing("from-file.txt\0from-settings.txt\0"),
+				repoConfig: async () => ok({ copyFiles: ["from-settings.txt"] } as RepoConfig),
+			},
+			repo(repoRoot),
+			workspace(workspacePath),
+		);
+
+		expect(result.ok).toBe(true);
+		expect(await fsAdapter.exists(join(workspacePath, "from-file.txt"))).toEqual(ok(true));
+		expect(await fsAdapter.exists(join(workspacePath, "from-settings.txt"))).toEqual(ok(false));
 	});
 
 	it("warns when .worktreeinclude cannot be read", async () => {

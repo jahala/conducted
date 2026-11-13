@@ -14,8 +14,9 @@
  * for the listed apps and the default one (shared with the file tab's "Open in another app").
  * Children: OpenInButton, OpenInItem; open-in-apps.ts for the catalog and ordering.
  * Must handle: the installed-apps list loading or failing (Finder alone still works), no editor
- * installed (only Finder), the default app having been uninstalled (falls back to the first
- * available, visibly), an open that fails (the Conductor toast title), an archived workspace
+ * installed (only Finder), a cloud workspace with none of its three editors ("No apps available"), the default app having been uninstalled (falls back to the first
+ * available, visibly), an open that fails (the Conductor toast title), an open pressed before the
+ * workspace has loaded ("Workspace is still loading, try again"), an archived workspace
  * (menu disabled with the reason), Cmd+O when no default is set (opens the menu), and a copy that
  * fails (a toast).
  * Test first: with Cursor and Finder installed and Cursor last used, the button label is Cursor
@@ -56,17 +57,20 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 	const { storedDefault, listFailed } = all;
 
 	const archived = workspace.state === "ready" && isArchivedWorkspace(workspace.data);
+	// A workspace that is still loading keeps the control live; pressing it says so, as Conductor's does.
 	const disabledReason =
-		workspace.state === "loading"
-			? "Loading the workspace."
-			: workspace.state === "error"
-				? workspace.error.message
-				: archived
-					? "This workspace is archived."
-					: null;
+		workspace.state === "error"
+			? workspace.error.message
+			: archived
+				? "This workspace is archived."
+				: null;
 
 	const open = useCallback(
 		(app: OpenInApp): Promise<void> => {
+			if (workspace.state === "loading") {
+				toast.error("Workspace is still loading, try again");
+				return Promise.resolve();
+			}
 			if (workspace.state !== "ready" || isArchivedWorkspace(workspace.data)) {
 				return Promise.resolve();
 			}
@@ -199,6 +203,11 @@ export function OpenInMenuContent({
 }) {
 	return (
 		<MenuContent align="end" aria-label="Open in">
+			{apps.length === 0 ? (
+				// Conductor's line for an empty list (wWn, renderApp @2501184), as on a cloud workspace
+				// with none of the three remote editors installed.
+				<p className="p-2 text-sm text-fg-muted">No apps available</p>
+			) : null}
 			{apps.map((app) => (
 				<OpenInItem
 					key={app.appName}

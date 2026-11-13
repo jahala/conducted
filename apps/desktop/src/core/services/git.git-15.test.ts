@@ -185,4 +185,28 @@ describe("GIT-15 sparse checkout settings", () => {
 		expect(result.ok).toBe(false);
 		expect(h.runner.commands).toEqual([]);
 	});
+
+	it("lists the folders inside a folder, for a nested path typed in the picker", async () => {
+		const h = harness((command) =>
+			command.args[0] === "ls-tree"
+				? ok(output("apps/docs\napps/web\n"))
+				: err(appError("git_unscripted", `unexpected command: ${command.args.join(" ")}`)),
+		);
+
+		const listed = await h.service.sparseCheckoutSubdirectories(workspaceId, "apps");
+
+		expect(listed).toEqual(ok(["apps/docs", "apps/web"]));
+		expect(h.runner.commands.map((command) => command.args)).toEqual([
+			["ls-tree", "-d", "--name-only", "HEAD", "--", "apps/"],
+		]);
+	});
+
+	it("refuses to list a folder outside the workspace", async () => {
+		const h = harness(sparseAnswer({ enabled: true }));
+
+		const listed = await h.service.sparseCheckoutSubdirectories(workspaceId, "../outside");
+
+		expect(listed.ok).toBe(false);
+		expect(h.runner.commands).toEqual([]);
+	});
 });

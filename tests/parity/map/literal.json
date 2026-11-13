@@ -456,7 +456,7 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "tab",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(5)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > button:nth-of-type(5)",
 		"by": "seed"
 	},
 	"literal:M347948": {
@@ -526,12 +526,12 @@
 		"by": "hand"
 	},
 	"literal:M1077722": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-01",
-		"item": "push.autoSetupRemote is set per worktree.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "new-workspace-section-gone",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li:nth-of-type(2) > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"literal:M1086777": {
 		"status": "gap",
@@ -750,7 +750,7 @@
 	"literal:M3736277": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced",
+		"screen": "ui-map 5.4 Keyboard shortcuts",
 		"backlog": "WS-03",
 		"item": "Conductor shows \"Couldn't fetch remote updates. Creating the workspace from the latest local revision.\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
 		"owner": "rule:cite"
@@ -1257,7 +1257,7 @@
 	},
 	"literal:R2644212": {
 		"status": "matched",
-		"state": "create-github-repo",
+		"state": "new-workspace-section-gone",
 		"via": "text",
 		"role": "heading",
 		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section > h2",
@@ -1838,12 +1838,12 @@
 		"by": "rule:key-name"
 	},
 	"literal:R8684721": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RC-02",
-		"item": "A per-chat Remote Control switch shows connection status.",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-mcp",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(3) > div > div:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"literal:R8718221": {
 		"status": "matched",
@@ -2232,7 +2232,7 @@
 		"state": "chat-retrying",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(5) > div > div:nth-of-type(2) > button:nth-of-type(2) > span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div:nth-of-type(2) > div > div:nth-of-type(5) > div > div:nth-of-type(2) > button:nth-of-type(2) > span",
 		"by": "seed"
 	},
 	"literal:R9559666": {
@@ -2455,7 +2455,7 @@
 	},
 	"literal:R10228473": {
 		"status": "matched",
-		"state": "git-checks-mixed",
+		"state": "sidebar-status-matrix",
 		"via": "aria-label",
 		"role": "img",
 		"selector": "[data-testid=\"workspace-leading-visual\"] > span",
@@ -2518,14 +2518,11 @@
 		"by": "seed"
 	},
 	"literal:R10495167": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"note": "Checked by hand: the wording differs. Ours reads \"Add project\" (text) in command-palette.",
+		"status": "matched",
+		"state": "sidebar-view-options",
+		"via": "text",
 		"by": "hand",
-		"backlog": "PRJ-01",
-		"item": "Sidebar footer 'Add project...' button and menu",
-		"owner": "rule:quote"
+		"note": "The My workspaces header menu's last item (ViewOptionsMenu), as Conductor's list header menu ends."
 	},
 	"literal:R10574968": {
 		"status": "matched",
@@ -2583,10 +2580,10 @@
 	},
 	"literal:R11285199": {
 		"status": "matched",
-		"state": "settings-repo-icon-favicon",
+		"state": "settings-repo-icon-site-favicon",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > div > button > span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > button > span",
 		"by": "seed"
 	},
 	"literal:R11342763": {
