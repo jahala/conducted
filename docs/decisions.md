@@ -1311,3 +1311,13 @@ Measured after, on the same chat: a streamed event with every turn loaded alloca
 Not covered: the store still copies the whole list of loaded rows for each event, and the list of turns and the outline are new lists of 22,300 entries after each change, so time and garbage still grow with the loaded turns, at a few MB. The hold was not shown to work in a browser: in Chromium the list loads every older turn while a long chat opens, so no gap is left to fill, and loading them one at a time made the list jump (issue #689). The same kind of jump shows on the main line's list for a 40-turn chat in about one opening of four.
 
 The tests: `turn-builder.chat-07-size.test.ts` (the bound per streamed event at 22,300 turns), `turn-builder.incremental.test.ts` (updates against fresh builds), `sessions.chat-06-memory.container.test.ts` (the jump's bound), and `sessions.chat-06.container.test.ts` and `MessageList.chat-06.test.tsx` (the gap's behaviour).
+
+## D151. A system notification's words are checked by a test, not a catalogue state (2026-11-13)
+
+Decided in the parity work under the owner's rule "Match Conductor. Nothing made up; gaps are reported", as D134 is for a system dialog's title.
+
+Context: Conductor's notifications say "Agent finished. Click to view session.", "Agent failed. Click to view session.", "Plan ready. Click to review and approve the plan." and "Agent has a question. Click to answer it." (main @3236681, @3236722, @3099729, @3100221). macOS draws a notification outside the page, so no catalogue state can show it, and the parity harness's check b never sees it. Ours passes the same words to `Platform.notifications.notify` (CHAT-19).
+
+Chosen: a parity entry that is the text of a system notification is mapped to D150. Its note names the test that asserts the text the Platform receives, over the real service that sends it. A message the app draws itself, such as a toast, stays a catalogue match.
+
+Why: the words are on screen and must match Conductor's. Only a test can see them, so the decision names the test that holds them.

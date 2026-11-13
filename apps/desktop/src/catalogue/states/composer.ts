@@ -15,15 +15,29 @@
  * COMP-01 (drafts and attachments).
  * Test first: not applicable; the screenshot run opens every state.
  */
+import type { SessionConfig } from "@conducted/protocol";
+import { draftAttachmentsDir } from "../../core/app-paths.ts";
 import type { Session, Workspace } from "../../core/model.ts";
-import { chatRoute, type GitWorld, refreshGit, seedCast } from "../cast.ts";
+import { animateCast, chatRoute, type GitWorld, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, fillIn, find, has, hover, pressUntilTaken, shows, typeInto } from "../dom.ts";
+import {
+	click,
+	clickOn,
+	fillIn,
+	find,
+	findFirst,
+	has,
+	hover,
+	pressUntilTaken,
+	shows,
+	typeInto,
+} from "../dom.ts";
 import { setLiveState } from "../live.ts";
 import { addChat, addEvents, CLAUDE_CONFIG, must, setSetting } from "../seeds.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, DAY, HOUR } from "../time.ts";
-import type { World } from "../world.ts";
+import { HOME, type World } from "../world.ts";
+import { CODEX_CONFIG } from "./goals.ts";
 
 /** The cast, with a new, empty chat open in arbor. */
 async function newChat(
@@ -77,11 +91,20 @@ async function submitSlash(document: Document, text: string): Promise<void> {
 	);
 }
 
-/** arbor's chat with a finished turn whose usage the context wheel can show. */
+/**
+ * arbor's chat with a finished turn whose usage the context wheel can show. With `account`, the agent
+ * reports the account it is signed in with, for the card's account rows.
+ */
 async function contextUsageChat(
 	world: World,
 	holdDetails = false,
-	account?: { provider: string; auth: string },
+	account?: {
+		provider: string;
+		auth?: string;
+		plan?: string;
+		loginMethod?: string;
+		email?: string;
+	},
 ): Promise<Scene> {
 	const cast = await seedCast(world);
 	if (account !== undefined) {
@@ -144,6 +167,99 @@ async function contextNoteChat(world: World, agent: "claude" | "cursor"): Promis
 	};
 }
 
+/** The plan an earlier chat of arbor's proposed, which a new chat offers under "Add plans:". */
+const HEALTH_PLAN = `# Add a health check route
+
+1. Add GET /health to the HTTP router, answering 200 with the build's version.
+2. Leave it outside the auth middleware, so the load balancer can reach it.
+3. Cover both in src/http/health.test.ts.`;
+
+/**
+ * A new chat in arbor whose shelves offer arbor's earlier chat, which proposed HEALTH_PLAN, then
+ * `then`. With `blockAttachments`, a file stands where the new chat's attachments folder must go,
+ * so attaching anything to it fails.
+ */
+const shelvesState = (
+	id: string,
+	title: string,
+	ready: Scene["ready"],
+	then: (context: AfterContext, earlier: Session) => Promise<void>,
+	options: { blockAttachments?: boolean } = {},
+): CatalogueState => ({
+	id,
+	group: "Composer",
+	title,
+	seed: async (world) => {
+		const cast = await seedCast(world);
+		const earlier = await addChat(world, cast.arbor, {
+			title: "Plan the health check",
+			active: false,
+		});
+		const talk = conversation("arbor-plan", CATALOGUE_NOW - 2 * HOUR);
+		const turn = talk.user("Plan a health check route for the load balancer.");
+		talk.tool(turn, {
+			tool: "exit_plan_mode",
+			rawName: "ExitPlanMode",
+			input: { plan: HEALTH_PLAN },
+			output: "The user approved the plan.",
+		});
+		talk.end(turn);
+		await addEvents(world, earlier.id, talk.events);
+		must(await world.repositories.sessions.recordUserMessage(earlier.id, CATALOGUE_NOW - 2 * HOUR));
+		const chat = await addChat(world, cast.arbor, { title: null });
+		if (options.blockAttachments === true) {
+			world.memory.controls.addFile(
+				draftAttachmentsDir(world.memory.platform.fs.paths, chat.id),
+				"",
+			);
+		}
+		return {
+			route: chatRoute(cast.arbor, chat),
+			after: async (context) => {
+				await refreshGit(context.app, cast.arbor);
+				await then(context, earlier);
+			},
+			ready,
+		};
+	},
+});
+
+/**
+ * arbor's started chat with one favourite added, which the user then picks from the model picker.
+ * Changing the agent opens a new chat; changing only the effort warns about the next reply.
+ */
+const midChatSwitch = (
+	id: string,
+	title: string,
+	favourite: { agent: "claude" | "codex"; model: string; effort: SessionConfig["effort"] },
+	row: string,
+	text: string,
+): CatalogueState => ({
+	id,
+	group: "Composer",
+	title,
+	seed: async (world): Promise<Scene> => {
+		const cast = await seedCast(world);
+		must(
+			await world.repositories.sessions.recordUserMessage(
+				cast.chats.arbor.id,
+				CATALOGUE_NOW - HOUR,
+			),
+		);
+		return {
+			route: chatRoute(cast.arbor, cast.chats.arbor),
+			after: async ({ app, document }) => {
+				await refreshGit(app, cast.arbor);
+				must(await app.container.services.favoriteModels.add({ ...favourite, fastMode: false }));
+				await click(document, "button", "Model picker");
+				// The favourite, not the current choice, which can carry the same name.
+				clickOn(await findFirst(document, `button[aria-label="${row}"]:not([data-selected])`));
+			},
+			ready: (document) => shows(document, text),
+		};
+	},
+});
+
 export const COMPOSER_STATES: CatalogueState[] = [
 	{
 		id: "chat-context-unknown",
@@ -169,6 +285,19 @@ export const COMPOSER_STATES: CatalogueState[] = [
 		title:
 			"The context usage card of a chat that signs in with an API key: its Provider and Auth rows",
 		seed: (world) => contextUsageChat(world, false, { provider: "Anthropic API", auth: "API key" }),
+	},
+	{
+		id: "chat-context-account",
+		group: "Composer",
+		title:
+			"The context usage card of a chat signed in with a Claude plan: its Plan and Login method rows",
+		seed: (world) =>
+			contextUsageChat(world, false, {
+				provider: "Anthropic API",
+				plan: "Max",
+				loginMethod: "Claude account",
+				email: "sam@example.com",
+			}),
 	},
 	{
 		id: "chat-context-loading",
@@ -697,6 +826,160 @@ export const COMPOSER_STATES: CatalogueState[] = [
 				},
 				ready: (document) => shows(document, "This command isn't available in this workspace."),
 			};
+		},
+	},
+	shelvesState(
+		"composer-empty-shelves-plans",
+		"A new chat offering an earlier chat and the plan it proposed as context",
+		(document) => shows(document, "Add plans:"),
+		async () => {},
+	),
+	shelvesState(
+		"composer-shelf-plan-failed",
+		"A new chat whose plan from the shelf cannot be attached",
+		(document) => shows(document, "Failed to attach plan"),
+		({ document }) => click(document, "button", "Add a health check route"),
+		{ blockAttachments: true },
+	),
+	shelvesState(
+		"composer-shelf-transcript-failed",
+		"A new chat whose earlier chat's transcript cannot be attached",
+		(document) => shows(document, "Failed to attach chat transcript"),
+		({ document }, earlier) => click(document, "button", earlier.title ?? "chat"),
+		{ blockAttachments: true },
+	),
+	{
+		id: "composer-shelf-transcript-empty",
+		group: "Composer",
+		title: "A new chat offering an earlier chat whose messages are gone",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			// The chat is marked as having had the user's message, but holds no messages to attach.
+			const emptied = await addChat(world, cast.arbor, {
+				title: "Try the staging build",
+				active: false,
+			});
+			must(await world.repositories.sessions.recordUserMessage(emptied.id, CATALOGUE_NOW - HOUR));
+			const chat = await addChat(world, cast.arbor, { title: null });
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await click(document, "button", "Try the staging build");
+				},
+				ready: (document) => shows(document, "No messages in this chat"),
+			};
+		},
+	},
+	{
+		id: "composer-terminal-output-none",
+		group: "Composer",
+		title: "The @ menu's terminal output chosen in a workspace whose terminals show nothing yet",
+		seed: (world) =>
+			newChat(
+				world,
+				async ({ document }) => {
+					await typeInComposer(document, "@");
+					await click(document, "[role=option]", "Attach current terminal output");
+				},
+				(document) => shows(document, "No terminal output available for this workspace"),
+			),
+	},
+	{
+		id: "composer-dictation-recording",
+		group: "Composer",
+		title: "Voice mode on, dictation recording into a new chat's composer",
+		seed: async (world) => {
+			await setSetting(world, "voice_mode", true);
+			return newChat(
+				world,
+				({ document }) => click(document, "button", "Start dictation", { prefix: true }),
+				(document) => has(document, "button", "Stop recording"),
+			);
+		},
+	},
+	{
+		id: "composer-queue-message",
+		group: "Composer",
+		title: "A working chat set to queue follow-ups, with a follow-up typed: Queue message",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			await setSetting(world, "default_message_send_mode", "queue");
+			return {
+				route: chatRoute(cast.beacon, cast.chats.beacon),
+				after: async ({ app, document }) => {
+					await animateCast(world, cast, app);
+					await refreshGit(app, cast.beacon);
+					await typeInComposer(document, "Then add the header to the docs.");
+				},
+				ready: (document) => has(document, "button", "Queue message"),
+			};
+		},
+	},
+	{
+		id: "composer-mcp-refreshed",
+		group: "Composer",
+		title: "/mcp run in the composer's terminal and marked done: the configuration refreshed",
+		seed: (world) => {
+			world.memory.controls.holdNextPty();
+			return newChat(
+				world,
+				async ({ document }) => {
+					await submitSlash(document, "/mcp");
+					await find(document, "p, span, div", "Complete /mcp below, then click done");
+					await click(document, "button", "Done");
+				},
+				(document) => shows(document, "Configuration refreshed."),
+			);
+		},
+	},
+	midChatSwitch(
+		"composer-agent-switch-mid-chat",
+		"Choosing Codex in a chat Claude started: it opens in a new chat",
+		{ agent: "codex", model: "gpt-5.5", effort: "high" },
+		"Select Codex · gpt-5.5",
+		"Opens in new chat",
+	),
+	midChatSwitch(
+		"composer-effort-switch-mid-chat",
+		"Lowering Claude's effort in a chat that has started: the toast about the next reply",
+		{ agent: "claude", model: "default", effort: "low" },
+		"Select Claude Code · default",
+		"FYI: When you switch effort mid-chat with Claude",
+	),
+	{
+		id: "composer-goal-mode",
+		group: "Composer",
+		title: "A new Codex chat after /goal: the composer asks for the goal",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			const chat = await addChat(world, cast.arbor, { title: null, config: CODEX_CONFIG });
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await submitSlash(document, "/goal");
+				},
+				ready: (document) => shows(document, "Set a goal"),
+			};
+		},
+	},
+	{
+		id: "composer-attach-folder",
+		group: "Composer",
+		title: "A folder picked as an attachment from the + menu, which the composer refuses",
+		seed: (world) => {
+			const folder = `${HOME}/Desktop/designs`;
+			world.memory.controls.addFolder(folder);
+			world.memory.controls.queueDialogAnswers({ files: [folder] });
+			return newChat(
+				world,
+				async ({ document }) => {
+					await click(document, "button", PLUS_MENU);
+					await click(document, "[role=menuitem]", "Add attachment", { prefix: true });
+				},
+				(document) => shows(document, "Folders can't be uploaded"),
+			);
 		},
 	},
 ];

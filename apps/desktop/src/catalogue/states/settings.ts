@@ -25,13 +25,16 @@
  */
 import { agentProviders } from "@conducted/protocol";
 import { type EventId, ok, type TurnId } from "@conducted/shared";
+import type { CloudMcpServer } from "../../core/cloud-mcp.ts";
+import { ENV_VARS_SQL } from "../../core/db/env-vars.ts";
+import { SETTINGS_SQL } from "../../core/db/settings.ts";
 import { chatRoute, seedCast } from "../cast.ts";
 import { type ConductorRows, seedConductorDatabase } from "../conductor-database.ts";
-import { click, fillIn, find, findFirst, has, shows, typeInto } from "../dom.ts";
+import { click, fillIn, find, findField, findFirst, has, shows, typeInto } from "../dom.ts";
 import { scriptGitHub } from "../github.ts";
 import { addRepo, must, setSetting } from "../seeds.ts";
 import { waitFor } from "../settle.ts";
-import type { CatalogueState } from "../state.ts";
+import type { CatalogueState, Scene } from "../state.ts";
 import type { World } from "../world.ts";
 
 const page = (id: string, title: string, page: string, text: string): CatalogueState => ({
@@ -122,6 +125,20 @@ async function openSelect(document: Document, name: string): Promise<void> {
 
 async function choose(document: Document, select: string, option: string): Promise<void> {
 	await openSelect(document, select);
+	await chooseOpenOption(document, option);
+}
+
+/** Chooses `option` in the select whose trigger has the id `id`, for a select named only by its label. */
+async function chooseById(document: Document, id: string, option: string): Promise<void> {
+	const trigger = await findFirst(document, `button#${id}`);
+	trigger.focus();
+	trigger.dispatchEvent(
+		new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+	);
+	await chooseOpenOption(document, option);
+}
+
+async function chooseOpenOption(document: Document, option: string): Promise<void> {
 	const item = await find(document, "[role=option]", option);
 	item.focus();
 	item.dispatchEvent(
@@ -272,6 +289,160 @@ async function seedEnvVar(world: World, name: string, value: string | null): Pro
 	});
 	if (!stored.ok) throw new Error(stored.error.message);
 }
+
+/** Codex installed and signed out on the Agents page, its device-code sign-in started, then `then`. */
+const codexLogin = (
+	id: string,
+	title: string,
+	then: (document: Document) => Promise<void>,
+	ready: (document: Document) => boolean,
+	options: { codeLater?: boolean } = {},
+): CatalogueState => ({
+	id,
+	group: "Settings",
+	title,
+	seed: async (world) => {
+		await seedCast(world);
+		world.answerSidecar({
+			getAgentInstalls: () => ({
+				agents: [
+					{
+						agent: "codex",
+						installed: true,
+						path: "/Users/sam/Library/Application Support/Conducted/bin/codex",
+						source: "managed",
+						version: "0.98.0",
+						authenticated: false,
+					},
+				],
+			}),
+			// Codex can start the sign-in before it has printed its device code.
+			startAgentLogin: () => ({
+				loginId: "catalogue-codex",
+				url: "https://auth.openai.com/codex/device",
+				...(options.codeLater === true ? {} : { userCode: "ABCD-1234" }),
+				verificationUrl: "https://auth.openai.com/codex/device",
+				instructions: "Enter the code on OpenAI's page.",
+			}),
+		});
+		world.holdSidecar("finishAgentLogin");
+		return {
+			route: "/settings/user/agents",
+			after: async ({ document }) => {
+				await click(document, "button", "Run codex login", { prefix: true });
+				await then(document);
+			},
+			ready,
+		};
+	},
+});
+
+/** The cast's paired Worker's MCP servers, by name. */
+const MCP_SERVERS: Readonly<Record<string, CloudMcpServer>> = {
+	context7: { url: "https://mcp.context7.com/mcp", authType: "none" },
+	notion: { url: "https://mcp.notion.com/mcp", authType: "oauth" },
+	sentry: { url: "https://mcp.sentry.dev/mcp", authType: "oauth" },
+	linear: { url: "https://mcp.linear.app/mcp", authType: "oauth" },
+};
+
+/**
+ * The MCP page over the paired Worker's `servers`: linear signed in, sentry needing re-auth, the
+ * others with no credential. Then `then`.
+ */
+async function mcpScene(
+	world: World,
+	servers: Readonly<Record<string, CloudMcpServer>>,
+	then: (document: Document) => Promise<void>,
+	ready: Scene["ready"],
+): Promise<Scene> {
+	await seedCast(world);
+	await setSetting(world, "active_organization", "cloud");
+	const settings = { gitIdentity: null, envVars: {}, mcpServers: servers };
+	world.memory.controls.scriptCloud((request) => {
+		if (request.path === "/settings" && request.method === "GET") {
+			return ok({ status: 200, body: JSON.stringify(settings) });
+		}
+		if (request.path === "/mcp-oauth") {
+			return ok({
+				status: 200,
+				body: JSON.stringify({
+					callbackUrl: "https://conducted-cloud.example.workers.dev/mcp-oauth/callback",
+					servers: {
+						linear: { status: "active" },
+						sentry: {
+							status: "needs_reauth",
+							statusDetail: "The refresh token is not valid.",
+						},
+					},
+				}),
+			});
+		}
+		return null;
+	});
+	return {
+		route: "/settings/user/mcp",
+		after: async ({ document }) => {
+			await find(document, "button", "Add MCP server");
+			await then(document);
+		},
+		ready,
+	};
+}
+
+/** The MCP page's Add MCP server dialog, filled by `fill`, then saved: the dialog says what is wrong. */
+const mcpAddRefused = (
+	id: string,
+	title: string,
+	fill: (document: Document) => Promise<void>,
+	message: string,
+): CatalogueState => ({
+	id,
+	group: "Settings",
+	title,
+	seed: (world) =>
+		mcpScene(
+			world,
+			MCP_SERVERS,
+			async (document) => {
+				await click(document, "button", "Add MCP server");
+				fillIn(await findField(document, "input#mcp-server-name"), "docs");
+				await fill(document);
+				await click(document, "[role=dialog] button", "Save", { prefix: true });
+			},
+			(document) => shows(document, message),
+		),
+});
+
+/** Opens the Edit dialog of the server shown as `shown` from its row's actions menu. */
+async function editMcpServer(document: Document, shown: string): Promise<void> {
+	await click(document, "button", `${shown} actions`);
+	await click(document, "[role=menuitem]", "Edit");
+}
+
+/** The Environment page with ANTHROPIC_API_KEY set and its Add environment variable panel open. */
+const envAddPanel = (
+	id: string,
+	title: string,
+	then: (document: Document, world: World) => Promise<void>,
+	text: string,
+): CatalogueState => ({
+	id,
+	group: "Settings",
+	title,
+	seed: async (world) => {
+		await seedCast(world);
+		await seedEnvVar(world, "ANTHROPIC_API_KEY", "sk-ant-example");
+		return {
+			route: "/settings/user/environment",
+			after: async ({ document, world: shown }) => {
+				await click(document, "button", "Add environment variable");
+				await findField(document, "input#env-add-name");
+				await then(document, shown);
+			},
+			ready: (document) => shows(document, text),
+		};
+	},
+});
 
 export const SETTINGS_STATES: CatalogueState[] = [
 	page("settings-general", "General", "general", "General"),
@@ -605,9 +776,10 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				route: "/settings/user/agents",
 				after: async ({ document }) => {
 					await openProviders(document, null);
-					const field = await findFirst(document, '[role=dialog] input[type="password"]');
-					if (!(field instanceof HTMLInputElement)) throw new Error("No token field.");
-					fillIn(field, "sk-ant-oat01-sample-token");
+					fillIn(
+						await findField(document, '[role=dialog] input[type="password"]'),
+						"sk-ant-oat01-sample-token",
+					);
 					await click(document, "button", "Save", { prefix: true });
 				},
 				ready: (document) =>
@@ -948,45 +1120,13 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		id: "settings-mcp",
 		group: "Settings",
 		title: "MCP: the paired Worker's servers, connected, needing re-auth, disconnected and keyless",
-		seed: async (world) => {
-			await seedCast(world);
-			await setSetting(world, "active_organization", "cloud");
-			const settings = {
-				gitIdentity: null,
-				envVars: {},
-				mcpServers: {
-					context7: { url: "https://mcp.context7.com/mcp", authType: "none" },
-					notion: { url: "https://mcp.notion.com/mcp", authType: "oauth" },
-					sentry: { url: "https://mcp.sentry.dev/mcp", authType: "oauth" },
-					linear: { url: "https://mcp.linear.app/mcp", authType: "oauth" },
-				},
-			};
-			world.memory.controls.scriptCloud((request) => {
-				if (request.path === "/settings" && request.method === "GET") {
-					return ok({ status: 200, body: JSON.stringify(settings) });
-				}
-				if (request.path === "/mcp-oauth") {
-					return ok({
-						status: 200,
-						body: JSON.stringify({
-							callbackUrl: "https://conducted-cloud.example.workers.dev/mcp-oauth/callback",
-							servers: {
-								linear: { status: "active" },
-								sentry: {
-									status: "needs_reauth",
-									statusDetail: "The refresh token is not valid.",
-								},
-							},
-						}),
-					});
-				}
-				return null;
-			});
-			return {
-				route: "/settings/user/mcp",
-				ready: (document) => shows(document, "Needs re-auth"),
-			};
-		},
+		seed: (world) =>
+			mcpScene(
+				world,
+				MCP_SERVERS,
+				async () => {},
+				(document) => shows(document, "Needs re-auth"),
+			),
 	},
 	page("settings-environment", "Environment", "environment", "Environment"),
 	page("settings-remote-control", "Remote control", "remote-control", "Remote control"),
@@ -1595,6 +1735,515 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				route: "/settings/user/general",
 				after: ({ document }) => click(document, "button", "Review import"),
 				ready: (document) => shows(document, "There is not enough free disk space"),
+			};
+		},
+	},
+	{
+		id: "settings-reset-failed",
+		group: "Settings",
+		title: "General, a changed setting's Reset that the database refuses",
+		seed: async (world) => {
+			await seedCast(world);
+			await setSetting(world, "default_message_send_mode", "queue");
+			return {
+				route: "/settings/user/general",
+				after: async ({ document, world: shown }) => {
+					shown.failStatement(SETTINGS_SQL.delete);
+					await click(document, "button", "Setting actions");
+					await click(document, "[role=menuitem]", "Reset");
+				},
+				ready: (document) => shows(document, "Failed to reset setting"),
+			};
+		},
+	},
+	{
+		id: "settings-send-key-update-failed",
+		group: "Settings",
+		title: "General, a change of the send key that the database refuses",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/general",
+				after: async ({ document, world: shown }) => {
+					shown.failStatement(SETTINGS_SQL.upsert);
+					await choose(document, "Send messages with", "⌘ Enter");
+				},
+				ready: (document) => shows(document, "Failed to update message send key"),
+			};
+		},
+	},
+	{
+		id: "settings-send-key-reset-failed",
+		group: "Settings",
+		title: "General, a Reset of the send key that the database refuses",
+		seed: async (world) => {
+			await seedCast(world);
+			await setSetting(world, "message_send_key", "cmd-enter");
+			return {
+				route: "/settings/user/general",
+				after: async ({ document, world: shown }) => {
+					shown.failStatement(SETTINGS_SQL.upsert);
+					await click(document, "button", "Setting actions");
+					await click(document, "[role=menuitem]", "Reset");
+				},
+				ready: (document) => shows(document, "Failed to reset message send key"),
+			};
+		},
+	},
+	{
+		id: "settings-environment-paste-save-failed",
+		group: "Settings",
+		title: "Environment, two pasted variables whose save the database refuses",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/environment",
+				after: async ({ document, world: shown }) => {
+					await click(document, "button", "Add environment variable");
+					const name = await findFirst(document, "input#env-add-name");
+					const pasted = new DataTransfer();
+					pasted.setData("text/plain", "API_BASE_URL=http://localhost:4000\nLOG_LEVEL=debug");
+					name.dispatchEvent(
+						new ClipboardEvent("paste", { clipboardData: pasted, bubbles: true, cancelable: true }),
+					);
+					await find(document, "ul", "Variables");
+					shown.failStatement(ENV_VARS_SQL.upsertInsert);
+					await click(document, "button", "Save", { prefix: true });
+				},
+				ready: (document) =>
+					has(document, "ul", "Variables") &&
+					shows(document, "Couldn't update your environment variables"),
+			};
+		},
+	},
+	{
+		id: "settings-repo-add-action-name-taken",
+		group: "Settings",
+		title: "atlas: Actions, the Add action dialog with a name another action has",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/actions`,
+				after: async ({ document }) => {
+					await click(document, "button", "Add");
+					fillIn(await findField(document, 'input[placeholder="My action"]'), "Dev");
+				},
+				ready: (document) => shows(document, "Action names must be unique"),
+			};
+		},
+	},
+	{
+		id: "settings-repo-add-action-name-empty",
+		group: "Settings",
+		title: "atlas: Actions, the Add action dialog with a command and no name",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/actions`,
+				after: async ({ document }) => {
+					await click(document, "button", "Add");
+					fillIn(await findField(document, 'textarea[placeholder="pnpm dev"]'), "pnpm lint");
+				},
+				ready: (document) => shows(document, "Action names can't be empty"),
+			};
+		},
+	},
+	{
+		id: "settings-repo-removed",
+		group: "Settings",
+		title:
+			"A project with no workspaces removed from its Misc page: the toast, on the Git settings",
+		seed: async (world) => {
+			await seedCast(world);
+			// No workspaces, so the removal has no worktree for the scripted git to take away.
+			const notes = await addRepo(world, { name: "notes", remoteUrl: null });
+			return {
+				route: `/settings/repos/${notes.id}/misc`,
+				after: async ({ document }) => {
+					await click(document, "button", "Remove repository");
+					await click(document, "[role=dialog] button", "Remove repository");
+				},
+				ready: (document) => shows(document, "Repository removed successfully"),
+			};
+		},
+	},
+	codexLogin(
+		"settings-agents-codex-login-starting",
+		"Agents: Codex's device-code sign-in while its code is still on its way",
+		async () => {},
+		(document) => shows(document, "Starting device code authorization..."),
+		{ codeLater: true },
+	),
+	codexLogin(
+		"settings-agents-codex-code-copied",
+		"Agents: Codex's device code copied from its sign-in steps",
+		(document) => click(document, "button", "Copy Codex verification code"),
+		(document) => shows(document, "Copied Codex verification code."),
+	),
+	codexLogin(
+		"settings-agents-codex-login-business",
+		"Agents: Codex's device-code sign-in for a Business plan",
+		(document) => click(document, "button", "Business plan"),
+		(document) => has(document, "button", "Open ChatGPT admin settings"),
+	),
+	{
+		id: "settings-agents-claude-login-browser",
+		group: "Settings",
+		title: "Agents: Claude Code's sign-in started in the browser, which can be opened again",
+		seed: async (world) => {
+			await seedCast(world);
+			world.answerSidecar({
+				getAgentInstalls: () => ({
+					agents: [
+						{
+							agent: "claude",
+							installed: true,
+							path: "/Users/sam/Library/Application Support/Conducted/bin/claude",
+							source: "managed",
+							version: "2.1.30",
+							authenticated: false,
+						},
+					],
+				}),
+				startAgentLogin: () => ({
+					loginId: "catalogue-claude",
+					url: "https://claude.ai/oauth/authorize?code=true",
+					instructions: "Finish signing in in your browser.",
+				}),
+			});
+			world.holdSidecar("finishAgentLogin");
+			return {
+				route: "/settings/user/agents",
+				after: ({ document }) => click(document, "button", "Run claude /login", { prefix: true }),
+				ready: (document) => has(document, "button", "Open browser again"),
+			};
+		},
+	},
+	selectOpen(
+		"settings-account-codex-approvals-menu",
+		"Account, the Codex tool approvals menu open",
+		"account",
+		"Codex tool approvals",
+	),
+	{
+		id: "settings-advanced-claude-path",
+		group: "Settings",
+		title: "Advanced, a custom Claude Code program path and its warning",
+		seed: async (world) => {
+			await seedCast(world);
+			world.memory.controls.addFile(
+				`${world.memory.platform.fs.paths.home}/.conducted/settings.toml`,
+				'claude_code_executable_path = "/opt/homebrew/bin/claude"\n',
+			);
+			return {
+				route: "/settings/user/advanced",
+				ready: (document) => shows(document, "Changing this may cause issues"),
+			};
+		},
+	},
+	{
+		id: "settings-mcp-recommended",
+		group: "Settings",
+		title: "MCP: the Recommended tab, with Import from local and the catalogue of servers",
+		seed: (world) =>
+			mcpScene(
+				world,
+				MCP_SERVERS,
+				(document) => click(document, "[role=tab]", "Recommended"),
+				(document) => shows(document, "Airtable"),
+			),
+	},
+	{
+		id: "settings-mcp-none-installed",
+		group: "Settings",
+		title: "MCP: no servers installed on the paired Worker",
+		seed: (world) =>
+			mcpScene(
+				world,
+				{},
+				async () => {},
+				(document) => shows(document, "No MCP servers installed"),
+			),
+	},
+	{
+		id: "settings-mcp-installed-no-match",
+		group: "Settings",
+		title: "MCP: a search of the installed servers that finds none",
+		seed: (world) =>
+			mcpScene(
+				world,
+				MCP_SERVERS,
+				async (document) =>
+					fillIn(await findField(document, 'input[placeholder="Search installed MCPs"]'), "jira"),
+				(document) => shows(document, "No installed MCPs match your search"),
+			),
+	},
+	{
+		id: "settings-mcp-import-none",
+		group: "Settings",
+		title: "MCP: Import from local, on a Mac whose agents have no MCP servers",
+		seed: (world) =>
+			mcpScene(
+				world,
+				MCP_SERVERS,
+				async (document) => {
+					await click(document, "[role=tab]", "Recommended");
+					await click(document, "button", "Import from local");
+				},
+				(document) => shows(document, "No local MCP servers found"),
+			),
+	},
+	{
+		id: "settings-mcp-edit-headers",
+		group: "Settings",
+		title: "MCP: editing a server with a saved token, which reopens as custom headers",
+		seed: (world) =>
+			mcpScene(
+				world,
+				{
+					...MCP_SERVERS,
+					docs: {
+						url: "https://mcp.docs.example.com/mcp",
+						authType: "bearer",
+						bearerToken: "tok_live_example",
+					},
+				},
+				(document) => editMcpServer(document, "Docs"),
+				(document) =>
+					document.querySelector(
+						'[placeholder="Credential configured — enter headers to replace"]',
+					) !== null,
+			),
+	},
+	{
+		id: "settings-mcp-edit-bearer",
+		group: "Settings",
+		title: "MCP: editing a server with a saved token, switched back to a bearer token",
+		seed: (world) =>
+			mcpScene(
+				world,
+				{
+					...MCP_SERVERS,
+					docs: {
+						url: "https://mcp.docs.example.com/mcp",
+						authType: "bearer",
+						bearerToken: "tok_live_example",
+					},
+				},
+				async (document) => {
+					await editMcpServer(document, "Docs");
+					await chooseById(document, "mcp-server-auth", "Bearer token");
+				},
+				(document) =>
+					document.querySelector(
+						'[placeholder="Credential configured — enter a token to replace"]',
+					) !== null,
+			),
+	},
+	{
+		id: "settings-mcp-edit-client-id",
+		group: "Settings",
+		title: "MCP: an OAuth server's client ID changed without its secret",
+		seed: (world) =>
+			mcpScene(
+				world,
+				{
+					...MCP_SERVERS,
+					linear: {
+						url: "https://mcp.linear.app/mcp",
+						authType: "oauth",
+						oauthClientId: "atlas-linear",
+						oauthClientSecret: "secret_example",
+					},
+				},
+				async (document) => {
+					await editMcpServer(document, "Linear");
+					// A saved client ID opens the advanced fields already.
+					await find(document, "[role=dialog] button", "Advanced client identity");
+					if (document.querySelector("input#mcp-server-oauth-client-id") === null) {
+						await click(document, "[role=dialog] button", "Advanced client identity");
+					}
+					fillIn(await findField(document, "input#mcp-server-oauth-client-id"), "atlas-linear-2");
+					await click(document, "[role=dialog] button", "Save", { prefix: true });
+				},
+				(document) => shows(document, "Enter the client secret for the new client ID"),
+			),
+	},
+	mcpAddRefused(
+		"settings-mcp-add-no-url",
+		"MCP: adding a server with no URL",
+		async () => {},
+		"Enter a server URL",
+	),
+	mcpAddRefused(
+		"settings-mcp-add-http",
+		"MCP: adding a server at a plain HTTP address",
+		async (document) =>
+			fillIn(await findField(document, "input#mcp-server-url"), "http://docs.internal/mcp"),
+		"Enter an HTTPS server URL",
+	),
+	mcpAddRefused(
+		"settings-mcp-add-bad-url",
+		"MCP: adding a server whose address carries a password",
+		async (document) =>
+			fillIn(
+				await findField(document, "input#mcp-server-url"),
+				"https://sam:hunter2@docs.internal/mcp",
+			),
+		"Enter a valid server URL",
+	),
+	mcpAddRefused(
+		"settings-mcp-add-secret-only",
+		"MCP: adding an OAuth server with a client secret and no client ID",
+		async (document) => {
+			fillIn(await findField(document, "input#mcp-server-url"), "https://mcp.docs.example.com/mcp");
+			await click(document, "[role=dialog] button", "Advanced client identity");
+			fillIn(await findField(document, "input#mcp-server-oauth-client-secret"), "secret_example");
+		},
+		"Enter a client ID",
+	),
+	mcpAddRefused(
+		"settings-mcp-add-no-token",
+		"MCP: adding a server with a bearer token left empty",
+		async (document) => {
+			fillIn(await findField(document, "input#mcp-server-url"), "https://mcp.docs.example.com/mcp");
+			await chooseById(document, "mcp-server-auth", "Bearer token");
+		},
+		"Enter a bearer token",
+	),
+	{
+		id: "settings-mcp-setup-no-secret",
+		group: "Settings",
+		title: "MCP: Slack's setup from Recommended, with a client ID and no secret",
+		seed: (world) =>
+			mcpScene(
+				world,
+				MCP_SERVERS,
+				async (document) => {
+					await click(document, "[role=tab]", "Recommended");
+					await click(document, "button", "Slack", { prefix: true });
+					fillIn(await findField(document, "input#mcp-setup-client-id"), "1234567890.0987654321");
+					await click(document, "[role=dialog] button", "Connect");
+				},
+				(document) => shows(document, "Enter a client secret"),
+			),
+	},
+	{
+		id: "settings-mcp-setup-datadog",
+		group: "Settings",
+		title: "MCP: Datadog's setup from Recommended, its site and the redirect URL to allow",
+		seed: (world) =>
+			mcpScene(
+				world,
+				MCP_SERVERS,
+				async (document) => {
+					await click(document, "[role=tab]", "Recommended");
+					await click(document, "button", "Datadog", { prefix: true });
+				},
+				(document) => has(document, "[role=dialog] button", "Add and connect"),
+			),
+	},
+	envAddPanel(
+		"settings-environment-add-panel",
+		"Environment, the Add environment variable panel",
+		async () => {},
+		"Paste a block of KEY=VALUE lines into the name field to add several at once.",
+	),
+	envAddPanel(
+		"settings-environment-add-no-name",
+		"Environment, a variable saved with no name",
+		(document) => click(document, "[role=dialog] button", "Save", { prefix: true }),
+		"Variable name is required.",
+	),
+	envAddPanel(
+		"settings-environment-add-taken",
+		"Environment, a variable whose name is already set",
+		async (document) => {
+			fillIn(await findField(document, "input#env-add-name"), "ANTHROPIC_API_KEY");
+			await click(document, "[role=dialog] button", "Save", { prefix: true });
+		},
+		"That variable already exists.",
+	),
+	envAddPanel(
+		"settings-environment-add-failed",
+		"Environment, a variable whose save the database refuses",
+		async (document, world) => {
+			fillIn(await findField(document, "input#env-add-name"), "LOG_LEVEL");
+			world.failStatement(ENV_VARS_SQL.upsertInsert);
+			await click(document, "[role=dialog] button", "Save", { prefix: true });
+		},
+		"Failed to add environment variable",
+	),
+	{
+		id: "settings-repo-review-prompt",
+		group: "Settings",
+		title: "atlas: Actions, the instructions for the Review button opened",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/actions`,
+				after: ({ document }) =>
+					click(document, "button", "Code review preferences", { prefix: true }),
+				ready: (document) =>
+					document.querySelector(
+						'[placeholder="Add your preferences here. The agent will be told to prioritize these instructions over its default instructions."]',
+					) !== null,
+			};
+		},
+	},
+	{
+		id: "settings-account-github-not-yet",
+		group: "Settings",
+		title: "Account: Check again in the Connect GitHub dialog while gh is still signed out",
+		seed: async (world) => {
+			await seedCast(world);
+			world.scriptShell(scriptGitHub({ signedOut: true }));
+			return {
+				route: "/settings/user/account",
+				after: async ({ document }) => {
+					await click(document, "button", "Connect");
+					await click(document, "[role=dialog] button", "Check again");
+				},
+				ready: (document) =>
+					shows(document, "GitHub isn't connected yet. Finish the sign-in and try again."),
+			};
+		},
+	},
+	{
+		id: "settings-root",
+		group: "Settings",
+		title: "Settings opened at /settings, which shows General",
+		seed: async (world) => {
+			await seedCast(world);
+			return { route: "/settings", ready: (document) => shows(document, "Send messages with") };
+		},
+	},
+	{
+		id: "settings-agents-bedrock-missing",
+		group: "Settings",
+		title: "Agents: Claude Code's Amazon Bedrock form saved with its fields empty",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/agents",
+				after: async ({ document }) => {
+					await openProviders(document, null, "Amazon Bedrock");
+					await click(document, "[role=dialog] button", "Save", { prefix: true });
+				},
+				ready: (document) => shows(document, "Enter all required Bedrock fields."),
+			};
+		},
+	},
+	{
+		id: "settings-sync-agent-configs",
+		group: "Settings",
+		title: "General, the Sync agent configs dialog and what it can copy",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/general",
+				after: ({ document }) => click(document, "button", "Sync"),
+				ready: (document) => shows(document, "Slash commands"),
 			};
 		},
 	},

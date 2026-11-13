@@ -8,12 +8,10 @@
 		"by": "seed"
 	},
 	"literal:M18192": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-24",
-		"item": "Video player in assistant text",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "The name of a folder kind in the Tauri path API Conductor bundles (BaseDirectory.Video), not wording.",
+		"by": "hand"
 	},
 	"literal:M212284": {
 		"status": "decided",
@@ -648,20 +646,16 @@
 		"by": "seed"
 	},
 	"literal:M2298484": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-20",
-		"item": "Image cards 'Preview image' and 'Loading image' (image view, image generation)",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An object type inside the PDF viewer library Conductor bundles (pdf.js common objects), not wording.",
+		"by": "hand"
 	},
 	"literal:M2325013": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-07",
-		"item": "Tool GetTerminalOutput returns up to 1000 lines of a chosen terminal source with labelled output",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An event name inside the PDF viewer library Conductor bundles (pdf.js annotation actions), not wording.",
+		"by": "hand"
 	},
 	"literal:M2329048": {
 		"status": "decided",
@@ -716,36 +710,28 @@
 		"by": "hand"
 	},
 	"literal:M3099729": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-19",
-		"item": "A notification fires when a plan is ready and when the agent asks a question.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D151",
+		"note": "The text of the notification a plan waiting for approval raises (CHAT-19). Ours sends the same text; notifications.chat-19.test.ts asserts it.",
+		"by": "hand"
 	},
 	"literal:M3100221": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-19",
-		"item": "A notification fires when a plan is ready and when the agent asks a question.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D151",
+		"note": "The text of the notification an agent's question raises (CHAT-19). Ours sends the same text; notifications.chat-19.test.ts asserts it.",
+		"by": "hand"
 	},
 	"literal:M3236681": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-19",
-		"item": "Conductor shows \"Agent finished. Click to view session.\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D151",
+		"note": "The text of the notification a finished turn raises (CHAT-19). Ours sends the same text; notifications.chat-19.test.ts and s1-core-1.join.test.ts assert it.",
+		"by": "hand"
 	},
 	"literal:M3236722": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-19",
-		"item": "A failed turn raises the notice \"Agent failed. Click to view session.\"",
-		"owner": "rule:quote"
+		"status": "decided",
+		"decision": "D151",
+		"note": "The text of the notification a failed turn raises (CHAT-19). Ours sends the same text; notifications.chat-19.test.ts asserts it.",
+		"by": "hand"
 	},
 	"literal:M3736277": {
 		"status": "gap",
@@ -1398,12 +1384,10 @@
 		"by": "hand"
 	},
 	"literal:R3123193": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "SET-01",
-		"item": "One declarative registry: tab, key, scopes, title, description, search terms",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keyword of the Coq grammar in the code highlighter Conductor bundles, not wording.",
+		"by": "hand"
 	},
 	"literal:R3167503": {
 		"status": "decided",
@@ -1426,12 +1410,10 @@
 		"by": "rule:key-name"
 	},
 	"literal:R3392824": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-05",
-		"item": "Browser tab annotation overlay and 'Add to chat'",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A symbol of the Mathematica grammar in the code highlighter Conductor bundles, not wording.",
+		"by": "hand"
 	},
 	"literal:R3396439": {
 		"status": "decided",
@@ -1488,12 +1470,10 @@
 		"owner": "hand"
 	},
 	"literal:R3458066": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-06",
-		"item": "Chat tab content: message list and composer",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A symbol of the Mathematica grammar in the code highlighter Conductor bundles, not wording.",
+		"by": "hand"
 	},
 	"literal:R3465496": {
 		"status": "matched",
@@ -1800,12 +1780,10 @@
 		"by": "seed"
 	},
 	"literal:R8034448": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-24",
-		"item": "Mermaid diagrams with 'Rendering diagram...', 'Expand diagram', 'Copy Mermaid source', zoom in, zoom out, reset",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A class name inside the diagram library Conductor bundles (mermaid), not wording.",
+		"by": "hand"
 	},
 	"literal:R8057713": {
 		"status": "gap",
@@ -2847,5 +2825,47 @@
 		"role": "span",
 		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > ul > li:nth-of-type(2) > div:nth-of-type(2) > button:nth-of-type(1) > span",
 		"by": "seed"
+	},
+	"literal:R3122092": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keyword of the Coq grammar in the code highlighter Conductor bundles, not wording.",
+		"by": "hand"
+	},
+	"literal:R3122562": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keyword of the Coq grammar in the code highlighter Conductor bundles, not wording.",
+		"by": "hand"
+	},
+	"literal:R3135274": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A type name of the Dart grammar in the code highlighter Conductor bundles, not wording.",
+		"by": "hand"
+	},
+	"literal:R3353866": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A type name of the Julia grammar in the code highlighter Conductor bundles, not wording.",
+		"by": "hand"
+	},
+	"literal:R10720486": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "The prefix Conductor puts before a bearer token in an Authorization header it builds, not wording.",
+		"by": "hand"
+	},
+	"literal:R10751794": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A folder name in the path where Conductor looks for Claude Desktop's config file, not wording.",
+		"by": "hand"
+	},
+	"literal:M3840127": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A line Conductor writes into the SSH config file it generates, not wording on a screen.",
+		"by": "hand"
 	}
 }

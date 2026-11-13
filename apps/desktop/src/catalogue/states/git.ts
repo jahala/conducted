@@ -47,6 +47,8 @@ export interface GitScene {
 	files?: Readonly<Record<string, string>>;
 	/** Binary files to plant in arbor, by path: a video or a PDF the file tab previews. */
 	blobs?: Readonly<Record<string, Uint8Array>>;
+	/** Addresses the browser can load for some of arbor's files, by path (`world.showPicture`). */
+	pictures?: Readonly<Record<string, string>>;
 }
 
 /** The cast with arbor open, its git described by `scene.git`. */
@@ -60,6 +62,9 @@ export const arborScene =
 		}
 		for (const [path, bytes] of Object.entries(scene.blobs ?? {})) {
 			world.memory.controls.blobs.set(`${workspace.path}/${path}`, bytes);
+		}
+		for (const [path, url] of Object.entries(scene.pictures ?? {})) {
+			world.showPicture(`${workspace.path}/${path}`, url);
 		}
 		const route =
 			scene.search === undefined

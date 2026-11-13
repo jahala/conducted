@@ -3,18 +3,20 @@
  * Owns: the command palette open over a workspace, on its Workspaces, Projects, Actions and Settings tabs, and
  * the pickers its actions open (Move to section, also searched for a section it lacks, File picker, Search in files, Link pull request,
  * Show keyboard shortcuts, the snippets manager
- * listing and editing a snippet), the Passport opened from it, the Feedback dialog (opened as Send feedback opens it), the Clone GitHub repo dialog with its repository lists and mid-clone, a code file open in the file viewer, the file viewer
+ * listing and editing a snippet, and a delete or an edit the database refuses), the Passport opened from it, the Feedback dialog (opened as Send feedback opens it), the Clone GitHub repo dialog with its repository lists and mid-clone, a code file open in the file viewer, the file viewer
  * for a file that is gone (its error state), a browser tab waiting for its dev server, and the scripts panel's Run tab before and after its dev
  * script ran. The in-memory Platform ends a command's terminal at once (platform/memory.ts), so a script
  * that is still running cannot be shown.
  * Behaviour: ui-map.md 5.1 (command palette), 3.4 (file tab), 3.7 (scripts panel).
  * Test first: not applicable; the screenshot run opens every state.
  */
+
 import { useOverlayStore } from "../../app/overlay-store.ts";
+import { SNIPPETS_SQL } from "../../core/db/snippets.ts";
 import { chatRoute, refreshGit, seedCast, workspaceRoute } from "../cast.ts";
 import { click, fillIn, find, findFirst, has, pressUntilTaken, shows } from "../dom.ts";
 import { setSetting } from "../seeds.ts";
-import type { CatalogueState } from "../state.ts";
+import type { AfterContext, CatalogueState } from "../state.ts";
 import type { World } from "../world.ts";
 
 /**
@@ -51,7 +53,7 @@ const inPalette = (
 const snippets = (
 	id: string,
 	title: string,
-	then: (document: Document) => Promise<void>,
+	then: (context: AfterContext) => Promise<void>,
 	/** Text only the screen `then` ends on shows. */
 	text: string,
 ): CatalogueState => ({
@@ -68,11 +70,12 @@ const snippets = (
 		if (!created.ok) throw new Error(created.error.message);
 		return {
 			route: chatRoute(cast.arbor, cast.chats.arbor),
-			after: async ({ app, document }) => {
+			after: async (context) => {
+				const { app, document } = context;
 				await refreshGit(app, cast.arbor);
 				await pressUntilTaken(document, "k", { meta: true });
 				await click(document, "[role=option]", "Edit snippets", { prefix: true });
-				await then(document);
+				await then(context);
 			},
 			ready: (document) => shows(document, text),
 		};
@@ -213,8 +216,27 @@ export const OVERLAY_STATES: CatalogueState[] = [
 	snippets(
 		"snippets-manager-edit",
 		"The snippets manager editing a snippet",
-		(document) => click(document, "button", "Edit Review checklist"),
+		({ document }) => click(document, "button", "Edit Review checklist"),
 		"Prompt snippet",
+	),
+	snippets(
+		"snippets-manager-delete-failed",
+		"The snippets manager, a delete the database refuses",
+		async ({ document, world }) => {
+			world.failStatement(SNIPPETS_SQL.delete);
+			await click(document, "button", "Delete Review checklist");
+		},
+		"Couldn't delete snippet",
+	),
+	snippets(
+		"snippets-manager-save-failed",
+		"The snippets manager, an edit the database refuses to save",
+		async ({ document, world }) => {
+			await click(document, "button", "Edit Review checklist");
+			world.failStatement(SNIPPETS_SQL.update);
+			await click(document, "button", "Save");
+		},
+		"Couldn't save snippet",
 	),
 	{
 		id: "passport",

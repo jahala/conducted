@@ -12,7 +12,7 @@
 
 import { fileQueryKey } from "../../core/hooks.ts";
 import { ARBOR_FILES, type Cast } from "../cast.ts";
-import { click, fillIn, findFirst, has, hover, pressUntilTaken, shows } from "../dom.ts";
+import { click, fillIn, findField, findFirst, has, hover, pressUntilTaken, shows } from "../dom.ts";
 import type { ScriptedFile } from "../git-repo.ts";
 import { setSetting } from "../seeds.ts";
 import type { AfterContext, CatalogueState } from "../state.ts";
@@ -35,6 +35,23 @@ const WHITESPACE_FILE: ScriptedFile = {
 	after: ".app {\n    color:   black;\n}\n",
 	committed: true,
 };
+
+/** A changed file of arbor's, opened in the File tab's diff. */
+const changedFileDiff = (
+	id: string,
+	title: string,
+	file: ScriptedFile,
+	text: string,
+): CatalogueState => ({
+	id,
+	group: "Git panel",
+	title,
+	seed: arborScene({
+		git: { arborFiles: [...ARBOR_FILES, file] },
+		search: { tab: "file", path: file.path, fileMode: "diff", scope: "branch" },
+		ready: (document) => shows(document, text),
+	}),
+});
 
 /** The Changes tab with the filter box open, which holds Conductor's Close filter button. */
 const filterOpen: CatalogueState = {
@@ -245,6 +262,60 @@ const previewFails = (id: string, title: string, path: string, text: string): Ca
 	}),
 });
 
+/**
+ * Two seconds of silence as a WAV file's address. Chromium plays it in a video element, which the
+ * catalogue's browser cannot do for an MP4, so a video preview loads instead of failing. The bytes
+ * are written out rather than in base64, because the file tab adds `?v=<modified time>` to the
+ * address: those four characters land after the clip's data, where a player ignores them.
+ */
+function silentClip(): string {
+	const rate = 8_000;
+	const samples = rate * 2;
+	const bytes = new Uint8Array(44 + samples);
+	const view = new DataView(bytes.buffer);
+	const text = (at: number, value: string) => {
+		for (const [index, char] of [...value].entries()) bytes[at + index] = char.charCodeAt(0);
+	};
+	text(0, "RIFF");
+	view.setUint32(4, 36 + samples, true);
+	text(8, "WAVEfmt ");
+	view.setUint32(16, 16, true);
+	view.setUint16(20, 1, true);
+	view.setUint16(22, 1, true);
+	view.setUint32(24, rate, true);
+	view.setUint32(28, rate, true);
+	view.setUint16(32, 1, true);
+	view.setUint16(34, 8, true);
+	text(36, "data");
+	view.setUint32(40, samples, true);
+	// 8-bit samples are unsigned, so silence is the middle value.
+	bytes.fill(128, 44);
+	return `data:audio/wav,${[...bytes].map((byte) => `%${byte.toString(16).padStart(2, "0")}`).join("")}`;
+}
+
+/** demo.mp4 open in the File tab's preview with its player loaded, then `then`. */
+const videoPlayer = (
+	id: string,
+	title: string,
+	then: (document: Document) => Promise<void>,
+	ready: (document: Document) => boolean,
+): CatalogueState => ({
+	id,
+	group: "File viewer",
+	title,
+	seed: arborScene({
+		blobs: { "demo.mp4": new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]) },
+		pictures: { "demo.mp4": silentClip() },
+		search: { tab: "file", path: "demo.mp4", fileMode: "edit" },
+		after: async ({ document }) => {
+			await click(document, "button", "Preview");
+			await findFirst(document, '[aria-label="Video player"]');
+			await then(document);
+		},
+		ready,
+	}),
+});
+
 const NOTES = "notes.txt";
 
 /** The user has unsaved edits to notes.txt, and an agent then writes the file. */
@@ -340,9 +411,10 @@ export const REVIEW_STATES: CatalogueState[] = [
 			after: async ({ document }) => {
 				await click(document, "button", "Diff scope");
 				await click(document, "[role=menuitem]", "Target branch");
-				const field = await findFirst(document, 'input[placeholder="Select target branch..."]');
-				if (!(field instanceof HTMLInputElement)) throw new Error("No branch field.");
-				fillIn(field, "release/2019");
+				fillIn(
+					await findField(document, 'input[placeholder="Select target branch..."]'),
+					"release/2019",
+				);
 			},
 			ready: (document) => shows(document, "No branch found."),
 		}),
@@ -352,6 +424,47 @@ export const REVIEW_STATES: CatalogueState[] = [
 	DIFF_ERROR,
 	DIFF_EMPTY,
 	WHITESPACE_DIFF,
+	{
+		id: "git-changes-rebasing",
+		group: "Git panel",
+		title: "The Changes tab while a rebase in arbor is stopped part way",
+		seed: async (world) => {
+			const scene = await arborScene({
+				git: { arborDetached: true },
+				ready: (document) => shows(document, "Finish rebasing or merging to see changes"),
+			})(world);
+			// git keeps .git/rebase-merge while a rebase waits; a later script is asked first.
+			world.scriptShell((command) =>
+				command.program === "stat" &&
+				command.cwd.endsWith("/arbor") &&
+				(command.args.at(-1) ?? "").endsWith("/.git/rebase-merge")
+					? { ok: true, value: { stdout: "96\n", stderr: "", exitCode: 0 } }
+					: null,
+			);
+			return scene;
+		},
+	},
+	{
+		id: "git-create-pr-menu",
+		group: "Git panel",
+		title: "The Create PR button's menu: a draft, or a pull request made by hand",
+		seed: arborScene({
+			after: ({ document }) => click(document, "button", "More ways to create a PR"),
+			ready: (document) => has(document, "[role=menuitem]", "Create PR manually"),
+		}),
+	},
+	changedFileDiff(
+		"git-diff-binary",
+		"A changed image, which the diff cannot draw",
+		{
+			path: "public/logo.png",
+			status: "modified",
+			before: "\u0089PNG\r\n\u001a\n\u0000\u0000\u0000\rIHDR\u0000\u0000\u0000\u0010",
+			after: "\u0089PNG\r\n\u001a\n\u0000\u0000\u0000\rIHDR\u0000\u0000\u0000\u0020",
+			committed: true,
+		},
+		"Binary file changed",
+	),
 	STACK_LOAD_ERROR,
 	REVIEW_MENU,
 	REVIEW_DIALOG,
@@ -363,6 +476,18 @@ export const REVIEW_STATES: CatalogueState[] = [
 		{ tab: "file", path: "logo.svg", fileMode: "edit" },
 		{ "logo.svg": '<svg xmlns="http://www.w3.org/2000/svg"><circle r="10" /></svg>\n' },
 		"View rendered SVG",
+	),
+	videoPlayer(
+		"file-video-player",
+		"A video open in the preview, with its player",
+		async () => {},
+		(document) => has(document, "button", "Mute"),
+	),
+	videoPlayer(
+		"file-video-muted",
+		"A video open in the preview, muted",
+		(document) => click(document, "button", "Mute"),
+		(document) => has(document, "button", "Unmute"),
 	),
 	previewFails(
 		"file-video-failed",

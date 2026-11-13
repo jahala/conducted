@@ -385,8 +385,9 @@ async function taskToolsChat(world: World): Promise<Scene> {
 			await openClosedRow(document, "Spawn swarm");
 			await openClosedRow(document, "Background Task");
 			await openClosedRow(document, "Subagent");
+			await openClosedRow(document, "Generated image");
 			await openRow(document, "Node REPL");
-			await openClosedRow(document, "Loading image");
+			await openClosedRow(document, "Generating image");
 		},
 		ready: (document) => shows(document, "process.versions.node"),
 	};

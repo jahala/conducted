@@ -2,7 +2,8 @@
  * @feature catalogue Scripted GitHub answers for catalogue workspaces
  * Owns: answering `gh` the way GitHub would for a signed-in user: the sign-in check, the user's login,
  * the batched pull request query (one pull request per head branch, or none, in any of the states
- * the header tells apart), the review threads a pull request's reviewers left, and empty general
+ * the header tells apart), the review threads a pull request's reviewers left (outdated, resolved,
+ * or resolved by the app during the state), and empty general
  * comments, the GitHub stacks pull requests belong to (the stack entry, its members and each
  * member's merge state); the accounts and organisations the owner pickers offer; whether
  * `gh repo view` finds a name; a signed-out `gh` login; or failing every API request as `gh` does
@@ -129,14 +130,24 @@ export interface ScriptedReviewComment {
 	author: string;
 	/** Milliseconds since the epoch. */
 	at: number;
+	/** The code under the comment changed since it was written. */
+	outdated?: boolean;
+	/** The thread was resolved on GitHub before the state starts. */
+	resolved?: boolean;
 }
 
-/** The `reviewThreads` nodes GitHub returns for these comments. */
-function reviewThreadNodes(comments: readonly ScriptedReviewComment[]): unknown[] {
+/**
+ * The `reviewThreads` nodes GitHub returns for these comments. A thread the app resolved during the
+ * state (its id in `resolvedNow`) reads as resolved from then on, as GitHub's would.
+ */
+function reviewThreadNodes(
+	comments: readonly ScriptedReviewComment[],
+	resolvedNow: ReadonlySet<string>,
+): unknown[] {
 	return comments.map((comment, index) => ({
 		id: `PRRT_${index + 1}`,
-		isOutdated: false,
-		isResolved: false,
+		isOutdated: comment.outdated === true,
+		isResolved: comment.resolved === true || resolvedNow.has(`PRRT_${index + 1}`),
 		path: comment.path,
 		line: comment.line,
 		startLine: null,
@@ -379,6 +390,7 @@ export function scriptGitHub({
 	takenRepos = [],
 	signedOut = false,
 }: ScriptedGitHub = {}): ShellScript {
+	const resolvedThreads = new Set<string>();
 	return (command) => {
 		if (command.program !== "gh") return null;
 		const args = command.args;
@@ -460,6 +472,15 @@ export function scriptGitHub({
 				}
 				return out(JSON.stringify({ data: { repository } }));
 			}
+			if (query.includes("resolveReviewThread")) {
+				const threadId = args.find((arg) => arg.startsWith("threadId="))?.slice(9) ?? "";
+				resolvedThreads.add(threadId);
+				return out(
+					JSON.stringify({
+						data: { resolveReviewThread: { thread: { id: threadId, isResolved: true } } },
+					}),
+				);
+			}
 			if (query.includes("reviewThreads")) {
 				const number = Number(args.find((arg) => arg.startsWith("prNumber="))?.slice(9));
 				const pr = prs.find((candidate) => candidate.number === number);
@@ -469,7 +490,7 @@ export function scriptGitHub({
 							repository: {
 								pullRequest: {
 									reviewThreads: {
-										nodes: reviewThreadNodes(pr?.reviewComments ?? []),
+										nodes: reviewThreadNodes(pr?.reviewComments ?? [], resolvedThreads),
 										pageInfo: { hasNextPage: false, endCursor: null },
 									},
 								},

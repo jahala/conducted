@@ -136,12 +136,12 @@
 		"owner": "rule:quote"
 	},
 	"toast:M3686824": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "REV-04",
-		"item": "Resolving a review thread shows \"Comment resolved on GitHub\".",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-checks-comment-resolved",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:M3691270": {
 		"status": "gap",
@@ -598,20 +598,20 @@
 		"by": "seed"
 	},
 	"toast:R8191557": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "COMP-09",
-		"item": "Saving a prompt snippet can fail: \"Couldn't save snippet\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "snippets-manager-save-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R8192988": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "COMP-09",
-		"item": "Deleting a prompt snippet can fail: \"Couldn't delete snippet\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "snippets-manager-delete-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R8679526": {
 		"status": "decided",
@@ -644,12 +644,12 @@
 		"by": "hand"
 	},
 	"toast:R8701195": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "SET-01",
-		"item": "A setting's Reset says \"Failed to reset setting\" when a setting kept in the settings table cannot be removed; a file-backed setting's Reset gets the settings writer's toast, with \"Overwrite file\" for an invalid file (issue #654).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-reset-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R8730441": {
 		"status": "gap",
@@ -706,12 +706,12 @@
 		"by": "rule:hosted-computer-backend"
 	},
 	"toast:R9284738": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "COMP-07",
-		"item": "Using an attachment before it is available shows \"Attachments not available\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-queue-steer-failed",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(5) > section > div:nth-of-type(2) > div > div:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"toast:R9291600": {
 		"status": "gap",
@@ -786,12 +786,12 @@
 		"owner": "hand"
 	},
 	"toast:R9300822": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "COMP-04",
-		"item": "Attaching terminal output when no terminal exists shows \"No terminal output available for this workspace\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "composer-terminal-output-none",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R9310207": {
 		"status": "gap",
@@ -810,44 +810,44 @@
 		"by": "seed"
 	},
 	"toast:R9357302": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-04",
-		"item": "Deleting a queued message can fail: \"Failed to delete queued message\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-queue-delete-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R9357937": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-04",
-		"item": "Reordering queued messages can fail: \"Failed to reorder queued messages\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-queue-reorder-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R9360051": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-04",
-		"item": "Resuming a paused queue can fail: \"Failed to resume queue\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-queue-resume-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R9360203": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-04",
-		"item": "Retrying a queued message can fail: \"Failed to retry message\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-queue-retry-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R9360437": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Composer",
-		"backlog": "CHAT-04",
-		"item": "Sending a queued message as a steer can fail: \"Failed to steer queued message\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-queue-steer-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R9390844": {
 		"status": "gap",
@@ -874,28 +874,28 @@
 		"owner": "hand"
 	},
 	"toast:R9405672": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "CHAT-26",
-		"item": "A new chat can pull in earlier chats of the workspace, listed by last user message and saved as a transcript file.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "composer-shelf-transcript-empty",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R9405805": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "CHAT-26",
-		"item": "A new chat can pull in earlier chats of the workspace, listed by last user message and saved as a transcript file.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "composer-shelf-transcript-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R9406094": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-26",
-		"item": "Attaching a plan to a new chat can fail: \"Failed to attach plan\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "composer-shelf-plan-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R9510796": {
 		"status": "gap",
@@ -1112,12 +1112,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R10871822": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "SET-04",
-		"item": "Saving environment variables can fail with \"Couldn't update your environment variables\".",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-environment-paste-save-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div:nth-of-type(2)",
+		"by": "seed"
 	},
 	"toast:R10892009": {
 		"status": "decided",
@@ -1196,20 +1196,20 @@
 		"by": "seed"
 	},
 	"toast:R11014233": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Settings and agents",
-		"backlog": "SET-07",
-		"item": "Conductor shows \"Action names must be unique\" (message, inventory-ui-text Settings and agents); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-repo-add-action-name-taken",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"toast:R11015771": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "SET-07",
-		"item": "Conductor shows \"Action names can't be empty\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-repo-add-action-name-empty",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"toast:R11050680": {
 		"status": "decided",
@@ -1278,20 +1278,20 @@
 		"by": "hand"
 	},
 	"toast:R11117343": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: General",
-		"backlog": "SET-02",
-		"item": "Conductor shows \"Failed to reset message send key\" (message, inventory-controls Settings: General); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-send-key-reset-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R11117511": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings: General",
-		"backlog": "SET-02",
-		"item": "Conductor shows \"Failed to update message send key\" (message, inventory-controls Settings: General); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-send-key-update-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R11120183": {
 		"status": "gap",
@@ -1448,12 +1448,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R11298129": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "SET-07",
-		"item": "Conductor shows \"Repository removed successfully\" (message, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-repo-removed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R11326426": {
 		"status": "decided",

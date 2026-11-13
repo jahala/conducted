@@ -24,7 +24,7 @@ import { setLiveState } from "../live.ts";
 import { addChat, addEvents, addRepo, must } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
-import type { World } from "../world.ts";
+import { HOME, type World } from "../world.ts";
 
 /** The cast, with one of its chats open. */
 const castChat =
@@ -108,6 +108,27 @@ const markdownChat = async (world: World): Promise<Scene> => {
 			await refreshGit(app, cast.grove);
 		},
 		ready: (document) => shows(document, "Nothing else needs your attention"),
+	};
+};
+
+/** arbor's chat whose reply offers a shell command, run from its code block and still running. */
+const runningCodeBlockChat = async (world: World): Promise<Scene> => {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.arbor, { title: "Run the auth tests" });
+	const talk = conversation("arbor-run-block", CATALOGUE_NOW - 10 * MINUTE);
+	const turn = talk.user("How do I run only the auth tests?");
+	talk.text(turn, "Run them on their own with:\n\n```bash\npnpm test src/auth\n```\n");
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	// The command keeps running until it is stopped.
+	world.memory.controls.holdNextPty();
+	return {
+		route: chatRoute(cast.arbor, chat),
+		after: async ({ app, document }) => {
+			await refreshGit(app, cast.arbor);
+			await click(document, "button", "Run");
+		},
+		ready: (document) => shows(document, "Stop command"),
 	};
 };
 
@@ -281,6 +302,70 @@ export const CHAT_STATES: CatalogueState[] = [
 			return attachmentChat(world, {
 				step: (document) => click(document, "button", "Copy image"),
 				text: "Copied image to clipboard",
+			});
+		},
+	},
+	{
+		id: "chat-code-block-running",
+		group: "Workspace chat",
+		title: "A shell code block in a reply, run and still running: Stop command",
+		seed: runningCodeBlockChat,
+	},
+	{
+		id: "chat-attachment-copy-failed",
+		group: "Workspace chat",
+		title: "A chat image whose copy from the attachment viewer fails",
+		seed: (world) => {
+			// The copy script cannot read the file, so it prints nothing and fails.
+			world.scriptShell((command) =>
+				command.program === "sh" && command.args.includes("conducted-copy-image")
+					? { ok: true, value: { stdout: "", stderr: "", exitCode: 1 } }
+					: null,
+			);
+			return attachmentChat(world, {
+				step: (document) => click(document, "button", "Copy image"),
+				text: "Failed to copy to clipboard",
+			});
+		},
+	},
+	{
+		id: "chat-attachment-saved",
+		group: "Workspace chat",
+		title: "A chat image saved from the attachment viewer to Downloads",
+		seed: (world) => {
+			world.memory.controls.queueDialogAnswers({ savePath: `${HOME}/Downloads/redirect.png` });
+			world.scriptShell((command) =>
+				command.program === "cp"
+					? { ok: true, value: { stdout: "", stderr: "", exitCode: 0 } }
+					: null,
+			);
+			return attachmentChat(world, {
+				step: (document) => click(document, "button", "Download file"),
+				text: "Image saved",
+			});
+		},
+	},
+	{
+		id: "chat-attachment-save-failed",
+		group: "Workspace chat",
+		title: "A chat image whose save from the attachment viewer is refused",
+		seed: (world) => {
+			world.memory.controls.queueDialogAnswers({ savePath: "/Library/redirect.png" });
+			world.scriptShell((command) =>
+				command.program === "cp"
+					? {
+							ok: true,
+							value: {
+								stdout: "",
+								stderr: "cp: /Library/redirect.png: Permission denied\n",
+								exitCode: 1,
+							},
+						}
+					: null,
+			);
+			return attachmentChat(world, {
+				step: (document) => click(document, "button", "Download file"),
+				text: "Failed to save image",
 			});
 		},
 	},

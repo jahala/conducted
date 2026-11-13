@@ -1,8 +1,9 @@
 /**
  * @feature CHAT-20 Image generation card
  * Owns: The card for an image the agent generated.
- * Behaviour: ui-map.md 3.3 ('Preview image', 'Loading image'); other-runners.md 3 (Codex copies
- * generated images into the workspace).
+ * Behaviour: Conductor's card is titled "Generating image" until a result arrives, then
+ * "Generated image" (renderApp @8820980); ui-map.md 3.3 ('Loading image'); other-runners.md 3
+ * (Codex copies generated images into the workspace).
  * Must handle: Generation still running ('Loading image'); an image that cannot be shown
  * ('Couldn’t load image'); a copy into the workspace that failed (the result text is shown); a finished image with its prompt.
  * Test first: A finished image_generation call shows the image preview.
@@ -34,7 +35,7 @@ export function ImageGenerationCard({ call, defaultExpanded }: ToolCardProps) {
 	const output = call.result?.output.trim() ?? "";
 	return (
 		<ToolCardFrame
-			title={status === "running" ? "Loading image" : "Preview image"}
+			title={call.result === null ? "Generating image" : "Generated image"}
 			summary={prompt ?? name ?? undefined}
 			status={status}
 			expandAll={defaultExpanded}

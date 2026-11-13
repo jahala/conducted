@@ -406,20 +406,23 @@ describe("CHAT-20 image generation card", () => {
 				defaultExpanded
 			/>,
 		);
-		expect(screen.getByText("Preview image")).toBeTruthy();
+		// Conductor's image generation card is titled by its state (renderApp @8820980).
+		expect(screen.getByText("Generated image")).toBeTruthy();
 		expect(screen.getByRole("img", { name: "cat.png" }).getAttribute("src")).toBe(
 			"asset://localhost/%2Fwork%2F.context%2Fimages%2Fcat.png",
 		);
 		expect(screen.getByText("a cat")).toBeTruthy();
 	});
 
-	it("shows 'Loading image' while generation runs", () => {
+	it("is titled 'Generating image' and says 'Loading image' while generation runs", () => {
 		renderWithServices(
 			<ImageGenerationCard
 				call={view("image_generation", { prompt: "a cat" })}
 				sessionId={sessionId}
+				defaultExpanded
 			/>,
 		);
+		expect(screen.getByText("Generating image")).toBeTruthy();
 		expect(screen.getAllByText("Loading image").length).toBeGreaterThan(0);
 	});
 });
@@ -523,7 +526,7 @@ describe("CHAT-20 tool cards in the real container", () => {
 					tool: "image_generation",
 					input: { prompt: "a cat" },
 					output: "/work/cat.png",
-					title: "Preview image",
+					title: "Generated image",
 				},
 				{ tool: "node_repl", input: { code: "1 + 1" }, output: "2", title: "Node REPL" },
 				{

@@ -143,6 +143,18 @@ export async function typeInto(
 	fillIn(element, text);
 }
 
+/** Waits for the first text field matching `selector`, for a field with no name of its own. */
+export async function findField(
+	document: Document,
+	selector: string,
+): Promise<HTMLInputElement | HTMLTextAreaElement> {
+	const found = await findFirst(document, selector);
+	if (!(found instanceof HTMLInputElement || found instanceof HTMLTextAreaElement)) {
+		throw new Error(`${selector} is not a text field.`);
+	}
+	return found;
+}
+
 /** Types into a text field found another way, such as a field with no name of its own. */
 export function fillIn(element: HTMLInputElement | HTMLTextAreaElement, text: string): void {
 	const prototype = Object.getPrototypeOf(element) as object;

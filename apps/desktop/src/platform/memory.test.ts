@@ -233,6 +233,28 @@ describe("PLAT-01 in-memory Platform", () => {
 		}
 	});
 
+	it("answers the save dialog with a queued save path, and nothing when none is queued", async () => {
+		const { db, memory } = freshPlatform();
+		try {
+			memory.controls.queueDialogAnswers({ savePath: "/Users/sam/Downloads/shot.png" });
+			expect(await memory.platform.dialogs.pickFolder({ title: "x" })).toBeNull();
+			expect(
+				await memory.platform.dialogs.pickSavePath({
+					title: "Save image",
+					defaultPath: "shot.png",
+				}),
+			).toBe("/Users/sam/Downloads/shot.png");
+			expect(
+				await memory.platform.dialogs.pickSavePath({
+					title: "Save image",
+					defaultPath: "shot.png",
+				}),
+			).toBeNull();
+		} finally {
+			db.close();
+		}
+	});
+
 	it("returns no matches for a grep limit of 0", async () => {
 		const { db, memory } = freshPlatform();
 		try {
