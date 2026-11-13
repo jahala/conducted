@@ -23,8 +23,13 @@ import { dirname, join } from "node:path";
 import type { ScriptedRepo } from "../../apps/desktop/src/catalogue/git-repo.ts";
 import { createRepositories } from "../../apps/desktop/src/core/db/repositories.ts";
 import type { Workspace } from "../../apps/desktop/src/core/model.ts";
-import type { PairingView } from "../../apps/desktop/src/core/organization.ts";
+import {
+	activeOrganization,
+	organizationsFor,
+	type PairingView,
+} from "../../apps/desktop/src/core/organization.ts";
 import { getSettingDef } from "../../apps/desktop/src/core/registries/settings.ts";
+import { listedUserPages } from "../../apps/desktop/src/features/settings/settings-pages.ts";
 import {
 	createQueuedDatabase,
 	type SqlDatabase,
@@ -60,6 +65,15 @@ export interface World {
 	 * stored choice is the setting's default, so the active entry is this Mac.
 	 */
 	organization: { pairing: PairingView; choice: string };
+}
+
+/** The user settings pages the Settings nav lists in this world: MCP only with the cloud entry active. */
+export function userPagesListedIn(world: World): ReturnType<typeof listedUserPages> {
+	const { isCloud } = activeOrganization(
+		world.organization.choice,
+		organizationsFor(world.organization.pairing),
+	);
+	return listedUserPages(isCloud);
 }
 
 /**

@@ -21,12 +21,8 @@
  * sizes, the open workspace).
  */
 
-import { activeOrganization, organizationsFor } from "../../apps/desktop/src/core/organization.ts";
 import { getSettingDef, SETTINGS } from "../../apps/desktop/src/core/registries/settings.ts";
-import {
-	listedUserPages,
-	REPO_SETTINGS_PAGES,
-} from "../../apps/desktop/src/features/settings/settings-pages.ts";
+import { REPO_SETTINGS_PAGES } from "../../apps/desktop/src/features/settings/settings-pages.ts";
 import { changeControl, readControl } from "./controls.ts";
 import {
 	type Browser,
@@ -37,7 +33,7 @@ import {
 	until,
 } from "./harness.ts";
 import { openRepoSettings, openUserSettings, openWorkspaceByLink } from "./screens.ts";
-import { startInWorld, type World } from "./world.ts";
+import { startInWorld, userPagesListedIn, type World } from "./world.ts";
 
 /** How long a row may take to load before a disabled control counts as not changeable. */
 const ROW_LOAD_MS = 5_000;
@@ -168,11 +164,7 @@ interface Page {
 
 /** The pages the Settings nav lists in this world: the MCP page only with the cloud entry active. */
 function pagesOf(world: World): Page[] {
-	const cloudActive = activeOrganization(
-		world.organization.choice,
-		organizationsFor(world.organization.pairing),
-	).isCloud;
-	const user = listedUserPages(cloudActive).map((page) => ({
+	const user = userPagesListedIn(world).map((page) => ({
 		label: page.id,
 		scope: "user",
 		open: (browser: Browser) => openUserSettings(browser, page.id, page.title),
