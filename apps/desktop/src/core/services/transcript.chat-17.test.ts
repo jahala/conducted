@@ -276,6 +276,18 @@ describe("CHAT-17 searchHistory", () => {
 		expect(hits.map((hit) => hit.excerpt)).toEqual(["Keep the login form"]);
 	});
 
+	it("an empty chat copies nothing and says it had nothing to copy (renderApp @10074989)", async () => {
+		test = createTestContainer();
+		const workspace = await seedWorkspace(test.container);
+		const sessions = test.container.services.sessions;
+		const chat = must(await sessions.create(workspace.id, sampleSession.config));
+		must(await sessions.start());
+		must(await test.container.actions.app.copyText("kept"));
+
+		expect(must(await sessions.copyTranscript(chat.id, "concise"))).toBe("empty");
+		expect(test.memory.controls.clipboardText).toBe("kept");
+	});
+
 	it("copies a chat's transcript to the clipboard through the composition root", async () => {
 		test = createTestContainer();
 		const workspace = await seedWorkspace(test.container);
@@ -290,7 +302,7 @@ describe("CHAT-17 searchHistory", () => {
 		// Stored as the ingest stores them: the copy reads every turn from the database.
 		for (const event of events) await seedSessionEvent(test.container, chat.id, event, event.at);
 
-		must(await sessions.copyTranscript(chat.id, "concise"));
+		expect(must(await sessions.copyTranscript(chat.id, "concise"))).toBe("copied");
 		const copied = test.memory.controls.clipboardText ?? "";
 		expect(copied).toContain("Fix the login bug");
 		expect(copied).toContain("The login bug is fixed.");

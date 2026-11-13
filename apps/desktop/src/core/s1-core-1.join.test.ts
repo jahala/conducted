@@ -499,7 +499,7 @@ describe("s1-core-1 join", () => {
 			]);
 
 			expect(await test.container.actions.sessions.copyTranscript(session.id, "concise")).toEqual(
-				ok(undefined),
+				ok("copied"),
 			);
 			const copied = test.memory.controls.clipboardText ?? "";
 			expect(copied).toContain("Fix the login bug");

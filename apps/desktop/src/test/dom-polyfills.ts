@@ -1,6 +1,7 @@
 /**
  * @feature APP-05 jsdom gaps
- * Owns: browser APIs that jsdom lacks and that the resizable panels and toasts read when they mount.
+ * Owns: browser APIs that jsdom lacks and that the resizable panels, toasts and the message list's
+ * gap marker read when they mount.
  * Behaviour: not applicable, test support only.
  * Must handle: importing this file twice is harmless; it never replaces an API jsdom already has
  * (except `scrollTo`, which jsdom has but only prints "not implemented"); a file that runs without
@@ -20,6 +21,24 @@ class NoopResizeObserver {
 
 if (hasWindow && typeof globalThis.ResizeObserver === "undefined") {
 	globalThis.ResizeObserver = NoopResizeObserver;
+}
+
+/** Never reports: with no layout nothing comes into view. The message list's gap marker reads it. */
+class NoopIntersectionObserver {
+	readonly root = null;
+	readonly rootMargin = "0px";
+	readonly scrollMargin = "0px";
+	readonly thresholds: readonly number[] = [];
+	observe(): void {}
+	unobserve(): void {}
+	disconnect(): void {}
+	takeRecords(): IntersectionObserverEntry[] {
+		return [];
+	}
+}
+
+if (hasWindow && typeof globalThis.IntersectionObserver === "undefined") {
+	globalThis.IntersectionObserver = NoopIntersectionObserver;
 }
 
 if (hasWindow && typeof window.matchMedia === "undefined") {

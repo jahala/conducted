@@ -918,7 +918,7 @@
 	},
 	"text:R3012162": {
 		"status": "matched",
-		"state": "chat-context-unknown",
+		"state": "chat-copy-empty",
 		"via": "text",
 		"role": "heading",
 		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > div:nth-of-type(2) > h2",
@@ -950,10 +950,10 @@
 	},
 	"text:R4008336": {
 		"status": "matched",
-		"state": "composer-file-mention",
+		"state": "git-working-directories",
 		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(2) > span",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div > label",
 		"by": "seed"
 	},
 	"text:R4011003": {
@@ -1592,12 +1592,12 @@
 		"owner": "rule:quote"
 	},
 	"text:R8047788": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-24",
-		"item": "Conductor shows \"Failed to render diagram\" (text, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-mermaid-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"text:R8049769": {
 		"status": "matched",
@@ -1648,12 +1648,12 @@
 		"by": "seed"
 	},
 	"text:R8135916": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-02",
-		"item": "Conductor shows \"No comment body\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "comment-tab-no-body",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"comment-card\"] > p",
+		"by": "seed"
 	},
 	"text:R8136350": {
 		"status": "matched",
@@ -1689,7 +1689,7 @@
 	},
 	"text:R8175062": {
 		"status": "matched",
-		"state": "chat-plan-review",
+		"state": "chat-plan-copy-failed",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(2) > div > button:nth-of-type(3) > span",
@@ -1903,7 +1903,7 @@
 	},
 	"text:R8799937": {
 		"status": "matched",
-		"state": "chat-plan-review",
+		"state": "chat-plan-copy-failed",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"virtuoso-item-list\"] > div:nth-of-type(2) > div > div:nth-of-type(2) > div > button > span:nth-of-type(2) > span:nth-of-type(1)",
@@ -2006,12 +2006,12 @@
 		"by": "seed"
 	},
 	"text:R8823423": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-20",
-		"item": "Conductor shows \"Purpose: \" (control, inventory-ui-text Chat and tool cards); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-tool-cards-tasks",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(10) > div > div > p:nth-of-type(1) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"text:R8824972": {
 		"status": "matched",
@@ -2026,7 +2026,7 @@
 		"state": "chat-tool-cards-tasks",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(9) > button > span:nth-of-type(2) > span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(12) > button > span:nth-of-type(2) > span",
 		"by": "seed"
 	},
 	"text:R8831385": {
@@ -2248,7 +2248,7 @@
 		"state": "chat-tool-cards-tasks",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(10) > div > div > p",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(13) > div > div > p",
 		"by": "seed"
 	},
 	"text:R9083099": {
@@ -2256,7 +2256,7 @@
 		"state": "composer-file-mention",
 		"via": "text",
 		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R9119284": {
@@ -2309,7 +2309,7 @@
 	},
 	"text:R9257521": {
 		"status": "matched",
-		"state": "chat-plan-review",
+		"state": "chat-plan-copy-failed",
 		"via": "text",
 		"role": "label",
 		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(1) > label",
@@ -2412,7 +2412,7 @@
 		"state": "chat-tool-cards-tasks",
 		"via": "text",
 		"role": "button",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(8) > div > div > div > button",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(11) > div > div > div > button",
 		"by": "seed"
 	},
 	"text:R9511048": {
@@ -2624,10 +2624,11 @@
 		"by": "seed"
 	},
 	"text:R9586815": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"note": "Checked by hand: the wording differs. Ours reads \"Input:\" (text) in chat-working.",
+		"status": "matched",
+		"state": "chat-turn-details",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(1)",
 		"by": "hand"
 	},
 	"text:R9587041": {
@@ -4628,10 +4629,10 @@
 	},
 	"text:R10991508": {
 		"status": "matched",
-		"state": "settings-agents",
+		"state": "chat-context-usage-api-key",
 		"via": "text",
-		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(1) > div > button:nth-of-type(2)",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > ul > li:nth-of-type(2) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R11017379": {
@@ -5129,8 +5130,8 @@
 	},
 	"text:R11281817": {
 		"status": "decided",
-		"decision": "D150",
-		"note": "Conductor says this when its fetched emoji set fails to load; ours bundles its emoji (RepoIconPicker), so nothing can fail to load (D150).",
+		"decision": "D151",
+		"note": "Conductor says this when its fetched emoji set fails to load; ours bundles its emoji (RepoIconPicker), so nothing can fail to load (D151).",
 		"by": "hand"
 	},
 	"text:R11282175": {
@@ -5520,12 +5521,12 @@
 		"by": "hand"
 	},
 	"text:R11542973": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-01",
-		"item": "Conductor shows \"Enter a new name for this chat\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-rename",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > p > span",
+		"by": "seed"
 	},
 	"text:R11544294": {
 		"status": "matched",
@@ -5925,8 +5926,8 @@
 	},
 	"text:R11772171": {
 		"status": "decided",
-		"decision": "D150",
-		"note": "The app starts its project service before it draws the first screen (app/startup.ts) and a reload keeps the list loaded, so Settings never sees the projects loading (D150).",
+		"decision": "D151",
+		"note": "The app starts its project service before it draws the first screen (app/startup.ts) and a reload keeps the list loaded, so Settings never sees the projects loading (D151).",
 		"by": "hand"
 	},
 	"text:R11775650": {

@@ -1,7 +1,8 @@
 /**
  * @feature CHAT-24 Mermaid diagrams in replies
  * Owns: drawing a fenced `mermaid` code block as a diagram, with "Rendering diagram...", "Expand diagram",
- * "Copy Mermaid source", zoom in, zoom out and reset.
+ * "Copy Mermaid source", zoom in, zoom out and reset, and "Failed to render diagram" when it cannot
+ * be drawn (renderApp @8047788).
  * Behaviour: ui-map.md 3.3 (Assistant text: Mermaid with those labels), 8 (Conductor uses the Mermaid
  * library, among its dependencies).
  * Dependency: mermaid 12.3.0, MIT, checked 2026-11-06. It is loaded on first use, so the chat does not pay
@@ -11,15 +12,14 @@
  * theme picks the Mermaid theme.
  * Must handle: source that is still streaming (keep the last diagram that rendered, redraw after the text
  * stops changing; never show a parse error for half a diagram); source that does not parse, or a Mermaid
- * library that fails to load (show the source as a code block with a short plain message, never a stack
+ * library that fails to load (Conductor's "Failed to render diagram" in its error colour, never a stack
  * trace; the log says which of the two failed and why); the app theme changing (redraw in the new theme);
  * a very large diagram (the expanded view scrolls and zooms from the top left corner, so scrolling reaches
  * every edge; zoom limits at both ends, "Reset" returns to fit); script, links and click handlers in the
  * diagram (strict security level, the SVG is sanitised and removed of scripts and event handlers before it
  * is inserted); two diagrams in one reply (unique element ids); "Copy Mermaid source" copies the exact
  * source text; the expanded view closes with Escape and returns focus through the shared Dialog.
- * Test first: a source that fails to parse renders the source as code with a plain message and no thrown
- * error.
+ * Test first: says Failed to render diagram, as Conductor does, when the source does not parse.
  */
 import { messageOf } from "@conducted/shared";
 import { useEffect, useId, useRef, useState } from "react";
@@ -142,13 +142,8 @@ export function MermaidDiagram({ source, streaming }: MermaidDiagramProps) {
 
 	if (failedSource === source) {
 		return (
-			<div className="my-3 overflow-hidden rounded-lg border border-border bg-surface">
-				<p className="border-b border-border px-3 py-1.5 text-xs text-fg-muted">
-					This diagram could not be drawn. The source is shown below.
-				</p>
-				<pre className="m-0 overflow-x-auto p-3 font-mono text-code text-fg">
-					<code className="whitespace-pre">{source}</code>
-				</pre>
+			<div className="my-3 overflow-x-auto rounded-lg border border-border bg-surface px-3 py-2 text-xs text-danger">
+				Failed to render diagram
 			</div>
 		);
 	}

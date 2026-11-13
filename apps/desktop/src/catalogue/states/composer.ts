@@ -9,7 +9,8 @@
  * snippet dialog, the snippet picker with no snippets yet, Link workspaces and directories (and
  * searched with no match), a linked folder above the composer with its tooltip, a linked workspace and
  * "Linked from" above it with theirs, the Link issue dialog with atlas's
- * GitHub issues and Linear not connected (and with no open issues), and the warning when fast mode
+ * GitHub issues and Linear not connected (and with no open issues), the context usage card of a
+ * chat signed in with an API key, and the warning when fast mode
  * cannot be paid for.
  * Behaviour: ui-map.md 3.5 (composer and its "+" menu), 3.10 (Link issue), 5.1 and 5.2 (snippets),
  * COMP-01 (drafts and attachments).
@@ -78,8 +79,22 @@ async function submitSlash(document: Document, text: string): Promise<void> {
 }
 
 /** arbor's chat with a finished turn whose usage the context wheel can show. */
-async function contextUsageChat(world: World, holdDetails = false): Promise<Scene> {
+async function contextUsageChat(
+	world: World,
+	holdDetails = false,
+	account?: { provider: string; auth: string },
+): Promise<Scene> {
 	const cast = await seedCast(world);
+	if (account !== undefined) {
+		world.answerSidecar({
+			getContextUsage: () => ({
+				usedTokens: 41_200,
+				windowTokens: 200_000,
+				rateLimits: [],
+				account,
+			}),
+		});
+	}
 	await setSetting(world, "always_show_context_wheel", true);
 	must(await world.repositories.modelContextWindows.record("claude", "claude-opus-4-7", 200_000));
 	const chat = await addChat(world, cast.arbor, {
@@ -148,6 +163,13 @@ export const COMPOSER_STATES: CatalogueState[] = [
 		group: "Composer",
 		title: "The context usage card open: window used, token breakdown, model and service tier",
 		seed: (world) => contextUsageChat(world),
+	},
+	{
+		id: "chat-context-usage-api-key",
+		group: "Composer",
+		title:
+			"The context usage card of a chat that signs in with an API key: its Provider and Auth rows",
+		seed: (world) => contextUsageChat(world, false, { provider: "Anthropic API", auth: "API key" }),
 	},
 	{
 		id: "chat-context-loading",

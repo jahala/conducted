@@ -46,6 +46,7 @@ export const CLAUDE_TOOL_TABLE: Readonly<Record<string, CanonicalTool>> = {
 	Monitor: "monitor",
 	ScheduleWakeup: "schedule_wakeup",
 	SendMessage: "send_message",
+	Teammate: "teammate",
 	ToolSearch: "tool_search",
 };
 

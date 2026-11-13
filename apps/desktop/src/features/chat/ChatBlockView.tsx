@@ -14,6 +14,7 @@ import type { AgentKind, SessionId, WorkspaceId } from "@conducted/shared";
 import type { ChatBlock } from "../../core/model.ts";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { AssistantText } from "./AssistantText.tsx";
+import { BackgroundTaskRow } from "./BackgroundTaskRow.tsx";
 import { ChatBanner, type RetryInNewChatTarget } from "./ChatBanner.tsx";
 import { ThinkingBlock } from "./ThinkingBlock.tsx";
 import { TodoBlock } from "./TodoBlock.tsx";
@@ -27,6 +28,7 @@ const BLOCK_AREA = {
 	todo: "Todo list",
 	notice: "Notice",
 	error: "Error",
+	background_task: "Background task",
 } as const satisfies Record<ChatBlock["kind"], string>;
 
 function BlockContent({
@@ -69,6 +71,8 @@ function BlockContent({
 			return (
 				<ChatBanner block={block} onRetry={onRetry} retryInNewChat={retryInNewChat} agent={agent} />
 			);
+		case "background_task":
+			return <BackgroundTaskRow item={block.item} source={block.source} />;
 	}
 }
 

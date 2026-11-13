@@ -43,6 +43,7 @@ import { toastError } from "../../ui/Toast.tsx";
 import { activeTabFromDescriptor, resolveActiveTab, searchPatchFor, tabRef } from "./active-tab.ts";
 import { ChatHistoryButton } from "./ChatHistoryButton.tsx";
 import { CloseChatDialog } from "./CloseChatDialog.tsx";
+import { CLOSE_CHAT_FAILED, CLOSE_OTHERS_FAILED, REOPEN_CHAT_FAILED } from "./chat-tab-messages.ts";
 import { NewTabMenu } from "./NewTabMenu.tsx";
 import { TabContextMenu } from "./TabContextMenu.tsx";
 import { TabItem } from "./TabItem.tsx";
@@ -279,11 +280,12 @@ export function TabStrip({
 	/** Closes the chat or terminal behind a tab. Other tab kinds close by leaving the URL. */
 	const closeBacking = async (
 		tab: TabDescriptor,
+		chatFailure = CLOSE_CHAT_FAILED,
 	): Promise<{ ok: true; next?: Session } | { ok: false }> => {
 		if (tab.kind === "session" && tab.sessionId !== undefined) {
 			const result = await actions.sessions.close(tab.sessionId);
 			if (!result.ok) {
-				toastError("Couldn't close the chat", result.error);
+				toastError(chatFailure, result.error);
 				return { ok: false };
 			}
 			return { ok: true, next: result.value };
@@ -331,7 +333,7 @@ export function TabStrip({
 
 	const closeOthersNow = async (keep: TabDescriptor) => {
 		for (const other of othersClosable(keep)) {
-			const result = await closeBacking(other);
+			const result = await closeBacking(other, CLOSE_OTHERS_FAILED);
 			if (!result.ok) return;
 			lastClosed.current = other;
 		}
@@ -373,7 +375,7 @@ export function TabStrip({
 		if (tab.kind === "session" && tab.sessionId !== undefined) {
 			const result = await actions.sessions.reopen(tab.sessionId);
 			if (!result.ok) {
-				toastError("Couldn't reopen the chat", result.error);
+				toastError(REOPEN_CHAT_FAILED, result.error);
 				return true;
 			}
 		}

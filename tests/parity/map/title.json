@@ -1391,19 +1391,19 @@
 	},
 	"title:R2093263": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "CHAT-01",
 		"item": "Chat history 'Loading chats' and 'No open chats' with 'New chat'",
 		"owner": "rule:quote"
 	},
 	"title:R2093709": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-01",
-		"item": "Chat history 'Loading chats' and 'No open chats' with 'New chat'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "cloud-open-in-no-apps",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > section > h2",
+		"by": "seed"
 	},
 	"title:R2137781": {
 		"status": "gap",
@@ -3335,10 +3335,10 @@
 	},
 	"title:R11592829": {
 		"status": "matched",
-		"state": "settings-agents",
+		"state": "chat-context-usage-api-key",
 		"via": "text",
-		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(1) > div > button:nth-of-type(2)",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > ul > li:nth-of-type(2) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"title:R11594431": {
@@ -3453,10 +3453,10 @@
 	},
 	"title:R11709907": {
 		"status": "matched",
-		"state": "settings-general",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(1) > button:nth-of-type(2) > span",
+		"state": "chat-context-usage-api-key",
+		"via": "aria-label",
+		"role": "ul",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > ul",
 		"by": "seed"
 	},
 	"title:R11746360": {

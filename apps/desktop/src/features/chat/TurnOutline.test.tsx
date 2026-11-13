@@ -82,7 +82,7 @@ describe("CHAT-25 turn outline", () => {
 		render(
 			wrap(
 				<TurnOutline
-					turns={outlineOf([], [makeTurn(0), makeTurn(1), makeTurn(2)])}
+					turns={outlineOf(undefined, [makeTurn(0), makeTurn(1), makeTurn(2)])}
 					currentTurnId={null}
 					onJumpToTurn={vi.fn()}
 				/>,
@@ -98,7 +98,7 @@ describe("CHAT-25 turn outline", () => {
 		render(
 			wrap(
 				<TurnOutline
-					turns={outlineOf([], turns)}
+					turns={outlineOf(undefined, turns)}
 					currentTurnId={null}
 					onJumpToTurn={onJumpToTurn}
 				/>,
@@ -116,7 +116,13 @@ describe("CHAT-25 turn outline", () => {
 
 	it("shows nothing for a chat with no turns or one turn", () => {
 		const { container, rerender } = render(
-			wrap(<TurnOutline turns={outlineOf([], [])} currentTurnId={null} onJumpToTurn={vi.fn()} />),
+			wrap(
+				<TurnOutline
+					turns={outlineOf(undefined, [])}
+					currentTurnId={null}
+					onJumpToTurn={vi.fn()}
+				/>,
+			),
 		);
 		expect(container.firstChild).toBeNull();
 		expect(screen.queryByRole("button", { name: "Table of contents" })).toBeNull();
@@ -124,7 +130,7 @@ describe("CHAT-25 turn outline", () => {
 		rerender(
 			wrap(
 				<TurnOutline
-					turns={outlineOf([], [makeTurn(0)])}
+					turns={outlineOf(undefined, [makeTurn(0)])}
 					currentTurnId={null}
 					onJumpToTurn={vi.fn()}
 				/>,
@@ -137,7 +143,7 @@ describe("CHAT-25 turn outline", () => {
 		const { container } = render(
 			wrap(
 				<TurnOutline
-					turns={outlineOf([], [makeTurn(0), makeTurn(1)])}
+					turns={outlineOf(undefined, [makeTurn(0), makeTurn(1)])}
 					currentTurnId={"t1" as TurnId}
 					onJumpToTurn={vi.fn()}
 				/>,
@@ -154,7 +160,7 @@ describe("CHAT-25 turn outline", () => {
 		const { container } = render(
 			wrap(
 				<TurnOutline
-					turns={outlineOf([], [makeTurn(0), planTurn(1)])}
+					turns={outlineOf(undefined, [makeTurn(0), planTurn(1)])}
 					currentTurnId={null}
 					onJumpToTurn={vi.fn()}
 				/>,
@@ -170,7 +176,7 @@ describe("CHAT-25 turn outline", () => {
 		const { container } = render(
 			wrap(
 				<TurnOutline
-					turns={outlineOf([], [makeTurn(0), makeTurn(1, { outcome: "running" })])}
+					turns={outlineOf(undefined, [makeTurn(0), makeTurn(1, { outcome: "running" })])}
 					currentTurnId={null}
 					onJumpToTurn={vi.fn()}
 				/>,
@@ -184,7 +190,11 @@ describe("CHAT-25 turn outline", () => {
 		const turns = Array.from({ length: 2000 }, (_, index) => makeTurn(index));
 		render(
 			wrap(
-				<TurnOutline turns={outlineOf([], turns)} currentTurnId={null} onJumpToTurn={vi.fn()} />,
+				<TurnOutline
+					turns={outlineOf(undefined, turns)}
+					currentTurnId={null}
+					onJumpToTurn={vi.fn()}
+				/>,
 			),
 		);
 
@@ -197,7 +207,7 @@ describe("CHAT-25 turn outline", () => {
 		render(
 			wrap(
 				<TurnOutline
-					turns={outlineOf([], [makeTurn(0), makeTurn(1)])}
+					turns={outlineOf(undefined, [makeTurn(0), makeTurn(1)])}
 					currentTurnId={null}
 					onJumpToTurn={vi.fn()}
 				/>,

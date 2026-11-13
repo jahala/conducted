@@ -28,12 +28,13 @@ import { useServices } from "../../core/context.tsx";
 import { useActions, useWorkspace } from "../../core/hooks.ts";
 import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
-import { toastError } from "../../ui/Toast.tsx";
+import { toast, toastError } from "../../ui/Toast.tsx";
 import { ArchivedComposer } from "../composer/ArchivedComposerBar.tsx";
 import { Composer } from "../composer/Composer.tsx";
 import { GoalBar } from "../composer/GoalBar.tsx";
 import { PlanAdjustmentsProvider } from "../composer/plan-adjustments.tsx";
 import { QueueBox } from "../composer/QueueBox.tsx";
+import { NO_CHAT_CONTENT } from "../workspace/chat-tab-messages.ts";
 import { ChatSearchBar } from "./ChatSearchBar.tsx";
 import { FailedSends } from "./FailedSends.tsx";
 import { InteractionDock } from "./interactions/InteractionDock.tsx";
@@ -63,6 +64,7 @@ export function ChatPane({
 	useCommandHandler("chat.copyTranscript", "base", () => {
 		void actions.sessions.copyTranscript(sessionId, "concise").then((result) => {
 			if (!result.ok) toastError("Couldn't copy the transcript", result.error);
+			else if (result.value === "empty") toast.warning(NO_CHAT_CONTENT);
 		});
 		return true;
 	});

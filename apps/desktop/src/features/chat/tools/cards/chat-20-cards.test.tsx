@@ -18,6 +18,7 @@ import { TaskGetCard } from "./TaskGetCard.tsx";
 import { TaskListCard } from "./TaskListCard.tsx";
 import { TaskStopCard } from "./TaskStopCard.tsx";
 import { TaskUpdateCard } from "./TaskUpdateCard.tsx";
+import { TeammateCard } from "./TeammateCard.tsx";
 import { ToolSearchCard } from "./ToolSearchCard.tsx";
 
 const sessionId = "s1" as SessionId;
@@ -548,5 +549,48 @@ describe("CHAT-20 tool cards in the real container", () => {
 			await test.container.stop();
 			test.close();
 		}
+	});
+});
+
+describe("CHAT-20 the swarm card (Claude's Teammate tool, renderApp @8823423)", () => {
+	it("a team spawn shows Spawn swarm, the team, its Purpose and its Lead type", () => {
+		render(
+			<TeammateCard
+				call={view(
+					"teammate",
+					{
+						operation: "spawnTeam",
+						team_name: "cache-audit",
+						description: "Find every read that skips the cache",
+						agent_type: "general-purpose",
+					},
+					{ rawName: "Teammate" },
+				)}
+				sessionId={sessionId}
+				defaultExpanded
+			/>,
+		);
+		expect(screen.getByText("Spawn swarm")).toBeTruthy();
+		expect(screen.getByText("cache-audit")).toBeTruthy();
+		expect(screen.getByText("Purpose:")).toBeTruthy();
+		expect(screen.getByText("Find every read that skips the cache")).toBeTruthy();
+		expect(screen.getByText("Lead type:")).toBeTruthy();
+		expect(screen.getByText("general-purpose")).toBeTruthy();
+	});
+
+	it("a team cleanup shows Clean up swarm and no details", () => {
+		render(
+			<TeammateCard
+				call={view(
+					"teammate",
+					{ operation: "cleanup", team_name: "cache-audit" },
+					{ rawName: "Teammate" },
+				)}
+				sessionId={sessionId}
+				defaultExpanded
+			/>,
+		);
+		expect(screen.getByText("Clean up swarm")).toBeTruthy();
+		expect(screen.queryByText("Purpose:")).toBeNull();
 	});
 });
