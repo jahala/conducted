@@ -48,10 +48,10 @@ export function createActions(
 			remove: (repoId) => services.repo.remove(repoId),
 			setDefaultBranch: (repoId, branch) => services.repo.setDefaultBranch(repoId, branch),
 			reorder: (orderedIds) => services.repo.reorder(orderedIds),
-			updateConfig: (repoId, config) => services.repo.updateConfig(repoId, config),
+			updateConfig: (...args) => services.repo.updateConfig(...args),
 			copyPreview: (repoId) => services.repo.copyPreview(repoId),
 			setIcon: (repoId, icon) => services.repo.setIcon(repoId, icon),
-			resetRunAction: (repoId, actionId) => services.repo.resetRunAction(repoId, actionId),
+			resetRunAction: (...args) => services.repo.resetRunAction(...args),
 			setRunActionHidden: (repoId, actionId, hidden) =>
 				services.repo.setRunActionHidden(repoId, actionId, hidden),
 		},
@@ -246,7 +246,7 @@ export function createActions(
 		settings: {
 			// Arguments pass on as given, so a save without options reaches the service without them.
 			set: (...args) => services.settings.set(...args),
-			reset: (key) => services.settings.delete(key),
+			reset: (...args) => services.settings.delete(...args),
 			setEnvVar: (name, value, scope) => services.settings.setEnvVar(name, value, scope),
 			removeEnvVar: (name, scope) => services.settings.removeEnvVar(name, scope),
 			resetForRepo: (...args) => services.settings.resetForRepo(...args),

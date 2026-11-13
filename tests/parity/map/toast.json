@@ -650,7 +650,7 @@
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "SET-01",
-		"item": "Conductor shows \"Failed to reset setting\" (message, Unplaced); ours has no counterpart yet (parity gap).",
+		"item": "A setting's Reset says \"Failed to reset setting\" when a setting kept in the settings table cannot be removed; a file-backed setting's Reset gets the settings writer's toast, with \"Overwrite file\" for an invalid file (issue #654).",
 		"owner": "hand"
 	},
 	"toast:R8730441": {
@@ -1110,7 +1110,7 @@
 		"reason": "unshown",
 		"screen": "inventory-controls Settings",
 		"backlog": "SET-04",
-		"item": "Updating environment variable files can fail with \"Failed to update env files\".",
+		"item": "Updating environment variable files says \"Failed to update env files\" only when the write throws; a refused or failed write gets the settings writer's toast, with \"Overwrite file\" for an invalid file (issue #654).",
 		"owner": "rule:cite"
 	},
 	"toast:R10871822": {
@@ -1422,7 +1422,7 @@
 		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "RUN-02",
-		"item": "Turning Spotlight testing on or off can fail with \"Failed to update spotlight testing\".",
+		"item": "Turning Spotlight testing on or off says \"Failed to update spotlight testing\" only when the call throws; a refused or failed write gets the settings writer's toast, with \"Overwrite file\" for an invalid file (issue #654).",
 		"owner": "rule:cite"
 	},
 	"toast:R11290713": {
