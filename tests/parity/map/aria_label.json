@@ -160,7 +160,10 @@
 	"aria_label:R4419387": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "RUN-03",
+		"item": "'Open' button and 'Choose preview URL'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R4421044": {
 		"status": "matched",

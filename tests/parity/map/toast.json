@@ -271,8 +271,8 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "Unplaced",
-		"backlog": "CHAT-29",
-		"item": "Copying an image can fail: \"Failed to copy to clipboard\".",
+		"backlog": "NAV-10",
+		"item": "Conductor shows \"Failed to copy link\" (message, Unplaced); ours has no counterpart yet (parity gap).",
 		"owner": "rule:quote"
 	},
 	"toast:R2035043": {
