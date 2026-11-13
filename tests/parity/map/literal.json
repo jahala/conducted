@@ -2579,9 +2579,12 @@
 		"by": "seed"
 	},
 	"literal:R11285199": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Repository"
+		"status": "matched",
+		"state": "settings-repo-icon-site-favicon",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > button > span",
+		"by": "seed"
 	},
 	"literal:R11342763": {
 		"status": "decided",
