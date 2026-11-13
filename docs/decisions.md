@@ -1170,3 +1170,18 @@ Chosen:
 Why not match the lost change: it reverts a setting the user saw saved, which is the defect the button exists to avoid.
 
 Not covered: settings saved on the user's behalf (`last_clone_directory`, `always_allow_local_execution`) live in the settings table, so they never meet an invalid file. A setting's Reset and a project's config pages do not show this toast yet; Conductor offers the button there too (issue #654).
+
+## D145. Stage 2 runs the end-to-end test app, and the navigation guard follows the page Tauri opens (2026-11-13)
+
+Decided by the agent fixing issue #624, under the lead's brief ("Build and start the same debug app bundle the e2e harness builds ... sharing that build instead of copying it"; "stage 2 must use the same build, so it opens behind too").
+
+Context: stage 2 (`live.ts`, D099) built a bare debug binary into a target folder under /tmp. Tauri takes the folder beside a debug binary as its resources folder only when that binary sits in a Cargo folder named `target` (`tauri-utils` `resource_dir_from`). The run's folder had another name, so Tauri looked for `../Resources`, found none, and every call that needs the resources folder or the app's paths failed ("unknown path"): the sidecar never started. The bare binary also opened as a normal app: a Dock icon, and the active app on each launch, about a hundred times in a full run. The end-to-end test app (D135) has neither problem: it is a debug `.app` bundle with its resources and the release config's bundled sidecar, and it opens behind the owner's work (#633). It is built with `tauri build`, which serves a built UI rather than a dev server.
+
+Chosen:
+
+- **One build.** `buildTestApp` (`scripts/e2e/harness.ts`) takes a target folder and a config merged after its own. `live.ts` calls it with the stage 2 override, into its own target folder, never the e2e run's: there the override would replace the bundle the e2e checks clone.
+- **The override points `frontendDist` at the bridge page.** A built app opens a `frontendDist` URL as its own page, and Tauri gives that page the app's IPC (`AppManager::get_app_url`). The override no longer sets `devUrl`, which a built app ignores.
+- **The navigation guard keeps the window on the origin Tauri loads the UI from** (`app_origin` in `navigation.rs`): the dev server in a dev build, a `frontendDist` URL in a built one, else `tauri://localhost`. It had a fixed list per build kind, which would have sent the bridge page to the owner's browser. Our configs give the same origins as before, which a test reads from `tauri.conf.json`; `checkAppConfig` still fails when one of them names the bridge.
+- **The app's WebKit storage stays in the scratch home** (`CFFIXED_USER_HOME`, as in the e2e run), and the test build's WebDriver server gets a free port.
+
+Why not name the run's target folder `target`: the resources would be found, but the app would still take the owner's screen on every launch, and it would not be the build the e2e run checks.
