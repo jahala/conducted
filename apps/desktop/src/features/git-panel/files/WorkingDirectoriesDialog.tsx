@@ -2,18 +2,21 @@
  * @feature GIT-15 Sparse checkout and the external diff tool
  * @feature WS-07 Linked workspaces and extra folders
  * Owns: the working directories picker: which folders of the repository a workspace checks out
- * (git sparse checkout in cone mode), and the All files tab's "Select working directories" button
- * that opens it.
+ * (git sparse checkout in cone mode), and the "Select working directories" button that opens it,
+ * which the git panel's tab strip shows while All files is open (renderApp @4008200).
  * Behaviour: Conductor's picker (renderApp @5688200 to @5695500): a command dialog searching
  * "Search directories or type a nested path like apps/web..."; "Loading directories..." while git
  * lists them; a "Working directories" group of the top-level folders, the chosen nested ones and,
  * for a typed nested path, the folders inside its parent; "No directories found" for a search that
  * matches none and "No directories in this repository" for none at all; a folder inside a chosen
  * one is locked, with the reason as its tooltip; and "Select all", "Deselect all", Cancel and Save
- * ("Saving...") at the bottom. With sparse checkout off every top-level folder starts chosen.
+ * ("Saving...") at the bottom. With sparse checkout off every top-level folder starts chosen. A
+ * folder that holds an uncommitted change (any file below it in the workspace's uncommitted
+ * changes, renderApp `U_n`) is marked with a warning sign, and while it is chosen it is locked with
+ * "This directory has uncommitted changes. Commit or stash them before removing it."; Deselect all
+ * keeps such folders unless it empties the choice, which checks out every folder (`D3o`).
  * Our design choice: a search matches any part of a folder's path, where Conductor ranks fuzzy
- * matches. Conductor also locks a chosen folder that holds uncommitted changes; ours does not,
- * because git keeps a changed file when its folder leaves the sparse checkout.
+ * matches.
  * Must handle: git failing to list the folders or to save (a toast with the reason; the dialog stays
  * open on a failed save); a second Save while one runs (the button is off); an answer for an older
  * nested path arriving after a newer one (only the newest is shown).
@@ -22,10 +25,17 @@
 import type { WorkspaceId } from "@conducted/shared";
 import { Command } from "cmdk";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useActions } from "../../../core/hooks.ts";
+import type { DiffScope } from "../../../core/api.ts";
+import { useActions, useChangedFiles } from "../../../core/hooks.ts";
 import type { SparseCheckoutSettings } from "../../../core/model.ts";
 import { Button } from "../../../ui/Button.tsx";
-import { CheckIcon, CircleIcon, FolderIcon, SearchIcon } from "../../../ui/icons.tsx";
+import {
+	CheckIcon,
+	CircleIcon,
+	FolderIcon,
+	SearchIcon,
+	TriangleAlertIcon,
+} from "../../../ui/icons.tsx";
 import { toastError } from "../../../ui/Toast.tsx";
 import { Tooltip } from "../../../ui/Tooltip.tsx";
 
@@ -65,6 +75,23 @@ function dropDescendants(chosen: Set<string>, path: string): void {
 	for (const entry of [...chosen]) if (entry.startsWith(`${path}/`)) chosen.delete(entry);
 }
 
+/** Every folder that holds one of `paths`, at every depth, in the order first met. */
+export function changedFolders(paths: readonly string[]): Set<string> {
+	const folders = new Set<string>();
+	for (const path of paths) {
+		let folder = "";
+		for (const part of path.split("/").slice(0, -1)) {
+			folder = folder === "" ? part : `${folder}/${part}`;
+			folders.add(folder);
+		}
+	}
+	return folders;
+}
+
+const UNCOMMITTED: DiffScope = { kind: "uncommitted" };
+const UNCOMMITTED_LOCK =
+	"This directory has uncommitted changes. Commit or stash them before removing it.";
+
 /** A sparse-checkout line that names a folder, not a pattern. */
 const isFolder = (line: string): boolean =>
 	!line.startsWith("/") && !line.startsWith("!") && !line.includes("*");
@@ -91,6 +118,14 @@ export function WorkingDirectoriesDialog({
 	const [nested, setNested] = useState<{ parent: string; folders: string[] } | null>(null);
 	const [saving, setSaving] = useState(false);
 	const nestedRequest = useRef(0);
+	const uncommitted = useChangedFiles(workspaceId, UNCOMMITTED);
+	const changed = useMemo(
+		() =>
+			uncommitted.state === "ready"
+				? changedFolders(uncommitted.data.map((file) => file.path))
+				: new Set<string>(),
+		[uncommitted],
+	);
 
 	useEffect(() => {
 		if (!open) return;
@@ -172,6 +207,10 @@ export function WorkingDirectoriesDialog({
 			const ancestor = chosenAncestor(entry, next);
 			if (ancestor !== undefined) next.delete(ancestor);
 		}
+		// A choice left empty checks out everything, so only a smaller one keeps changed folders.
+		if (next.size > 0) {
+			for (const entry of chosen) if (changed.has(entry)) next.add(entry);
+		}
 		return next.size === chosen.size ? null : next;
 	})();
 
@@ -208,11 +247,18 @@ export function WorkingDirectoriesDialog({
 				{listed.map((entry) => {
 					const through = chosenAncestor(entry, chosen);
 					const isChosen = chosen.has(entry) || through !== undefined;
+					const hasChanges = changed.has(entry);
+					const locked =
+						through !== undefined
+							? `Included through "${through}". Deselect it to manage this directory separately.`
+							: chosen.has(entry) && hasChanges
+								? UNCOMMITTED_LOCK
+								: undefined;
 					const row = (
 						<Command.Item
 							key={entry}
 							value={`dir-${entry}`}
-							disabled={through !== undefined}
+							disabled={locked !== undefined}
 							onSelect={() => toggle(entry)}
 							className={itemClass}
 						>
@@ -222,16 +268,18 @@ export function WorkingDirectoriesDialog({
 								<CircleIcon className="size-4 shrink-0 text-fg-muted" />
 							)}
 							<span className="min-w-0 truncate text-sm">{entry}</span>
+							{hasChanges ? (
+								<TriangleAlertIcon
+									aria-label="Uncommitted changes"
+									className="ml-auto size-3.5 shrink-0 text-warning"
+								/>
+							) : null}
 						</Command.Item>
 					);
-					return through === undefined ? (
+					return locked === undefined ? (
 						row
 					) : (
-						<Tooltip
-							key={entry}
-							side="right"
-							content={`Included through "${through}". Deselect it to manage this directory separately.`}
-						>
+						<Tooltip key={entry} side="right" content={locked}>
 							<div>{row}</div>
 						</Tooltip>
 					);
@@ -297,8 +345,8 @@ export function WorkingDirectoriesDialog({
 }
 
 /**
- * The All files tab's icon button that opens the picker, with Conductor's tooltip (renderApp
- * @4008345).
+ * The icon button that opens the picker, with Conductor's tooltip, in the git panel's tab strip
+ * while All files is open (renderApp @4008345).
  */
 export function WorkingDirectoriesButton({ workspaceId }: { workspaceId: WorkspaceId }) {
 	const [open, setOpen] = useState(false);

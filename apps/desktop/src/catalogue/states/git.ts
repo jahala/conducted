@@ -8,7 +8,7 @@
  * a file's right-click menu in All files, a changed file's discard confirm, the Rename workspace dialog, the toast
  * after Copy link, the question before archiving a workspace whose agent works, the toast when
  * Archive workspace finds no workspace open, the Artifacts tab
- * with one file, the working directories picker (and while git lists the folders), and the All
+ * with one file, the working directories picker (on a folder with uncommitted changes, and while git lists the folders), and the All
  * files tab holding every kind in Conductor's brand file icon table, in
  * parts.
  * Behaviour: ui-map.md 3.6 (Git panel), 3.4 (diff view), 3.7.x (pull request header); core/status/
@@ -27,7 +27,7 @@ import {
 	seedCast,
 	workspaceRoute,
 } from "../cast.ts";
-import { click, find, has, pressUntilTaken, rightClick, shows, typeInto } from "../dom.ts";
+import { click, find, has, hover, pressUntilTaken, rightClick, shows, typeInto } from "../dom.ts";
 import type { PrKind, ScriptedPr } from "../github.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, DAY } from "../time.ts";
@@ -141,6 +141,7 @@ const workingDirectoriesState = (
 	title: string,
 	text: string,
 	hold: boolean,
+	pointAt?: string,
 ): CatalogueState => ({
 	id,
 	group: "Git panel",
@@ -150,6 +151,7 @@ const workingDirectoriesState = (
 			after: async ({ document }) => {
 				await click(document, "button,[role=tab]", "All files");
 				await click(document, "button", "Select working directories");
+				if (pointAt !== undefined) await hover(document, '[role="option"]', pointAt);
 			},
 			ready: (document) => shows(document, text),
 		})(world);
@@ -176,6 +178,14 @@ export const GIT_STATES: CatalogueState[] = [
 		"All files tab, the Select working directories picker",
 		"Working directories",
 		false,
+	),
+	// arbor's docs/redirects.md is not committed, so docs is locked while it is chosen.
+	workingDirectoriesState(
+		"git-working-directories-uncommitted",
+		"All files tab, the working directories picker on a folder with uncommitted changes",
+		"This directory has uncommitted changes.",
+		false,
+		"docs",
 	),
 	workingDirectoriesState(
 		"git-working-directories-loading",

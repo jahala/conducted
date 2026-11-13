@@ -10,8 +10,9 @@ name: Catalogue shots
 # drag (scripts/catalogue/pointer-drag.browser.ts, issue #529), the Settings sidebar's measure
 # (scripts/settings-nav.browser.ts, issue #488), the plan review shortcut from the composer
 # (scripts/catalogue/plan-approve.browser.ts, issue #586), the Agents page's tab row
-# (scripts/catalogue/agents-tabs.browser.ts, issue #625) and an uploaded repository icon drawn at
-# icon size (scripts/catalogue/icon-resize.browser.ts, PRJ-05).
+# (scripts/catalogue/agents-tabs.browser.ts, issue #625), an uploaded repository icon drawn at
+# icon size (scripts/catalogue/icon-resize.browser.ts, PRJ-05) and the git panel's tab strip
+# keeping Review whole (scripts/catalogue/git-tabs.browser.ts, REV-01).
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -115,3 +116,6 @@ jobs:
       - name: An uploaded repository icon is drawn at icon size
         if: ${{ !cancelled() }}
         run: bun scripts/catalogue/icon-resize.browser.ts
+      - name: The git panel's tab strip keeps Review and its buttons whole
+        if: ${{ !cancelled() }}
+        run: bun scripts/catalogue/git-tabs.browser.ts

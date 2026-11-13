@@ -7,6 +7,8 @@
 import { ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { AppProviders, createQueryClient } from "../../../app/providers.tsx";
+import type { ChangedFile } from "../../../core/api.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { ShellCommand, ShellOutput } from "../../../platform/platform.ts";
 import {
@@ -15,7 +17,11 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../../../test/container.ts";
-import { WorkingDirectoriesButton, WorkingDirectoriesDialog } from "./WorkingDirectoriesDialog.tsx";
+import {
+	changedFolders,
+	WorkingDirectoriesButton,
+	WorkingDirectoriesDialog,
+} from "./WorkingDirectoriesDialog.tsx";
 
 let active: TestContainer | undefined;
 
@@ -32,7 +38,20 @@ const output = (stdout = "", exitCode = 0): Result<ShellOutput> =>
 const argv = (command: ShellCommand): readonly string[] =>
 	command.program === "git" && command.args[0] === "-c" ? command.args.slice(2) : command.args;
 
-async function setup(options: { sparse?: string; hold?: boolean } = {}) {
+/** An uncommitted change at `path`, as the Changes tab lists it. */
+const change = (path: string): ChangedFile => ({
+	path,
+	status: "modified",
+	linesAdded: 1,
+	linesRemoved: 0,
+	binary: false,
+	conflicted: false,
+	viewed: false,
+});
+
+async function setup(
+	options: { sparse?: string; hold?: boolean; uncommitted?: readonly string[] } = {},
+) {
 	const test = createTestContainer();
 	active = test;
 	const repo = await seedRepo(test.container, { rootPath: "/code/atlas" });
@@ -63,14 +82,21 @@ async function setup(options: { sparse?: string; hold?: boolean } = {}) {
 		}
 		return null;
 	});
+	// seam: GIT-15 the uncommitted files come from the git service's own diff, tested in git.test.ts;
+	// here they are the input the picker reads.
+	vi.spyOn(test.container.services.git, "changedFiles").mockImplementation(async (_id, scope) =>
+		ok(scope.kind === "uncommitted" ? (options.uncommitted ?? []).map(change) : []),
+	);
 	const onOpenChange = vi.fn();
 	render(
 		<ServicesProvider container={test.container}>
-			<WorkingDirectoriesDialog
-				open
-				onOpenChange={onOpenChange}
-				workspaceId={workspace.id as WorkspaceId}
-			/>
+			<AppProviders client={createQueryClient(() => {})}>
+				<WorkingDirectoriesDialog
+					open
+					onOpenChange={onOpenChange}
+					workspaceId={workspace.id as WorkspaceId}
+				/>
+			</AppProviders>
 		</ServicesProvider>,
 	);
 	return { sets, onOpenChange };
@@ -85,7 +111,9 @@ describe("GIT-15 working directories button", () => {
 		const workspace = await seedWorkspace(test.container);
 		render(
 			<ServicesProvider container={test.container}>
-				<WorkingDirectoriesButton workspaceId={workspace.id} />
+				<AppProviders client={createQueryClient(() => {})}>
+					<WorkingDirectoriesButton workspaceId={workspace.id} />
+				</AppProviders>
 			</ServicesProvider>,
 		);
 
@@ -159,6 +187,38 @@ describe("GIT-15 working directories picker", () => {
 		expect(web.getAttribute("aria-disabled")).toBe("true");
 	});
 
+	// Conductor locks a chosen folder that holds uncommitted changes, marks it, and says why
+	// (renderApp @5693900); Deselect all keeps it (`D3o`).
+	it("locks a chosen folder with uncommitted changes, and Deselect all keeps it", async () => {
+		const { sets } = await setup({ uncommitted: ["packages/ui/button.ts"] });
+		await waitFor(async () =>
+			expect((await option(/packages/)).getAttribute("aria-disabled")).toBe("true"),
+		);
+		const packages = await option(/packages/);
+		expect(packages.querySelector('[aria-label="Uncommitted changes"]')).not.toBeNull();
+		fireEvent.focus(packages.parentElement as HTMLElement);
+		expect(
+			(
+				await screen.findAllByText(
+					"This directory has uncommitted changes. Commit or stash them before removing it.",
+				)
+			).length,
+		).toBeGreaterThan(0);
+		expect((await option(/apps/)).getAttribute("aria-disabled")).not.toBe("true");
+
+		// The search shows apps and packages; scripts stays chosen, so packages must stay too.
+		fireEvent.change(
+			screen.getByPlaceholderText("Search directories or type a nested path like apps/web..."),
+			{ target: { value: "a" } },
+		);
+		await waitFor(() => expect(screen.queryByRole("option", { name: /scripts/ })).toBeNull());
+		fireEvent.click(screen.getByRole("button", { name: "Deselect all" }));
+		fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => expect(sets).toHaveLength(1));
+		expect([...(sets[0] ?? [])].sort()).toEqual(["packages", "scripts"]);
+	});
+
 	it("says No directories found when the search matches none", async () => {
 		await setup();
 		await option(/apps/);
@@ -169,5 +229,16 @@ describe("GIT-15 working directories picker", () => {
 		);
 
 		expect(await screen.findByText("No directories found")).toBeTruthy();
+	});
+});
+
+describe("GIT-15 changedFolders", () => {
+	it("lists every folder that holds a changed file, at every depth", () => {
+		expect([...changedFolders(["apps/web/src/a.ts", "README.md", "apps/docs/b.md"])]).toEqual([
+			"apps",
+			"apps/web",
+			"apps/web/src",
+			"apps/docs",
+		]);
 	});
 });
