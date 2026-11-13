@@ -48,9 +48,9 @@
 //!   Cloudflare's API with wrangler's own login: only the bucket named exactly as the Worker, in
 //!   the one account that holds it, page by page, skipping an object already gone. It says what it
 //!   removed. The login stays in a request header and is never logged or returned.
-//! - wrangler's OAuth token can expire while the bucket empties (issue #675). A 401 asks wrangler
-//!   for its login again and repeats that one call only with a new login. A login Cloudflare still
-//!   refuses is `cloud_login_refused`. A failure at the bucket says what is already deleted and
+//! - wrangler's OAuth token can expire while the bucket empties (issue #675). A refused login (401,
+//!   or 403 with code 9109) asks wrangler for its login again and repeats that one call only with
+//!   a new login. A login Cloudflare still refuses is `cloud_login_refused`. A failure at the bucket says what is already deleted and
 //!   that the bucket is left, so the user knows a second uninstall removes the rest.
 //! - The SSH tunnel URL (CLOUD-12) is `wss://<worker>/w/<name>/ssh`, with no port query: the route
 //!   reaches only the sandbox's loopback port 22.
@@ -970,6 +970,9 @@ const ACCOUNTS_PER_PAGE: u32 = 50;
 const EMPTY_ROUNDS: usize = 3;
 /// Cloudflare's error code for deleting a bucket that still holds objects.
 const BUCKET_NOT_EMPTY: i64 = 10008;
+/// Cloudflare's error code for a token it does not accept. An expired wrangler token met it as
+/// 403 on the account list; the R2 routes answer 401 instead.
+const INVALID_ACCESS_TOKEN: i64 = 9109;
 /// How long one call to Cloudflare's API may take.
 const API_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -1124,6 +1127,12 @@ impl ApiAnswer {
             && self.body.get("success").and_then(|value| value.as_bool()) != Some(false)
     }
 
+    /// Cloudflare did not accept the login: 401 on the R2 routes, 403 with code 9109 on the
+    /// account list.
+    fn login_refused(&self) -> bool {
+        self.status == 401 || (self.status == 403 && self.has_code(INVALID_ACCESS_TOKEN))
+    }
+
     fn has_code(&self, code: i64) -> bool {
         self.body
             .get("errors")
@@ -1135,8 +1144,8 @@ impl ApiAnswer {
             })
     }
 
-    /// The user's message for a call that failed, with Cloudflare's own words and codes. A 401 is
-    /// a login Cloudflare refused even after wrangler was asked for it again.
+    /// The user's message for a call that failed, with Cloudflare's own words and codes. A refused
+    /// login is one Cloudflare refused even after wrangler was asked for it again.
     fn failure(&self, doing: &str) -> CommandError {
         let said: Vec<String> = self
             .body
@@ -1163,11 +1172,12 @@ impl ApiAnswer {
         } else {
             said.join("; ")
         };
-        if self.status == 401 {
+        if self.login_refused() {
             return refused(
                 "cloud_login_refused",
                 format!(
-                    "Cloudflare refused your login to {doing}: HTTP 401, {said}. Run `wrangler login` and remove the deployment again."
+                    "Cloudflare refused your login to {doing}: HTTP {}, {said}. Run `wrangler login` and remove the deployment again.",
+                    self.status
                 ),
             );
         }
@@ -1184,8 +1194,8 @@ impl ApiAnswer {
 /// The uninstall's calls to Cloudflare's API, with wrangler's login. wrangler's OAuth token lasts
 /// an hour, and `wrangler auth token` hands back the stored one until it has expired, so a token
 /// read before the bucket is emptied can expire partway through (issue #675). Cloudflare then
-/// answers 401. The session asks wrangler for its login again and repeats the call once, only
-/// when wrangler hands back a different login. The same login again is reported, never retried.
+/// refuses the login. The session asks wrangler for its login again and repeats the call once,
+/// only when wrangler hands back a different login. The same login is reported, never retried.
 struct ApiSession<'a> {
     client: reqwest::Client,
     wrangler: &'a Wrangler,
@@ -1214,14 +1224,14 @@ impl<'a> ApiSession<'a> {
         })
     }
 
-    /// One call. A 401 reads wrangler's login again; a new login repeats the call once.
+    /// One call. A refused login reads wrangler's login again; a new one repeats the call once.
     async fn call(
         &mut self,
         method: reqwest::Method,
         url: reqwest::Url,
     ) -> CommandResult<ApiAnswer> {
         let answer = api_call(&self.client, &self.login, method.clone(), url.clone()).await?;
-        if answer.status != 401 {
+        if !answer.login_refused() {
             return Ok(answer);
         }
         let fresh = wrangler_login(self.wrangler, self.cwd)?;
@@ -2643,7 +2653,13 @@ mod tests {
                 let accepted = state.accepted.as_deref().unwrap_or("the-login");
                 if authorization != format!("bearer {accepted}") {
                     state.refused += 1;
-                    (401, Self::failed(10000, "Authentication error"))
+                    // As Cloudflare answered an expired wrangler token on 2026-11-13: the account
+                    // list with 403 and code 9109, the R2 routes with 401 and code 10000.
+                    if target.starts_with("/client/v4/accounts?") {
+                        (403, Self::failed(9109, "Invalid access token"))
+                    } else {
+                        (401, Self::failed(10000, "Authentication error"))
+                    }
                 } else {
                     state.requests.push(format!("{method} {target}"));
                     Self::route(&mut state, &method, &target)
@@ -2910,29 +2926,34 @@ mod tests {
 
     #[test]
     fn a_login_that_expires_while_the_bucket_empties_is_read_again() {
-        let (folder, wrangler, record) = fake_wrangler(UNINSTALL_WRANGLER);
-        let resources = resources_folder(&folder);
-        let cloudflare =
-            CloudflareStandIn::start(&["acc1"], &[("acc1", "conducted-cloud", filled_bucket())]);
-        // The token wrangler handed out expires after the first listing, between two object
-        // deletes; wrangler stores the refreshed one.
-        lock(&cloudflare.state).expiry = Some(LoginExpiry {
-            after_requests: 600,
-            next: String::from("the-refreshed-login"),
-            stored: Some(PathBuf::from(format!("{}.login", record.display()))),
-        });
-        let removed = uninstall_worker(
-            &wrangler,
-            &cloudflare.api(None),
-            &resources,
-            "conducted-cloud",
-        )
-        .expect("an uninstall");
-        assert_eq!((removed.bucket, removed.objects), (true, 1207));
-        assert_eq!(cloudflare.keys("acc1", "conducted-cloud"), None);
-        // One call met the expired token; the login was read again once and the call repeated.
-        assert_eq!(lock(&cloudflare.state).refused, 1);
-        assert_eq!(login_reads(&record), 2);
+        // The token wrangler handed out expires before the account list (answered 403, code
+        // 9109), or after the first object listing, between two object deletes (401, code 10000).
+        // Either way wrangler stores the refreshed one.
+        for after_requests in [0, 600] {
+            let (folder, wrangler, record) = fake_wrangler(UNINSTALL_WRANGLER);
+            let resources = resources_folder(&folder);
+            let cloudflare = CloudflareStandIn::start(
+                &["acc1"],
+                &[("acc1", "conducted-cloud", filled_bucket())],
+            );
+            lock(&cloudflare.state).expiry = Some(LoginExpiry {
+                after_requests,
+                next: String::from("the-refreshed-login"),
+                stored: Some(PathBuf::from(format!("{}.login", record.display()))),
+            });
+            let removed = uninstall_worker(
+                &wrangler,
+                &cloudflare.api(None),
+                &resources,
+                "conducted-cloud",
+            )
+            .unwrap_or_else(|error| panic!("an uninstall expiring at {after_requests}: {error}"));
+            assert_eq!((removed.bucket, removed.objects), (true, 1207));
+            assert_eq!(cloudflare.keys("acc1", "conducted-cloud"), None);
+            // One call met the expired token; the login was read again once and the call repeated.
+            assert_eq!(lock(&cloudflare.state).refused, 1);
+            assert_eq!(login_reads(&record), 2);
+        }
     }
 
     #[test]
