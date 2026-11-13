@@ -10,14 +10,14 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearCommandHandlers } from "../../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
-import type { RepoConfig, RunAction, Workspace } from "../../../core/model.ts";
+import type { RepoConfigPatch, RunAction, Workspace } from "../../../core/model.ts";
 import { SPOTLIGHT_BRANCH_NOTICE } from "../../../core/spotlight.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../../test/container.ts";
 import { WithSurfaces } from "../../../test/surfaces.tsx";
 import { RunTab } from "./RunTab.tsx";
 
 const dev: RunAction = {
-	id: "dev",
+	id: "dev-server",
 	label: "Dev server",
 	command: "bun dev",
 	args: [],
@@ -29,24 +29,9 @@ const dev: RunAction = {
 	availableIn: ["local", "cloud"],
 };
 
-const config = (spotlightTesting: boolean): RepoConfig => ({
-	setupScript: null,
+const config = (spotlightTesting: boolean): RepoConfigPatch => ({
 	runScripts: [dev],
-	runMode: "concurrent",
-	archiveScript: null,
-	copyFiles: [],
-	previewUrls: [],
 	spotlightTesting,
-	autoRunAfterSetup: false,
-	remoteName: "origin",
-	prompts: {
-		general: null,
-		codeReview: null,
-		createPr: null,
-		fixErrors: null,
-		resolveConflicts: null,
-		renameBranch: null,
-	},
 });
 
 const containers: ReturnType<typeof createTestContainer>[] = [];

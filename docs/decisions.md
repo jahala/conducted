@@ -1200,6 +1200,23 @@ Why: the owner's rule. The chat behaves as Conductor's does, and opening it cost
 
 The tests: `apps/desktop/src/core/services/sessions.chat-06-memory.container.test.ts` (the bound), `sessions.chat-06.container.test.ts` and `features/chat/MessageList.chat-06.test.tsx` (the behaviour), and the measure's bound on the open in `scripts/conductor-import/measure.test.ts`.
 
+## D146. A project config save is a patch, applied to the local file as it stands (2026-11-13)
+
+Decided by the agent fixing issue #670, which the owner filed. The owner's ruling: "Match Conductor. Nothing made up; gaps are reported."
+
+Context: each project settings page saved the whole config it last read (`updateConfig(repoId, { ...config.data, field })`). A second save issued before the first had landed and been read back wrote the first field's old value over it. On a cloud project each save first fetches the shared clone, so two saves can even reach the file in the other order. Conductor's writer (mutateSettingsFile, main @415335) takes a per-file lock, reads the file (readSettingsFileDataForWrite, @416200), applies a transform that sets or deletes one key (`tF`, @367756) or one task (`M8e`, @356875), writes, and then reads every layer again.
+
+Chosen:
+
+- **A save names its fields.** `Actions.projects.updateConfig` takes a `RepoConfigPatch`: any of `RepoConfig`'s fields, and any of the six prompts on its own, as each prompt is its own key in Conductor. The repo service applies only those fields to the local file inside the settings writer's per-file queue, on the contents that write has just read. A named key also loses the older invalid value kept for it; other keys keep theirs.
+- **Every caller sends a patch.** The five project pages, `resetRunAction`, the catalogue seeds and the tests. A page that keeps drafts (Scripts, the prompts) still saves text typed in its other fields, but only where it differs from what is stored, so a save names no field the user left alone.
+- **"Overwrite file" forces the same patch.** The `overwrite` option (D142, issue #654) rides on the patch: a page's failed-save toast and Reset retry the fields they named, over the last save's kept text.
+- **The store shows the file as written.** `updateSettingsFile` returns the contents it wrote, and the store's config is that file over the shared file the save read. So a field another save or a hand edit changed shows too, as Conductor's read after a write shows it.
+
+Why not read the files again after the write, as Conductor does: for a cloud project that is a second git fetch per save, and the written contents are already what the read would return. Why not a queue of whole configs in each page: the pages would still each start from what they last read, and two pages (the Actions page holds the prompt rows) would still undo each other.
+
+Not covered: run actions are one field, the whole list. Conductor's updateTask changes one task by id, so two quick edits of different actions on the Actions page can still undo each other here. And a renamed action keeps its id, while its typed name was only ever kept in the store; with the store showing the file, the name reverts to the id's label at once rather than at the next read.
+
 ## D147. The user's Worker is the OAuth broker for cloud MCP servers, and the MCP page is Conductor's (2026-11-13)
 
 Proposed by the CLOUD-17 OAuth PR, under the owner's rule "Match Conductor. Nothing made up; gaps are reported."; not yet ruled on by the owner. Replaces D121's "OAuth: not built" and its left-out catalogue.

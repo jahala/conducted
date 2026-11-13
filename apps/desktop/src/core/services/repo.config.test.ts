@@ -6,7 +6,7 @@ import { tomlText } from "../../test/toml-text.ts";
 import { localSettingsFile, sharedSettingsFile } from "../app-paths.ts";
 import type { RepoRepository } from "../db/repos.ts";
 import type { GitRunner } from "../git/runner.ts";
-import type { Repo } from "../model.ts";
+import type { Repo, RunAction } from "../model.ts";
 import { RepoService, type RepoServiceDeps, repoConfigFrom } from "./repo.ts";
 import {
 	parseSettingsDocument,
@@ -394,17 +394,63 @@ describe("PRJ-04 repo config reads", () => {
 	it("keeps the written config when a load that began before the write finishes late", async () => {
 		const ctx = makeService();
 		write(ctx.files, sharedPath, { scripts: { setup: "old" } });
-		const before = must(await ctx.service.loadConfig(repoId));
+		must(await ctx.service.loadConfig(repoId));
 
 		const held = ctx.holdNextRead(localPath);
 		const slowLoad = ctx.service.loadConfig(repoId);
 		await held.started;
 
-		must(await ctx.service.updateConfig(repoId, { ...before, setupScript: "new" }));
+		must(await ctx.service.updateConfig(repoId, { setupScript: "new" }));
 		held.release();
 		must(await slowLoad);
 
 		expect(ctx.config()?.setupScript).toBe("new");
+	});
+
+	it("keeps both of two saves of different fields that start together (issue #670)", async () => {
+		const ctx = makeService();
+		write(ctx.files, sharedPath, { scripts: { setup: "shared" } });
+		must(await ctx.service.loadConfig(repoId));
+
+		const [first, second] = await Promise.all([
+			ctx.service.updateConfig(repoId, { setupScript: "pnpm install" }),
+			ctx.service.updateConfig(repoId, { archiveScript: "pnpm clean" }),
+		]);
+		must(first);
+		must(second);
+
+		const reloaded = must(await ctx.service.loadConfig(repoId));
+		expect(reloaded.setupScript).toBe("pnpm install");
+		expect(reloaded.archiveScript).toBe("pnpm clean");
+	});
+
+	it("applies a save to the local file as it stands, leaving fields it does not name", async () => {
+		const ctx = makeService();
+		must(await ctx.service.loadConfig(repoId));
+		// Changed outside the app after the page read the config.
+		write(ctx.files, localPath, {
+			scripts: { archive: "by hand" },
+			prompts: { general: "hand prompt", code_review: "hand review" },
+		});
+
+		must(
+			await ctx.service.updateConfig(repoId, {
+				setupScript: "pnpm install",
+				prompts: { general: "saved prompt" },
+			}),
+		);
+
+		const stored = must(tomlCodec.parse(ctx.files.get(localPath) ?? ""));
+		expect(stored).toMatchObject({
+			scripts: { setup: "pnpm install", archive: "by hand" },
+			prompts: { general: "saved prompt", code_review: "hand review" },
+		});
+		// The store shows the file as written, the hand edits included.
+		expect(ctx.config()).toMatchObject({
+			setupScript: "pnpm install",
+			archiveScript: "by hand",
+			prompts: { general: "saved prompt", codeReview: "hand review" },
+		});
 	});
 
 	it("does not bring a removed project back when its config read ends late", async () => {
@@ -429,9 +475,15 @@ describe("PRJ-04 repo config reads", () => {
 			scripts: { run_mode: "exclusive", auto_run_after_setup: true },
 		});
 		const config = must(await ctx.service.loadConfig(repoId));
-		config.setupScript = "pnpm install";
 
-		must(await ctx.service.updateConfig(repoId, config));
+		must(
+			await ctx.service.updateConfig(repoId, {
+				setupScript: "pnpm install",
+				runMode: config.runMode,
+				spotlightTesting: config.spotlightTesting,
+				autoRunAfterSetup: config.autoRunAfterSetup,
+			}),
+		);
 
 		const localText = ctx.files.get(localPath) ?? "";
 		expect(localText).not.toContain("run_mode");
@@ -458,12 +510,15 @@ describe("PRJ-04 repo config reads", () => {
 		});
 		const config = must(await ctx.service.loadConfig(repoId));
 		expect(config.previewUrls).toEqual([{ name: "", url: "http://localhost:3000" }]);
-		config.copyFiles = [];
-		config.previewUrls = [];
-		config.setupScript = null;
-		config.prompts.general = null;
 
-		must(await ctx.service.updateConfig(repoId, config));
+		must(
+			await ctx.service.updateConfig(repoId, {
+				copyFiles: [],
+				previewUrls: [],
+				setupScript: null,
+				prompts: { general: null },
+			}),
+		);
 
 		const localText = ctx.files.get(localPath) ?? "";
 		expect(localText).toContain("file_include_globs = []");
@@ -491,19 +546,19 @@ describe("PRJ-04 repo config reads", () => {
 			{ name: "", url: "https://example.test/preview" },
 		]);
 
-		config.previewUrls = [
+		const previewUrls = [
 			{ name: "Preview", url: "https://example.test/preview" },
 			{ name: "Local", url: "http://localhost:3000" },
 			{ name: "", url: "http://localhost:3001" },
 		];
-		must(await ctx.service.updateConfig(repoId, config));
+		must(await ctx.service.updateConfig(repoId, { previewUrls }));
 
 		const localText = ctx.files.get(localPath) ?? "";
 		const stored = must(tomlCodec.parse(localText));
-		expect(stored.preview_urls).toBe(JSON.stringify(config.previewUrls));
+		expect(stored.preview_urls).toBe(JSON.stringify(previewUrls));
 
 		const reloaded = must(await ctx.service.loadConfig(repoId));
-		expect(reloaded.previewUrls).toEqual(config.previewUrls);
+		expect(reloaded.previewUrls).toEqual(previewUrls);
 	});
 
 	it("reads a plain string and a list of strings as preview URLs with no name", async () => {
@@ -526,10 +581,13 @@ describe("PRJ-04 repo config reads", () => {
 	it("keeps a comment beside preview_urls when the entry changes", async () => {
 		const ctx = makeService();
 		ctx.files.set(localPath, '# keep me\npreview_urls = ["https://old.example"]\n# after\n');
-		const config = must(await ctx.service.loadConfig(repoId));
+		must(await ctx.service.loadConfig(repoId));
 
-		config.previewUrls = [{ name: "New", url: "https://new.example" }];
-		must(await ctx.service.updateConfig(repoId, config));
+		must(
+			await ctx.service.updateConfig(repoId, {
+				previewUrls: [{ name: "New", url: "https://new.example" }],
+			}),
+		);
 
 		const localText = ctx.files.get(localPath) ?? "";
 		expect(localText).toContain("# keep me");
@@ -587,12 +645,9 @@ describe("PRJ-04 repo config reads", () => {
 				},
 			},
 		});
-		const config = must(await ctx.service.loadConfig(repoId));
+		must(await ctx.service.loadConfig(repoId));
 
-		config.setupScript = "pnpm install";
-		config.copyFiles = [".env"];
-		config.prompts.general = "Be careful.";
-		config.runScripts = [
+		const runScripts: RunAction[] = [
 			{
 				id: "dev",
 				label: "Dev",
@@ -632,7 +687,14 @@ describe("PRJ-04 repo config reads", () => {
 		];
 		const sharedBefore = ctx.files.get(sharedPath);
 
-		must(await ctx.service.updateConfig(repoId, config));
+		must(
+			await ctx.service.updateConfig(repoId, {
+				setupScript: "pnpm install",
+				copyFiles: [".env"],
+				prompts: { general: "Be careful." },
+				runScripts,
+			}),
+		);
 
 		expect(ctx.files.get(sharedPath)).toBe(sharedBefore);
 		const localText = ctx.files.get(localPath);
@@ -662,8 +724,8 @@ describe("PRJ-04 repo config reads", () => {
 
 	it("writes and reads where an action can run", async () => {
 		const ctx = makeService();
-		const config = must(await ctx.service.loadConfig(repoId));
-		config.runScripts = [
+		must(await ctx.service.loadConfig(repoId));
+		const runScripts: RunAction[] = [
 			{
 				id: "deploy",
 				label: "Deploy",
@@ -678,7 +740,7 @@ describe("PRJ-04 repo config reads", () => {
 			},
 		];
 
-		must(await ctx.service.updateConfig(repoId, config));
+		must(await ctx.service.updateConfig(repoId, { runScripts }));
 
 		expect(ctx.files.get(localPath)).toContain('available_in = [ "cloud" ]');
 		const reloaded = must(await ctx.service.loadConfig(repoId));
