@@ -14,7 +14,8 @@
  * fieldset disables the control), a setting that is highlighted after a search jump, and a save
  * that fails: a toast with Conductor's words (main @389730), with its "Overwrite file" button for
  * an invalid file the app can save over (a typed number, text or list that was not saved goes back
- * to the stored value, so the field never shows a value the app does not hold).
+ * to the stored value, so the field never shows a value the app does not hold), and a Reset that
+ * fails (the same toast for a file-backed setting, "Failed to reset setting" for a table row's).
  * Test first: with a disabledReason the control is disabled and the reason is shown.
  */
 
@@ -447,9 +448,20 @@ function RegistrySettingRow({
 		(state) => state.values[def.key] !== undefined,
 	);
 	const unavailable = unavailableFor?.(def) ?? null;
+	// Conductor's Reset removes a file-backed setting through its settings writer, which tells a
+	// failure itself, with "Overwrite file" for an invalid file (deleteSetting, main @410879). Its
+	// "Failed to reset setting" is for a reset that throws (renderApp @8734713), as a table row's
+	// failed delete does.
 	const reset = async () => {
 		const result = await actions.settings.reset(def.key);
-		if (!result.ok) toastError("Failed to reset setting", result.error);
+		if (result.ok) return;
+		if (def.tomlKey === undefined) {
+			toastError("Failed to reset setting", result.error);
+			return;
+		}
+		toastSettingSaveFailed(result.error, () =>
+			actions.settings.reset(def.key, { overwrite: true }),
+		);
 	};
 	// A switch whose feature cannot run reads off, whatever is stored (Conductor's Graphite row).
 	const value = unavailable !== null && def.type === "bool" ? def.shownInverted === true : stored;

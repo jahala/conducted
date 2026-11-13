@@ -53,6 +53,7 @@ import {
 	unsetDocumentedEnvVars,
 } from "../environment/EnvVarSuggestions.tsx";
 import { type EnvTableRow, EnvVarTable } from "../environment/EnvVarTable.tsx";
+import { toastSettingSaveFailed } from "../SettingRow.tsx";
 import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
 const ENV_FILES_KEY = "environment_variable_files";
@@ -186,30 +187,51 @@ export function EnvironmentPage({
 		};
 	}, [filesKey, root, platform.fs]);
 
-	/** Writes the list of the selected scope: the user's, or the repository's own local file. */
+	/**
+	 * Writes the list of the selected scope: the user's, or the repository's own local file. A
+	 * failed write is told by the settings writer's rule, with "Overwrite file" for an invalid file,
+	 * as Conductor's writer does (Uz, main @389730); its "Failed to update env files" is only for a
+	 * write that throws (renderApp @10725586).
+	 */
 	const saveFiles = async (next: string[]): Promise<boolean> => {
-		const saved =
+		const write = (options: { overwrite?: boolean } = {}) =>
 			repoRoot === null
-				? await actions.settings.set(ENV_FILES_KEY, next)
-				: await services.settings.setForRepo(repoRoot, ENV_FILES_KEY, next);
+				? actions.settings.set(ENV_FILES_KEY, next, options)
+				: services.settings.setForRepo(repoRoot, ENV_FILES_KEY, next, options);
+		// The repository's own file is the top layer, so what was written is now its list.
+		const written = () => {
+			if (repoRoot !== null) setRepoFiles({ root: repoRoot, paths: next, ownValue: true });
+		};
+		const saved = await write();
 		if (!saved.ok) {
-			toastError(ENV_FILES_FAILED_MESSAGE, saved.error);
+			toastSettingSaveFailed(saved.error, async () => {
+				const forced = await write({ overwrite: true });
+				if (forced.ok) written();
+				return forced;
+			});
 			return false;
 		}
-		// The repository's own file is the top layer, so what was written is now its list.
-		if (repoRoot !== null) setRepoFiles({ root: repoRoot, paths: next, ownValue: true });
+		written();
 		return true;
 	};
 
 	/** Drops the repository's own list, so its shared settings (or the user's list) apply again. */
 	const resetFiles = async (): Promise<void> => {
 		if (selectedRepo === null) return;
-		const reset = await actions.settings.resetForRepo(selectedRepo.id, ENV_FILES_KEY);
+		const repoId = selectedRepo.id;
+		const readAgain = () => setRepoFilesVersion((version) => version + 1);
+		const reset = await actions.settings.resetForRepo(repoId, ENV_FILES_KEY);
 		if (!reset.ok) {
-			toastError(ENV_FILES_FAILED_MESSAGE, reset.error);
+			toastSettingSaveFailed(reset.error, async () => {
+				const forced = await actions.settings.resetForRepo(repoId, ENV_FILES_KEY, {
+					overwrite: true,
+				});
+				if (forced.ok) readAgain();
+				return forced;
+			});
 			return;
 		}
-		setRepoFilesVersion((version) => version + 1);
+		readAgain();
 	};
 
 	const addFile = async (path: string): Promise<boolean> => {

@@ -2,14 +2,20 @@ import type { RepoId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
-import { createTestContainer, seedRepo, type TestContainer } from "../../../test/container.ts";
-import { toast } from "../../../ui/Toast.tsx";
+import {
+	createTestContainer,
+	seedInvalidLocalSettings,
+	seedRepo,
+	type TestContainer,
+} from "../../../test/container.ts";
+import { Toaster, toast } from "../../../ui/Toast.tsx";
 import { EnvironmentPage } from "./EnvironmentPage.tsx";
 
 let test: TestContainer | undefined;
 
 afterEach(() => {
 	cleanup();
+	toast.dismiss();
 	vi.restoreAllMocks();
 	test?.close();
 	test = undefined;
@@ -259,5 +265,40 @@ describe("SET-04 EnvironmentPage", () => {
 				value: "rotated",
 			}),
 		);
+	});
+
+	// Conductor writes a repository's env file list through its settings writer, whose failed-save
+	// toast offers "Overwrite file" for an invalid file (Uz, main @389730). The page's own "Failed
+	// to update env files" is only for a write that throws (renderApp @10725586). Ours said that
+	// for every failure (issue #654).
+	it("offers Overwrite file when an env file meets an invalid local settings file", async () => {
+		const { container, repo } = await mountPage(true);
+		render(<Toaster />);
+		if (test === undefined) throw new Error("no container");
+		const file = await seedInvalidLocalSettings(test, repo);
+
+		fireEvent.click(screen.getByRole("button", { name: "Add env file" }));
+		fireEvent.change(screen.getByLabelText("Environment file path"), {
+			target: { value: ".env.local" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Add" }));
+		const shown = await waitFor(() => {
+			const element = document.querySelector("[data-sonner-toast]");
+			expect(element).not.toBeNull();
+			return element as HTMLElement;
+		});
+		expect(shown.querySelector("[data-title]")?.textContent).toBe(
+			"Can't save setting because your settings file is invalid",
+		);
+		fireEvent.click(within(shown).getByRole("button", { name: "Overwrite file" }));
+
+		await waitFor(async () => {
+			const read = await container.services.settings.readSettingsFile(file);
+			expect(read.ok && read.value.values).toMatchObject({
+				archive_on_merge: true,
+				environment_variable_files: [".env.local"],
+			});
+		});
+		expect(await screen.findByText(".env.local")).toBeTruthy();
 	});
 });
