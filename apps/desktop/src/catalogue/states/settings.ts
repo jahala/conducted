@@ -24,13 +24,14 @@
  */
 import { agentProviders } from "@conducted/protocol";
 import { type EventId, ok, type TurnId } from "@conducted/shared";
+import type { CloudMcpServer } from "../../core/cloud-mcp.ts";
 import { chatRoute, seedCast } from "../cast.ts";
 import { type ConductorRows, seedConductorDatabase } from "../conductor-database.ts";
 import { click, fillIn, find, findField, findFirst, has, shows, typeInto } from "../dom.ts";
 import { scriptGitHub } from "../github.ts";
 import { addRepo, setSetting } from "../seeds.ts";
 import { waitFor } from "../settle.ts";
-import type { CatalogueState } from "../state.ts";
+import type { CatalogueState, Scene } from "../state.ts";
 import type { World } from "../world.ts";
 
 const page = (id: string, title: string, page: string, text: string): CatalogueState => ({
@@ -121,6 +122,20 @@ async function openSelect(document: Document, name: string): Promise<void> {
 
 async function choose(document: Document, select: string, option: string): Promise<void> {
 	await openSelect(document, select);
+	await chooseOpenOption(document, option);
+}
+
+/** Chooses `option` in the select whose trigger has the id `id`, for a select named only by its label. */
+async function chooseById(document: Document, id: string, option: string): Promise<void> {
+	const trigger = await findFirst(document, `button#${id}`);
+	trigger.focus();
+	trigger.dispatchEvent(
+		new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+	);
+	await chooseOpenOption(document, option);
+}
+
+async function chooseOpenOption(document: Document, option: string): Promise<void> {
 	const item = await find(document, "[role=option]", option);
 	item.focus();
 	item.dispatchEvent(
@@ -318,6 +333,88 @@ const codexLogin = (
 		};
 	},
 });
+
+/** The cast's paired Worker's MCP servers, by name. */
+const MCP_SERVERS: Readonly<Record<string, CloudMcpServer>> = {
+	context7: { url: "https://mcp.context7.com/mcp", authType: "none" },
+	notion: { url: "https://mcp.notion.com/mcp", authType: "oauth" },
+	sentry: { url: "https://mcp.sentry.dev/mcp", authType: "oauth" },
+	linear: { url: "https://mcp.linear.app/mcp", authType: "oauth" },
+};
+
+/**
+ * The MCP page over the paired Worker's `servers`: linear signed in, sentry needing re-auth, the
+ * others with no credential. Then `then`.
+ */
+async function mcpScene(
+	world: World,
+	servers: Readonly<Record<string, CloudMcpServer>>,
+	then: (document: Document) => Promise<void>,
+	ready: Scene["ready"],
+): Promise<Scene> {
+	await seedCast(world);
+	await setSetting(world, "active_organization", "cloud");
+	const settings = { gitIdentity: null, envVars: {}, mcpServers: servers };
+	world.memory.controls.scriptCloud((request) => {
+		if (request.path === "/settings" && request.method === "GET") {
+			return ok({ status: 200, body: JSON.stringify(settings) });
+		}
+		if (request.path === "/mcp-oauth") {
+			return ok({
+				status: 200,
+				body: JSON.stringify({
+					callbackUrl: "https://conducted-cloud.example.workers.dev/mcp-oauth/callback",
+					servers: {
+						linear: { status: "active" },
+						sentry: {
+							status: "needs_reauth",
+							statusDetail: "The refresh token is not valid.",
+						},
+					},
+				}),
+			});
+		}
+		return null;
+	});
+	return {
+		route: "/settings/user/mcp",
+		after: async ({ document }) => {
+			await find(document, "button", "Add MCP server");
+			await then(document);
+		},
+		ready,
+	};
+}
+
+/** The MCP page's Add MCP server dialog, filled by `fill`, then saved: the dialog says what is wrong. */
+const mcpAddRefused = (
+	id: string,
+	title: string,
+	fill: (document: Document) => Promise<void>,
+	message: string,
+): CatalogueState => ({
+	id,
+	group: "Settings",
+	title,
+	seed: (world) =>
+		mcpScene(
+			world,
+			MCP_SERVERS,
+			async (document) => {
+				await click(document, "button", "Add MCP server");
+				fillIn(await findField(document, "input#mcp-server-name"), "docs");
+				await fill(document);
+				await click(document, "[role=dialog] button", "Save", { prefix: true });
+			},
+			(document) => shows(document, message),
+		),
+});
+
+/** Opens the Edit dialog of the server shown as `shown` from its row's actions menu. */
+async function editMcpServer(document: Document, shown: string): Promise<void> {
+	await click(document, "button", `${shown} actions`);
+	await click(document, "[role=menuitem]", "Edit");
+}
 
 export const SETTINGS_STATES: CatalogueState[] = [
 	page("settings-general", "General", "general", "General"),
@@ -995,45 +1092,13 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		id: "settings-mcp",
 		group: "Settings",
 		title: "MCP: the paired Worker's servers, connected, needing re-auth, disconnected and keyless",
-		seed: async (world) => {
-			await seedCast(world);
-			await setSetting(world, "active_organization", "cloud");
-			const settings = {
-				gitIdentity: null,
-				envVars: {},
-				mcpServers: {
-					context7: { url: "https://mcp.context7.com/mcp", authType: "none" },
-					notion: { url: "https://mcp.notion.com/mcp", authType: "oauth" },
-					sentry: { url: "https://mcp.sentry.dev/mcp", authType: "oauth" },
-					linear: { url: "https://mcp.linear.app/mcp", authType: "oauth" },
-				},
-			};
-			world.memory.controls.scriptCloud((request) => {
-				if (request.path === "/settings" && request.method === "GET") {
-					return ok({ status: 200, body: JSON.stringify(settings) });
-				}
-				if (request.path === "/mcp-oauth") {
-					return ok({
-						status: 200,
-						body: JSON.stringify({
-							callbackUrl: "https://conducted-cloud.example.workers.dev/mcp-oauth/callback",
-							servers: {
-								linear: { status: "active" },
-								sentry: {
-									status: "needs_reauth",
-									statusDetail: "The refresh token is not valid.",
-								},
-							},
-						}),
-					});
-				}
-				return null;
-			});
-			return {
-				route: "/settings/user/mcp",
-				ready: (document) => shows(document, "Needs re-auth"),
-			};
-		},
+		seed: (world) =>
+			mcpScene(
+				world,
+				MCP_SERVERS,
+				async () => {},
+				(document) => shows(document, "Needs re-auth"),
+			),
 	},
 	page("settings-environment", "Environment", "environment", "Environment"),
 	page("settings-remote-control", "Remote control", "remote-control", "Remote control"),
@@ -1788,5 +1853,206 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				ready: (document) => shows(document, "Changing this may cause issues"),
 			};
 		},
+	},
+	{
+		id: "settings-mcp-recommended",
+		group: "Settings",
+		title: "MCP: the Recommended tab, with Import from local and the catalogue of servers",
+		seed: (world) =>
+			mcpScene(
+				world,
+				MCP_SERVERS,
+				(document) => click(document, "[role=tab]", "Recommended"),
+				(document) => shows(document, "Airtable"),
+			),
+	},
+	{
+		id: "settings-mcp-none-installed",
+		group: "Settings",
+		title: "MCP: no servers installed on the paired Worker",
+		seed: (world) =>
+			mcpScene(
+				world,
+				{},
+				async () => {},
+				(document) => shows(document, "No MCP servers installed"),
+			),
+	},
+	{
+		id: "settings-mcp-installed-no-match",
+		group: "Settings",
+		title: "MCP: a search of the installed servers that finds none",
+		seed: (world) =>
+			mcpScene(
+				world,
+				MCP_SERVERS,
+				(document) => typeInto(document, "input", "Search installed MCPs", "jira"),
+				(document) => shows(document, "No installed MCPs match your search"),
+			),
+	},
+	{
+		id: "settings-mcp-import-none",
+		group: "Settings",
+		title: "MCP: Import from local, on a Mac whose agents have no MCP servers",
+		seed: (world) =>
+			mcpScene(
+				world,
+				MCP_SERVERS,
+				async (document) => {
+					await click(document, "[role=tab]", "Recommended");
+					await click(document, "button", "Import from local");
+				},
+				(document) => shows(document, "No local MCP servers found"),
+			),
+	},
+	{
+		id: "settings-mcp-edit-headers",
+		group: "Settings",
+		title: "MCP: editing a server with a saved token, which reopens as custom headers",
+		seed: (world) =>
+			mcpScene(
+				world,
+				{
+					...MCP_SERVERS,
+					docs: {
+						url: "https://mcp.docs.example.com/mcp",
+						authType: "bearer",
+						bearerToken: "tok_live_example",
+					},
+				},
+				(document) => editMcpServer(document, "Docs"),
+				(document) =>
+					document.querySelector(
+						'[placeholder="Credential configured — enter headers to replace"]',
+					) !== null,
+			),
+	},
+	{
+		id: "settings-mcp-edit-bearer",
+		group: "Settings",
+		title: "MCP: editing a server with a saved token, switched back to a bearer token",
+		seed: (world) =>
+			mcpScene(
+				world,
+				{
+					...MCP_SERVERS,
+					docs: {
+						url: "https://mcp.docs.example.com/mcp",
+						authType: "bearer",
+						bearerToken: "tok_live_example",
+					},
+				},
+				async (document) => {
+					await editMcpServer(document, "Docs");
+					await chooseById(document, "mcp-server-auth", "Bearer token");
+				},
+				(document) =>
+					document.querySelector(
+						'[placeholder="Credential configured — enter a token to replace"]',
+					) !== null,
+			),
+	},
+	{
+		id: "settings-mcp-edit-client-id",
+		group: "Settings",
+		title: "MCP: an OAuth server's client ID changed without its secret",
+		seed: (world) =>
+			mcpScene(
+				world,
+				{
+					...MCP_SERVERS,
+					linear: {
+						url: "https://mcp.linear.app/mcp",
+						authType: "oauth",
+						oauthClientId: "atlas-linear",
+						oauthClientSecret: "secret_example",
+					},
+				},
+				async (document) => {
+					await editMcpServer(document, "Linear");
+					// A saved client ID opens the advanced fields already.
+					await find(document, "[role=dialog] button", "Advanced client identity");
+					if (document.querySelector("input#mcp-server-oauth-client-id") === null) {
+						await click(document, "[role=dialog] button", "Advanced client identity");
+					}
+					fillIn(await findField(document, "input#mcp-server-oauth-client-id"), "atlas-linear-2");
+					await click(document, "[role=dialog] button", "Save", { prefix: true });
+				},
+				(document) => shows(document, "Enter the client secret for the new client ID"),
+			),
+	},
+	mcpAddRefused(
+		"settings-mcp-add-no-url",
+		"MCP: adding a server with no URL",
+		async () => {},
+		"Enter a server URL",
+	),
+	mcpAddRefused(
+		"settings-mcp-add-http",
+		"MCP: adding a server at a plain HTTP address",
+		async (document) =>
+			fillIn(await findField(document, "input#mcp-server-url"), "http://docs.internal/mcp"),
+		"Enter an HTTPS server URL",
+	),
+	mcpAddRefused(
+		"settings-mcp-add-bad-url",
+		"MCP: adding a server whose address carries a password",
+		async (document) =>
+			fillIn(
+				await findField(document, "input#mcp-server-url"),
+				"https://sam:hunter2@docs.internal/mcp",
+			),
+		"Enter a valid server URL",
+	),
+	mcpAddRefused(
+		"settings-mcp-add-secret-only",
+		"MCP: adding an OAuth server with a client secret and no client ID",
+		async (document) => {
+			fillIn(await findField(document, "input#mcp-server-url"), "https://mcp.docs.example.com/mcp");
+			await click(document, "[role=dialog] button", "Advanced client identity");
+			fillIn(await findField(document, "input#mcp-server-oauth-client-secret"), "secret_example");
+		},
+		"Enter a client ID",
+	),
+	mcpAddRefused(
+		"settings-mcp-add-no-token",
+		"MCP: adding a server with a bearer token left empty",
+		async (document) => {
+			fillIn(await findField(document, "input#mcp-server-url"), "https://mcp.docs.example.com/mcp");
+			await chooseById(document, "mcp-server-auth", "Bearer token");
+		},
+		"Enter a bearer token",
+	),
+	{
+		id: "settings-mcp-setup-no-secret",
+		group: "Settings",
+		title: "MCP: Slack's setup from Recommended, with a client ID and no secret",
+		seed: (world) =>
+			mcpScene(
+				world,
+				MCP_SERVERS,
+				async (document) => {
+					await click(document, "[role=tab]", "Recommended");
+					await click(document, "button", "Slack", { prefix: true });
+					fillIn(await findField(document, "input#mcp-setup-client-id"), "1234567890.0987654321");
+					await click(document, "[role=dialog] button", "Connect");
+				},
+				(document) => shows(document, "Enter a client secret"),
+			),
+	},
+	{
+		id: "settings-mcp-setup-datadog",
+		group: "Settings",
+		title: "MCP: Datadog's setup from Recommended, its site and the redirect URL to allow",
+		seed: (world) =>
+			mcpScene(
+				world,
+				MCP_SERVERS,
+				async (document) => {
+					await click(document, "[role=tab]", "Recommended");
+					await click(document, "button", "Datadog", { prefix: true });
+				},
+				(document) => has(document, "[role=dialog] button", "Add and connect"),
+			),
 	},
 ];
