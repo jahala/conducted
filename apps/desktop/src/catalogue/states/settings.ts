@@ -5,7 +5,8 @@
  * selects whose options are wording (themes, sounds, effort levels,
  * output styles, the send key, the follow-up behaviour, where pull requests open), each open; the
  * Git page with a custom branch prefix, and with Conductor's toasts for a switch that cannot be
- * saved and for a settings file that does not parse; the Advanced page asking before it changes the root
+ * saved, for a settings file that does not parse, and for one that does not parse after an earlier
+ * save, which offers "Overwrite file"; the Advanced page asking before it changes the root
  * folder, and Home after it changed; the Agents page's MCP servers for the chat last open; the Environment page's documented
  * variables; atlas's Add action dialog and icon picker (an emoji search with no match, the Favicon source); the Agents page's provider forms (Anthropic,
  * subscription, Vertex, both Bedrock modes, ChatGPT, Cursor, custom), OpenCode's Providers dialog
@@ -28,6 +29,7 @@ import { type ConductorRows, seedConductorDatabase } from "../conductor-database
 import { click, fillIn, find, findFirst, has, shows, typeInto } from "../dom.ts";
 import { scriptGitHub } from "../github.ts";
 import { setSetting } from "../seeds.ts";
+import { waitFor } from "../settle.ts";
 import type { CatalogueState } from "../state.ts";
 import type { World } from "../world.ts";
 
@@ -1094,6 +1096,34 @@ export const SETTINGS_STATES: CatalogueState[] = [
 						?.textContent?.startsWith(
 							"Can't save setting because your settings file is invalid",
 						) === true,
+			};
+		},
+	},
+	{
+		id: "settings-save-file-overwrite",
+		group: "Settings",
+		title:
+			"Git, a save stopped by a settings file that does not parse after an earlier save: Overwrite file",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/git",
+				// A first save reads the file whole, so the app can overwrite it later, as Conductor's
+				// writer can (mutateSettingsFile, main @416065). Then an edit elsewhere breaks the file.
+				after: async ({ world: shown, document }) => {
+					const file = `${shown.memory.platform.fs.paths.home}/.conducted/settings.toml`;
+					await click(document, "[role=switch]", "Delete branch on archive");
+					// The switch turns on before the save ends, so the file is broken only once the save
+					// has written it; breaking it sooner would refuse the first save too.
+					await waitFor("the first save reached the settings file", () =>
+						(shown.memory.controls.files.get(file) ?? "").includes(
+							"delete_branch_on_archive = true",
+						),
+					);
+					shown.memory.controls.addFile(file, "[git\ndelete_branch_on_archive = true\n");
+					await click(document, "[role=switch]", "Delete branch on archive");
+				},
+				ready: (document) => has(document, "[data-sonner-toast] button", "Overwrite file"),
 			};
 		},
 	},

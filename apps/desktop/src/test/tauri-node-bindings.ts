@@ -38,7 +38,13 @@ import { constants as osConstants } from "node:os";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import { assetUrlOf, defaultFileRoots, isWithinRoot } from "../platform/memory.ts";
+import {
+	assetUrlOf,
+	defaultFileRoots,
+	isWithinRoot,
+	sshIncludeLine,
+	withSshInclude,
+} from "../platform/memory.ts";
 import {
 	CONDUCTOR_COPY_FOLDER,
 	CONDUCTOR_COUNTED_TABLES,
@@ -562,6 +568,19 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				const folder = requirePath(args);
 				if (!registeredRoots.includes(folder)) registeredRoots.push(folder);
 				return undefined;
+			}
+			// files.rs `fs_include_ssh_config`, over the shared rule: no path or text comes in.
+			case COMMANDS.fsIncludeSshConfig: {
+				const config = join(paths.home, ".ssh", "config");
+				const existing = await readFile(config).catch((error: Error) =>
+					(error as NodeJS.ErrnoException).code === "ENOENT"
+						? new Uint8Array()
+						: fail("fs_io", error.message),
+				);
+				const next = withSshInclude(existing, sshIncludeLine(paths.home));
+				if (next === null) return false;
+				await writeAtomic(config, next);
+				return true;
 			}
 			case COMMANDS.fsReadDir: {
 				const folder = scopedPath(args);

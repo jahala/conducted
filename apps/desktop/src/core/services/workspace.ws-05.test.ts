@@ -128,6 +128,9 @@ function makeFs(folderExists = true): { fs: FileSystem; trashed: string[] } {
 			async registerRoot() {
 				return ok(undefined);
 			},
+			async includeSshConfig() {
+				return ok(false);
+			},
 			async readBytes() {
 				return ok(new Uint8Array());
 			},

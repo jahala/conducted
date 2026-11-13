@@ -1126,6 +1126,24 @@ Chosen: an Ubuntu job, `macos-changes`, compares the pull request with main (`sc
 
 Why not skip the job's steps inside the job: the job would still wait for a macOS runner, which is the shortage. Why not a `paths` filter on the workflow: a required check whose workflow never starts holds the pull request forever.
 
+## D140. The app writes its own SSH files under `~/.ssh` and reaches the user's config through one command (2026-11-12)
+
+Decided by the agent fixing issue #611, which the owner filed. The owner's rule for it: the smallest reach that does the job, and the user's other SSH files are never read or changed.
+
+Context: Copy SSH command and Open in for a cloud workspace failed in the real app with `fs_out_of_scope`. `core/cloud/ssh.ts` wrote `~/.ssh/conducted_config.d/ssh.config`, `~/.ssh/conducted_config` and `~/.ssh/config` through the file commands, and `~/.ssh` is outside their scope (PLAT-29). The tests ran the in-memory Platform without the scope, so they passed. Conductor reaches the same files without a scope: `main-BE1h_1MP.js` `SH` @3850539 makes both folders with `mkdir -p` through its shell, writes its per-app file and its `conductor_config` with `write_file_async`, and `Nrn` @3851271 reads `~/.ssh/config` with `cat`, returns when the text already holds the include line anywhere (`includes`), and otherwise writes the line, a blank line and the old text with `write_file_async`.
+
+Chosen:
+
+- **Two default roots, for the entries the app owns.** `home_roots` in files.rs and `defaultFileRoots` in memory.ts add `~/.ssh/conducted_config` (one file) and `~/.ssh/conducted_config.d` (one folder). `~/.ssh` itself, `~/.ssh/config`, keys, `known_hosts` and a sibling such as `conducted_config.bak` stay out of scope.
+- **One command for the include line.** `fs_include_ssh_config` (`Platform.fs.includeSshConfig`) takes no path and no text. Rust builds `Include <home>/.ssh/conducted_config`, reads `~/.ssh/config` as bytes and, when the line's text is not anywhere in it, writes the line, a blank line and every old byte through the atomic write, which keeps the mode and writes through a link to its target. It answers whether the file changed. The web view never reads the file and can put nothing else in it.
+- **Conductor's check, Conductor's layout.** The line counts as present when its text appears anywhere, so a commented-out line is left as the user left it. The cases both runtimes answer are `packages/shared/fixtures/ssh-include.json`; files.rs and the TypeScript stand-ins read the same fixture.
+- **A config that cannot be read is an error.** Conductor treats a failed `cat` as an empty file and would then replace the config with the line alone. Here only a missing file counts as empty; any other read failure is returned and the file is left alone.
+- **A root under a linked folder matches before it exists.** `root_for_compare` now resolves a root the way a path is resolved, from its deepest existing folder, so a `~/.ssh` that links into a dotfiles folder reaches `conducted_config.d` on the first write.
+
+Why not register `~/.ssh` as a root: the web view could then read and write every key and `known_hosts`. Why not write the line through the shell, as Conductor does: the shell can reach anything, so it would not narrow the reach at all. Why not one command for all three files: the config text and the host rules are core logic with their tests in TypeScript, and the two files the app owns need no more than a root.
+
+The tests: `workspace.cloud-12.test.ts` runs the door with the file scope on, files.rs's `cloud_12_*` tests hold the roots and the command, and the contract case `fs.include-ssh-config` runs on the stand-in and the Node-backed bindings.
+
 ## D141. The UI's programs are checked against the Rust allowlist by a guard, not a Rust test (2026-11-12)
 
 Decided by the agent fixing issue #647, which the owner filed.
@@ -1135,6 +1153,23 @@ Context: the Rust test `git_16_every_program_the_ui_starts_is_allowed` in `shell
 Chosen: the `programs` guard in `scripts/guards/structure.ts` already ran the same scan on Linux on every pull request. It now also checks the programs the UI starts through a variable (zsh and the three helper scripts), and fails when the scan finds no `program: "git"`, so a scan of the wrong folder cannot pass. The Rust UI scan is gone; `git_16_allows_the_xcode_licence_programs`, which reads only Rust, stays. `MACOS_JOB` names only the desktop files the job reads: the two the Rust tests read (`platform/tauri.ts`, `core/app-paths.ts`), the macOS tests, the Vitest setup files and what they import. Replayed over main's last 80 merges, 38 skip the job, up from 10.
 
 Why not a TypeScript test: it would repeat the guard's scan, and the guard runs on every pull request whatever changed. Why not compute the macOS tests' imports when `scripts/macos-job.ts` runs: it would end the list's drift, but the list is short and `scripts/macos-job.test.ts` fails on main when a macOS test starts importing a file the list misses.
+
+## D142. "Overwrite file" saves over the file as the last save left it (2026-11-12)
+
+Decided by the agent fixing issue #622, which the owner filed. It departs from Conductor in one detail, which the owner may overrule.
+
+Context: Conductor's invalid-file toast offers "Overwrite file" when its writer holds a last-known-good parse of the file. It keeps that parse when a save reads the file, before the save's change is applied (readSettingsFileDataForWrite, main @416200), and a forced save writes that parse with the new change over the file. The parse is never updated after a write. So after save A, save B, a hand edit that breaks the file and an overwrite with change C, Conductor's file holds A and C: B is lost without a word, though the user saw it saved.
+
+Chosen:
+
+- **Shown exactly when Conductor shows it.** The button appears when a save into the file was refused because it does not parse, and an earlier save in this run read the file (or found none). The periodic reload keeps no copy, as in Conductor, so a file that was broken before the app's first save offers no button. A forced save never offers a second one.
+- **Pressing it does what Conductor's does.** No confirmation and no backup copy. The same save runs forced: the file on disk is not read, and the kept text with the change applied replaces it. With no kept text the save fails as "Failed to save setting". After a forced save into the user's file, the store reads that file again, as Conductor reads every layer again after a write.
+- **The kept text is the file as the last save read it or, once written, as it wrote it.** This is the departure: an overwrite keeps the last save's own change. The text is kept, rather than a parsed copy, so the overwrite goes through the same path as any save and keeps that text's comments (SET-14).
+- **The refusal carries whether it can be overwritten** (`SettingsFileRefusal.overwritable`, read by `settingsFileOverwritable`), so the screen that toasts knows without asking the service again. The screen passes the same save with `overwrite`, because only it knows what it was saving.
+
+Why not match the lost change: it reverts a setting the user saw saved, which is the defect the button exists to avoid.
+
+Not covered: settings saved on the user's behalf (`last_clone_directory`, `always_allow_local_execution`) live in the settings table, so they never meet an invalid file. A setting's Reset and a project's config pages do not show this toast yet; Conductor offers the button there too (issue #654).
 
 ## D143. A dialog holds app shortcuts unless Conductor keeps it off its dialog store, and the menu carries only Conductor's keys (2026-11-12)
 

@@ -106,6 +106,9 @@ const fakeFs = (): FakeFs => {
 		async registerRoot() {
 			return ok(undefined);
 		},
+		async includeSshConfig() {
+			return ok(false);
+		},
 		async readBytes() {
 			return ok(new Uint8Array());
 		},

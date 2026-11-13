@@ -303,6 +303,8 @@ export function createHostedPlatform(
 				: fileOperation(cloud, host, { operation: "trash", path }, () => undefined);
 		},
 		registerRoot: (path) => platform.fs.registerRoot(path),
+		// The user's SSH config is the Mac's, whatever host a workspace runs on (CLOUD-12).
+		includeSshConfig: () => platform.fs.includeSshConfig(),
 		assetUrl: (path) => platform.fs.assetUrl(path),
 		paths: platform.fs.paths,
 	};

@@ -16,7 +16,8 @@
  * Must handle: precedence from lowest to highest is default, table, user file, remote default
  * branch, repo shared file, workspace shared file, repo local file; a key whose registry entry has
  * no repo scope ignores repo layers; an invalid TOML file never overwrites silently (the write
- * returns an Err with code `settings_file_invalid` and the UI offers "overwrite"); unknown keys,
+ * returns an Err with code `settings_file_invalid`; when an earlier save read the file, the UI
+ * offers "Overwrite file", which saves over the file as that save left it); unknown keys,
  * wrong types and unsupported values are dropped and reported, never thrown; a later write does
  * not undo an earlier one that failed; writes keep unknown entries and a `$schema` line, and a new
  * file has sorted keys; a settings write shows in the store at once (optimistic) and rolls back if
@@ -163,6 +164,23 @@ export const SETTINGS_LOAD_FAILED_MESSAGE = "Failed to load settings";
 export const SETTINGS_SAVE_FAILED_MESSAGE = "Failed to save setting";
 export const GIT_EXCLUDE_FAILED_MESSAGE =
 	"Couldn't update Git to ignore your local settings file, it may not be excluded from commits";
+
+/**
+ * A save refused because its settings file could not be read. `overwritable` is true when the
+ * file failed to parse and an earlier save read it whole, so "Overwrite file" can save over it
+ * from that reading, as Conductor's writer can (mutateSettingsFile, main @416065).
+ */
+export interface SettingsFileRefusal extends AppError {
+	readonly code: "settings_file_invalid";
+	readonly overwritable: boolean;
+}
+
+/** True when a failed save can be repeated with `overwrite`, which Conductor offers as "Overwrite file". */
+export function settingsFileOverwritable(error: AppError): boolean {
+	return (
+		error.code === "settings_file_invalid" && "overwritable" in error && error.overwritable === true
+	);
+}
 
 /** The most comments a warning quotes before it counts the rest. */
 const QUOTED_COMMENTS = 3;
@@ -837,7 +855,10 @@ interface PendingWrite {
 }
 
 export interface SetOptions {
-	/** Replace an invalid file instead of refusing the write. The UI offers this as "Overwrite file". */
+	/**
+	 * Save over the file as the last save read or wrote it, whatever the file holds now. The UI
+	 * offers this as "Overwrite file" when `settingsFileOverwritable` is true for a refused save.
+	 */
 	overwrite?: boolean;
 }
 
@@ -871,6 +892,12 @@ export class SettingsService {
 	 * would drop exactly these goes ahead: the user has been warned.
 	 */
 	readonly #commentWarnings = new Map<string, string>();
+	/**
+	 * Each settings file's text as the last save read it whole or wrote it, null for a file that
+	 * was not there. "Overwrite file" saves over that text, so a file the app never read for a
+	 * save cannot be overwritten (Conductor's lastGoodParsedByPath, main @416200).
+	 */
+	readonly #lastSaved = new Map<string, string | null>();
 
 	constructor(deps: SettingsServiceDeps) {
 		this.#deps = deps;
@@ -1051,7 +1078,7 @@ export class SettingsService {
 	 * Backs `Actions.settings.resetForRepo`. Resets one repository's personal value, so the repo
 	 * shared file (or a higher layer) supplies it again.
 	 */
-	async resetForRepo(repoId: RepoId, key: string): Promise<Result<void>> {
+	async resetForRepo(repoId: RepoId, key: string, options: SetOptions = {}): Promise<Result<void>> {
 		const repositories = this.#deps.repos.repos;
 		if (repositories === undefined) {
 			return err(appError("repo_unknown", "The project list is not available."));
@@ -1061,7 +1088,7 @@ export class SettingsService {
 		if (found.value === null) {
 			return err(appError("repo_unknown", "That project no longer exists."));
 		}
-		return this.setForRepo(found.value.rootPath, key, null);
+		return this.setForRepo(found.value.rootPath, key, null, options);
 	}
 
 	/** Backs `Actions.settings.filePath`: the user's settings file, or a project's local one. */
@@ -1231,25 +1258,23 @@ export class SettingsService {
 		edit: (contents: SettingsFileContents) => void,
 		overwrite: boolean,
 	): Promise<Result<void>> {
-		const read = await this.#readFile(file);
-		let source: string | null = null;
-		let contents: SettingsFileContents;
-		if (read.ok) {
-			source = read.value.text;
-			contents = read.value.contents;
-		} else if (overwrite) {
-			contents = emptyContents(file);
-		} else {
-			return err(
-				appError(
-					"settings_file_invalid",
+		const read = overwrite ? this.#lastSavedContents(file) : await this.#readFile(file);
+		if (!read.ok) {
+			if (overwrite) return read;
+			const refusal: SettingsFileRefusal = {
+				code: "settings_file_invalid",
+				message:
 					read.error.code === "settings_file_invalid"
 						? SETTINGS_FILE_INVALID_MESSAGE
 						: `Could not read ${file}.`,
-					read.error,
-				),
-			);
+				cause: read.error,
+				overwritable: read.error.code === "settings_file_invalid" && this.#lastSaved.has(file),
+			};
+			return err(refusal);
 		}
+		const source = read.value.text;
+		const contents = read.value.contents;
+		this.#lastSaved.set(file, source);
 		const toml = this.#deps.toml;
 		let text: string;
 		let lost: string[] = [];
@@ -1294,7 +1319,34 @@ export class SettingsService {
 			return err(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, written.error));
 		}
 		this.#commentWarnings.delete(file);
+		this.#lastSaved.set(file, text);
 		return ok(undefined);
+	}
+
+	/**
+	 * The file as the last save read or wrote it, for "Overwrite file". The file on disk is not
+	 * read: an overwrite replaces whatever it holds, as Conductor's forced write does (main
+	 * @416200). With no such save there is nothing to write from, and the save fails.
+	 */
+	#lastSavedContents(
+		file: string,
+	): Result<{ text: string | null; contents: SettingsFileContents }> {
+		if (!this.#lastSaved.has(file)) {
+			return err(
+				appError(
+					"setting_save_failed",
+					SETTINGS_SAVE_FAILED_MESSAGE,
+					appError("settings_overwrite_unavailable", `No earlier save read ${file}.`),
+				),
+			);
+		}
+		const text = this.#lastSaved.get(file) ?? null;
+		if (text === null) return ok({ text: null, contents: emptyContents(file) });
+		const parsed = this.#deps.toml.parse(text);
+		if (!parsed.ok) {
+			return err(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, parsed.error));
+		}
+		return ok({ text, contents: parseSettingsDocument(parsed.value, file) });
 	}
 
 	/** Stops the reload timer and the window focus listener, also for a start still running. */
@@ -1812,6 +1864,9 @@ export class SettingsService {
 			if (!written.ok) return fail(written.error);
 			if (pending !== null) this.#finishWrite(key, pending);
 			this.#logSaved(key, value);
+			// An overwrite may change every value in the user file, so the store reads it again, as
+			// Conductor's writer reads every layer again after a write (main @416164).
+			if (overwrite && scope === "user") await this.reloadFromDisk();
 			return ok(undefined);
 		});
 	}

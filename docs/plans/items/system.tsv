@@ -2539,7 +2539,7 @@ SIDE-24	rule	Data privacy mode turns off external logging; we have no analytics,
 DATA-05	rule	Settings layer order is default, user file, repo shared, workspace shared, repo local; the registry header omits workspace shared.	services-map 4.2.1	covered
 DATA-05	rule	Shared repo settings should be read from the default branch of origin so a stale checkout does not win; no layer does this.	services-map 4.2.1	missing
 DATA-05	store	Each resolved setting reports its source layer and whether it is locked.	services-map 4.2.2	covered
-DATA-05	message	Saving into an invalid settings file says it cannot save and offers Overwrite file; no component owns the prompt.	services-map 4.2.1	partly
+DATA-05	message	Saving into an invalid settings file says it cannot save and offers Overwrite file; no component owns the prompt.	services-map 4.2.1	covered
 DATA-05	message	Entries dropped while reading settings (unparseable, unknown key, wrong type, unsupported value) are reported but no screen shows them.	services-map 4.2.1	partly
 DATA-05	rule	Writing settings adds git exclude lines for the .conducted files.	services-map 4.2.1	covered
 DATA-05	rule	The settings file keeps a schema line; a new file is written with sorted keys, and an existing one keeps its own order (SET-14).	services-map 4.2.1	covered
@@ -3603,7 +3603,7 @@ PLAT-30	rule	Conductor shows "http|fetch_read_body" (tauri_plugin_command, Backe
 PLAT-32	rule	Conductor shows "os|hostname" (tauri_plugin_command, Backend); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory tauri_plugin_command M@2968737	missing
 PLAT-15	rule	Conductor shows "process|exit" (tauri_plugin_command, Backend); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory tauri_plugin_command M@3898660	missing
 PLAT-13	rule	Conductor shows "process|restart" (tauri_plugin_command, Backend); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory tauri_plugin_command M@3898722	missing
-DATA-05	control	Conductor shows "Overwrite file" (label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory label M@389969	missing
+DATA-05	control	Conductor shows "Overwrite file" (label, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory label M@389969	covered
 WS-09	control	Conductor shows "Deployed" (label, Unplaced); ours shows it in catalogue state git-checks-mixed.	inventory label R@2269745	covered
 WS-09	control	Conductor shows "Deploying" (label, Unplaced); ours shows it in catalogue state git-checks-mixed.	inventory label R@2270007	covered
 WS-09	control	Conductor shows "Pending" (label, Unplaced); ours shows it in catalogue state git-checks-mixed.	inventory label R@2270162	covered
