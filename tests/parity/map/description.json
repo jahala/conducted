@@ -120,12 +120,12 @@
 		"owner": "rule:cite"
 	},
 	"description:R1717331": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "APP-02",
-		"item": "If first-run onboarding cannot finish, show \"Couldn't finish setup. Please try again.\"",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-copy-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R2030149": {
 		"status": "matched",
