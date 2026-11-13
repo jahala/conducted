@@ -1310,13 +1310,13 @@ export class SessionsService implements AgentMessenger {
 		return failure;
 	}
 
+	/** The chat, or Conductor's "Session not found" when it no longer exists (renderApp @9299633). */
 	async #session(id: SessionId): Promise<Result<Session>> {
 		const cached = this.store.getState().sessions[id];
 		if (cached !== undefined) return ok(cached);
 		const stored = await this.#deps.repositories().sessions.get(id);
 		if (!stored.ok) return stored;
-		if (stored.value === null)
-			return { ok: false, error: appError("session_unknown", "That chat no longer exists.") };
+		if (stored.value === null) return err(appError("session_unknown", "Session not found"));
 		return ok(stored.value);
 	}
 
