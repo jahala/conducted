@@ -25,6 +25,8 @@ export interface DialogContentProps {
 	title: string;
 	description?: ReactNode;
 	hideTitle?: boolean;
+	/** Keeps the description for screen readers only, as Conductor's `sr-only` descriptions are. */
+	hideDescription?: boolean;
 	size?: DialogSize;
 	className?: string;
 	/** The action Cmd+Enter runs while the dialog is open. */
@@ -53,6 +55,7 @@ export function DialogContent({
 	title,
 	description,
 	hideTitle = false,
+	hideDescription = false,
 	size = "lg",
 	className,
 	onConfirm,
@@ -88,9 +91,15 @@ export function DialogContent({
 				>
 					{hideTitle ? <VisuallyHidden.Root>{heading}</VisuallyHidden.Root> : heading}
 					{description ? (
-						<Radix.Description className="-mt-2 text-sm text-fg-muted">
-							{description}
-						</Radix.Description>
+						hideDescription ? (
+							<VisuallyHidden.Root>
+								<Radix.Description>{description}</Radix.Description>
+							</VisuallyHidden.Root>
+						) : (
+							<Radix.Description className="-mt-2 text-sm text-fg-muted">
+								{description}
+							</Radix.Description>
+						)
 					) : null}
 					{children}
 				</Radix.Content>
