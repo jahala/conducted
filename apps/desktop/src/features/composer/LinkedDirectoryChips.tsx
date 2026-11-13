@@ -11,7 +11,7 @@
  * Must handle: no linked folder (nothing drawn); an unlink that fails (a toast with the reason).
  * Test first: a linked folder shows its name and path above the composer, and its X unlinks it.
  */
-import type { WorkspaceId } from "@conducted/shared";
+import { trimTrailingSlashes, type WorkspaceId } from "@conducted/shared";
 import { useActions, useWorkspace, useWorkspaces } from "../../core/hooks.ts";
 import { CloseIcon, FolderIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
@@ -19,7 +19,7 @@ import { Tooltip } from "../../ui/Tooltip.tsx";
 
 /** The last segment of a folder path, the chip's name. */
 function folderName(path: string): string {
-	const trimmed = path.replace(/\/+$/, "");
+	const trimmed = trimTrailingSlashes(path);
 	return trimmed.slice(trimmed.lastIndexOf("/") + 1) || path;
 }
 

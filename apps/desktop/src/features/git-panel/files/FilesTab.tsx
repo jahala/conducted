@@ -18,7 +18,7 @@
  * expands from the list it already holds.
  * Test first: with entries ["src/a.ts", "README.md"] and the filter "read", only README.md shows.
  */
-import { appError, type WorkspaceId } from "@conducted/shared";
+import { appError, trimTrailingSlashes, type WorkspaceId } from "@conducted/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
 	useActions,
@@ -210,7 +210,7 @@ function FileTreeBody({
 	);
 }
 
-const joinRoot = (root: string, path: string): string => `${root.replace(/\/+$/, "")}/${path}`;
+const joinRoot = (root: string, path: string): string => `${trimTrailingSlashes(root)}/${path}`;
 
 export function FilesTab({ workspaceId, onOpenFile, openPath = null }: FilesTabProps) {
 	const workspace = useWorkspace(workspaceId);

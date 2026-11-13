@@ -22,6 +22,8 @@
  * CLOUD-04 test first: reads a cloud repo's shared clone: set-head, one branch fetch and ls-tree.
  */
 
+import { trimTrailingSlashes } from "@conducted/shared";
+
 export interface GitCommand {
 	/** "git", "gh", "gt", or an absolute path to a helper script such as checkpointer.sh. */
 	readonly program: string;
@@ -443,7 +445,7 @@ export const lsTreeTopLevelDirectories = (): GitCommand =>
 	git(["ls-tree", "-d", "--name-only", "HEAD"]);
 /** The folders directly inside `parent` at HEAD, by their paths from the repository root. */
 export const lsTreeSubdirectories = (parent: string): GitCommand =>
-	git(["ls-tree", "-d", "--name-only", "HEAD", "--", `${parent.replace(/\/+$/, "")}/`]);
+	git(["ls-tree", "-d", "--name-only", "HEAD", "--", `${trimTrailingSlashes(parent)}/`]);
 
 // ---------------------------------------------------------------- restoring files (3.11)
 

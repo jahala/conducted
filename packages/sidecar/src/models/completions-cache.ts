@@ -39,6 +39,7 @@ import {
 	messageOf,
 	ok,
 	type Result,
+	trimTrailingSlashes,
 } from "@conducted/shared";
 import { z } from "zod";
 import type { Logger } from "../logging/logger.ts";
@@ -133,7 +134,7 @@ export function sourceHashOf(commands: readonly SlashCommand[]): string {
 /** `/code/app/` and `/code/app` are the same repository folder. */
 function normaliseRepoRoot(repoRootPath: string): string {
 	const trimmed = repoRootPath.trim();
-	return trimmed.length > 1 ? trimmed.replace(/\/+$/, "") : trimmed;
+	return trimmed.length > 1 ? trimTrailingSlashes(trimmed) : trimmed;
 }
 
 function sameKey(entry: CompletionsEntry, key: CompletionsKey): boolean {

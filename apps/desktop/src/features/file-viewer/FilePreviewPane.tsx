@@ -17,6 +17,7 @@
  * unavailable notice.
  */
 import type { WorkspaceId } from "@conducted/shared";
+import { trimTrailingSlashes } from "@conducted/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useServices } from "../../core/context.tsx";
@@ -71,7 +72,7 @@ export function FilePreviewPane({ workspaceId, path, onOpenFile }: FilePreviewPa
 	};
 
 	const workspaceRoot =
-		workspace.state === "ready" ? workspace.data.path.replace(/\/+$/, "") : null;
+		workspace.state === "ready" ? trimTrailingSlashes(workspace.data.path) : null;
 	const imageUrlFor = (relativePath: string): string | null =>
 		workspaceRoot === null ? null : platform.fs.assetUrl(`${workspaceRoot}/${relativePath}`);
 

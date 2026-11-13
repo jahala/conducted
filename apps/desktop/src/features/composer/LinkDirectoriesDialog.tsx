@@ -17,7 +17,7 @@
  * Test first: Browse... links the folder the system picker returns.
  */
 
-import { createKeyedQueue, type WorkspaceId } from "@conducted/shared";
+import { createKeyedQueue, trimTrailingSlashes, type WorkspaceId } from "@conducted/shared";
 import { Command } from "cmdk";
 import { useEffect, useRef, useState } from "react";
 import { useServices } from "../../core/context.tsx";
@@ -35,7 +35,7 @@ export interface LinkDirectoriesDialogProps {
 
 /** The last segment of a folder path, for a row's label. */
 function folderName(path: string): string {
-	const trimmed = path.replace(/\/+$/, "");
+	const trimmed = trimTrailingSlashes(path);
 	return trimmed.slice(trimmed.lastIndexOf("/") + 1) || path;
 }
 

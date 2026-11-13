@@ -35,6 +35,7 @@ import {
 	type Result,
 	type SectionId,
 	type SessionId,
+	trimTrailingSlashes,
 	type WorkspaceId,
 } from "@conducted/shared";
 import type { StoreApi } from "zustand/vanilla";
@@ -213,7 +214,7 @@ export const GITHUB_LOGIN_MISSING_MESSAGE =
 
 /** The folder a workspace's worktree gets: `<root>/workspaces/<repo>/<place>`. */
 export function worktreeFolderFor(root: string, repoName: string, place: string): string {
-	return `${root.replace(/\/+$/, "")}/workspaces/${repoName}/${place}`;
+	return `${trimTrailingSlashes(root)}/workspaces/${repoName}/${place}`;
 }
 
 /** Files copied into a new worktree when the repository config names none (services-map 5A.5.5). */
