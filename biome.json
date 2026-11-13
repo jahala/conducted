@@ -14,7 +14,8 @@
 			"!**/target",
 			"!.context",
 			"!docs/research",
-			"!docs/data-model.md"
+			"!docs/data-model.md",
+			"!scripts/notices/bun-*-LICENSE.md"
 		]
 	},
 	"formatter": {

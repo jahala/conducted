@@ -21,6 +21,7 @@ import {
 	type ExpectedBundle,
 	notariseBundle,
 	notariseDiskImage,
+	RELEASE_TARGET,
 	runTool,
 	SIGNING_IDENTITY_ENV,
 	signBundle,
@@ -78,7 +79,7 @@ const tauriDir = join(root, "apps/desktop/src-tauri");
 const appPath = join(
 	tauriDir,
 	"target",
-	"aarch64-apple-darwin",
+	RELEASE_TARGET,
 	"release",
 	"bundle",
 	"macos",
@@ -131,7 +132,7 @@ try {
 	// update archive, because the archive must be made from the notarised app; only `tauri signer
 	// sign` below sees the updater key.
 	sh(
-		appBuildArguments("aarch64-apple-darwin", "src-tauri/tauri.release.conf.json"),
+		appBuildArguments(RELEASE_TARGET, "src-tauri/tauri.release.conf.json"),
 		root,
 		unsignedBuildEnv(),
 	);

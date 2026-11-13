@@ -43,7 +43,8 @@
 			"../../../bin/*": "bin/",
 			"programs/release-feed.json": "programs/release-feed.json",
 			"conducted-skill/.claude-plugin/plugin.json": "conducted-skill/.claude-plugin/plugin.json",
-			"conducted-skill/skills/conducted/SKILL.md": "conducted-skill/skills/conducted/SKILL.md"
+			"conducted-skill/skills/conducted/SKILL.md": "conducted-skill/skills/conducted/SKILL.md",
+			"THIRD-PARTY-NOTICES.txt": "THIRD-PARTY-NOTICES.txt"
 		},
 		"icon": [
 			"icons/32x32.png",
