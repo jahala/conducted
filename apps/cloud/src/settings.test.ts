@@ -230,6 +230,43 @@ describe("CLOUD-17 cloud settings", () => {
 		expect(env.CONDUCTED_CLOUD_MCP_SERVERS_JSON).not.toContain("hidden");
 	});
 
+	it("keeps an OAuth server with its client, and gives the sandbox only the placeholder", () => {
+		const settings = parseCloudSettings({
+			gitIdentity: null,
+			envVars: {},
+			mcpServers: {
+				linear: {
+					url: "https://mcp.linear.app/mcp",
+					authType: "oauth",
+					oauthClientId: "my-app",
+					oauthClientSecret: "client-secret",
+				},
+			},
+		});
+		expect(settings?.mcpServers.linear?.oauthClientId).toBe("my-app");
+		const env = cloudMcpServersEnv(settings ?? emptyCloudSettings());
+		expect(JSON.parse(env.CONDUCTED_CLOUD_MCP_SERVERS_JSON ?? "[]")).toEqual([
+			{
+				name: "linear",
+				url: "https://mcp.linear.app/mcp",
+				headers: { authorization: `Bearer ${CLOUD_MCP_PLACEHOLDER}` },
+			},
+		]);
+		expect(env.CONDUCTED_CLOUD_MCP_SERVERS_JSON).not.toContain("client-secret");
+	});
+
+	it("refuses a client secret without the client ID it belongs to, as Conductor's form does", () => {
+		expect(
+			parseCloudSettings({
+				gitIdentity: null,
+				envVars: {},
+				mcpServers: {
+					linear: { url: "https://mcp.linear.app/mcp", authType: "oauth", oauthClientSecret: "s" },
+				},
+			}),
+		).toBeNull();
+	});
+
 	it("sets no variable at all when there are no MCP servers", () => {
 		expect(cloudMcpServersEnv(emptyCloudSettings())).toEqual({});
 	});

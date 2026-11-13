@@ -7,3 +7,4 @@ export * from "./not-implemented.ts";
 export * from "./result.ts";
 export * from "./secret-names.ts";
 export * from "./serial-queue.ts";
+export * from "./trailing-slashes.ts";

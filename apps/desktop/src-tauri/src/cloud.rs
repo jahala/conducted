@@ -190,10 +190,21 @@ pub struct DeployFacts {
     pub compatibility_date: String,
     pub compatibility_flags: Vec<String>,
     pub instance: String,
+    /// The container's class, one of `objects`.
     pub class_name: String,
     pub image_key: String,
-    pub object_binding: String,
+    /// Every Durable Object class and its binding: the sandbox's and the MCP OAuth store's
+    /// (CLOUD-17).
+    pub objects: Vec<DeployObject>,
     pub backup_binding: String,
+}
+
+/// One Durable Object class the Worker exports, and the binding it is reached by.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeployObject {
+    pub class_name: String,
+    pub binding: String,
 }
 
 /// A program's answer, as the deploy reads it.
@@ -824,10 +835,15 @@ pub fn deploy_config(facts: &DeployFacts, resources: &Path, worker: &str) -> ser
         serde_json::json!({ "dockerfile": resources.join(DEPLOY_DOCKERFILE) }),
     );
     let mut exports = serde_json::Map::new();
-    exports.insert(
-        facts.class_name.clone(),
-        serde_json::json!({ "type": "durable-object", "storage": "sqlite" }),
-    );
+    let mut bindings = Vec::new();
+    for object in &facts.objects {
+        exports.insert(
+            object.class_name.clone(),
+            serde_json::json!({ "type": "durable-object", "storage": "sqlite" }),
+        );
+        bindings
+            .push(serde_json::json!({ "class_name": object.class_name, "name": object.binding }));
+    }
     serde_json::json!({
         "name": worker,
         "main": resources.join(DEPLOY_WORKER_FILE),
@@ -841,7 +857,7 @@ pub fn deploy_config(facts: &DeployFacts, resources: &Path, worker: &str) -> ser
             "scheduling_policy": "durable_object",
             "images": images
         }],
-        "durable_objects": { "bindings": [{ "class_name": facts.class_name, "name": facts.object_binding }] },
+        "durable_objects": { "bindings": bindings },
         "exports": exports,
         "r2_buckets": [{ "binding": facts.backup_binding, "bucket_name": worker }]
     })
@@ -2269,7 +2285,10 @@ mod tests {
                 "instance": "basic",
                 "className": "Workspace",
                 "imageKey": "sandbox",
-                "objectBinding": "WORKSPACE",
+                "objects": [
+                    { "className": "Workspace", "binding": "WORKSPACE" },
+                    { "className": "McpOAuth", "binding": "MCP_OAUTH" }
+                ],
                 "backupBinding": "BACKUPS"
             })
             .to_string(),
@@ -2877,6 +2896,12 @@ mod tests {
             config["durable_objects"]["bindings"][0]["name"],
             "WORKSPACE"
         );
+        // The MCP OAuth store deploys beside the sandbox (CLOUD-17).
+        assert_eq!(
+            config["durable_objects"]["bindings"][1],
+            serde_json::json!({ "class_name": "McpOAuth", "name": "MCP_OAUTH" })
+        );
+        assert_eq!(config["exports"]["McpOAuth"]["type"], "durable-object");
         assert_eq!(
             config["r2_buckets"][0]["bucket_name"],
             "conducted-dev-c08-x"

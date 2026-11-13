@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseSettingsPage, type SettingsTarget, settingsTargetKey } from "./settings-pages.ts";
+import {
+	listedUserPages,
+	parseSettingsPage,
+	type SettingsTarget,
+	settingsTargetKey,
+} from "./settings-pages.ts";
 
 describe("SET-02 settings pages", () => {
 	it("parses a user page and a repository page", () => {
@@ -36,5 +41,12 @@ describe("SET-02 settings pages", () => {
 		const repo: SettingsTarget = { kind: "repo", repoId: "abc" as never, page: "scripts" };
 		expect(settingsTargetKey(user)).toBe("key-bindings");
 		expect(settingsTargetKey(repo)).toBe("repo:abc:scripts");
+	});
+
+	it("lists the MCP page only while the cloud organisation is active (CLOUD-17)", () => {
+		const ids = (cloudActive: boolean) => listedUserPages(cloudActive).map((page) => page.id);
+		expect(ids(false)).not.toContain("mcp");
+		expect(ids(true)).toContain("mcp");
+		expect(ids(true).filter((id) => id !== "mcp")).toEqual(ids(false));
 	});
 });

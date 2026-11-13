@@ -286,6 +286,12 @@ export function createActions(
 			removeMcpServer: (name) => services.cloudSettings.removeMcpServer(name),
 			importMcpServers: (servers) => services.cloudSettings.importMcpServers(servers),
 			scanLocalMcpServers: () => services.cloudMcpImport.scan(),
+			loadMcpOAuth: () => services.cloudMcpOAuth.load(),
+			connectMcpServer: (name) => services.cloudMcpOAuth.connect(name),
+			mcpConnectStatus: (name, state) => services.cloudMcpOAuth.status(name, state),
+			cancelMcpConnect: (name, state) => services.cloudMcpOAuth.cancel(name, state),
+			disconnectMcpServer: (name) => services.cloudMcpOAuth.disconnect(name),
+			detectMcpAuth: (url) => services.cloudMcpOAuth.detect(url),
 		},
 		portForwards: {
 			setForwarding: (workspaceId, enabled) =>
