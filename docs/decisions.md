@@ -1293,3 +1293,13 @@ Context: D141 left `MACOS_JOB` listing the nine UI files the macOS tests import 
 Chosen: `scripts/macos-job.ts` walks the import graph of the tracked `*.macos.test.ts` files and the Vitest setup files each time it runs, with the same Bun resolver the changed-only test run uses (`scanImports` in `scripts/run-tests.ts`). A changed file in that graph asks for the job. The hand list, the macOS test glob and the setup file glob leave `MACOS_JOB`; what the Rust crate reads stays there. An import that does not resolve stops the selection with an error, and CI then runs the job, so a package left uninstalled cannot shrink the graph. The `macos-changes` job installs the desktop's packages for that reason (`--ignore-scripts`, since nothing runs).
 
 Why not keep the list and its test: the test only reports the drift after the pull request that caused it has merged. Why not ask Vitest's module graph, as the desktop's changed-only run does: it needs Vitest started in the job, while the Bun walk reads the same imports with a resolver already in use.
+
+## D150. A parity entry whose condition our app cannot reach is decided, and says what makes it unreachable (2026-11-13)
+
+Decided by the lead's brief for the workspaces follow-up to #688, under the owner's rule "Match Conductor. Nothing made up; gaps are reported."
+
+Context: some of Conductor's messages answer a condition that cannot arise in ours. Conductor fetches its emoji set and says "Emoji failed to load" when the fetch fails (renderApp @11281817); ours bundles its emoji. Conductor's Open in says "No workspace path available" for a workspace with no folder yet (@2504857); every workspace of ours has its path from the moment its row is written. Conductor's setup timeline says "No active session to attach setup logs to" when the workspace has no chat (@2976926); ours draws the timeline only inside a chat's empty message list (EmptyChat in MessageList), so a chat always exists. No catalogue state can draw such a message, and building the condition would mean inventing a failure.
+
+Chosen: such an entry is marked by hand as decided with D150. Its note names what makes the condition unreachable in ours. Where our code still carries the message for the same guard, it stays.
+
+Why: the parity map must say why each entry is not drawn. This decision covers only a condition our app cannot reach. Something we have not built yet stays a gap.

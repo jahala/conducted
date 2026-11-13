@@ -168,12 +168,10 @@
 		"by": "seed"
 	},
 	"toast:M3750302": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-05",
-		"item": "Conductor shows \"Couldn’t check for open pull requests. Close them on GitHub if needed.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Archiving reads a cloud workspace's linked pull requests from Conductor's hosting server (Roundhouse PR state, main @3749933), Conductor's own service that D025 leaves out; our Worker keeps no such list.",
+		"by": "hand"
 	},
 	"toast:M3753291": {
 		"status": "decided",
@@ -308,12 +306,10 @@
 		"owner": "rule:cite"
 	},
 	"toast:R2504857": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Conductor shows \"No workspace path available\" (toast, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D150",
+		"note": "Conductor's Open in says this for a workspace with no folder yet; every workspace of ours has its path from the moment its row is written (D150).",
+		"by": "hand"
 	},
 	"toast:R2504925": {
 		"status": "gap",
@@ -356,12 +352,10 @@
 		"owner": "hand"
 	},
 	"toast:R2976926": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "WS-03",
-		"item": "Conductor shows \"No active session to attach setup logs to\" (toast, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D150",
+		"note": "Ours draws the setup timeline only inside a chat's empty message list (EmptyChat in MessageList), so the workspace always has a chat to send the logs to (D150).",
+		"by": "hand"
 	},
 	"toast:R2977083": {
 		"status": "gap",
@@ -375,16 +369,16 @@
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "WS-01",
-		"item": "Conductor shows \"Failed to copy prompt\" (toast, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"backlog": "CLOUD-03",
+		"item": "A cloud workspace whose sandbox is gone shows Recover prompt on its start card in the first chat; a copy that fails says \"Failed to copy prompt\" (renderApp `rzs`, `s$t`).",
 		"owner": "rule:cite"
 	},
 	"toast:R2984388": {
 		"status": "gap",
 		"reason": "missing",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "WS-01",
-		"item": "Conductor shows \"Copied prompt to clipboard\" (toast, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
+		"backlog": "CLOUD-03",
+		"item": "Recover prompt on a gone cloud workspace's start card copies its first message and says \"Copied prompt to clipboard\" (renderApp `rzs`, `s$t`).",
 		"owner": "rule:cite"
 	},
 	"toast:R2985423": {

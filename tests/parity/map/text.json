@@ -5128,12 +5128,10 @@
 		"by": "seed"
 	},
 	"text:R11281817": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Repository",
-		"backlog": "PRJ-05",
-		"item": "Conductor shows \"Emoji failed to load\" (text, inventory-controls Settings: Repository); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D150",
+		"note": "Conductor says this when its fetched emoji set fails to load; ours bundles its emoji (RepoIconPicker), so nothing can fail to load (D150).",
+		"by": "hand"
 	},
 	"text:R11282175": {
 		"status": "matched",
