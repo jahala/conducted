@@ -46,6 +46,7 @@ import {
 	type RepoId,
 	type SectionId,
 	type SessionId,
+	trimTrailingSlashes,
 	type WorkspaceId,
 } from "@conducted/shared";
 import type { ConductorSecretMove, ConductorSnapshot } from "../../platform/platform.ts";
@@ -98,7 +99,7 @@ import { mapConductorSetting } from "./settings-map.ts";
 
 /** Where Conductor keeps its database (overview.md, native-and-sidecar-map.md D1). */
 export const conductorDatabasePath = (home: string): string =>
-	`${home.replace(/\/+$/, "")}/Library/Application Support/com.conductor.app/conductor.db`;
+	`${trimTrailingSlashes(home)}/Library/Application Support/com.conductor.app/conductor.db`;
 
 /** The settings key Conductor sets once it has moved repo scripts into its settings files. */
 export const CONDUCTOR_SCRIPTS_MIGRATED_KEY = "repo_conductor_config_file_migration_v2_complete";
@@ -412,7 +413,7 @@ export interface PlanInput {
 /** An id that can be part of a file name or a git ref, as UUIDs and GitHub comment ids are. */
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 
-const basename = (path: string): string => path.replace(/\/+$/, "").split("/").pop() ?? path;
+const basename = (path: string): string => trimTrailingSlashes(path).split("/").pop() ?? path;
 
 const KANBAN: Readonly<Record<string, KanbanStatus>> = {
 	backlog: "backlog",
@@ -486,7 +487,7 @@ function worktreeOf(
 	repoRoot: string,
 	worktrees: readonly WorktreeEntry[],
 ): WorktreeEntry | null {
-	const own = worktrees.filter((entry) => entry.path.replace(/\/+$/, "") !== repoRoot);
+	const own = worktrees.filter((entry) => trimTrailingSlashes(entry.path) !== repoRoot);
 	if (workspace.workspace_path !== null) {
 		const exact = own.find((entry) => entry.path === workspace.workspace_path);
 		if (exact !== undefined) return exact;
@@ -588,14 +589,14 @@ export function planConductorImport(input: PlanInput): ImportPlan {
 			leave("repos", label, "Its id cannot be used as a Conducted id.");
 			continue;
 		}
-		const root = repo.root_path?.replace(/\/+$/, "") ?? null;
+		const root = typeof repo.root_path === "string" ? trimTrailingSlashes(repo.root_path) : null;
 		if (root === null || !root.startsWith("/")) {
 			leave("repos", label, "Conductor names no folder for it.");
 			continue;
 		}
 		const existing =
 			ourRepos.find((ours) => ours.id === repo.id) ??
-			ourRepos.find((ours) => ours.rootPath.replace(/\/+$/, "") === root);
+			ourRepos.find((ours) => trimTrailingSlashes(ours.rootPath) === root);
 		if (existing !== undefined) {
 			already("repos");
 			repoById.set(repo.id, existing);

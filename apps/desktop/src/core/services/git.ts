@@ -92,6 +92,7 @@ import {
 	err,
 	ok,
 	type Result,
+	trimTrailingSlashes,
 	type WorkspaceId,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
@@ -2122,7 +2123,7 @@ export class GitService {
 
 	/** Writes the note under the workspace's `.context` folder, which git leaves alone. */
 	async #writeContinueNote(workspacePath: string, text: string): Promise<Result<void>> {
-		const folder = `${workspacePath.replace(/\/+$/, "")}/${CONTINUE_NOTE_FOLDER}`;
+		const folder = `${trimTrailingSlashes(workspacePath)}/${CONTINUE_NOTE_FOLDER}`;
 		const made = await this.#deps.fs.mkdirp(folder);
 		if (!made.ok) return made;
 		return this.#deps.fs.writeTextAtomic(`${folder}/${CONTINUE_NOTE_FILE_NAME}`, text);

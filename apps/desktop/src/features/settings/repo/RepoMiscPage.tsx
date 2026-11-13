@@ -24,6 +24,7 @@
  * Test first: removing a repository with two workspaces asks for confirmation naming the count.
  */
 import type { RepoId } from "@conducted/shared";
+import { trimTrailingSlashes } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -282,7 +283,7 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 												workspaces in Conducted.
 											</p>
 											<p className="mt-1 break-all font-mono text-xs text-fg-muted">
-												{`${rootPath.replace(/\/+$/, "")}/workspaces/${repoValue.name}`}
+												{`${trimTrailingSlashes(rootPath)}/workspaces/${repoValue.name}`}
 											</p>
 										</div>
 									</div>

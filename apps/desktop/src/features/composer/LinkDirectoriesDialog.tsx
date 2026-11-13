@@ -13,6 +13,7 @@
  */
 
 import type { WorkspaceId } from "@conducted/shared";
+import { trimTrailingSlashes } from "@conducted/shared";
 import { useEffect, useRef, useState } from "react";
 import { useActions, useWorkspace, useWorkspaces } from "../../core/hooks.ts";
 import { isArchivedWorkspace } from "../../core/status/archived.ts";
@@ -30,7 +31,7 @@ export interface LinkDirectoriesDialogProps {
 
 /** The last segment of a folder path, for a row's label. */
 function folderName(path: string): string {
-	const trimmed = path.replace(/\/+$/, "");
+	const trimmed = trimTrailingSlashes(path);
 	return trimmed.slice(trimmed.lastIndexOf("/") + 1) || path;
 }
 

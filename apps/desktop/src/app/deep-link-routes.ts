@@ -43,6 +43,7 @@ import {
 	type RepoId,
 	type Result,
 	type SessionId,
+	trimTrailingSlashes,
 	type WorkspaceId,
 } from "@conducted/shared";
 import { type NavigateFn, useNavigate } from "@tanstack/react-router";
@@ -418,7 +419,7 @@ export function createDeepLinkOpener(
 			services.workspace.store.getState().workspacesById[workspaceId]?.repoId,
 		repoByName: (name) => repos().find((repo) => repo.name === name)?.id,
 		repoByPath: (path) =>
-			repos().find((repo) => repo.rootPath === path || repo.rootPath === path.replace(/\/+$/, ""))
+			repos().find((repo) => repo.rootPath === path || repo.rootPath === trimTrailingSlashes(path))
 				?.id,
 		setSetting: (key, value) => actions.settings.set(key, value),
 		createFromPlan: async (repositoryId, plan) => {

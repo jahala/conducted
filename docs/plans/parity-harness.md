@@ -52,7 +52,7 @@ Every entry that is not matched falls in one of four classes. The report counts 
 
 A gap of any class names who closes it: `"backlog"` is the row of `docs/plans/backlog.md` that builds or draws it, and `"item"` is that row's checklist item in `docs/plans/items/`, by its exact text. `"owner"` says how the owner was found. Owned is still a gap, so nothing pretends to be built: the report's "Gaps by class" table counts each class as owned by a row and item, by a row only, or with no owner. Check a fails as broken when a map names a row the backlog lacks, an item that row does not hold, or an item with no row.
 
-`bun scripts/parity/owners.ts` writes the owners. Like the spec builder, it reads the inventories in the main checkout's `.context/`, and its output is committed. It tries, in order:
+`bun scripts/parity/owners.ts` writes the owners, and its output is committed. It reads committed files only: an item's row citation counts the rows of an inventory's TSV, and those rows are the spec's entries and the rows `excluded.json` lists, by file and offset (the spec builder refuses a TSV in another order). So `pnpm guards` checks on every pull request that the committed map is what the script derives (the `parity-owners` guard, issue #671): a change to an item, a map entry or the spec reruns the script in the same change. It tries, in order:
 
 1. `rule:cite`: the item's research column cites the entry: `inventory text R@N`, `inventory label #N` (rows counted from 0), `inventory:toast row N` (counted from 1), or `inventory:rpc|sidecar|sql|tool <name>`.
 2. `rule:quote`: the item quotes the entry's text, or a quote of at least 14 characters holds it. A one-word quote ("Resolve", "You") is the weakest evidence here.

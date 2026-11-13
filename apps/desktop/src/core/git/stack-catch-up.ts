@@ -14,6 +14,7 @@
  * would add; a guarded rebase that stops partway (abort it).
  * Test first: an ignored `build/` folder collides with an added `build/out.js`.
  */
+import { trimTrailingSlashes } from "@conducted/shared";
 import type { GitCommand } from "./commands.ts";
 
 /** Per-worktree refs that remember the tip a stack branch last synced to. */
@@ -28,7 +29,7 @@ export const parseNulPaths = (text: string): string[] =>
 
 /** The form paths are compared in: Unicode NFC, lower case, without a directory's trailing slash. */
 const normalisedPath = (path: string): string =>
-	path.normalize("NFC").toLowerCase().replace(/\/+$/, "");
+	trimTrailingSlashes(path.normalize("NFC").toLowerCase());
 
 /**
  * Whether an ignored path would be overwritten by a path the rebase adds. An ignored folder
