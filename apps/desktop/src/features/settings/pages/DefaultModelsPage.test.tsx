@@ -485,7 +485,7 @@ describe("SET-02 DefaultModelsPage", () => {
 	});
 
 	// Conductor's Reset removes a file-backed setting through the same writer as a save
-	// (deleteSetting, main @410879, onForce @411783), so a refused reset gets the writer's toast
+	// (deleteSetting, main @410865, onForce @411783), so a refused reset gets the writer's toast
 	// and its "Overwrite file" (Uz, @389730). Ours said "Failed to reset setting" (issue #654).
 	it("offers Overwrite file when a setting's Reset meets an invalid settings file, and pressing it resets", async () => {
 		const { container } = await renderPage();

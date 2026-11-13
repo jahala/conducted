@@ -243,7 +243,7 @@ describe("SET-07 RepoGitPage", () => {
 
 	// Ours keeps the remote name in the local settings file, so its save goes through the settings
 	// writer, whose failed-save toast offers "Overwrite file" for an invalid file (Uz, main @389730;
-	// mutateSettingsFile, @415349). Ours said "Couldn't save the repository settings" (issue #654).
+	// mutateSettingsFile, @415335). Ours said "Couldn't save the repository settings" (issue #654).
 	it("offers Overwrite file when the remote name meets an invalid local settings file", async () => {
 		const { repo, container } = await renderPage();
 		render(<Toaster />);

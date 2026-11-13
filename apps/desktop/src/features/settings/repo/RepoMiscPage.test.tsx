@@ -339,7 +339,7 @@ describe("SET-07 RepoMiscPage", () => {
 
 	// Conductor saves the files to copy through its settings writer, whose failed-save toast offers
 	// "Overwrite file" for an invalid file (Uz, main @389730). The field's own "Failed to save files
-	// to copy" is only for a save that throws (renderApp @11309828, Oja @10938132). Ours said
+	// to copy" is only for a save that throws (renderApp @11275161, Oja @10903526). Ours said
 	// "Couldn't save the repository settings" (issue #654).
 	it("offers Overwrite file when the files to copy meet an invalid local settings file", async () => {
 		const testContainer = createTestContainer();

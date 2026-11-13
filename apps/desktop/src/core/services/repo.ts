@@ -1686,7 +1686,7 @@ export class RepoService {
 	 * Backs `Actions.projects.resetRunAction`: drops this Mac's change to a shared action by
 	 * rewriting the local file without that action, then forgets that it was hidden. It starts from
 	 * the config the page shows, so an invalid local file is refused by the write, which can then be
-	 * forced with `overwrite`, as Conductor's updateTask is (main @405346).
+	 * forced with `overwrite`, as Conductor's updateTask is (main @405338).
 	 */
 	async resetRunAction(
 		repoId: RepoId,

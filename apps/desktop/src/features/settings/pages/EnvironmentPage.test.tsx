@@ -269,7 +269,7 @@ describe("SET-04 EnvironmentPage", () => {
 
 	// Conductor writes a repository's env file list through its settings writer, whose failed-save
 	// toast offers "Overwrite file" for an invalid file (Uz, main @389730). The page's own "Failed
-	// to update env files" is only for a write that throws (renderApp @10725586). Ours said that
+	// to update env files" is only for a write that throws (renderApp @10691073). Ours said that
 	// for every failure (issue #654).
 	it("offers Overwrite file when an env file meets an invalid local settings file", async () => {
 		const { container, repo } = await mountPage(true);

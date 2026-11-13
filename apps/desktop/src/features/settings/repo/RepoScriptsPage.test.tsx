@@ -160,9 +160,9 @@ describe("SET-07 RepoScriptsPage", () => {
 	});
 
 	// Conductor saves a script through its settings writer, whose failed-save toast offers
-	// "Overwrite file" for an invalid file (Uz, main @389730; mutateSettingsFile, @415349). The
-	// page's own "Failed to save script" is only for a save that throws (renderApp @11059711,
-	// Oja @10938132). Ours said "Couldn't save the scripts" (issue #654).
+	// "Overwrite file" for an invalid file (Uz, main @389730; mutateSettingsFile, @415335). The
+	// page's own "Failed to save script" is only for a save that throws (renderApp @11025079,
+	// Oja @10903526). Ours said "Couldn't save the scripts" (issue #654).
 	it("offers Overwrite file when the local settings file does not parse, and pressing it saves the script", async () => {
 		test = createTestContainer();
 		const { container } = test;

@@ -154,7 +154,7 @@ describe("SET-07 RepoPromptSettings", () => {
 
 	// Conductor saves a prompt through its settings writer, whose failed-save toast offers
 	// "Overwrite file" for an invalid file (Uz, main @389730). The row's own "Failed to save custom
-	// prompt" is only for a save that throws (renderApp @10943793, Oja @10938132). Ours said
+	// prompt" is only for a save that throws (renderApp @10909187, Oja @10903526). Ours said
 	// "Couldn't save the instructions" (issue #654).
 	it("offers Overwrite file when a prompt meets an invalid local settings file, and pressing it saves", async () => {
 		test = createTestContainer();

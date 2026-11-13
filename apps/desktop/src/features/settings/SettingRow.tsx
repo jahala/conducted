@@ -449,8 +449,8 @@ function RegistrySettingRow({
 	);
 	const unavailable = unavailableFor?.(def) ?? null;
 	// Conductor's Reset removes a file-backed setting through its settings writer, which tells a
-	// failure itself, with "Overwrite file" for an invalid file (deleteSetting, main @410879). Its
-	// "Failed to reset setting" is for a reset that throws (renderApp @8734713), as a table row's
+	// failure itself, with "Overwrite file" for an invalid file (deleteSetting, main @410865). Its
+	// "Failed to reset setting" is for a reset that throws (renderApp @8701178), as a table row's
 	// failed delete does.
 	const reset = async () => {
 		const result = await actions.settings.reset(def.key);

@@ -184,7 +184,7 @@ describe("SET-07 RepoActionsPage", () => {
 
 	// Conductor writes the switch through its settings writer, which toasts the failure itself
 	// (Uz, main @389730: "Failed to save setting" for a failed write). The page's own "Failed to
-	// update spotlight testing" is only for a call that throws (renderApp @11300457), and ours
+	// update spotlight testing" is only for a call that throws (renderApp @11265790), and ours
 	// never throws. Ours named every failure that way (issue #654).
 	it("toasts a failed Spotlight switch with the settings writer's words", async () => {
 		const testContainer = createTestContainer();
@@ -213,8 +213,8 @@ describe("SET-07 RepoActionsPage", () => {
 	});
 
 	// The switch and an action's Reset both write the local settings file, so an invalid file gets
-	// Conductor's toast with "Overwrite file" (mutateSettingsFile, main @415349; updateTask
-	// @405346 for an action), and pressing it does the same write forced (issue #654).
+	// Conductor's toast with "Overwrite file" (mutateSettingsFile, main @415335; updateTask
+	// @405338 for an action), and pressing it does the same write forced (issue #654).
 	it("offers Overwrite file for the Spotlight switch over an invalid local settings file", async () => {
 		const testContainer = createTestContainer();
 		test = testContainer;
