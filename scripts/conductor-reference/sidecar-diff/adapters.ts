@@ -23,6 +23,7 @@
  * agent prompt itself and sends it as `prompt`; the harness sends the user's text there, and sends our
  * sidecar `firstMessage: false`, so both agents get the same text.
  */
+import { LOCAL_HOST } from "../../../packages/protocol/src/host.ts";
 import type { Answer, Json } from "./client.ts";
 import type { Side } from "./launch.ts";
 import type { Scenario, Step } from "./scenarios.ts";
@@ -220,6 +221,7 @@ function ourWorkspace(ctx: RunContext): Json {
 		targetBranch: "origin/main",
 		placeholderBranch: false,
 		port: 55100,
+		host: { ...LOCAL_HOST },
 	};
 }
 
