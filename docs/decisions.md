@@ -1225,4 +1225,3 @@ What differs from Conductor, and why:
 Why: it is Conductor's page and API on the user's own Worker, and the one store makes the refresh safe without a second home for the tokens.
 
 Live verification: see `docs/research/cloud-spike-2026-11-06.md` (CLOUD-17 OAuth).
-
