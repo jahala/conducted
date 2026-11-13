@@ -91,9 +91,15 @@ function uncredited(modules: readonly string[]): string[] {
 	].sort();
 }
 
+/**
+ * Runs one bundler. Its temp folder is this test's own, so whatever it leaves there goes with the
+ * folder. Wrangler's banner is off: behind it, wrangler asks npm for its latest version and caches
+ * the answer in the temp folder.
+ */
 function run(argv: readonly string[], cwd: string): void {
 	const [program, ...args] = argv;
-	const result = spawnSync(program ?? "", args, { cwd, encoding: "utf8" });
+	const env = { ...process.env, TMPDIR: `${work}/`, WRANGLER_HIDE_BANNER: "true" };
+	const result = spawnSync(program ?? "", args, { cwd, encoding: "utf8", env });
 	if (result.status !== 0) {
 		throw new Error(`${argv.join(" ")} failed:\n${result.stdout}\n${result.stderr}`);
 	}
