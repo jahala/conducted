@@ -1064,12 +1064,16 @@ export class SettingsService {
 		});
 	}
 
-	/** Removes a setting: a table row is deleted, a file-backed key is removed from the user file. */
-	async delete(key: string): Promise<Result<void>> {
+	/**
+	 * Removes a setting: a table row is deleted, a file-backed key is removed from the user file.
+	 * `overwrite` removes the key over an invalid file, as Conductor's forced deleteSetting does
+	 * (main @411783).
+	 */
+	async delete(key: string, options: SetOptions = {}): Promise<Result<void>> {
 		const def = getSettingDef(key);
 		if (def === undefined) return err(appError("setting_unknown", `Unknown setting "${key}".`));
 		if (def.tomlKey !== undefined) {
-			return this.#setInFile(this.#userFile(), "user", def, null, false, key);
+			return this.#setInFile(this.#userFile(), "user", def, null, options.overwrite === true, key);
 		}
 		return this.#deleteInTable(def);
 	}
@@ -1206,14 +1210,15 @@ export class SettingsService {
 	/**
 	 * Reads a settings file, lets `edit` change its contents and writes it back, after any other
 	 * write to the same file. Comments are kept as `#rewrite` describes. Backs every settings file
-	 * write outside this service, such as a repository's config (PRJ-04).
+	 * write outside this service, such as a repository's config (PRJ-04). Returns the contents as
+	 * written, so a caller can show the file without reading it again.
 	 */
 	updateSettingsFile(
 		file: string,
 		scope: "user" | "repo",
 		edit: (contents: SettingsFileContents) => void,
 		options: SetOptions = {},
-	): Promise<Result<void>> {
+	): Promise<Result<SettingsFileContents>> {
 		return this.#writes.run(file, () =>
 			this.#rewrite(file, scope, edit, options.overwrite === true),
 		);
@@ -1250,14 +1255,14 @@ export class SettingsService {
 	 * first step drops is lost without the user's doing, and so is every comment when the text
 	 * cannot be patched at all: the first save that would drop such comments is refused with a
 	 * warning that quotes them, and the next save that would drop the same ones goes ahead.
-	 * Runs inside the caller's queue slot for the file.
+	 * Runs inside the caller's queue slot for the file. Returns the contents as written.
 	 */
 	async #rewrite(
 		file: string,
 		scope: "user" | "repo",
 		edit: (contents: SettingsFileContents) => void,
 		overwrite: boolean,
-	): Promise<Result<void>> {
+	): Promise<Result<SettingsFileContents>> {
 		const read = overwrite ? this.#lastSavedContents(file) : await this.#readFile(file);
 		if (!read.ok) {
 			if (overwrite) return read;
@@ -1320,7 +1325,7 @@ export class SettingsService {
 		}
 		this.#commentWarnings.delete(file);
 		this.#lastSaved.set(file, text);
-		return ok(undefined);
+		return ok(contents);
 	}
 
 	/**

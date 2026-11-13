@@ -150,6 +150,7 @@ export function AddActionDialog({
 			}}
 		>
 			<DialogContent
+				letShortcutsThrough
 				title={draft.id === null ? "Add action" : "Edit action"}
 				description="An action starts a command in a workspace."
 				onConfirm={() => void submit()}

@@ -22,7 +22,7 @@
 import { createConnection } from "node:net";
 import type { Readable, Writable } from "node:stream";
 import { APP_TOOL_SERVER } from "@conducted/protocol";
-import { messageOf } from "@conducted/shared";
+import { LineSplitter, messageOf } from "@conducted/shared";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { zBridgeResponse } from "./bridge-protocol.ts";
@@ -49,7 +49,8 @@ export function callBridgeOverSocket(socketPath: string, line: string): Promise<
 	return new Promise((resolve, reject) => {
 		const socket = createConnection(socketPath);
 		socket.setEncoding("utf8");
-		let received = "";
+		// Each character is looked at once, so a long answer costs time in proportion to its length.
+		const lines = new LineSplitter();
 		let settled = false;
 		const settle = (finish: () => void): void => {
 			if (settled) return;
@@ -59,10 +60,9 @@ export function callBridgeOverSocket(socketPath: string, line: string): Promise<
 		};
 		socket.once("connect", () => socket.write(`${line}\n`));
 		socket.on("data", (chunk: string) => {
-			received += chunk;
-			const newline = received.indexOf("\n");
-			if (newline === -1) return;
-			settle(() => resolve(received.slice(0, newline)));
+			const line = lines.push(chunk)[0];
+			if (line === undefined) return;
+			settle(() => resolve(line));
 		});
 		socket.once("error", (cause) => settle(() => reject(cause)));
 		socket.once("close", () =>

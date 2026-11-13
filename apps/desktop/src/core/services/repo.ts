@@ -45,7 +45,9 @@
  * stays committed and read-only in the UI; `updateConfig` writes the local file only, through the
  * settings service's `updateSettingsFile` (which keeps the file's comments, SET-14), and writes a
  * key only when it differs from the shared value. A key that matches is removed, so a later edit
- * to the shared file reaches the user again.
+ * to the shared file reaches the user again. A save is a patch: it writes only the fields it
+ * names, applied under the file's write lock to the file as it stands, so two quick saves of
+ * different fields both land (issue #670, D146).
  * Gaps against services-map.md 4.2: the workspace-level shared file is not read. Keeping
  * `settings.local.toml` out of git is DATA-05's; linking it into every worktree is WS-01's.
  * Also owns the per-user hidden run action ids (SET-07, services-map.md 5A.1.6): they live in
@@ -98,7 +100,7 @@ import {
 import { githubRepoClone, githubRepoCreate, githubRepoUrl } from "../git/gh-commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { isGithubRemoteUrl } from "../github-text.ts";
-import type { Repo, RepoConfig, RepoIconChoice, RunAction } from "../model.ts";
+import type { Repo, RepoConfig, RepoConfigPatch, RepoIconChoice, RunAction } from "../model.ts";
 import {
 	GSTACK_TEMPLATE_URL,
 	isProjectTemplate,
@@ -116,6 +118,7 @@ import { emojiIconValue, fileIconPath, fileIconValue } from "../repo-icon-value.
 import { actionIdsEqual, actionLabel, type DroppedSetting } from "../settings-helpers.ts";
 import {
 	mergeSettingActions,
+	type SetOptions,
 	type SettingAction,
 	type SettingsFileContents,
 	type SettingsService,
@@ -551,36 +554,23 @@ export function repoConfigFrom(
 	};
 }
 
-/** The settings keys `updateConfig` owns. An older invalid value for them must not survive. */
-const REPO_CONFIG_KEYS = [
-	"setup_script",
-	"run_script",
-	"archive_script",
-	"run_script_mode",
-	"file_include_globs",
-	"open_url_template",
-	"spotlight_testing",
-	"auto_run_after_setup",
-	"remote_name",
-	"custom_prompt_general",
-	"custom_prompt_code_review",
-	"custom_prompt_create_pr",
-	"custom_prompt_fix_errors",
-	"custom_prompt_resolve_merge_conflicts",
-	"custom_prompt_rename_branch",
-] as const;
+/** The settings key of each prompt, so a patch can save one prompt and leave the others. */
+const PROMPT_KEYS: Readonly<Record<keyof RepoConfig["prompts"], string>> = {
+	general: "custom_prompt_general",
+	codeReview: "custom_prompt_code_review",
+	createPr: "custom_prompt_create_pr",
+	fixErrors: "custom_prompt_fix_errors",
+	resolveConflicts: "custom_prompt_resolve_merge_conflicts",
+	renameBranch: "custom_prompt_rename_branch",
+};
 
-/** Drops preserved raw entries under the keys a config write replaces. */
-function withoutRepoConfigPreserved(
-	preserved: readonly { path: string; value: unknown }[],
-): { path: string; value: unknown }[] {
-	const keys = REPO_CONFIG_KEYS.flatMap((key) => {
+/** Whether a file path (a raw entry kept for writes, or a dropped value) sits under these keys. */
+function underKeys(keys: readonly string[]): (path: string) => boolean {
+	const tomlKeys = keys.flatMap((key) => {
 		const tomlKey = getSettingDef(key)?.tomlKey;
 		return tomlKey === undefined ? [] : [tomlKey];
 	});
-	return preserved.filter(
-		(entry) => !keys.some((key) => entry.path === key || entry.path.startsWith(`${key}.`)),
-	);
+	return (path) => tomlKeys.some((key) => path === key || path.startsWith(`${key}.`));
 }
 
 const sameStrings = (left: readonly string[], right: readonly string[]): boolean =>
@@ -665,6 +655,60 @@ function localActionsFrom(
 		};
 	}
 	return result;
+}
+
+/**
+ * Applies a config patch to the local file's contents as they stand, writing only the fields the
+ * patch names, as Conductor's writer applies one key's change (mutateSettingsFile, main @415335).
+ * A key it writes loses any older invalid value kept for it, and its report of that value.
+ */
+function applyRepoConfigPatch(
+	contents: SettingsFileContents,
+	patch: RepoConfigPatch,
+	shared: RepoConfig,
+): void {
+	const written: string[] = [];
+	const text = (key: string, value: string | null | undefined, sharedValue: string | null) => {
+		if (value === undefined) return;
+		writeText(contents, key, value, sharedValue);
+		written.push(key);
+	};
+	const scalar = <T extends SettingValue>(key: string, value: T | undefined, sharedValue: T) => {
+		if (value === undefined) return;
+		writeIfDifferent(contents, key, value, sharedValue);
+		written.push(key);
+	};
+	text("setup_script", patch.setupScript, shared.setupScript);
+	text("archive_script", patch.archiveScript, shared.archiveScript);
+	scalar("run_script_mode", patch.runMode, shared.runMode);
+	if (patch.copyFiles !== undefined) {
+		writeList(contents, "file_include_globs", patch.copyFiles, shared.copyFiles);
+		written.push("file_include_globs");
+	}
+	if (patch.previewUrls !== undefined) {
+		text(
+			"open_url_template",
+			previewUrlsToText(patch.previewUrls),
+			previewUrlsToText(shared.previewUrls),
+		);
+	}
+	scalar("spotlight_testing", patch.spotlightTesting, shared.spotlightTesting);
+	scalar("auto_run_after_setup", patch.autoRunAfterSetup, shared.autoRunAfterSetup);
+	text("remote_name", patch.remoteName, shared.remoteName);
+	for (const [field, key] of Object.entries(PROMPT_KEYS) as [
+		keyof RepoConfig["prompts"],
+		string,
+	][]) {
+		text(key, patch.prompts?.[field], shared.prompts[field]);
+	}
+	if (patch.runScripts !== undefined) {
+		delete contents.values.run_script;
+		contents.actions = localActionsFrom(patch.runScripts, shared.runScripts);
+		written.push("run_script");
+	}
+	const replaced = underKeys(written);
+	contents.preserved = contents.preserved.filter((entry) => !replaced(entry.path));
+	contents.dropped = contents.dropped.filter((entry) => !replaced(entry.key));
 }
 
 /** The sidebar order: visible repositories by display order, then name and id. */
@@ -1198,8 +1242,18 @@ export class RepoService {
 		return ok(selectIncludedPaths(candidates, patterns));
 	}
 
-	/** Backs `Actions.projects.updateConfig`. Writes the local file, leaving the shared one alone. */
-	async updateConfig(repoId: RepoId, config: RepoConfig): Promise<Result<void>> {
+	/**
+	 * Backs `Actions.projects.updateConfig`. Writes the fields the patch names into the local file,
+	 * leaving the shared file and every other field alone. The patch is applied under the file's
+	 * write lock to the file as it stands, so a second save that starts before the first has landed
+	 * keeps the first one's change (issue #670). The store then shows the files as written.
+	 * `overwrite` writes over an invalid local file, Conductor's "Overwrite file" (SET-02).
+	 */
+	async updateConfig(
+		repoId: RepoId,
+		patch: RepoConfigPatch,
+		options: SetOptions = {},
+	): Promise<Result<void>> {
 		// Any read that began before this write may not put its older contents in the store.
 		this.#nextConfigLoad(repoId);
 		const found = await this.#deps.repos.repos.get(repoId);
@@ -1213,84 +1267,31 @@ export class RepoService {
 		if (!shared.ok) return shared;
 		const sharedConfig = repoConfigFrom(shared.value, emptyFileContents(shared.value.file)).config;
 
-		const written = await this.#deps.settings.updateSettingsFile(file, "repo", (contents) => {
-			writeText(contents, "setup_script", config.setupScript, sharedConfig.setupScript);
-			writeText(contents, "archive_script", config.archiveScript, sharedConfig.archiveScript);
-			writeIfDifferent(contents, "run_script_mode", config.runMode, sharedConfig.runMode);
-			writeList(contents, "file_include_globs", config.copyFiles, sharedConfig.copyFiles);
-			writeText(
-				contents,
-				"open_url_template",
-				previewUrlsToText(config.previewUrls),
-				previewUrlsToText(sharedConfig.previewUrls),
-			);
-			writeIfDifferent(
-				contents,
-				"spotlight_testing",
-				config.spotlightTesting,
-				sharedConfig.spotlightTesting,
-			);
-			writeIfDifferent(
-				contents,
-				"auto_run_after_setup",
-				config.autoRunAfterSetup,
-				sharedConfig.autoRunAfterSetup,
-			);
-			writeText(contents, "remote_name", config.remoteName, sharedConfig.remoteName);
-			writeText(
-				contents,
-				"custom_prompt_general",
-				config.prompts.general,
-				sharedConfig.prompts.general,
-			);
-			writeText(
-				contents,
-				"custom_prompt_code_review",
-				config.prompts.codeReview,
-				sharedConfig.prompts.codeReview,
-			);
-			writeText(
-				contents,
-				"custom_prompt_create_pr",
-				config.prompts.createPr,
-				sharedConfig.prompts.createPr,
-			);
-			writeText(
-				contents,
-				"custom_prompt_fix_errors",
-				config.prompts.fixErrors,
-				sharedConfig.prompts.fixErrors,
-			);
-			writeText(
-				contents,
-				"custom_prompt_resolve_merge_conflicts",
-				config.prompts.resolveConflicts,
-				sharedConfig.prompts.resolveConflicts,
-			);
-			writeText(
-				contents,
-				"custom_prompt_rename_branch",
-				config.prompts.renameBranch,
-				sharedConfig.prompts.renameBranch,
-			);
-			delete contents.values.run_script;
-			contents.actions = localActionsFrom(config.runScripts, sharedConfig.runScripts);
-			contents.preserved = withoutRepoConfigPreserved(contents.preserved);
-		});
+		const written = await this.#deps.settings.updateSettingsFile(
+			file,
+			"repo",
+			(contents) => applyRepoConfigPatch(contents, patch, sharedConfig),
+			options,
+		);
 		if (!written.ok) return written;
 
 		// A read that began during the write may not overwrite the config that just reached disk.
+		// The writes to one file run one after another, and each one's store update runs before
+		// the next write ends, so the store always ends on the newest file.
 		this.#nextConfigLoad(repoId);
+		const local = written.value;
+		const read = repoConfigFrom(shared.value, local);
 		const state = this.store.getState();
 		const configErrors = { ...state.configErrors };
 		delete configErrors[repoId];
-		const configDropped = { ...state.configDropped };
-		delete configDropped[repoId];
 		this.store.setState({
 			...state,
-			configs: { ...state.configs, [repoId]: config },
+			configs: { ...state.configs, [repoId]: read.config },
 			configErrors,
-			configDropped,
+			configDropped: {
+				...state.configDropped,
+				[repoId]: [...shared.value.dropped, ...local.dropped, ...read.dropped],
+			},
 		});
 		return ok(undefined);
 	}
@@ -1675,18 +1676,22 @@ export class RepoService {
 
 	/**
 	 * Backs `Actions.projects.resetRunAction`: drops this Mac's change to a shared action by
-	 * rewriting the local file without that action, then forgets that it was hidden.
+	 * rewriting the local file without that action, then forgets that it was hidden. It starts from
+	 * the config the page shows, so an invalid local file is refused by the write, which can then be
+	 * forced with `overwrite`, as Conductor's updateTask is (main @405338).
 	 */
-	async resetRunAction(repoId: RepoId, actionId: string): Promise<Result<void>> {
-		const loaded = await this.loadConfig(repoId);
+	async resetRunAction(
+		repoId: RepoId,
+		actionId: string,
+		options: SetOptions = {},
+	): Promise<Result<void>> {
+		const known = this.store.getState().configs[repoId];
+		const loaded = known === undefined ? await this.loadConfig(repoId) : ok(known);
 		if (!loaded.ok) return loaded;
 		const remaining = loaded.value.runScripts.filter(
 			(action) => !actionIdsEqual(action.id, actionId),
 		);
-		const saved = await this.updateConfig(repoId, {
-			...loaded.value,
-			runScripts: remaining,
-		});
+		const saved = await this.updateConfig(repoId, { runScripts: remaining }, options);
 		if (!saved.ok) return saved;
 		return this.setRunActionHidden(repoId, actionId, false);
 	}

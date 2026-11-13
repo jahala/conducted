@@ -3,10 +3,11 @@
  * CHAT-05 Cancel a turn; CHAT-13 Progress tracker above the composer; CHAT-16 Fork a chat from a
  * turn; CHAT-17 Copy transcript and search chat history; CHAT-21 Fork a chat to a new workspace;
  * CHAT-26 Start a chat with earlier chats and plans; CHAT-27 Retry a failed turn in a new chat;
- * WS-10 Delete a workspace's chats
- * Owns: the list of chats per workspace, their stored live state and events in memory, the
- * create, close, clear, reopen, rename, set-title-if-empty, delete (which also removes the chat's
- * checkpoint refs) and open paths, deleting every chat of a workspace with its attachment files
+ * WS-10 Delete a workspace's chats; CHAT-06 A chat's history loads a few turns at a time
+ * Owns: the list of chats per workspace, their stored live state and, for an open chat, the events
+ * of its last turns in memory, the create, close, clear, reopen, rename, set-title-if-empty, delete
+ * (which also removes the chat's checkpoint refs) and open paths, loading older turns as the list
+ * asks (`loadOlder`, `revealTurn`, CHAT-06, #617), deleting every chat of a workspace with its attachment files
  * and drafts, starting a review chat with the review model, sending a user message as a new turn
  * or a steer, running the composition root's first-message hook (WS-04's branch rename),
  * forking a chat up to a checkpointed turn into a new chat of the same or another workspace and
@@ -28,7 +29,10 @@
  * the open list; closing a chat stops its agent unseen and makes the next chat active, and closing
  * the last chat starts a replacement so the pane never keeps showing a chat that is gone; `/clear`
  * does the same with a replacement and hides the old chat (success-side-effects.md row 6);
- * an empty title is refused; stored events load once, in `idx` order; a message is
+ * an empty title is refused; a chat opens on its last five turns, in `idx` order, and older
+ * turns load one at a time or back to a turn the outline picked, one load at a time; an event
+ * stored for a turn that is not loaded waits in the database, and one stored while its turn loads
+ * is kept; the copy, the attachment and the fork read every turn without keeping it; a message is
  * held in memory as pending before the sidecar is asked; a queued row is sent under its own id,
  * so a crash before the row is removed cannot send it twice; an explicit steer for an agent that
  * cannot steer is refused (CHAT-03); a message to an idle chat whose agent program is still being
@@ -161,7 +165,7 @@ import { agentCanSteer } from "../follow-up-queue.ts";
 import { trashIfPresent } from "../fs-helpers.ts";
 import { turnCheckpointId } from "../git/refs.ts";
 import { parseEffortSetting } from "../lookups.ts";
-import type { ChatView, DiagnosticsCapture, PlanEntry, Session } from "../model.ts";
+import type { ChatTurn, ChatView, DiagnosticsCapture, PlanEntry, Session } from "../model.ts";
 import {
 	chatIsWorking,
 	type FailedSend,
@@ -171,6 +175,17 @@ import {
 } from "../sessions.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
 import type { HistoryHit } from "../transcript.ts";
+import {
+	type ChatHistoryState,
+	historyView,
+	isNotLoaded,
+	loadedTurnIds,
+	mergeEvents,
+	newChatHistory,
+	outlineOf,
+	storedOutline,
+	turnIdsBetween,
+} from "./chat-history.ts";
 import type { ComposerService } from "./composer.ts";
 import { chooseDelivery, type FollowUpQueue } from "./follow-up-queue.ts";
 import { localExecutionForHost } from "./local-command.ts";
@@ -183,7 +198,12 @@ import {
 	planTitleOf,
 	searchHistory,
 } from "./transcript.ts";
-import { buildTurns, reuseUnchangedTurns, type StoredEvent } from "./turn-builder.ts";
+import {
+	buildTurns,
+	callsNamedButMissing,
+	reuseUnchangedTurns,
+	type StoredEvent,
+} from "./turn-builder.ts";
 
 /**
  * How the git and GitHub services ask the agent to do work. The text lands in the workspace's
@@ -217,8 +237,13 @@ export interface SessionsState {
 	liveStates: Readonly<Record<string, LiveState>>;
 	/** Chats where cancel was requested and the sidecar has not yet said idle. */
 	cancelling: Readonly<Record<string, boolean>>;
-	/** Stored events loaded for each opened chat, in `idx` order. */
+	/**
+	 * Stored events loaded for each opened chat, in `idx` order: those of its last turns, and of
+	 * older ones as the list asks for them (CHAT-06).
+	 */
 	events: Readonly<Record<string, readonly StoredEvent[]>>;
+	/** For each opened chat, what of its stored history is loaded (CHAT-06). */
+	histories: Readonly<Record<string, ChatHistoryState>>;
 	/** The agent's progress tracker for each chat. A new update replaces it; an empty one clears it. */
 	progress: Readonly<Record<string, Progress>>;
 	/** Messages held in memory before the sidecar got them, whose `user_message` event has not arrived yet. */
@@ -259,6 +284,11 @@ export interface SessionsState {
 
 /** One chat's card on screen. */
 type OpenInteraction = SessionsState["openInteractions"][string];
+
+/** A stored row as the turn builder reads it. */
+function toStoredEvent(row: StoredSessionEvent): StoredEvent {
+	return { idx: row.idx, event: row.event, receivedAt: row.receivedAt, revertedAt: row.revertedAt };
+}
 
 function toOpenInteraction(request: InteractionRequest): OpenInteraction {
 	return {
@@ -513,6 +543,15 @@ export class SessionsService implements AgentMessenger {
 		string,
 		{ promise: Promise<Result<void>>; buffered: StoredEvent[] }
 	>();
+	/** Loads of older turns run one at a time per chat (CHAT-06). */
+	readonly #historyLoads: KeyedQueue<SessionId> = createKeyedQueue<SessionId>();
+	/**
+	 * Older turns being loaded per chat, with their events that arrived meanwhile, so an event
+	 * stored while its turn is read is not lost.
+	 */
+	readonly #loadingTurns = new Map<string, { turnIds: Set<TurnId>; buffered: StoredEvent[] }>();
+	/** The outline entries of each chat's turns that are not loaded, built once per load. */
+	readonly #outlineHeads = new WeakMap<ChatHistoryState, ChatView["outline"]>();
 
 	constructor(deps: SessionsServiceDeps) {
 		this.#deps = deps;
@@ -525,6 +564,7 @@ export class SessionsService implements AgentMessenger {
 			liveStates: {},
 			cancelling: {},
 			events: {},
+			histories: {},
 			progress: {},
 			sending: {},
 			failedSends: {},
@@ -830,6 +870,8 @@ export class SessionsService implements AgentMessenger {
 			delete liveStates[id];
 			const events = { ...state.events };
 			delete events[id];
+			const histories = { ...state.histories };
+			delete histories[id];
 			const sending = { ...state.sending };
 			delete sending[id];
 			const failedSends = { ...(state.failedSends ?? {}) };
@@ -842,6 +884,7 @@ export class SessionsService implements AgentMessenger {
 				sessions,
 				liveStates,
 				events,
+				histories,
 				sending,
 				failedSends,
 				openInteractions,
@@ -860,11 +903,13 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/**
-	 * Loads the stored events of a chat the first time it is shown. Calls that overlap share one
-	 * load. An event stored while the load runs is kept and merged in, so it is not lost.
+	 * Loads a chat's last turns the first time it is shown, and the list of every turn it shows,
+	 * as Conductor's chat opens on a window of its last five turns (CHAT-06, #617). Calls that
+	 * overlap share one load. An event stored while the load runs is kept and merged in, so it is
+	 * not lost.
 	 */
 	open(id: SessionId): Promise<Result<void>> {
-		if (this.store.getState().events[id] !== undefined) return Promise.resolve(ok(undefined));
+		if (this.store.getState().histories[id] !== undefined) return Promise.resolve(ok(undefined));
 		const inFlight = this.#opening.get(id);
 		if (inFlight !== undefined) return inFlight.promise;
 		const buffered: StoredEvent[] = [];
@@ -878,28 +923,142 @@ export class SessionsService implements AgentMessenger {
 	async #loadEvents(id: SessionId, buffered: StoredEvent[]): Promise<Result<void>> {
 		const found = await this.#session(id);
 		if (!found.ok) return found;
-		const repositories = this.#deps.repositories();
-		const last = await repositories.sessionEvents.lastIdx(id);
-		if (!last.ok) return last;
-		const byIdx = new Map<number, StoredEvent>();
-		if (last.value !== null) {
-			const stored = await repositories.sessionEvents.listFrom(id, 0, last.value + 1);
-			if (!stored.ok) return stored;
-			for (const row of stored.value) {
-				byIdx.set(row.idx, {
-					idx: row.idx,
-					event: row.event,
-					receivedAt: row.receivedAt,
-					revertedAt: row.revertedAt,
-				});
-			}
-		}
-		for (const event of buffered) {
-			if (!byIdx.has(event.idx)) byIdx.set(event.idx, event);
-		}
-		const events = [...byIdx.values()].sort((a, b) => a.idx - b.idx);
-		this.store.setState((state) => ({ events: { ...state.events, [id]: events } }));
+		const repository = this.#deps.repositories().sessionEvents;
+		const stored = await repository.storedTurns(id);
+		if (!stored.ok) return stored;
+		const opened = newChatHistory(stored.value);
+		const read = await repository.listTurns(
+			id,
+			turnIdsBetween(opened, opened.unloaded, opened.stored.length),
+		);
+		if (!read.ok) return read;
+		// Events applied before the chat was opened, or while it opened, join the ones read; one of
+		// a turn that is not loaded waits in the database.
+		const shown = (event: StoredEvent): boolean => !isNotLoaded(opened, event.event.turnId);
+		const before = this.store.getState().events[id] ?? [];
+		const events = mergeEvents(
+			read.value.map(toStoredEvent),
+			[...before, ...buffered].filter(shown),
+		);
+		const history = await this.#withCallsNotLoaded(id, opened, events);
+		if (!history.ok) return history;
+		this.store.setState((state) => ({
+			// The buffer also holds what arrived while the calls were looked up.
+			events: { ...state.events, [id]: mergeEvents(events, buffered.filter(shown)) },
+			histories: { ...state.histories, [id]: history.value },
+		}));
 		return ok(undefined);
+	}
+
+	/**
+	 * Backs `Actions.sessions.loadOlder`: loads the turn just before the chat's first loaded one,
+	 * as Conductor's list does each time its top comes near (CHAT-06).
+	 */
+	loadOlder(id: SessionId): Promise<Result<void>> {
+		return this.#loadBack(id, (history) => history.unloaded - 1);
+	}
+
+	/**
+	 * Backs `Actions.sessions.revealTurn`: loads every turn back to this one, so the turn outline
+	 * can scroll to it. Conductor loads only the turn and leaves a gap the list fills as it
+	 * scrolls; ours keeps one run of turns to the end, so the list only grows at its top (D144).
+	 */
+	revealTurn(id: SessionId, turnId: TurnId): Promise<Result<void>> {
+		return this.#loadBack(id, (history) => history.positions.get(turnId) ?? history.unloaded);
+	}
+
+	/** Loads the stored turns from the one `target` picks up to the first loaded one. */
+	#loadBack(id: SessionId, target: (history: ChatHistoryState) => number): Promise<Result<void>> {
+		return this.#historyLoads.run(id, async () => {
+			const start = this.store.getState().histories[id];
+			if (start === undefined) return ok(undefined);
+			const from = Math.max(0, Math.min(target(start), start.unloaded));
+			if (from >= start.unloaded) return ok(undefined);
+			const turnIds = turnIdsBetween(start, from, start.unloaded);
+			const loading = { turnIds: new Set(turnIds), buffered: [] as StoredEvent[] };
+			this.#loadingTurns.set(id, loading);
+			this.#setHistory(id, (history) => ({ ...history, older: "loading" }));
+			try {
+				const read = await this.#deps.repositories().sessionEvents.listTurns(id, turnIds);
+				const kept = this.store.getState();
+				const history = kept.histories[id];
+				const loaded = kept.events[id];
+				// The chat was closed meanwhile; nothing is left to add to.
+				if (history === undefined || loaded === undefined) return ok(undefined);
+				if (!read.ok) {
+					this.#setHistory(id, (current) => ({ ...current, older: "failed" }));
+					return read;
+				}
+				const events = mergeEvents(loaded, [...read.value.map(toStoredEvent), ...loading.buffered]);
+				const grown = { ...history, unloaded: from, older: "idle" as const };
+				const withCalls = await this.#withCallsNotLoaded(id, grown, events);
+				if (!withCalls.ok) {
+					this.#setHistory(id, (current) => ({ ...current, older: "failed" }));
+					return withCalls;
+				}
+				this.store.setState((state) => {
+					if (state.histories[id] === undefined || state.events[id] === undefined) return {};
+					// Events that arrived while the calls were looked up are kept too.
+					const latest = mergeEvents(state.events[id] ?? [], [...events, ...loading.buffered]);
+					return {
+						events: { ...state.events, [id]: latest },
+						histories: { ...state.histories, [id]: withCalls.value },
+					};
+				});
+				return ok(undefined);
+			} finally {
+				this.#loadingTurns.delete(id);
+			}
+		});
+	}
+
+	#setHistory(id: SessionId, change: (history: ChatHistoryState) => ChatHistoryState): void {
+		this.store.setState((state) => {
+			const history = state.histories[id];
+			if (history === undefined) return {};
+			return { histories: { ...state.histories, [id]: change(history) } };
+		});
+	}
+
+	/**
+	 * Looks up the calls of turns that are not loaded which the loaded events name, so their late
+	 * work stays in those calls' cards (D129). Ids asked before are not asked again. The lookup
+	 * reads the chat's agent events, so it runs only when an id is new and turns are not loaded.
+	 */
+	async #withCallsNotLoaded(
+		id: SessionId,
+		history: ChatHistoryState,
+		events: readonly StoredEvent[],
+	): Promise<Result<ChatHistoryState>> {
+		if (history.unloaded === 0) return ok(history);
+		const fresh = callsNamedButMissing(events).filter((callId) => !history.asked.has(callId));
+		if (fresh.length === 0) return ok(history);
+		const found = await this.#deps
+			.repositories()
+			.sessionEvents.callsOutsideTurns(id, loadedTurnIds(history, events), fresh);
+		if (!found.ok) return found;
+		return ok({
+			...history,
+			callsNotLoaded: new Set([...history.callsNotLoaded, ...found.value]),
+			asked: new Set([...history.asked, ...fresh]),
+		});
+	}
+
+	/**
+	 * Every turn of a chat, built from all its stored events and not kept: for the transcript copy
+	 * and the chat attachment, which need the whole chat, as Conductor reads its whole chat for
+	 * them (`getCompleteMessages`, main bundle @1399804).
+	 */
+	async completeTurns(id: SessionId): Promise<Result<ChatTurn[]>> {
+		const stored = await this.#storedEvents(id);
+		if (!stored.ok) return stored;
+		const state = this.store.getState();
+		const liveState = state.liveStates[id] ?? idleLiveState;
+		const pending = (state.sending[id] ?? []).map((send) => ({
+			...send,
+			messageId: send.messageId as MessageId,
+		}));
+		return ok(buildTurns(stored.value.map(toStoredEvent), liveState, pending));
 	}
 
 	/**
@@ -1667,21 +1826,15 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/**
-	 * Backs `Actions.sessions.copyTranscript`: loads the chat's stored events if needed, builds its
-	 * turns and writes the concise or full text to the clipboard.
+	 * Backs `Actions.sessions.copyTranscript`: builds every turn of the chat from its stored events,
+	 * without keeping them, and writes the concise or full text to the clipboard.
 	 */
 	async copyTranscript(id: SessionId, detail: "concise" | "full"): Promise<Result<void>> {
 		const found = await this.#session(id);
 		if (!found.ok) return found;
-		const opened = await this.open(id);
-		if (!opened.ok) return opened;
-		const state = this.store.getState();
-		const liveState = state.liveStates[id] ?? idleLiveState;
-		const pending = (state.sending[id] ?? []).map((send) => ({
-			...send,
-			messageId: send.messageId as MessageId,
-		}));
-		const text = formatTranscript(buildTurns(state.events[id] ?? [], liveState, pending), detail);
+		const turns = await this.completeTurns(id);
+		if (!turns.ok) return turns;
+		const text = formatTranscript(turns.value, detail);
 		const copyText = this.#deps.copyText;
 		if (copyText === undefined) {
 			return err(appError("chat_copy_unavailable", "Copying is not available right now."));
@@ -1695,27 +1848,16 @@ export class SessionsService implements AgentMessenger {
 	async transcriptOf(id: SessionId): Promise<Result<{ title: string | null; text: string }>> {
 		const found = await this.#session(id);
 		if (!found.ok) return found;
-		const opened = await this.open(id);
-		if (!opened.ok) return opened;
-		const state = this.store.getState();
-		const liveState = state.liveStates[id] ?? idleLiveState;
-		const pending = (state.sending[id] ?? []).map((send) => ({
-			...send,
-			messageId: send.messageId as MessageId,
-		}));
-		const text = formatTranscript(
-			buildTurns(state.events[id] ?? [], liveState, pending),
-			"concise",
-		);
-		return ok({ title: found.value.title, text });
+		const turns = await this.completeTurns(id);
+		if (!turns.ok) return turns;
+		return ok({ title: found.value.title, text: formatTranscript(turns.value, "concise") });
 	}
 
 	/** Reads one plan an agent proposed in a chat, by its `PlanEntry.planId`, for attaching it (CHAT-26). */
 	async planFor(id: SessionId, planId: string): Promise<Result<{ title: string; text: string }>> {
-		const opened = await this.open(id);
-		if (!opened.ok) return opened;
-		const state = this.store.getState();
-		for (const stored of state.events[id] ?? []) {
+		const events = await this.#storedEvents(id);
+		if (!events.ok) return events;
+		for (const stored of events.value) {
 			if (stored.revertedAt !== null) continue;
 			const call = planCallsInEvent(stored.event).find((entry) => entry.planId === planId);
 			if (call !== undefined) return ok({ title: planTitleOf(call.text), text: call.text });
@@ -1947,20 +2089,23 @@ export class SessionsService implements AgentMessenger {
 		event: SessionEvent,
 		receivedAt: number,
 	): void {
-		this.#opening.get(sessionId)?.buffered.push({ idx, event, receivedAt, revertedAt: null });
+		const stored = { idx, event, receivedAt, revertedAt: null };
+		this.#opening.get(sessionId)?.buffered.push(stored);
+		const loading = this.#loadingTurns.get(sessionId);
+		if (loading?.turnIds.has(event.turnId) === true) loading.buffered.push(stored);
+		// An event of a turn the chat has not loaded stays in the database until the turn loads;
+		// alone it would show as a turn of its own (CHAT-06).
+		const notLoaded = isNotLoaded(this.store.getState().histories[sessionId], event.turnId);
 		const closedInteractionId =
 			event.type === "turn_ended"
 				? (this.store.getState().openInteractions[sessionId]?.interactionId ?? null)
 				: null;
 		this.store.setState((state) => {
 			const loaded = state.events[sessionId] ?? [];
-			const duplicate = loaded.some((stored) => stored.idx === idx);
+			const duplicate = notLoaded || loaded.some((row) => row.idx === idx);
 			const events = duplicate
 				? state.events
-				: {
-						...state.events,
-						[sessionId]: [...loaded, { idx, event, receivedAt, revertedAt: null }],
-					};
+				: { ...state.events, [sessionId]: [...loaded, stored] };
 
 			const pending = state.sending[sessionId];
 			let settled = pending;
@@ -2184,7 +2329,13 @@ export class SessionsService implements AgentMessenger {
 			...send,
 			messageId: send.messageId as MessageId,
 		}));
-		const fresh = buildTurns(state.events[sessionId] ?? [], liveState, pending);
+		const history = state.histories[sessionId];
+		const fresh = buildTurns(
+			state.events[sessionId] ?? [],
+			liveState,
+			pending,
+			history?.callsNotLoaded,
+		);
 		const previous = this.#turns.get(sessionId);
 		const turns = previous === undefined ? fresh : reuseUnchangedTurns(previous, fresh);
 		this.#turns.set(sessionId, turns);
@@ -2206,7 +2357,19 @@ export class SessionsService implements AgentMessenger {
 						},
 			progress: state.progress[sessionId] ?? null,
 			goal: state.goals?.[sessionId] ?? null,
+			history: historyView(history),
+			outline: outlineOf(this.#outlineHead(history), turns),
 		};
+	}
+
+	/** The outline entries of the turns that are not loaded, built once for each load. */
+	#outlineHead(history: ChatHistoryState | undefined): ChatView["outline"] {
+		if (history === undefined) return [];
+		const kept = this.#outlineHeads.get(history);
+		if (kept !== undefined) return kept;
+		const head = storedOutline(history);
+		this.#outlineHeads.set(history, head);
+		return head;
 	}
 
 	/** Backs `useDraft` through the composer service; kept here so the view model has one source. */

@@ -11,7 +11,7 @@ import { ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
-import type { RepoConfig, RunAction } from "../../../core/model.ts";
+import type { RepoConfigPatch, RunAction } from "../../../core/model.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../../test/container.ts";
 import { WithSurfaces } from "../../../test/surfaces.tsx";
 import { RunTab } from "./RunTab.tsx";
@@ -19,7 +19,7 @@ import { RunTab } from "./RunTab.tsx";
 const CLOUD: Host = { kind: "cloud", url: "https://conducted.example.workers.dev", vmId: "vm-1" };
 
 const dev: RunAction = {
-	id: "dev",
+	id: "dev-server",
 	label: "Dev server",
 	command: "bun dev",
 	args: [],
@@ -31,25 +31,7 @@ const dev: RunAction = {
 	availableIn: ["local", "cloud"],
 };
 
-const config: RepoConfig = {
-	setupScript: null,
-	runScripts: [dev],
-	runMode: "concurrent",
-	archiveScript: null,
-	copyFiles: [],
-	previewUrls: [],
-	spotlightTesting: false,
-	autoRunAfterSetup: false,
-	remoteName: "origin",
-	prompts: {
-		general: null,
-		codeReview: null,
-		createPr: null,
-		fixErrors: null,
-		resolveConflicts: null,
-		renameBranch: null,
-	},
-};
+const config: RepoConfigPatch = { runScripts: [dev] };
 
 const containers: ReturnType<typeof createTestContainer>[] = [];
 

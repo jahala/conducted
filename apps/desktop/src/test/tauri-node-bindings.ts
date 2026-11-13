@@ -37,6 +37,7 @@ import {
 import { constants as osConstants } from "node:os";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import { LineSplitter } from "@conducted/shared";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import {
 	assetUrlOf,
@@ -452,12 +453,9 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 			const child = spawn(process.execPath, ["-e", ECHO_PROGRAM], {
 				stdio: ["pipe", "pipe", "ignore"],
 			});
-			let buffered = "";
+			const lines = new LineSplitter();
 			child.stdout?.setEncoding("utf8").on("data", (chunk: string) => {
-				buffered += chunk;
-				const lines = buffered.split("\n");
-				buffered = lines.pop() ?? "";
-				for (const line of lines) events.emit(EVENTS.sidecarLine, line);
+				for (const line of lines.push(chunk)) events.emit(EVENTS.sidecarLine, line);
 			});
 			child.once("close", () => {
 				if (sidecar === child) sidecar = null;

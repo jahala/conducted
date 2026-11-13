@@ -144,6 +144,7 @@ export function AddEnvVarForm({ open, onOpenChange, existingNames, onAdd }: AddE
 	return (
 		<Sheet open={open} onOpenChange={close}>
 			<SheetContent
+				letShortcutsThrough
 				title={pasted === null ? "Add environment variable" : "Add environment variables"}
 				description={
 					pasted === null

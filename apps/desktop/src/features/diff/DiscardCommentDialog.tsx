@@ -9,6 +9,7 @@
 import { AlertDialog as Radix } from "radix-ui";
 import { useRef } from "react";
 import { Button } from "../../ui/Button.tsx";
+import { letShortcutsThroughProps } from "../../ui/dialog-shortcuts.ts";
 
 export interface DiscardCommentDialogProps {
 	open: boolean;
@@ -33,7 +34,11 @@ export function DiscardCommentDialog({ open, onKeep, onDiscard }: DiscardComment
 		>
 			<Radix.Portal>
 				<Radix.Overlay className="fixed inset-0 z-40 bg-overlay" />
-				<Radix.Content className="fixed left-1/2 top-[max(2rem,calc(50%-250px))] z-50 flex max-h-[calc(100%-4rem)] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 flex-col gap-4 rounded-xl border border-border bg-raised p-6 text-fg shadow-dialog">
+				{/* Conductor keeps this dialog off its dialog store, so app shortcuts still run. */}
+				<Radix.Content
+					className="fixed left-1/2 top-[max(2rem,calc(50%-250px))] z-50 flex max-h-[calc(100%-4rem)] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 flex-col gap-4 rounded-xl border border-border bg-raised p-6 text-fg shadow-dialog"
+					{...letShortcutsThroughProps(true)}
+				>
 					<Radix.Title className="text-lg leading-none font-medium tracking-tight text-fg">
 						Discard comment?
 					</Radix.Title>

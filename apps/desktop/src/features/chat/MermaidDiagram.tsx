@@ -188,7 +188,7 @@ export function MermaidDiagram({ source, streaming }: MermaidDiagramProps) {
 				<SanitizedSvg svg={drawn.svg} />
 			</div>
 			<Dialog open={expanded} onOpenChange={setExpanded}>
-				<DialogContent title="Diagram" size="4xl">
+				<DialogContent title="Diagram" size="4xl" letShortcutsThrough>
 					<div className="flex items-center justify-end gap-1">
 						<Button
 							variant="outline"

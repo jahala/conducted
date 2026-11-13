@@ -20,14 +20,14 @@
 import type { RepoId } from "@conducted/shared";
 import { useEffect, useState } from "react";
 import { useActions, useRepoConfig } from "../../../core/hooks.ts";
-import type { RepoConfig } from "../../../core/model.ts";
+import type { RepoConfig, RepoConfigPatch } from "../../../core/model.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../ui/Collapsible.tsx";
 import { Textarea } from "../../../ui/Input.tsx";
 import { ChevronDownIcon } from "../../../ui/icons.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
-import { toastError } from "../../../ui/Toast.tsx";
+import { toastSettingSaveFailed } from "../SettingRow.tsx";
 
 /** Conductor's placeholder for a button's instructions. */
 const PREFERENCES_PLACEHOLDER =
@@ -114,35 +114,44 @@ export function RepoPromptSettings({ repoId }: { repoId: RepoId }) {
 
 	const textOrNull = (text: string): string | null => (text.trim() === "" ? null : text);
 
-	/** Every prompt as the fields show it, so saving one never drops text typed in another. */
-	const promptsFromDrafts = (): RepoConfig["prompts"] => ({
-		general: textOrNull(drafts.general),
-		codeReview: textOrNull(drafts.codeReview),
-		createPr: textOrNull(drafts.createPr),
-		fixErrors: textOrNull(drafts.fixErrors),
-		resolveConflicts: textOrNull(drafts.resolveConflicts),
-		renameBranch: textOrNull(drafts.renameBranch),
-	});
+	/**
+	 * The prompts whose fields differ from the saved config, with this one's text. Saving one never
+	 * drops text typed in another, and names no prompt the user left alone.
+	 */
+	const promptChanges = (
+		saved: RepoConfig["prompts"],
+		key: PromptKey,
+		text: string | null,
+	): Partial<RepoConfig["prompts"]> => {
+		const prompts: Partial<RepoConfig["prompts"]> = {};
+		for (const field of Object.keys(drafts) as PromptKey[]) {
+			const draft = textOrNull(drafts[field]);
+			if (draft !== saved[field]) prompts[field] = draft;
+		}
+		prompts[key] = text;
+		return prompts;
+	};
 
 	const savePrompt = async (key: PromptKey, text: string | null) => {
 		if (value.state !== "ready") return;
-		const prompts = promptsFromDrafts();
-		prompts[key] = text;
-		const next: RepoConfig = {
-			...value.data,
-			prompts,
-		};
+		const next: RepoConfigPatch = { prompts: promptChanges(value.data.prompts, key, text) };
+		const clearError = () =>
+			setErrors((current) => {
+				const nextErrors = { ...current };
+				delete nextErrors[key];
+				return nextErrors;
+			});
 		const saved = await actions.projects.updateConfig(repoId, next);
 		if (!saved.ok) {
 			setErrors((current) => ({ ...current, [key]: saved.error.message }));
-			toastError("Couldn't save the instructions", saved.error);
+			toastSettingSaveFailed(saved.error, async () => {
+				const forced = await actions.projects.updateConfig(repoId, next, { overwrite: true });
+				if (forced.ok) clearError();
+				return forced;
+			});
 			return;
 		}
-		setErrors((current) => {
-			const nextErrors = { ...current };
-			delete nextErrors[key];
-			return nextErrors;
-		});
+		clearError();
 	};
 
 	const commit = (key: PromptKey) => {

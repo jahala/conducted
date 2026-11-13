@@ -1,15 +1,22 @@
 import { ok } from "@conducted/shared";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { RepoConfig } from "../../../core/model.ts";
-import { createTestContainer, seedRepo, type TestContainer } from "../../../test/container.ts";
+import {
+	createTestContainer,
+	seedInvalidLocalSettings,
+	seedRepo,
+	type TestContainer,
+} from "../../../test/container.ts";
+import { Toaster, toast } from "../../../ui/Toast.tsx";
 import { RepoPromptSettings } from "./RepoPromptsPage.tsx";
 
 let test: TestContainer | undefined;
 
 afterEach(() => {
 	cleanup();
+	toast.dismiss();
 	test?.close();
 	test = undefined;
 });
@@ -70,17 +77,10 @@ describe("SET-07 RepoPromptSettings", () => {
 		fireEvent.blur(review);
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(updateConfig.mock.calls[0]?.[1]?.prompts).toEqual({
-			general: "Noted.",
-			codeReview: null,
-			createPr: null,
-			fixErrors: null,
-			resolveConflicts: null,
-			renameBranch: null,
-		});
+		expect(updateConfig.mock.calls[0]?.[1]).toEqual({ prompts: { codeReview: null } });
 	});
 
-	it("saves the other fields as they are shown when one is edited", async () => {
+	it("saves text typed in another field along with the edited one", async () => {
 		const initial = config();
 		const { updateConfig } = await renderPage(initial);
 
@@ -94,10 +94,11 @@ describe("SET-07 RepoPromptSettings", () => {
 		fireEvent.blur(review);
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(updateConfig.mock.calls[0]?.[1]?.prompts).toMatchObject({
-			general: "Noted.",
-			codeReview: "Check the tests first.",
-			createPr: "Write a short description.",
+		expect(updateConfig.mock.calls[0]?.[1]).toEqual({
+			prompts: {
+				codeReview: "Check the tests first.",
+				createPr: "Write a short description.",
+			},
 		});
 	});
 
@@ -109,7 +110,7 @@ describe("SET-07 RepoPromptSettings", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Reset" }));
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(updateConfig.mock.calls[0]?.[1]?.prompts.codeReview).toBeNull();
+		expect(updateConfig.mock.calls[0]?.[1]).toEqual({ prompts: { codeReview: null } });
 		expect(review.value).toBe("");
 	});
 
@@ -143,5 +144,44 @@ describe("SET-07 RepoPromptSettings", () => {
 		});
 
 		expect(screen.getByText(/These instructions are long/)).toBeTruthy();
+	});
+
+	// Conductor saves a prompt through its settings writer, whose failed-save toast offers
+	// "Overwrite file" for an invalid file (Uz, main @389730). The row's own "Failed to save custom
+	// prompt" is only for a save that throws (renderApp @10909187, Oja @10903526). Ours said
+	// "Couldn't save the instructions" (issue #654).
+	it("offers Overwrite file when a prompt meets an invalid local settings file, and pressing it saves", async () => {
+		test = createTestContainer();
+		const repo = await seedRepo(test.container);
+		const file = await seedInvalidLocalSettings(test, repo);
+		render(
+			<ServicesProvider container={test.container}>
+				<RepoPromptSettings repoId={repo.id} />
+				<Toaster />
+			</ServicesProvider>,
+		);
+		await screen.findByText("Code review preferences");
+
+		const review = openField("Code review preferences");
+		fireEvent.change(review, { target: { value: "Check the tests first." } });
+		fireEvent.blur(review);
+		const shown = await waitFor(() => {
+			const element = document.querySelector("[data-sonner-toast]");
+			expect(element).not.toBeNull();
+			return element as HTMLElement;
+		});
+		expect(shown.querySelector("[data-title]")?.textContent).toBe(
+			"Can't save setting because your settings file is invalid",
+		);
+		fireEvent.click(within(shown).getByRole("button", { name: "Overwrite file" }));
+
+		const settings = test.container.services.settings;
+		await waitFor(async () => {
+			const read = await settings.readSettingsFile(file);
+			expect(read.ok && read.value.values).toMatchObject({
+				archive_on_merge: true,
+				custom_prompt_code_review: "Check the tests first.",
+			});
+		});
 	});
 });

@@ -295,6 +295,7 @@ export function EnvVarTable({
 			>
 				{editing === null ? null : (
 					<SheetContent
+						letShortcutsThrough
 						title={panelTitle}
 						description={
 							editing.description ??

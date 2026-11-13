@@ -7,11 +7,14 @@
  * list of turns with a one-line summary each; picking one scrolls the chat to that turn); ui-map.md
  * 3.3 (the chat list is virtualised, one item per turn); services-map.md 2.5.2 (Conductor's cloud
  * chats read a turn outline from the server; a local chat builds it from the turns it already has).
- * Our design choice: the outline is built from `ChatTurn[]` on this Mac. The one-line summary is the
- * first non-empty line of the user's message, cut to one line, or "Started by the agent" for a turn
- * the agent started. A turn that proposed a plan gets a taller, accent-coloured tick. At most 24 ticks
- * are drawn; a longer chat groups its turns into those ticks. The jump list is virtualised with
- * react-virtuoso and closes after a pick, returning focus to the trigger.
+ * The outline lists every turn of the chat, loaded or not (CHAT-06): a turn the list has not loaded
+ * shows the start of its message from the stored list, and its plan is not marked until it loads,
+ * as in Conductor (renderApp @9415668).
+ * Our design choice: the one-line summary is the first non-empty line of the user's message, cut to
+ * one line, or "Started by the agent" for a turn the agent started. A turn that proposed a plan gets
+ * a taller, accent-coloured tick. At most 24 ticks are drawn; a longer chat groups its turns into
+ * those ticks. The jump list is virtualised with react-virtuoso and closes after a pick, returning
+ * focus to the trigger.
  * Must handle: a chat with no turns (nothing shown); one turn (nothing to jump between); 2,000 turns
  * (grouped ticks and a virtualised list); the current turn changing while the user scrolls (only the
  * newest scroll position updates the highlight); a jump to a turn the virtual list has not drawn (the
@@ -24,13 +27,14 @@ import type { TurnId } from "@conducted/shared";
 import { Popover as Radix } from "radix-ui";
 import { useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
-import type { ChatTurn } from "../../core/model.ts";
+import type { OutlineTurn } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import { Popover } from "../../ui/Popover.tsx";
 
 export interface TurnOutlineProps {
-	turns: readonly ChatTurn[];
+	/** Every turn of the chat, loaded or not. */
+	turns: readonly OutlineTurn[];
 	/** The turn at the top of the visible part of the list. Null when none is visible yet. */
 	currentTurnId: TurnId | null;
 	onJumpToTurn: (turnId: TurnId) => void;
@@ -48,15 +52,9 @@ interface OutlineTick {
 	current: boolean;
 }
 
-function proposesPlan(turn: ChatTurn): boolean {
-	return turn.blocks.some(
-		(block) => block.kind === "tool" && block.call.item.tool === "exit_plan_mode",
-	);
-}
-
-function summaryOf(turn: ChatTurn): string {
-	if (turn.userMessage === null) return "Started by the agent";
-	const line = turn.userMessage.text
+function summaryOf(turn: OutlineTurn): string {
+	if (turn.text === null) return "Started by the agent";
+	const line = turn.text
 		.split("\n")
 		.map((part) => part.trim())
 		.find((part) => part.length > 0);
@@ -64,7 +62,7 @@ function summaryOf(turn: ChatTurn): string {
 }
 
 /** One tick per turn, or one per group once the chat has more turns than the strip can draw. */
-function ticksFor(turns: readonly ChatTurn[], currentTurnId: TurnId | null): OutlineTick[] {
+function ticksFor(turns: readonly OutlineTurn[], currentTurnId: TurnId | null): OutlineTick[] {
 	const perTick = Math.ceil(turns.length / MAX_TICKS);
 	const tickCount = Math.min(turns.length, MAX_TICKS);
 	const ticks: OutlineTick[] = [];
@@ -74,8 +72,8 @@ function ticksFor(turns: readonly ChatTurn[], currentTurnId: TurnId | null): Out
 		if (first === undefined) continue;
 		ticks.push({
 			turnId: first.turnId,
-			plan: group.some(proposesPlan),
-			running: group.some((turn) => turn.outcome === "running"),
+			plan: group.some((turn) => turn.plan),
+			running: group.some((turn) => turn.running),
 			current: currentTurnId !== null && group.some((turn) => turn.turnId === currentTurnId),
 		});
 	}
@@ -142,7 +140,7 @@ export function TurnOutline({ turns, currentTurnId, onJumpToTurn }: TurnOutlineP
 											aria-hidden="true"
 											className={cn(
 												"h-3 w-0.5 shrink-0 rounded-full",
-												proposesPlan(turn) ? "bg-accent" : "bg-border-strong",
+												turn.plan ? "bg-accent" : "bg-border-strong",
 											)}
 										/>
 										<span className="truncate">{summaryOf(turn)}</span>
