@@ -1064,12 +1064,16 @@ export class SettingsService {
 		});
 	}
 
-	/** Removes a setting: a table row is deleted, a file-backed key is removed from the user file. */
-	async delete(key: string): Promise<Result<void>> {
+	/**
+	 * Removes a setting: a table row is deleted, a file-backed key is removed from the user file.
+	 * `overwrite` removes the key over an invalid file, as Conductor's forced deleteSetting does
+	 * (main @411783).
+	 */
+	async delete(key: string, options: SetOptions = {}): Promise<Result<void>> {
 		const def = getSettingDef(key);
 		if (def === undefined) return err(appError("setting_unknown", `Unknown setting "${key}".`));
 		if (def.tomlKey !== undefined) {
-			return this.#setInFile(this.#userFile(), "user", def, null, false, key);
+			return this.#setInFile(this.#userFile(), "user", def, null, options.overwrite === true, key);
 		}
 		return this.#deleteInTable(def);
 	}

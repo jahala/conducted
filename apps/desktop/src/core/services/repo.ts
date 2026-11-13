@@ -118,6 +118,7 @@ import { emojiIconValue, fileIconPath, fileIconValue } from "../repo-icon-value.
 import { actionIdsEqual, actionLabel, type DroppedSetting } from "../settings-helpers.ts";
 import {
 	mergeSettingActions,
+	type SetOptions,
 	type SettingAction,
 	type SettingsFileContents,
 	type SettingsService,
@@ -1246,8 +1247,13 @@ export class RepoService {
 	 * leaving the shared file and every other field alone. The patch is applied under the file's
 	 * write lock to the file as it stands, so a second save that starts before the first has landed
 	 * keeps the first one's change (issue #670). The store then shows the files as written.
+	 * `overwrite` writes over an invalid local file, Conductor's "Overwrite file" (SET-02).
 	 */
-	async updateConfig(repoId: RepoId, patch: RepoConfigPatch): Promise<Result<void>> {
+	async updateConfig(
+		repoId: RepoId,
+		patch: RepoConfigPatch,
+		options: SetOptions = {},
+	): Promise<Result<void>> {
 		// Any read that began before this write may not put its older contents in the store.
 		this.#nextConfigLoad(repoId);
 		const found = await this.#deps.repos.repos.get(repoId);
@@ -1261,8 +1267,11 @@ export class RepoService {
 		if (!shared.ok) return shared;
 		const sharedConfig = repoConfigFrom(shared.value, emptyFileContents(shared.value.file)).config;
 
-		const written = await this.#deps.settings.updateSettingsFile(file, "repo", (contents) =>
-			applyRepoConfigPatch(contents, patch, sharedConfig),
+		const written = await this.#deps.settings.updateSettingsFile(
+			file,
+			"repo",
+			(contents) => applyRepoConfigPatch(contents, patch, sharedConfig),
+			options,
 		);
 		if (!written.ok) return written;
 
@@ -1667,15 +1676,22 @@ export class RepoService {
 
 	/**
 	 * Backs `Actions.projects.resetRunAction`: drops this Mac's change to a shared action by
-	 * rewriting the local file without that action, then forgets that it was hidden.
+	 * rewriting the local file without that action, then forgets that it was hidden. It starts from
+	 * the config the page shows, so an invalid local file is refused by the write, which can then be
+	 * forced with `overwrite`, as Conductor's updateTask is (main @405338).
 	 */
-	async resetRunAction(repoId: RepoId, actionId: string): Promise<Result<void>> {
-		const loaded = await this.loadConfig(repoId);
+	async resetRunAction(
+		repoId: RepoId,
+		actionId: string,
+		options: SetOptions = {},
+	): Promise<Result<void>> {
+		const known = this.store.getState().configs[repoId];
+		const loaded = known === undefined ? await this.loadConfig(repoId) : ok(known);
 		if (!loaded.ok) return loaded;
 		const remaining = loaded.value.runScripts.filter(
 			(action) => !actionIdsEqual(action.id, actionId),
 		);
-		const saved = await this.updateConfig(repoId, { runScripts: remaining });
+		const saved = await this.updateConfig(repoId, { runScripts: remaining }, options);
 		if (!saved.ok) return saved;
 		return this.setRunActionHidden(repoId, actionId, false);
 	}

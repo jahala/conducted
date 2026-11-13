@@ -32,8 +32,8 @@ import { LoadableView } from "../../../ui/LoadableView.tsx";
 import { Select } from "../../../ui/Select.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { Switch } from "../../../ui/Switch.tsx";
-import { toastError } from "../../../ui/Toast.tsx";
 import { RUN_FOLDER_VARIABLES } from "../../scripts-panel/run/AddActionDialog.tsx";
+import { toastSettingSaveFailed } from "../SettingRow.tsx";
 
 const RUN_MODES = [
 	{ value: "concurrent" as const, label: "Run together" },
@@ -58,7 +58,11 @@ export function RepoScriptsPage({ repoId }: { repoId: RepoId }) {
 		const saved = await actions.projects.updateConfig(repoId, patch);
 		if (!saved.ok) {
 			setSaveError(saved.error.message);
-			toastError("Couldn't save the scripts", saved.error);
+			toastSettingSaveFailed(saved.error, async () => {
+				const forced = await actions.projects.updateConfig(repoId, patch, { overwrite: true });
+				if (forced.ok) setSaveError(null);
+				return forced;
+			});
 			return;
 		}
 		setSaveError(null);

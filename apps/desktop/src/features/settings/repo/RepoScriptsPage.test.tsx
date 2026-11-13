@@ -1,17 +1,24 @@
 import { appError, err, ok } from "@conducted/shared";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { localSettingsFile } from "../../../core/app-paths.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { RepoConfig } from "../../../core/model.ts";
 import { tomlCodec } from "../../../core/services/toml-codec.ts";
-import { createTestContainer, seedRepo, type TestContainer } from "../../../test/container.ts";
+import {
+	createTestContainer,
+	seedInvalidLocalSettings,
+	seedRepo,
+	type TestContainer,
+} from "../../../test/container.ts";
+import { Toaster, toast } from "../../../ui/Toast.tsx";
 import { RepoScriptsPage } from "./RepoScriptsPage.tsx";
 
 let test: TestContainer | undefined;
 
 afterEach(() => {
 	cleanup();
+	toast.dismiss();
 	test?.close();
 	test = undefined;
 });
@@ -147,6 +154,44 @@ describe("SET-07 RepoScriptsPage", () => {
 
 		expect(screen.getByText(/CONDUCTED_WORKSPACE_PATH/)).toBeTruthy();
 		expect(screen.getByText(/CONDUCTED_PORT/)).toBeTruthy();
+	});
+
+	// Conductor saves a script through its settings writer, whose failed-save toast offers
+	// "Overwrite file" for an invalid file (Uz, main @389730; mutateSettingsFile, @415335). The
+	// page's own "Failed to save script" is only for a save that throws (renderApp @11025079,
+	// Oja @10903526). Ours said "Couldn't save the scripts" (issue #654).
+	it("offers Overwrite file when the local settings file does not parse, and pressing it saves the script", async () => {
+		test = createTestContainer();
+		const { container } = test;
+		const repo = await seedRepo(container);
+		const file = await seedInvalidLocalSettings(test, repo);
+		render(
+			<ServicesProvider container={container}>
+				<RepoScriptsPage repoId={repo.id} />
+				<Toaster />
+			</ServicesProvider>,
+		);
+
+		const setup = await screen.findByLabelText("Setup script");
+		fireEvent.change(setup, { target: { value: "pnpm setup" } });
+		fireEvent.blur(setup);
+		const shown = await waitFor(() => {
+			const element = document.querySelector("[data-sonner-toast]");
+			expect(element).not.toBeNull();
+			return element as HTMLElement;
+		});
+		expect(shown.querySelector("[data-title]")?.textContent).toBe(
+			"Can't save setting because your settings file is invalid",
+		);
+		fireEvent.click(within(shown).getByRole("button", { name: "Overwrite file" }));
+
+		await waitFor(async () => {
+			const read = await container.services.settings.readSettingsFile(file);
+			expect(read.ok && read.value.values).toMatchObject({
+				archive_on_merge: true,
+				setup_script: "pnpm setup",
+			});
+		});
 	});
 });
 

@@ -5,7 +5,12 @@ import { localSettingsFile, sharedSettingsFile } from "../../../core/app-paths.t
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { Repo } from "../../../core/model.ts";
 import { hiddenRunActionsStorageKey } from "../../../core/services/repo.ts";
-import { createTestContainer, seedRepo, type TestContainer } from "../../../test/container.ts";
+import {
+	createTestContainer,
+	seedInvalidLocalSettings,
+	seedRepo,
+	type TestContainer,
+} from "../../../test/container.ts";
 import { Toaster, toast } from "../../../ui/Toast.tsx";
 import { RepoActionsPage } from "./RepoActionsPage.tsx";
 
@@ -178,13 +183,17 @@ describe("SET-07 RepoActionsPage", () => {
 		await waitFor(() => expect(reset).toHaveBeenCalledWith(repo.id, "dev"));
 	});
 
-	it("names a failed Spotlight switch 'Failed to update spotlight testing'", async () => {
+	// Conductor writes the switch through its settings writer, which toasts the failure itself
+	// (Uz, main @389730: "Failed to save setting" for a failed write). The page's own "Failed to
+	// update spotlight testing" is only for a call that throws (renderApp @11265790), and ours
+	// never throws. Ours named every failure that way (issue #654).
+	it("toasts a failed Spotlight switch with the settings writer's words", async () => {
 		const testContainer = createTestContainer();
 		test = testContainer;
 		const container = testContainer.container;
 		const repo = await seedRepo(container);
 		vi.spyOn(container.actions.projects, "updateConfig").mockResolvedValue(
-			err(appError("settings_write_failed", "The settings file is read-only.")),
+			err(appError("setting_save_failed", "Failed to save setting")),
 		);
 		render(
 			<ServicesProvider container={container}>
@@ -195,7 +204,92 @@ describe("SET-07 RepoActionsPage", () => {
 
 		fireEvent.click(await screen.findByRole("switch", { name: "Use spotlight testing" }));
 
-		expect(await screen.findByText("Failed to update spotlight testing")).toBeTruthy();
-		expect(screen.queryByText("Couldn't save the actions")).toBeNull();
+		const shown = await waitFor(() => {
+			const element = document.querySelector("[data-sonner-toast]");
+			expect(element).not.toBeNull();
+			return element as HTMLElement;
+		});
+		expect(shown.querySelector("[data-title]")?.textContent).toBe("Failed to save setting");
+		expect(screen.queryByText("Failed to update spotlight testing")).toBeNull();
+	});
+
+	// The switch and an action's Reset both write the local settings file, so an invalid file gets
+	// Conductor's toast with "Overwrite file" (mutateSettingsFile, main @415335; updateTask
+	// @405338 for an action), and pressing it does the same write forced (issue #654).
+	it("offers Overwrite file for the Spotlight switch over an invalid local settings file", async () => {
+		const testContainer = createTestContainer();
+		test = testContainer;
+		const container = testContainer.container;
+		const repo = await seedRepo(container);
+		const file = await seedInvalidLocalSettings(testContainer, repo);
+		render(
+			<ServicesProvider container={container}>
+				<RepoActionsPage repoId={repo.id} />
+				<Toaster />
+			</ServicesProvider>,
+		);
+
+		fireEvent.click(await screen.findByRole("switch", { name: "Use spotlight testing" }));
+		const shown = await waitFor(() => {
+			const element = document.querySelector("[data-sonner-toast]");
+			expect(element).not.toBeNull();
+			return element as HTMLElement;
+		});
+		expect(shown.querySelector("[data-title]")?.textContent).toBe(
+			"Can't save setting because your settings file is invalid",
+		);
+		fireEvent.click(within(shown).getByRole("button", { name: "Overwrite file" }));
+
+		await waitFor(async () => {
+			const read = await container.services.settings.readSettingsFile(file);
+			expect(read.ok && read.value.values).toMatchObject({
+				archive_on_merge: true,
+				spotlight_testing: true,
+			});
+		});
+	});
+
+	it("offers Overwrite file when an action's Reset meets an invalid local settings file", async () => {
+		const testContainer = createTestContainer();
+		test = testContainer;
+		const container = testContainer.container;
+		const repo = await seedRepo(container);
+		testContainer.memory.controls.addFolder(`${repo.rootPath}/.conducted`);
+		must(
+			await container.platform.fs.writeTextAtomic(
+				sharedSettingsFile(repo.rootPath),
+				'[scripts.run.dev]\ncommand = "pnpm dev"\n',
+			),
+		);
+		must(
+			await container.platform.fs.writeTextAtomic(
+				localSettingsFile(repo.rootPath),
+				'[scripts.run.dev]\ncommand = "pnpm dev:local"\n',
+			),
+		);
+		const file = await seedInvalidLocalSettings(testContainer, repo);
+		render(
+			<ServicesProvider container={container}>
+				<RepoActionsPage repoId={repo.id} />
+				<Toaster />
+			</ServicesProvider>,
+		);
+
+		fireEvent.click(await screen.findByRole("button", { name: "Reset" }));
+		const shown = await waitFor(() => {
+			const element = document.querySelector("[data-sonner-toast]");
+			expect(element).not.toBeNull();
+			return element as HTMLElement;
+		});
+		expect(shown.querySelector("[data-title]")?.textContent).toBe(
+			"Can't save setting because your settings file is invalid",
+		);
+		fireEvent.click(within(shown).getByRole("button", { name: "Overwrite file" }));
+
+		await waitFor(async () => {
+			const read = await container.services.settings.readSettingsFile(file);
+			expect(read.ok && read.value.values).toMatchObject({ archive_on_merge: true });
+			expect(read.ok && Object.keys(read.value.actions)).toEqual([]);
+		});
 	});
 });

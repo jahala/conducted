@@ -180,8 +180,13 @@ export function RepoGitPage({ repoId }: { repoId: RepoId }) {
 		const trimmed = remote.trim();
 		const next = trimmed === "" ? null : trimmed;
 		if (next === config.data.remoteName) return;
-		const saved = await actions.projects.updateConfig(repoId, { remoteName: next });
-		if (!saved.ok) toastError("Couldn't save the repository settings", saved.error);
+		const changed = { remoteName: next };
+		const saved = await actions.projects.updateConfig(repoId, changed);
+		if (!saved.ok) {
+			toastSettingSaveFailed(saved.error, () =>
+				actions.projects.updateConfig(repoId, changed, { overwrite: true }),
+			);
+		}
 	};
 
 	const saveDefaultBranch = async (branch: string): Promise<void> => {
