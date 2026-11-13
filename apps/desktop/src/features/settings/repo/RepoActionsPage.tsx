@@ -17,6 +17,9 @@
  * outlined "Add" at its right and "No custom actions yet. Add one to get started." when empty.
  * Must handle: no actions (designed empty state), a shared action (hide for this user only, never
  * delete), a shared action changed on this Mac (Reset), the default action marked and changed,
+ * two quick edits of different actions (each save names only its actions, by id, as Conductor's
+ * updateTask does, main @405635), a rename (the name is the id, so the action moves to its new id
+ * in its place, Conductor's `replaceId`, renderApp @11014363),
  * and a save or Reset that fails (the settings writer's toast, with "Overwrite file" for an
  * invalid file, as Conductor's writer does, main @389730; the list keeps its previous form).
  * Test first: hiding a shared action stores it as hidden for the user and leaves the file unchanged.
@@ -25,7 +28,7 @@ import type { RepoId } from "@conducted/shared";
 import { useEffect, useState } from "react";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useHiddenRunActions, useRepoConfig } from "../../../core/hooks.ts";
-import type { RepoConfigPatch, RunAction } from "../../../core/model.ts";
+import type { RepoConfigPatch, RunAction, RunActionChange } from "../../../core/model.ts";
 import { actionIdsEqual, actionLabel, normalizeActionId } from "../../../core/settings-helpers.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { PlusIcon } from "../../../ui/icons.tsx";
@@ -41,6 +44,14 @@ import {
 import { toastSettingSaveFailed } from "../SettingRow.tsx";
 import { ActionList, type ActionListItem } from "./ActionList.tsx";
 import { RepoPromptSettings } from "./RepoPromptsPage.tsx";
+
+/** A shared action this Mac changes becomes a local change of it. */
+const asChanged = (action: RunAction): RunAction => ({
+	...action,
+	origin: action.origin === "shared" ? "changed_locally" : action.origin,
+});
+
+const notDefault = (action: RunAction): RunAction => asChanged({ ...action, isDefault: false });
 
 const EMPTY_DRAFT: ActionDraft = {
 	id: null,
@@ -88,10 +99,7 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 		const action = value.data.runScripts.find((candidate) => actionIdsEqual(candidate.id, id));
 		if (action === undefined) return;
 		if (action.origin === "local") {
-			const next = value.data.runScripts.map((candidate) =>
-				actionIdsEqual(candidate.id, id) ? { ...candidate, hidden } : candidate,
-			);
-			await save({ runScripts: next });
+			await save({ runActions: [{ kind: "set", action: { ...action, hidden } }] });
 			return;
 		}
 		const previous = hiddenIds;
@@ -127,16 +135,16 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 			nextDraft.id === null
 				? undefined
 				: config.runScripts.find((candidate) => actionIdsEqual(candidate.id, nextDraft.id ?? ""));
-		const id = nextDraft.id ?? normalizeActionId(nextDraft.name);
+		// An action's name is its id, as in Conductor, so a typed name is saved as the id.
+		const id = normalizeActionId(nextDraft.name);
+		const renamed = existing !== undefined && !actionIdsEqual(existing.id, id);
 		const origin: RunAction["origin"] =
-			existing === undefined ? "local" : existing.origin === "local" ? "local" : "changed_locally";
-		const typedName = nextDraft.name.trim();
+			existing === undefined || renamed || existing.origin === "local"
+				? "local"
+				: "changed_locally";
 		const action: RunAction = {
 			id,
-			label:
-				nextDraft.id !== null && normalizeActionId(nextDraft.name) !== id
-					? typedName
-					: actionLabel(id),
+			label: actionLabel(id),
 			command: nextDraft.command.trim(),
 			args: [],
 			cwd: nextDraft.cwd.trim() === "" ? null : nextDraft.cwd.trim(),
@@ -146,46 +154,38 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 			origin,
 			availableIn: nextDraft.availableIn,
 		};
-		let runScripts =
-			existing === undefined
-				? [...config.runScripts, action]
-				: config.runScripts.map((candidate) =>
-						actionIdsEqual(candidate.id, existing.id) ? action : candidate,
-					);
+		const changes: RunActionChange[] = [
+			// A rename takes the old id's place, as Conductor's `replaceId` does (renderApp @11014363).
+			renamed ? { kind: "set", action, replaceId: existing.id } : { kind: "set", action },
+		];
 		if (action.isDefault) {
-			runScripts = runScripts.map((candidate) => {
-				if (actionIdsEqual(candidate.id, action.id) || !candidate.isDefault) return candidate;
-				return {
-					...candidate,
-					isDefault: false,
-					origin: candidate.origin === "shared" ? "changed_locally" : candidate.origin,
-				};
-			});
+			for (const candidate of config.runScripts) {
+				if (existing !== undefined && actionIdsEqual(candidate.id, existing.id)) continue;
+				if (!candidate.isDefault) continue;
+				changes.push({ kind: "set", action: notDefault(candidate) });
+			}
 		}
-		const saved = await save({ runScripts });
+		const saved = await save({ runActions: changes });
 		if (saved) setDialogOpen(false);
 		return saved;
 	};
 
 	const remove = async (id: string) => {
-		if (value.state !== "ready") return;
-		await save({
-			runScripts: value.data.runScripts.filter((candidate) => !actionIdsEqual(candidate.id, id)),
-		});
+		await save({ runActions: [{ kind: "delete", id }] });
 	};
 
 	const setDefault = async (id: string) => {
 		if (value.state !== "ready") return;
-		const runScripts = value.data.runScripts.map((candidate) => {
+		const changes: RunActionChange[] = [];
+		for (const candidate of value.data.runScripts) {
 			const isDefault = actionIdsEqual(candidate.id, id);
-			if (candidate.isDefault === isDefault) return candidate;
-			return {
-				...candidate,
-				isDefault,
-				origin: candidate.origin === "shared" ? "changed_locally" : candidate.origin,
-			};
-		});
-		await save({ runScripts });
+			if (candidate.isDefault === isDefault) continue;
+			changes.push({
+				kind: "set",
+				action: isDefault ? asChanged({ ...candidate, isDefault }) : notDefault(candidate),
+			});
+		}
+		await save({ runActions: changes });
 	};
 
 	const reset = async (id: string) => {

@@ -117,8 +117,8 @@ describe("SET-07 RepoActionsPage", () => {
 		fireEvent.click(within(row).getByRole("button", { name: "Hide action" }));
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(updateConfig.mock.calls[0]?.[1]?.runScripts).toMatchObject([
-			{ id: "docs", hidden: true },
+		expect(updateConfig.mock.calls[0]?.[1]?.runActions).toMatchObject([
+			{ kind: "set", action: { id: "docs", hidden: true } },
 		]);
 		expect(localStorage.getItem(hiddenRunActionsStorageKey(repo.id))).toBeNull();
 	});
@@ -139,8 +139,17 @@ describe("SET-07 RepoActionsPage", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(updateConfig.mock.calls[0]?.[1]?.runScripts).toMatchObject([
-			{ id: "dev", command: "pnpm dev --host", origin: "changed_locally" },
+		// The name field shows the id's label, and the typed name is saved as the id, as Conductor's
+		// draft does (renderApp W$a @11010494, then $k): "dev" is saved as "Dev". The ids still match.
+		expect(updateConfig.mock.calls[0]?.[1]?.runActions).toEqual([
+			{
+				kind: "set",
+				action: expect.objectContaining({
+					id: "Dev",
+					command: "pnpm dev --host",
+					origin: "changed_locally",
+				}),
+			},
 		]);
 		expect(must(await container.platform.fs.readText(sharedSettingsFile(repo.rootPath)))).toBe(
 			toml,
@@ -159,9 +168,17 @@ describe("SET-07 RepoActionsPage", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Save action" }));
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(Object.keys(updateConfig.mock.calls[0]?.[1] ?? {})).toEqual(["runScripts"]);
-		expect(updateConfig.mock.calls[0]?.[1]?.runScripts).toMatchObject([
-			{ id: "Tests", command: "pnpm test", isDefault: false, origin: "local" },
+		expect(Object.keys(updateConfig.mock.calls[0]?.[1] ?? {})).toEqual(["runActions"]);
+		expect(updateConfig.mock.calls[0]?.[1]?.runActions).toEqual([
+			{
+				kind: "set",
+				action: expect.objectContaining({
+					id: "Tests",
+					command: "pnpm test",
+					isDefault: false,
+					origin: "local",
+				}),
+			},
 		]);
 	});
 
@@ -356,9 +373,7 @@ describe("SET-07 run actions are saved one at a time (issue #673)", () => {
 		fireEvent.change(screen.getByLabelText("Action name"), { target: { value: "Docs site" } });
 		fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
-		await waitFor(() =>
-			expect(actionKeys(file)).toEqual(["Docs-site", "lint"]),
-		);
+		await waitFor(() => expect(actionKeys(file)).toEqual(["Docs-site", "lint"]));
 		must(await container.services.repo.loadConfig(repo.id));
 		expect(await screen.findByRole("listitem", { name: "Docs site" })).toBeTruthy();
 		expect(screen.queryByRole("listitem", { name: "Docs" })).toBeNull();

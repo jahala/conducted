@@ -31,7 +31,7 @@ const dev: RunAction = {
 	availableIn: ["local", "cloud"],
 };
 
-const config: RepoConfigPatch = { runScripts: [dev] };
+const config: RepoConfigPatch = { runActions: [{ kind: "set", action: dev }] };
 
 const containers: ReturnType<typeof createTestContainer>[] = [];
 
