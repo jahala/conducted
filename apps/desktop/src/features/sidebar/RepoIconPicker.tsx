@@ -267,7 +267,14 @@ function FaviconSource({ repo, busy, onUse }: { repo: Repo; busy: boolean; onUse
 	const fallback = repoIconSource({ ...repo, icon: null });
 	const saved = repo.icon !== null;
 	if (fallback.kind === "favicon" || fallback.kind === "owner") {
-		const label = fallback.kind === "favicon" ? "favicon" : "GitHub avatar";
+		const label =
+			fallback.kind === "favicon"
+				? saved
+					? "Use favicon"
+					: "Using favicon"
+				: saved
+					? "Use GitHub avatar"
+					: "Using GitHub avatar";
 		return (
 			<div className="flex flex-col items-center gap-2 py-4">
 				<img
@@ -276,7 +283,7 @@ function FaviconSource({ repo, busy, onUse }: { repo: Repo; busy: boolean; onUse
 					className="size-10 rounded-sm"
 				/>
 				<Button variant={saved ? "outline" : "secondary"} size="sm" disabled={busy} onClick={onUse}>
-					{saved ? `Use ${label}` : `Using ${label}`}
+					{label}
 				</Button>
 			</div>
 		);
