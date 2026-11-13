@@ -12,7 +12,7 @@
 		"build": "bun src/packaging.ts"
 	},
 	"dependencies": {
-		"@agentclientprotocol/sdk": "^2.4.0",
+		"@agentclientprotocol/sdk": "^2.5.0",
 		"@anthropic-ai/claude-agent-sdk": "0.3.321",
 		"@conducted/protocol": "workspace:^",
 		"@conducted/shared": "workspace:^",
