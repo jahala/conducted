@@ -214,10 +214,10 @@ describe("CHAT-06 the message list loads older turns at its top (#617)", () => {
 		const jump = scrolls.find((scroll) => scroll.turnId === "t1");
 		expect(jump?.loaded).not.toContain("t2");
 		expect(jump?.loaded).not.toContain("t20");
-		// A gap marker stands between it and the turns the chat opened on.
-		await waitFor(() =>
-			expect(document.querySelectorAll("[data-transcript-gap-marker]")).toHaveLength(1),
-		);
+		// A gap stands between it and the turns the chat opened on. Its marker is drawn in the
+		// failed-fill test below, where no paging at the top can move the list meanwhile.
+		const gaps = opened.test.container.services.sessions.chatView(opened.id)?.history.gaps ?? [];
+		expect(gaps).toHaveLength(1);
 	});
 
 	it("a gap whose fill failed says Couldn't load messages on its marker, and Retry loads a turn of it", async () => {
