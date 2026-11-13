@@ -11,7 +11,7 @@
  */
 
 /** How a cloud MCP server authenticates (ui-map.md 6 Organization). */
-export type CloudMcpAuth = "none" | "bearer" | "headers";
+export type CloudMcpAuth = "none" | "oauth" | "bearer" | "headers";
 
 /** One MCP server a cloud workspace's agents see. It is remote and HTTPS, as Conductor's are. */
 export interface CloudMcpServer {
@@ -21,6 +21,28 @@ export interface CloudMcpServer {
 	bearerToken?: string;
 	/** The custom header values. They stay in the Worker; the sandbox gets placeholders. */
 	headers?: Record<string, string>;
+	/** OAuth: the client ID the user gave ("Advanced client identity"); absent, the Worker registers one. */
+	oauthClientId?: string;
+	/** OAuth: that client's secret. It stays in the Worker. */
+	oauthClientSecret?: string;
+}
+
+/**
+ * An OAuth server's credential, as the Worker's token store answers it: Conductor's
+ * `oauth_tokens` statuses (main-BE1h_1MP.js `f$e` @160222). A server with none is disconnected.
+ */
+export interface CloudMcpCredential {
+	status: "active" | "needs_reauth";
+	statusDetail?: string;
+}
+
+/** Where a connect stands (main-BE1h_1MP.js `y$e` @160557). */
+export type CloudMcpConnectStatus = "pending" | "failed" | "absent";
+
+/** The OAuth side of the cloud MCP servers: the callback URL and each server's credential. */
+export interface CloudMcpOAuthView {
+	callbackUrl: string;
+	credentials: Record<string, CloudMcpCredential>;
 }
 
 /** One remote MCP server a local scan found. */
@@ -36,6 +58,47 @@ export interface ImportedMcpServer {
 export const CLOUD_MCP_ADD_FAILED = "Couldn't add this MCP server";
 export const CLOUD_MCP_UPDATE_FAILED = "Couldn't update this MCP server";
 export const CLOUD_MCP_DELETE_FAILED = "Couldn't delete this MCP server";
+/** Conductor's words for a connect or a disconnect that failed (renderApp `$Wi`, `hGo` @8675864). */
+export const CLOUD_MCP_CONNECT_FAILED = "Couldn't connect this MCP server";
+export const CLOUD_MCP_DISCONNECT_FAILED = "Couldn't disconnect this MCP server";
+
+/**
+ * The names Conductor shows for the servers it knows (renderApp `GXo` @8876605). Any other name
+ * is shown with its first letter raised (`_M`).
+ */
+const DISPLAY_NAMES: ReadonlyMap<string, string> = new Map([
+	["airtable", "Airtable"],
+	["amplitude", "Amplitude"],
+	["asana", "Asana"],
+	["atlassian", "Atlassian"],
+	["cloudflare", "Cloudflare"],
+	["context7", "Context7"],
+	["datadog", "Datadog"],
+	["exa", "Exa"],
+	["firecrawl", "Firecrawl"],
+	["github", "GitHub"],
+	["granola", "Granola"],
+	["hex", "Hex"],
+	["honeycomb", "Honeycomb"],
+	["linear", "Linear"],
+	["microsoft-learn", "Microsoft Learn"],
+	["neon", "Neon"],
+	["notion", "Notion"],
+	["planetscale", "PlanetScale"],
+	["posthog", "PostHog"],
+	["sentry", "Sentry"],
+	["slack", "Slack"],
+	["snowflake", "Snowflake"],
+	["stripe", "Stripe"],
+	["supabase", "Supabase"],
+	["vercel", "Vercel"],
+	["workos", "WorkOS"],
+]);
+
+/** The name a server is shown by, as Conductor shows it. */
+export function mcpDisplayName(name: string): string {
+	return DISPLAY_NAMES.get(name.toLowerCase()) ?? name.charAt(0).toUpperCase() + name.slice(1);
+}
 
 /** A header name the HTTP specification allows (an RFC 9110 token). */
 const HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;

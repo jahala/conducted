@@ -7,8 +7,9 @@
 //! the web view on the app origin, external links open in the browser).
 //!
 //! Must handle:
-//! - The app's own origins are allowed: `tauri://localhost` in a release build and the dev server
-//!   (`http://localhost:1420`) in `tauri dev`. Nothing else is allowed.
+//! - The app's own origin is allowed: the origin Tauri loads the UI from, which is
+//!   `tauri://localhost` in a release build and the dev server (`http://localhost:1420`) in
+//!   `tauri dev` (`app_origin`). Nothing else is allowed.
 //! - An `http` or `https` link to another host opens in the default browser, and the web view stays
 //!   where it was. This covers link clicks, `target="_blank"` and `window.open`.
 //! - Other schemes (`file:`, `javascript:`, `data:`, an unknown app scheme) are blocked, not opened.
@@ -39,6 +40,7 @@
 //! `decide_navigation("tauri://localhost/index.html", &origins)` is `Allow`.
 
 use tauri::plugin::Builder as PluginBuilder;
+use tauri::utils::config::{BuildConfig, FrontendDist};
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Manager, Url, Webview, Wry};
 use tauri_plugin_opener::OpenerExt;
@@ -50,8 +52,6 @@ use crate::visualization;
 pub const RELEASE_ORIGIN: &str = "tauri://localhost";
 /// Origin of the Vite dev server used by `tauri dev`.
 pub const DEV_ORIGIN: &str = "http://localhost:1420";
-const RELEASE_ORIGINS: &[&str] = &[RELEASE_ORIGIN];
-const DEV_ORIGINS: &[&str] = &[DEV_ORIGIN];
 /// Name of the navigation plugin registered in `setup`.
 const PLUGIN_NAME: &str = "navigation-guard";
 /// Hands `window.open` requests to the browser. A link click with `target="_blank"` is already
@@ -83,13 +83,23 @@ pub enum NavigationDecision {
     Block,
 }
 
-/// The origins this build keeps in the web view.
-pub fn app_origins() -> &'static [&'static str] {
-    if tauri::is_dev() {
-        DEV_ORIGINS
+/// The origin this build loads its UI from, by Tauri's own rule (`AppManager::get_app_url`): the
+/// dev server (`devUrl`) in a dev build; in any other build `frontendDist` when it is a URL; else
+/// the app's own protocol. The guard keeps the window there, so it always agrees with the page
+/// Tauri opens and treats as the app's. Our configs give `tauri://localhost` in a release build
+/// and the dev server in `tauri dev`; the live reference run builds the test app with a
+/// `frontendDist` URL (D145).
+pub fn app_origin(build: &BuildConfig, dev: bool) -> String {
+    let url = if dev {
+        build.dev_url.as_ref()
     } else {
-        RELEASE_ORIGINS
-    }
+        match build.frontend_dist.as_ref() {
+            Some(FrontendDist::Url(url)) => Some(url),
+            _ => None,
+        }
+    };
+    url.and_then(origin_of)
+        .unwrap_or_else(|| RELEASE_ORIGIN.to_string())
 }
 
 /// Decides for one URL. `app_origins` holds origins such as `tauri://localhost`.
@@ -145,7 +155,8 @@ pub fn install_guard(app: &AppHandle) -> CommandResult<()> {
 }
 
 fn guard_navigation(webview: &Webview<Wry>, url: &Url) -> bool {
-    match decide_navigation(url.as_str(), app_origins()) {
+    let origin = app_origin(&webview.config().build, tauri::is_dev());
+    match decide_navigation(url.as_str(), &[origin.as_str()]) {
         NavigationDecision::Allow => true,
         NavigationDecision::OpenInBrowser => {
             if let Err(error) = webview.opener().open_url(url.to_string(), None::<&str>) {
@@ -184,6 +195,8 @@ mod tests {
 
     /// The page WebKit offers before any real navigation.
     const ABOUT_BLANK: &str = "about:blank";
+    const RELEASE_ORIGINS: &[&str] = &[RELEASE_ORIGIN];
+    const DEV_ORIGINS: &[&str] = &[DEV_ORIGIN];
 
     fn decide(url: &str, origins: &[&str]) -> NavigationDecision {
         decide_navigation(url, origins)
@@ -211,6 +224,29 @@ mod tests {
             decide("tauri://localhost/index.html", RELEASE_ORIGINS),
             NavigationDecision::Allow
         );
+    }
+
+    fn build_config(value: serde_json::Value) -> BuildConfig {
+        serde_json::from_value(value).expect("a build config")
+    }
+
+    #[test]
+    fn plat_22_the_app_origin_is_where_tauri_loads_the_ui_from() {
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json"))
+            .expect("tauri.conf.json parses");
+        let ours = build_config(config["build"].clone());
+        assert_eq!(app_origin(&ours, false), RELEASE_ORIGIN);
+        assert_eq!(app_origin(&ours, true), DEV_ORIGIN);
+
+        let served = build_config(serde_json::json!({
+            "frontendDist": "http://127.0.0.1:5000/app/start",
+            "devUrl": "http://localhost:1420"
+        }));
+        assert_eq!(app_origin(&served, false), "http://127.0.0.1:5000");
+        assert_eq!(app_origin(&served, true), DEV_ORIGIN);
+
+        let no_dev_server = build_config(serde_json::json!({ "frontendDist": "../dist" }));
+        assert_eq!(app_origin(&no_dev_server, true), RELEASE_ORIGIN);
     }
 
     #[test]

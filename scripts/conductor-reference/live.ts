@@ -7,9 +7,11 @@
  *    folders under a fresh sealed scratch folder (sidecar-diff/seal.ts: its own home and temp, no IP
  *    traffic beyond loopback, no writes in the owner's home, fake agent programs only);
  * 2. builds the state's repositories and files on that disk with real git (world-disk.ts);
- * 3. starts our app's debug build, sealed, with that home: its data folder is the scratch folder's.
- *    The build carries the config override (live-config.ts), so its hidden window opens the bridge
- *    page of the live server (live-server.ts) on our dev origin;
+ * 3. starts the end-to-end test app (e2e/harness.ts `buildTestApp`: a debug `.app` bundle with its
+ *    resources and bundled sidecar, which opens behind the owner's work), sealed, with that home: its
+ *    data folder is the scratch folder's. The build carries the config override (live-config.ts),
+ *    so its hidden window opens the bridge page of the live server (live-server.ts) on our dev
+ *    origin (D145);
  * 4. writes the seeded rows into the app's own database through its database commands, after
  *    `db_open` ran the migrations;
  * 5. opens the front in Playwright's Chromium (nothing downloaded; every other origin refused):
@@ -24,6 +26,7 @@
  * Usage: bun scripts/conductor-reference/live.ts [state-id ...] [--out <dir>] [--fronts conductor,ours]
  *        [--target <cargo target dir>]
  * The app build goes into `--target` when given (kept), else into a run-owned folder that is removed.
+ * Never the e2e run's own target folder: the override would replace the bundle its checks clone.
  * It needs our dev origin's port (1420) free. It is a browser run; our app's window stays hidden. It
  * exits 1 when a page fails to load. A picture taken while our app left calls unanswered is taken
  * again once, and the first attempt's report is kept with it.
@@ -40,10 +43,11 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { type Browser, chromium } from "playwright-core";
 import type { ScriptedRepo } from "../../apps/desktop/src/catalogue/git-repo.ts";
 import { stopApp } from "../app-process.ts";
+import { buildTestApp, e2eTarget, freePort } from "../e2e/harness.ts";
 import { loadCatalogue, ROOT, type SeededState } from "./catalogue.ts";
 import { checkOverride, DEV_ORIGIN, referenceOverride } from "./live-config.ts";
 import { type CallTally, type Front, type LiveServer, startLiveServer } from "./live-server.ts";
@@ -62,7 +66,6 @@ import { type Move, plantOnDisk, relocate } from "./world-disk.ts";
 
 const DESKTOP = join(ROOT, "apps/desktop");
 const SRC_TAURI = join(DESKTOP, "src-tauri");
-const SIDECAR_BIN = join(SRC_TAURI, "binaries/conducted-sidecar-aarch64-apple-darwin");
 /** The catalogue's made-up Mac (catalogue/world.ts) and the folders our app uses for the same jobs. */
 const CATALOGUE_HOME = "/Users/sam";
 const CATALOGUE_APP_DATA = `${CATALOGUE_HOME}/Library/Application Support/Conducted`;
@@ -102,18 +105,11 @@ interface Shot extends Capture {
 	firstAttempt?: string[];
 }
 
-function run(
-	command: string,
-	args: string[],
-	options: { cwd: string; env?: NodeJS.ProcessEnv },
-): void {
-	const done = spawnSync("nice", ["-n", "10", command, ...args], { ...options, stdio: "inherit" });
-	if (done.status !== 0)
-		throw new Error(`${command} ${args.join(" ")} failed with ${done.status}.`);
-}
-
-/** Builds the sidecar, our UI and the app with the override, in that order. */
-function build(target: string, fronts: readonly Front[]): string {
+/**
+ * Builds the test app with the override into `target`, and returns its executable. The test build
+ * also builds the sidecar and our UI, which the `ours` front serves.
+ */
+async function build(target: string): Promise<string> {
 	const windows = (
 		JSON.parse(readFileSync(join(SRC_TAURI, "tauri.conf.json"), "utf8")) as {
 			app: { windows: Record<string, unknown>[] };
@@ -122,19 +118,23 @@ function build(target: string, fronts: readonly Front[]): string {
 	const override = referenceOverride(windows);
 	const problems = checkOverride(override, windows);
 	if (problems.length > 0) throw new Error(`The config override is unsafe: ${problems.join("; ")}`);
-	run("pnpm", ["--filter", "@conducted/sidecar", "build"], { cwd: ROOT });
-	if (fronts.includes("ours"))
-		run("pnpm", ["--filter", "@conducted/desktop", "build"], { cwd: ROOT });
-	run("cargo", ["build"], {
-		cwd: SRC_TAURI,
-		env: { ...process.env, CARGO_TARGET_DIR: target, TAURI_CONFIG: JSON.stringify(override) },
+	const bundle = await buildTestApp({
+		target,
+		config: override as unknown as Record<string, unknown>,
 	});
-	// Tauri finds the resources beside a debug binary only by its real path (no symlink in it).
-	return realpathSync(join(target, "debug/conducted"));
+	// Tauri refuses an executable whose path holds a symlink (/tmp is one).
+	return realpathSync(join(bundle, "Contents/MacOS/conducted"));
 }
 
-function launch(exe: string, seal: Seal, log: string): ChildProcess {
-	const env = { ...seal.env, CONDUCTED_SIDECAR_BIN: SIDECAR_BIN };
+async function launch(exe: string, seal: Seal, log: string): Promise<ChildProcess> {
+	// `CFFIXED_USER_HOME` keeps WebKit's storage in the scratch home too, not the owner's
+	// `~/Library/WebKit` (e2e/harness.ts `appEnvironment`). The test build's WebDriver server gets a
+	// free port, so it never meets another run's.
+	const env = {
+		...seal.env,
+		CFFIXED_USER_HOME: seal.home,
+		TAURI_WEBDRIVER_PORT: String(await freePort()),
+	};
 	// A window that is never shown lets macOS put the app to sleep (App Nap), which stalls its calls.
 	// The setting given on the command line holds for this process only; nothing is stored.
 	const args = [
@@ -318,7 +318,7 @@ async function shootOne(options: {
 			front === "conductor" ? live.liveRoute({ scene: { route: moved.route } }) : moved.route;
 		if (route === null) return { ...base, problems: ["Conductor has no screen for this state"] };
 		base.route = route;
-		child = launch(options.exe, seal, join(seal.root, "app.log"));
+		child = await launch(options.exe, seal, join(seal.root, "app.log"));
 		await bounded(server.bridged(), "our app's bridge page connecting");
 		const skipped = await seedDatabase(server, moved.tables);
 		if (skipped.length > 0)
@@ -442,6 +442,10 @@ async function main(args: string[]): Promise<number> {
 		(arg, index) => !arg.startsWith("--") && !args[index - 1]?.startsWith("--"),
 	);
 	const givenTarget = flag(args, "target");
+	if (givenTarget !== undefined && resolve(givenTarget) === resolve(e2eTarget()))
+		throw new Error(
+			`--target ${givenTarget} is the e2e run's target folder; the override would replace the bundle its checks clone.`,
+		);
 	const target = givenTarget ?? realpathSync(mkdtempSync(join(tmpdir(), "conductor-live-target-")));
 	mkdirSync(join(out, "ours"), { recursive: true });
 
@@ -460,7 +464,7 @@ async function main(args: string[]): Promise<number> {
 	let server: LiveServer | null = null;
 	let browser: Browser | null = null;
 	try {
-		const exe = build(target, fronts);
+		const exe = await build(target);
 		server = await startLiveServer({
 			bundles: { conductor: paths.bundle, ours: join(DESKTOP, "dist") },
 		});

@@ -7,7 +7,8 @@
  * Behaviour: docs/research/conductor/services-map.md 4.2.7 (the server key `gitIdentity`,
  * `{name, email}` for commits) and 4.2.8 (personal cloud variables); ui-map.md 6 Git ("Name and
  * email used for commits in cloud workspaces") and 6 Organization (MCP servers for cloud
- * workspaces, auth types None, Bearer token and custom headers). The page and its toasts are
+ * workspaces, auth types None, OAuth, Bearer token and custom headers; an OAuth server's tokens
+ * are the token store's, mcp-oauth-store.ts). The page and its toasts are
  * CLOUD-17; the [environment_variables] `[cloud]` table of the desktop's settings files is the
  * same idea for a repository's own variables (SET-04).
  * Must handle: no saved settings (empty, no identity); a name or value of the wrong type; an
@@ -21,6 +22,7 @@
  * its next git command (the desktop's own git calls read it then).
  * Test first: a reserved name is refused, and an identity becomes the four git environment names.
  */
+import { trimTrailingSlashes } from "@conducted/shared";
 import { z } from "zod";
 
 /** The name and email a cloud workspace commits with (services-map 4.2.7 `gitIdentity`). */
@@ -29,8 +31,8 @@ export interface CloudGitIdentity {
 	email: string;
 }
 
-/** How a cloud MCP server authenticates (ui-map.md 6 Organization: None, Bearer token, headers). */
-export type CloudMcpAuth = "none" | "bearer" | "headers";
+/** How a cloud MCP server authenticates (ui-map.md 6 Organization: None, OAuth, Bearer token, headers). */
+export type CloudMcpAuth = "none" | "oauth" | "bearer" | "headers";
 
 /** One MCP server a cloud workspace's agents see. It is remote and HTTPS, as Conductor's are. */
 export interface CloudMcpServer {
@@ -40,6 +42,10 @@ export interface CloudMcpServer {
 	bearerToken?: string;
 	/** The custom header values. They stay in the Worker; the sandbox gets placeholders. */
 	headers?: Record<string, string>;
+	/** OAuth: the client ID the user gave ("Advanced client identity"); absent means the Worker registers one. */
+	oauthClientId?: string;
+	/** OAuth: that client's secret. It stays in the Worker. */
+	oauthClientSecret?: string;
 }
 
 /** The personal cloud settings one Worker holds. */
@@ -167,6 +173,10 @@ export function cloudMcpServerProblem(server: CloudMcpServer): string[] {
 	if (server.authType === "bearer" && (server.bearerToken ?? "") === "") {
 		problems.push("Enter a bearer token");
 	}
+	// Conductor's form: a secret needs the client ID it belongs to (`$Da`).
+	if ((server.oauthClientSecret ?? "") !== "" && (server.oauthClientId ?? "") === "") {
+		problems.push("Enter a client ID");
+	}
 	if (server.authType === "headers") {
 		const headers = server.headers ?? {};
 		if (Object.keys(headers).length === 0) {
@@ -192,7 +202,7 @@ export function mcpServerPrefix(rawUrl: string): { path: string; segments: numbe
 		return null;
 	}
 	if (url.protocol !== "https:") return null;
-	const path = url.pathname === "" ? "/" : url.pathname.replace(/\/+$/, "") || "/";
+	const path = url.pathname === "" ? "/" : trimTrailingSlashes(url.pathname) || "/";
 	return { path, segments: path === "/" ? 0 : path.split("/").length - 1 };
 }
 
@@ -223,7 +233,7 @@ export function cloudMcpServerForUrl(
 		if (configured.host !== url.host) continue;
 		const prefix = mcpServerPrefix(server.url);
 		if (prefix === null) continue;
-		const path = url.pathname.replace(/\/+$/, "") || "/";
+		const path = trimTrailingSlashes(url.pathname) || "/";
 		const matches =
 			prefix.path === "/" ? true : path === prefix.path || path.startsWith(`${prefix.path}/`);
 		if (!matches) continue;
@@ -273,9 +283,11 @@ const zHeaders = z.record(
 const zMcpServer = z
 	.object({
 		url: z.string().refine(noNul),
-		authType: z.enum(["none", "bearer", "headers"]),
+		authType: z.enum(["none", "oauth", "bearer", "headers"]),
 		bearerToken: z.string().refine(noNul).optional(),
 		headers: zHeaders.optional(),
+		oauthClientId: z.string().max(500).refine(noNul).optional(),
+		oauthClientSecret: z.string().max(2000).refine(noNul).optional(),
 	})
 	.strict();
 
@@ -365,7 +377,8 @@ export function sandboxMcpServers(settings: CloudSettings): SandboxMcpServer[] {
 		if (cloudMcpServerNameProblem(name) !== null || cloudMcpServerProblem(server).length > 0)
 			continue;
 		const headers: Record<string, string> = {};
-		if (server.authType === "bearer") {
+		// An OAuth server's token is the Worker's, swapped in like a bearer token (mcp-oauth.ts).
+		if (server.authType === "bearer" || server.authType === "oauth") {
 			headers.authorization = `Bearer ${CLOUD_MCP_PLACEHOLDER}`;
 		} else if (server.authType === "headers") {
 			for (const header of Object.keys(server.headers ?? {})) {

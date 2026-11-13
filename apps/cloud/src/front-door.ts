@@ -8,10 +8,11 @@
  * @feature CLOUD-15 Cloud workspace header: status, resources, cost, restart
  * @feature CLOUD-17 Cloud settings page
  * @feature CLOUD-19 Create cloud workspaces: the organisation switcher and the new-workspace page in cloud mode
- * Owns: the checks every request passes after the unauthenticated preview path and before a
- * Durable Object is touched: the pairing token, the pairing check, the readiness check (CLOUD-19),
- * the cloud settings read and write, the route, the workspace name, the method, and the WebSocket
- * upgrade for the relay and terminal streams.
+ * Owns: the checks every request passes after the unauthenticated preview and OAuth callback
+ * paths and before a Durable Object is touched: the pairing token, the pairing check, the
+ * readiness check (CLOUD-19), the cloud settings read and write, the MCP OAuth routes (CLOUD-17),
+ * the route, the workspace name, the method, and the WebSocket upgrade for the relay and terminal
+ * streams.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the Worker authenticates and routes) and
  * docs/research/cloud-spike-2026-11-06.md, question 4 (the token is checked on every route in
  * constant time before any Durable Object starts). CLOUD-07: `/pair` answers with the Worker's own
@@ -51,18 +52,62 @@ export interface CloudRoute {
 }
 
 /**
+ * One of the cloud MCP servers' OAuth routes (CLOUD-17): the credentials and callback URL, a
+ * server's connect, its status, a cancel, a disconnect, and the detection an import asks for.
+ */
+export type McpOAuthRoute =
+	| { kind: "list" }
+	| { kind: "detect" }
+	| { kind: "connect" | "cancel" | "disconnect"; name: string }
+	| { kind: "status"; name: string; state: string };
+
+/**
  * What an authenticated request is: a route, the pairing check, the readiness check, cloud
- * settings, or a refusal.
+ * settings, the MCP OAuth routes, or a refusal.
  */
 export type FrontDoor =
 	| { route: CloudRoute }
 	| { pair: true }
 	| { readiness: true }
 	| { settings: "read" | "write" }
+	| { mcpOAuth: McpOAuthRoute }
 	| { refusal: Response };
 
 /** The one path that holds the Mac's personal cloud settings (CLOUD-17). */
 export const SETTINGS_PATH = "/settings";
+
+/** The MCP OAuth routes' root. The callback below it is the one path without the pairing token. */
+export const MCP_OAUTH_PATH = "/mcp-oauth";
+
+const MCP_OAUTH_SERVER_ROUTE =
+	/^\/mcp-oauth\/([A-Za-z0-9_-]{1,64})\/(connect|status|cancel|disconnect)$/;
+
+const methodNotAllowed = (allow: string): { refusal: Response } => ({
+	refusal: new Response("Method not allowed", { status: 405, headers: { allow } }),
+});
+
+/** The MCP OAuth route a path names, or the refusal for a wrong method or a missing state. */
+function mcpOAuthRoute(request: Request, url: URL): FrontDoor | null {
+	if (url.pathname === MCP_OAUTH_PATH) {
+		return request.method === "GET" ? { mcpOAuth: { kind: "list" } } : methodNotAllowed("GET");
+	}
+	if (url.pathname === `${MCP_OAUTH_PATH}/detect`) {
+		return request.method === "POST" ? { mcpOAuth: { kind: "detect" } } : methodNotAllowed("POST");
+	}
+	const match = MCP_OAUTH_SERVER_ROUTE.exec(url.pathname);
+	if (match === null) return null;
+	const [, name, kind] = match as unknown as [string, string, McpOAuthRoute["kind"]];
+	if (kind === "status") {
+		if (request.method !== "GET") return methodNotAllowed("GET");
+		const state = url.searchParams.get("state");
+		if (state === null || state === "") {
+			return { refusal: new Response("Missing state", { status: 400 }) };
+		}
+		return { mcpOAuth: { kind, name, state } };
+	}
+	if (request.method !== "POST") return methodNotAllowed("POST");
+	return { mcpOAuth: { kind: kind as "connect" | "cancel" | "disconnect", name } };
+}
 
 const ROUTE =
 	/^\/w\/([^/]+)\/(start|stop|restart|remove|git|exec|files|state|ports|rpc|terminal|tunnel|ssh|ssh-key|preview-url)$/;
@@ -130,6 +175,8 @@ export function routeRequest(request: Request, pairingToken: string | undefined)
 		}
 		return { settings: request.method === "GET" ? "read" : "write" };
 	}
+	const oauth = mcpOAuthRoute(request, url);
+	if (oauth !== null) return oauth;
 	const match = ROUTE.exec(url.pathname);
 	if (match === null) return { refusal: new Response("Not found", { status: 404 }) };
 	const [, name, action] = match as unknown as [string, string, CloudAction];

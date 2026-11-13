@@ -18,20 +18,15 @@ const WINDOWS = (
 ).app.windows;
 
 describe("referenceOverride", () => {
-	test("points the dev build at the bridge page and keeps the page's connections on that server", () => {
+	test("points the test app's UI at the bridge page and keeps the page's connections on that server", () => {
 		const override = referenceOverride(WINDOWS);
-		expect(override.build.devUrl).toBe(`${ORIGIN}${BRIDGE_PATH}`);
-		expect(override.build.beforeDevCommand).toBe("");
-		// A release build reads `csp`, a dev build `devCsp`: both are the bridge's one policy.
+		// A `frontendDist` URL is the page a built app opens as its own; the guard keeps the window on
+		// its origin (navigation.rs, `plat_22_the_app_origin_is_where_tauri_loads_the_ui_from`).
+		expect(override.build).toEqual({ frontendDist: `${ORIGIN}${BRIDGE_PATH}` });
+		// A built app reads `csp`, a dev build `devCsp`: both are the bridge's one policy.
 		expect(override.app.security.devCsp).toBe(override.app.security.csp);
 		expect(override.app.security.csp).toContain("connect-src 'self' ipc: http://ipc.localhost");
 		expect(checkOverride(override, WINDOWS)).toEqual([]);
-	});
-
-	test("the server's origin is the one our navigation guard keeps a dev window on", () => {
-		const guard = readFileSync(join(SRC_TAURI, "src/navigation.rs"), "utf8");
-		const guarded = /pub const DEV_ORIGIN: &str = "([^"]+)";/.exec(guard)?.[1];
-		expect(new URL(referenceOverride(WINDOWS).build.devUrl).origin).toBe(guarded ?? "(none)");
 	});
 
 	test("the policy lets the page reach only its own server and the app's IPC", () => {
@@ -44,9 +39,9 @@ describe("referenceOverride", () => {
 describe("checkOverride", () => {
 	test("refuses a page on any other origin", () => {
 		const override = referenceOverride(WINDOWS);
-		override.build.devUrl = "http://192.168.1.4:8080/__reference/bridge";
+		override.build.frontendDist = "http://192.168.1.4:8080/__reference/bridge";
 		expect(checkOverride(override, WINDOWS)).toEqual([
-			"devUrl http://192.168.1.4:8080/__reference/bridge is not on our dev origin http://localhost:1420",
+			"frontendDist http://192.168.1.4:8080/__reference/bridge is not on our dev origin http://localhost:1420",
 		]);
 	});
 
@@ -70,7 +65,7 @@ describe("checkOverride", () => {
 		]);
 	});
 
-	test("refuses an override that changes anything beyond the dev page and its policy", () => {
+	test("refuses an override that changes anything beyond the page and its policy", () => {
 		const override = referenceOverride(WINDOWS) as ReturnType<typeof referenceOverride> & {
 			identifier?: string;
 		};
@@ -88,7 +83,7 @@ describe("checkAppConfig", () => {
 
 	test("finds a config that names the bridge", () => {
 		expect(
-			checkAppConfig(JSON.stringify({ build: { devUrl: `${ORIGIN}${BRIDGE_PATH}` } })),
+			checkAppConfig(JSON.stringify({ build: { frontendDist: `${ORIGIN}${BRIDGE_PATH}` } })),
 		).toEqual([`names the reference bridge (${BRIDGE_PATH})`]);
 	});
 });

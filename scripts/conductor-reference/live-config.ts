@@ -2,18 +2,18 @@
  * The Tauri config override of the live reference run (stage 2, live.ts), and the checks that keep it
  * where it belongs.
  *
- * - The run builds our app's debug binary with this override merged in (Tauri reads it from the
- *   `TAURI_CONFIG` variable at build time), into a target folder under /tmp. Its window then opens the
- *   reference server's bridge page instead of our UI: the page our real `__TAURI_INTERNALS__` answers
- *   through (bridge.ts). No release build sets the variable, and our own config files never name the
- *   bridge (`checkAppConfig`, tested over the real files).
- * - The server takes our dev server's origin, `http://localhost:1420`: our navigation guard keeps a
- *   dev build's window on that origin only and opens any other in the user's browser
- *   (src-tauri/src/navigation.rs, `DEV_ORIGIN`; the test reads it from there).
+ * - The run builds the end-to-end test app (e2e/harness.ts `buildTestApp`) with this override merged
+ *   in last, into its own target folder (D145). The override's `frontendDist` is the reference
+ *   server's bridge page, so the app's window opens that page instead of our UI: the page our real
+ *   `__TAURI_INTERNALS__` answers through (bridge.ts). Tauri treats a `frontendDist` URL as the app's
+ *   own page, and our navigation guard keeps the window on the origin Tauri loads the UI from
+ *   (src-tauri/src/navigation.rs, `app_origin`). No release build carries the override, and our own
+ *   config files never name the bridge (`checkAppConfig`, tested over the real files).
+ * - The server listens on our dev server's origin, `http://localhost:1420`, which must be free.
  * - The bridge page may reach only the server it came from and the app's IPC (`BRIDGE_POLICY`); the
- *   server sends the same policy with the page, since Tauri adds no policy to a page from `devUrl`.
+ *   server sends the same policy with the page, since Tauri adds no policy to a page it does not serve.
  * - `checkOverride` refuses an override that points anywhere but our dev origin, lets the page reach
- *   another host, or changes anything beyond the dev page, its policy and hiding the app's windows.
+ *   another host, or changes anything beyond the page, its policy and hiding the app's windows.
  */
 
 /** The bridge page's path on the reference server. */
@@ -36,7 +36,7 @@ export const BRIDGE_POLICY = [
 export const DEV_ORIGIN = "http://localhost:1420";
 
 export interface ReferenceOverride {
-	build: { devUrl: string; beforeDevCommand: string };
+	build: { frontendDist: string };
 	app: { security: { csp: string; devCsp: string }; windows: Record<string, unknown>[] };
 }
 
@@ -47,7 +47,7 @@ export interface ReferenceOverride {
  */
 export function referenceOverride(windows: readonly Record<string, unknown>[]): ReferenceOverride {
 	return {
-		build: { devUrl: `${DEV_ORIGIN}${BRIDGE_PATH}`, beforeDevCommand: "" },
+		build: { frontendDist: `${DEV_ORIGIN}${BRIDGE_PATH}` },
 		app: {
 			security: { csp: BRIDGE_POLICY, devCsp: BRIDGE_POLICY },
 			windows: windows.map((window) => ({ ...window, visible: false })),
@@ -56,7 +56,7 @@ export function referenceOverride(windows: readonly Record<string, unknown>[]): 
 }
 
 const ALLOWED_KEYS: Record<string, readonly string[]> = {
-	build: ["devUrl", "beforeDevCommand"],
+	build: ["frontendDist"],
 	app: ["security", "windows"],
 	"app.security": ["csp", "devCsp"],
 };
@@ -93,9 +93,11 @@ export function checkOverride(
 			if (!keys.includes(key)) problems.push(`the override sets ${path}.${key}`);
 		}
 	}
-	const origin = new URL(override.build.devUrl).origin;
+	const origin = new URL(override.build.frontendDist).origin;
 	if (origin !== DEV_ORIGIN) {
-		problems.push(`devUrl ${override.build.devUrl} is not on our dev origin ${DEV_ORIGIN}`);
+		problems.push(
+			`frontendDist ${override.build.frontendDist} is not on our dev origin ${DEV_ORIGIN}`,
+		);
 	}
 	for (const name of ["csp", "devCsp"] as const) {
 		const hosts = override.app.security[name].match(/[a-z][a-z0-9+.-]*:\/\/[^\s;']+/gi) ?? [];

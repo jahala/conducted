@@ -12,7 +12,8 @@
  * Owns: the Worker's front door: it checks the pairing token on every request, answers the
  * desktop's pairing check (`/pair`) and readiness check (`/readiness`, CLOUD-19), reads and
  * writes the Mac's personal cloud settings at
- * `/settings`, and routes each workspace's git, shell, file, terminal, preview and sidecar-relay
+ * `/settings`, answers the cloud MCP servers' OAuth routes under `/mcp-oauth` and the provider's
+ * callback (CLOUD-17), and routes each workspace's git, shell, file, terminal, preview and sidecar-relay
  * calls to that workspace's Durable Object. Its outbound handler also carries the sandbox entry's
  * turn-end backup call.
  * Behaviour: docs/plans/cloud-and-remote.md Part 1 (the desktop reaches the user's Worker over
@@ -43,13 +44,16 @@ import {
 import { pairAnswer } from "./auth.ts";
 import type { Env } from "./env.ts";
 import { routeRequest } from "./front-door.ts";
+import { MCP_OAUTH_CALLBACK_PATH } from "./mcp-oauth.ts";
+import { answerMcpOAuth, answerMcpOAuthCallback, mcpOAuthStore } from "./mcp-oauth-routes.ts";
+import { McpOAuth } from "./mcp-oauth-store.ts";
 import { Outbound } from "./outbound.ts";
 import { readinessOf } from "./readiness.ts";
 import { readCloudSettings, writeCloudSettings, zCloudSettings } from "./settings.ts";
 import { previewToken, previewTokenMatches } from "./terminal.ts";
 import { Workspace } from "./workspace.ts";
 
-export { DirectoryBackupGateway, Outbound, Workspace };
+export { DirectoryBackupGateway, McpOAuth, Outbound, Workspace };
 
 /** A preview URL carries its capability in the path, so a browser needs no pairing token. */
 const PREVIEW_PROXY = /^\/w\/([^/]+)\/preview\/([A-Za-z0-9_-]{43})\/(\d{1,5})(\/.*)?$/;
@@ -117,10 +121,25 @@ export default {
 				return failure(error);
 			}
 		}
+		// The provider sends the browser here; the state it carries is the proof, not the token.
+		if (url.pathname === MCP_OAUTH_CALLBACK_PATH) {
+			try {
+				return await answerMcpOAuthCallback(request, env);
+			} catch (error) {
+				return failure(error);
+			}
+		}
 		const routed = routeRequest(request, env.PAIRING_TOKEN);
 		if ("refusal" in routed) return routed.refusal;
 		if ("pair" in routed) return pairAnswer();
 		if ("readiness" in routed) return Response.json(readinessOf(env));
+		if ("mcpOAuth" in routed) {
+			try {
+				return await answerMcpOAuth(request, env, routed.mcpOAuth);
+			} catch (error) {
+				return failure(error);
+			}
+		}
 		if ("settings" in routed) {
 			if (routed.settings === "read") {
 				try {
@@ -143,12 +162,21 @@ export default {
 					{ status: 400 },
 				);
 			}
+			let before: Awaited<ReturnType<typeof readCloudSettings>>;
 			try {
+				before = await readCloudSettings(env);
 				await writeCloudSettings(env, body.data);
-				return Response.json(body.data);
 			} catch (error) {
 				return failure(error);
 			}
+			// A server that is gone or changed loses its OAuth tokens. The outbound handler never
+			// sends a token to a changed server anyway, so a failure here only leaves records behind.
+			try {
+				await mcpOAuthStore(env).prune(before.mcpServers, body.data.mcpServers);
+			} catch (error) {
+				console.error(`settings saved, but stale MCP OAuth records stayed: ${String(error)}`);
+			}
+			return Response.json(body.data);
 		}
 		const { name, action } = routed.route;
 		const workspace = env.WORKSPACE.getByName(name);

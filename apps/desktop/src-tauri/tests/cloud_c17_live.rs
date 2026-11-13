@@ -12,6 +12,13 @@
 //! SHA-256, and checks the search on a planted decoy. Then it deletes everything it made with the
 //! app's own uninstall, which empties the bucket of the settings object and the backups first.
 //!
+//! The OAuth run does the same for an OAuth server: a test provider and MCP server on this Mac
+//! behind a quick tunnel, which registers the Worker's client, approves the sign-in, and issues
+//! 90-second access tokens with refresh tokens it spends once. The run connects the server through
+//! the Worker's routes and acts as the browser between the provider and the callback, starts a
+//! sandbox, has the agent list the server, calls it from the sandbox before and after the token is
+//! due for refresh, and searches the sandbox for every token the provider issued.
+//!
 //! Behaviour: D121 and docs/research/cloud-spike-2026-11-06.md. It uses the app's bundled deploy
 //! inputs (`resources/cloud`, made by `pnpm cloud:prepare`), the real `wrangler` login, Docker and
 //! `cloudflared` on the PATH.
@@ -356,6 +363,12 @@ fn start_tunnel(port: u16, home: &Path) -> Result<(Child, String), String> {
 
 // ---------------------------------------------------------------- the Worker
 
+/// True for Cloudflare's answer while a new `workers.dev` name is not yet known at every edge
+/// (error 1042). It can come back after the name first answered, so every call checks for it.
+fn not_yet_routed(status: u16, body: &str) -> bool {
+    status == 404 && body.contains("1042")
+}
+
 async fn call(
     client: &reqwest::Client,
     method: reqwest::Method,
@@ -364,19 +377,27 @@ async fn call(
     path: &str,
     body: Option<Value>,
 ) -> (u16, String) {
-    let mut request = client
-        .request(method, format!("{url}{path}"))
-        .header(reqwest::header::AUTHORIZATION, format!("Bearer {token}"));
-    if let Some(body) = body {
-        request = request.json(&body);
-    }
-    match request.send().await {
-        Ok(answer) => {
-            let status = answer.status().as_u16();
-            (status, answer.text().await.unwrap_or_default())
+    let mut last = (0, String::new());
+    for _ in 0..20 {
+        let mut request = client
+            .request(method.clone(), format!("{url}{path}"))
+            .header(reqwest::header::AUTHORIZATION, format!("Bearer {token}"));
+        if let Some(body) = &body {
+            request = request.json(body);
         }
-        Err(error) => (0, error.to_string()),
+        last = match request.send().await {
+            Ok(answer) => {
+                let status = answer.status().as_u16();
+                (status, answer.text().await.unwrap_or_default())
+            }
+            Err(error) => (0, error.to_string()),
+        };
+        if !not_yet_routed(last.0, &last.1) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
+    last
 }
 
 async fn post(
@@ -583,7 +604,12 @@ async fn terminal_command(
 /// characters out of them and out of every process's environment and command line (grep, so the
 /// files are streamed, not held). `hash.js` hashes each 48-character window of each run and
 /// compares it with the token's and the decoy's hashes. Only counts come out.
-fn scan_files(token_hash: &str, decoy_hash: &str) -> (String, String) {
+fn scan_files(token_hashes: &[String], decoy_hash: &str) -> (String, String) {
+    let token_hashes = token_hashes
+        .iter()
+        .map(|hash| format!("\"{hash}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
     let shell = r#"
 set -u
 btime=$(awk '/btime/{print $2}' /proc/stat)
@@ -616,13 +642,14 @@ const fs = require("fs");
 const crypto = require("crypto");
 const readline = require("readline");
 const [runs, files, procs, placeholderProcs, since] = process.argv.slice(2);
+const tokens = new Set([{token_hashes}]);
 const counts = {{ files: Number(files), procs: Number(procs), placeholderProcs: Number(placeholderProcs), since: Number(since), candidates: 0, token: 0, decoy: 0 }};
 const lines = readline.createInterface({{ input: fs.createReadStream(runs, "latin1") }});
 lines.on("line", (run) => {{
 	for (let i = 0; i + 48 <= run.length; i++) {{
 		const hash = crypto.createHash("sha256").update(run.slice(i, i + 48)).digest("hex");
 		counts.candidates++;
-		if (hash === "{token_hash}") counts.token++;
+		if (tokens.has(hash)) counts.token++;
 		if (hash === "{decoy_hash}") counts.decoy++;
 	}}
 }});
@@ -656,6 +683,122 @@ struct Outcome {
     scan: String,
     relay_lines: usize,
     relay_lines_with_token: usize,
+}
+
+/// What one scan of a sandbox read and found: its size, how long it took, its log and the counts.
+struct Scanned {
+    sizing: String,
+    ms: u128,
+    log: String,
+    counts: String,
+}
+
+/// Plants a decoy in the sandbox and searches every file written since it started, the runtime
+/// folders and every process's environment and command line for the tokens, by their SHA-256.
+async fn scan_sandbox(
+    client: &reqwest::Client,
+    url: &str,
+    pairing: &str,
+    workspace: &str,
+    token_hashes: &[String],
+    decoy: &str,
+) -> Result<Scanned, String> {
+    let (status, body) = post(
+        client,
+        url,
+        pairing,
+        &format!("/w/{workspace}/files"),
+        Some(json!({ "operation": "write", "path": "/workspace/c17-decoy.txt", "text": format!("decoy {decoy}\n") })),
+    )
+    .await;
+    if status != 200 {
+        return Err(format!("the decoy write answered {status}: {body}"));
+    }
+    let (shell, hasher) = scan_files(token_hashes, &sha256_hex(decoy));
+    let (status, body) = post(
+        client,
+        url,
+        pairing,
+        &format!("/w/{workspace}/files"),
+        Some(json!({ "operation": "write", "path": "/tmp/c17-hash.js", "text": hasher })),
+    )
+    .await;
+    if status != 200 {
+        return Err(format!("the hasher write answered {status}: {body}"));
+    }
+    let (status, body) = post(
+        client,
+        url,
+        pairing,
+        &format!("/w/{workspace}/files"),
+        Some(json!({ "operation": "write", "path": "/tmp/c17-scan.sh", "text": shell })),
+    )
+    .await;
+    if status != 200 {
+        return Err(format!("the scan script write answered {status}: {body}"));
+    }
+    // How much the scan reads: files written since the sandbox started, and the runtime folders.
+    let (_, sizing) = post(
+        client,
+        url,
+        pairing,
+        &format!("/w/{workspace}/exec"),
+        Some(json!({
+            "program": "sh",
+            "args": ["-c", "s=$(awk '/btime/{print $2}' /proc/stat); t=$(awk '{print $22}' /proc/1/stat); since=$((s + t / 100)); echo newer=$(find / \\( -path /proc -o -path /sys -o -path /dev \\) -prune -o -type f -newermt @$since -print | wc -l); du -sxk /workspace /root /home /tmp /var /run /etc 2>/dev/null | tr '\\n' ' '"],
+            "cwd": "/",
+            "timeoutMs": 90_000,
+        })),
+    )
+    .await;
+    let sizing_text = sizing;
+    // The scan outlasts one request's window, so it runs on the terminal stream, which keeps its
+    // process alive for as long as the stream is open.
+    let began = Instant::now();
+    let ran = terminal_command(
+        url,
+        pairing,
+        workspace,
+        &[
+            "/bin/sh",
+            "-c",
+            "sh /tmp/c17-scan.sh 2> /tmp/c17-scan.err; echo scan_exit=$? >> /tmp/c17-scan.err",
+        ],
+        Duration::from_secs(420),
+    )
+    .await;
+    let ms = began.elapsed().as_millis();
+    let (_, log) = post(
+        client,
+        url,
+        pairing,
+        &format!("/w/{workspace}/files"),
+        Some(json!({ "operation": "read", "path": "/tmp/c17-scan.err" })),
+    )
+    .await;
+    let scan_log = format!("terminal={ran:?} log={log}");
+    let (status, body) = post(
+        client,
+        url,
+        pairing,
+        &format!("/w/{workspace}/files"),
+        Some(json!({ "operation": "read", "path": "/tmp/c17-scan.json" })),
+    )
+    .await;
+    if status != 200 {
+        return Err(format!("reading the scan answered {status}: {body}"));
+    }
+    let read: Value = serde_json::from_str(&body).map_err(|error| error.to_string())?;
+    let counts = read["text"].as_str().unwrap_or("").to_string();
+    if counts.is_empty() {
+        return Err(format!("the scan wrote nothing: {scan_log}"));
+    }
+    Ok(Scanned {
+        sizing: sizing_text,
+        ms,
+        log: scan_log,
+        counts,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -882,97 +1025,19 @@ async fn live_steps(
     outcome.curl_status = format!("{} {}", curl.0, curl.1);
 
     // 4. The token is nowhere in the sandbox: plant a decoy, scan by hash, read the counts.
-    let (status, body) = post(
+    let scanned = scan_sandbox(
         &client,
-        url,
-        pairing,
-        &format!("/w/{workspace}/files"),
-        Some(json!({ "operation": "write", "path": "/workspace/c17-decoy.txt", "text": format!("decoy {decoy}\n") })),
-    )
-    .await;
-    if status != 200 {
-        return Err(format!("the decoy write answered {status}: {body}"));
-    }
-    let (shell, hasher) = scan_files(&sha256_hex(token), &sha256_hex(decoy));
-    let (status, body) = post(
-        &client,
-        url,
-        pairing,
-        &format!("/w/{workspace}/files"),
-        Some(json!({ "operation": "write", "path": "/tmp/c17-hash.js", "text": hasher })),
-    )
-    .await;
-    if status != 200 {
-        return Err(format!("the hasher write answered {status}: {body}"));
-    }
-    let (status, body) = post(
-        &client,
-        url,
-        pairing,
-        &format!("/w/{workspace}/files"),
-        Some(json!({ "operation": "write", "path": "/tmp/c17-scan.sh", "text": shell })),
-    )
-    .await;
-    if status != 200 {
-        return Err(format!("the scan script write answered {status}: {body}"));
-    }
-    // How much the scan reads: files written since the sandbox started, and the runtime folders.
-    let (_, sizing) = post(
-        &client,
-        url,
-        pairing,
-        &format!("/w/{workspace}/exec"),
-        Some(json!({
-            "program": "sh",
-            "args": ["-c", "s=$(awk '/btime/{print $2}' /proc/stat); t=$(awk '{print $22}' /proc/1/stat); since=$((s + t / 100)); echo newer=$(find / \\( -path /proc -o -path /sys -o -path /dev \\) -prune -o -type f -newermt @$since -print | wc -l); du -sxk /workspace /root /home /tmp /var /run /etc 2>/dev/null | tr '\\n' ' '"],
-            "cwd": "/",
-            "timeoutMs": 90_000,
-        })),
-    )
-    .await;
-    outcome.sizing = sizing;
-    // The scan outlasts one request's window, so it runs on the terminal stream, which keeps its
-    // process alive for as long as the stream is open.
-    let began = Instant::now();
-    let ran = terminal_command(
         url,
         pairing,
         workspace,
-        &[
-            "/bin/sh",
-            "-c",
-            "sh /tmp/c17-scan.sh 2> /tmp/c17-scan.err; echo scan_exit=$? >> /tmp/c17-scan.err",
-        ],
-        Duration::from_secs(420),
+        &[sha256_hex(token)],
+        decoy,
     )
-    .await;
-    outcome.scan_ms = began.elapsed().as_millis();
-    let (_, log) = post(
-        &client,
-        url,
-        pairing,
-        &format!("/w/{workspace}/files"),
-        Some(json!({ "operation": "read", "path": "/tmp/c17-scan.err" })),
-    )
-    .await;
-    let body = format!("terminal={ran:?} log={log}");
-    outcome.scan_log = body;
-    let (status, body) = post(
-        &client,
-        url,
-        pairing,
-        &format!("/w/{workspace}/files"),
-        Some(json!({ "operation": "read", "path": "/tmp/c17-scan.json" })),
-    )
-    .await;
-    if status != 200 {
-        return Err(format!("reading the scan answered {status}: {body}"));
-    }
-    let read: Value = serde_json::from_str(&body).map_err(|error| error.to_string())?;
-    outcome.scan = read["text"].as_str().unwrap_or("").to_string();
-    if outcome.scan.is_empty() {
-        return Err(format!("the scan wrote nothing: {}", outcome.scan_log));
-    }
+    .await?;
+    outcome.sizing = scanned.sizing;
+    outcome.scan_ms = scanned.ms;
+    outcome.scan_log = scanned.log;
+    outcome.scan = scanned.counts;
 
     outcome.relay_lines = relay.lines.len();
     outcome.relay_lines_with_token = relay
@@ -1192,6 +1257,681 @@ fn an_agent_in_the_sandbox_reaches_a_bearer_token_mcp_server() {
     assert_eq!(
         outcome.relay_lines_with_token, 0,
         "the token reached the agent's lines"
+    );
+}
+
+// ---------------------------------------------------------------- the OAuth provider and its MCP server
+
+const OAUTH_SERVER: &str = "c17oauth";
+/// How long an access token lives. The Worker refreshes one that has less than 60 s left, so a
+/// token is refreshed 30 s after it was issued.
+const ACCESS_SECONDS: u64 = 90;
+
+/// One authorization code: who asked for it, where it goes back to, the PKCE challenge, the resource.
+struct Code {
+    client: String,
+    redirect: String,
+    challenge: String,
+    resource: String,
+}
+
+/// The provider's state: its public URL, registered clients, codes, the tokens valid now with
+/// their expiry, every token it ever issued (for the scan), and the grants it was asked for.
+#[derive(Default)]
+struct Provider {
+    public: String,
+    clients: Vec<(String, Vec<String>)>,
+    codes: std::collections::HashMap<String, Code>,
+    access: Vec<(String, Instant)>,
+    refresh: Vec<String>,
+    issued: Vec<String>,
+    grants: Vec<String>,
+    refused_grants: Vec<String>,
+    seen: Seen,
+}
+
+impl Provider {
+    fn issue(&mut self) -> Value {
+        let access = random_hex();
+        let refresh = random_hex();
+        self.access.push((
+            access.clone(),
+            Instant::now() + Duration::from_secs(ACCESS_SECONDS),
+        ));
+        self.refresh.push(refresh.clone());
+        self.issued.push(access.clone());
+        self.issued.push(refresh.clone());
+        json!({ "access_token": access, "token_type": "Bearer", "expires_in": ACCESS_SECONDS, "refresh_token": refresh })
+    }
+}
+
+fn base64url(bytes: &[u8]) -> String {
+    use base64::Engine as _;
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
+}
+
+/// The pairs of an `application/x-www-form-urlencoded` body or a query string.
+fn form_pairs(text: &str) -> std::collections::HashMap<String, String> {
+    reqwest::Url::parse(&format!("http://form.invalid/?{text}"))
+        .map(|url| url.query_pairs().into_owned().collect())
+        .unwrap_or_default()
+}
+
+fn redirect_response(location: &str) -> Vec<u8> {
+    format!(
+        "HTTP/1.1 302 Found\r\nlocation: {location}\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"
+    )
+    .into_bytes()
+}
+
+/// One request to the provider: its metadata, registration, authorization, token endpoint, and the
+/// MCP server, which answers only an access token that is valid now. Tokens are compared, never logged.
+fn provider_answer(
+    provider: &mut Provider,
+    method: &str,
+    target: &str,
+    headers: &[(String, String)],
+    body: &[u8],
+) -> Vec<u8> {
+    let public = provider.public.clone();
+    let (path, query) = target.split_once('?').unwrap_or((target, ""));
+    let ok_json = |value: Value| http_response("200 OK", "application/json", &value.to_string());
+    match (method, path) {
+        ("GET", "/healthz") => http_response("200 OK", "text/plain", "ok"),
+        ("GET", "/.well-known/oauth-protected-resource/mcp") => ok_json(json!({
+            "resource": format!("{public}/mcp"),
+            "authorization_servers": [public],
+        })),
+        ("GET", "/.well-known/oauth-authorization-server") => ok_json(json!({
+            "issuer": public,
+            "authorization_endpoint": format!("{public}/authorize"),
+            "token_endpoint": format!("{public}/token"),
+            "registration_endpoint": format!("{public}/register"),
+            "code_challenge_methods_supported": ["S256"],
+            "token_endpoint_auth_methods_supported": ["none"],
+        })),
+        ("POST", "/register") => {
+            let parsed: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
+            let redirects: Vec<String> = parsed["redirect_uris"]
+                .as_array()
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(|item| item.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let id = format!("client-{}", &random_hex()[..12]);
+            provider.clients.push((id.clone(), redirects.clone()));
+            http_response(
+                "201 Created",
+                "application/json",
+                &json!({ "client_id": id, "redirect_uris": redirects }).to_string(),
+            )
+        }
+        ("GET", "/authorize") => {
+            let params = form_pairs(query);
+            let get = |key: &str| params.get(key).cloned().unwrap_or_default();
+            let client = get("client_id");
+            let redirect = get("redirect_uri");
+            let known = provider
+                .clients
+                .iter()
+                .any(|(id, redirects)| *id == client && redirects.contains(&redirect));
+            if !known || get("code_challenge_method") != "S256" || get("response_type") != "code" {
+                return http_response("400 Bad Request", "text/plain", "bad authorization request");
+            }
+            let code = random_hex();
+            provider.codes.insert(
+                code.clone(),
+                Code {
+                    client,
+                    redirect: redirect.clone(),
+                    challenge: get("code_challenge"),
+                    resource: get("resource"),
+                },
+            );
+            let mut back = match reqwest::Url::parse(&redirect) {
+                Ok(url) => url,
+                Err(_) => return http_response("400 Bad Request", "text/plain", "bad redirect"),
+            };
+            back.query_pairs_mut()
+                .append_pair("code", &code)
+                .append_pair("state", &get("state"))
+                .append_pair("iss", &public);
+            redirect_response(back.as_str())
+        }
+        ("POST", "/token") => {
+            let form = form_pairs(&String::from_utf8_lossy(body));
+            let get = |key: &str| form.get(key).cloned().unwrap_or_default();
+            let grant = get("grant_type");
+            provider.grants.push(grant.clone());
+            let refuse = |provider: &mut Provider, why: &str| {
+                provider.refused_grants.push(format!("{grant}: {why}"));
+                http_response(
+                    "400 Bad Request",
+                    "application/json",
+                    &json!({ "error": "invalid_grant", "error_description": why }).to_string(),
+                )
+            };
+            if grant == "authorization_code" {
+                let Some(code) = provider.codes.remove(&get("code")) else {
+                    return refuse(provider, "unknown code");
+                };
+                let verifier_ok =
+                    base64url(&Sha256::digest(get("code_verifier").as_bytes())) == code.challenge;
+                if code.client != get("client_id")
+                    || code.redirect != get("redirect_uri")
+                    || code.resource != get("resource")
+                    || !verifier_ok
+                {
+                    return refuse(provider, "the code does not match");
+                }
+                return ok_json(provider.issue());
+            }
+            if grant == "refresh_token" {
+                let token = get("refresh_token");
+                let Some(at) = provider.refresh.iter().position(|held| *held == token) else {
+                    return refuse(provider, "the refresh token was spent or is unknown");
+                };
+                // Rotation: the old refresh token is spent once.
+                provider.refresh.remove(at);
+                return ok_json(provider.issue());
+            }
+            refuse(provider, "unsupported grant")
+        }
+        (_, "/mcp") => {
+            let now = Instant::now();
+            let authorized = headers.iter().any(|(name, value)| {
+                name == "authorization"
+                    && value.strip_prefix("Bearer ").is_some_and(|token| {
+                        provider
+                            .access
+                            .iter()
+                            .any(|(held, until)| held == token && *until > now)
+                    })
+            });
+            let parsed: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
+            let messages: Vec<Value> = match parsed {
+                Value::Array(items) => items,
+                Value::Null => Vec::new(),
+                other => vec![other],
+            };
+            let names: Vec<String> = if messages.is_empty() {
+                vec![format!("{method} {path}")]
+            } else {
+                messages
+                    .iter()
+                    .map(|message| message["method"].as_str().unwrap_or("").to_string())
+                    .collect()
+            };
+            if authorized {
+                provider.seen.authorized.extend(names);
+            } else {
+                provider.seen.refused.extend(names);
+                let challenge = format!(
+                    "HTTP/1.1 401 Unauthorized\r\nwww-authenticate: Bearer resource_metadata=\"{public}/.well-known/oauth-protected-resource/mcp\"\r\ncontent-type: application/json\r\ncontent-length: 26\r\nconnection: close\r\n\r\n{{\"error\":\"unauthorized\"}}"
+                );
+                return challenge.into_bytes();
+            }
+            if method != "POST" {
+                return http_response("405 Method Not Allowed", "text/plain", "");
+            }
+            let answers: Vec<Value> = messages.iter().filter_map(mcp_answer).collect();
+            match answers.len() {
+                0 => http_response("202 Accepted", "application/json", ""),
+                1 => http_response("200 OK", "application/json", &answers[0].to_string()),
+                _ => http_response(
+                    "200 OK",
+                    "application/json",
+                    &Value::Array(answers).to_string(),
+                ),
+            }
+        }
+        _ => http_response("404 Not Found", "text/plain", "not found"),
+    }
+}
+
+/// Serves the provider on 127.0.0.1 and returns its port.
+async fn start_provider(provider: Arc<Mutex<Provider>>) -> u16 {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("a loopback port");
+    let port = listener.local_addr().expect("the bound port").port();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            let Ok((mut stream, _)) = listener.accept().await else {
+                break;
+            };
+            let provider = provider.clone();
+            tauri::async_runtime::spawn(async move {
+                let Some((first, headers, body)) = read_request(&mut stream).await else {
+                    return;
+                };
+                let method = first.split(' ').next().unwrap_or("").to_string();
+                let target = first.split(' ').nth(1).unwrap_or("").to_string();
+                let reply = {
+                    let mut held = provider.lock().expect("the provider");
+                    provider_answer(&mut held, &method, &target, &headers, &body)
+                };
+                let _ = stream.write_all(&reply).await;
+                let _ = stream.shutdown().await;
+            });
+        }
+    });
+    port
+}
+
+#[derive(Debug, Default)]
+struct OAuthOutcome {
+    readiness: String,
+    connect: String,
+    callback: String,
+    credentials: String,
+    credentials_hold_a_token: bool,
+    start_ms: u128,
+    listing: String,
+    first_call: String,
+    after_refresh_call: String,
+    scan_ms: u128,
+    scan_log: String,
+    scan: String,
+    relay_lines: usize,
+    relay_lines_with_token: usize,
+}
+
+async fn oauth_live_steps(
+    url: &str,
+    pairing: &str,
+    workspace: &str,
+    server_url: &str,
+    decoy: &str,
+    provider: &Arc<Mutex<Provider>>,
+    outcome: &mut OAuthOutcome,
+) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(180))
+        .build()
+        .map_err(|error| error.to_string())?;
+    // The browser: it follows nothing by itself, so each hop is checked.
+    let browser = reqwest::Client::builder()
+        .timeout(Duration::from_secs(60))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|error| error.to_string())?;
+
+    let (mut status, mut body) = get(&client, url, pairing, "/readiness").await;
+    for _ in 0..20 {
+        if status == 200 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        (status, body) = get(&client, url, pairing, "/readiness").await;
+    }
+    outcome.readiness = format!("{status} {body}");
+    let readiness: Value = serde_json::from_str(&body).map_err(|error| error.to_string())?;
+    if readiness["agents"]["anthropic"] != json!(false) {
+        return Err("the Worker holds a model key; stopping before any model call".into());
+    }
+
+    // 1. Save the server as OAuth, connect it, and sign in as the browser would.
+    let settings = json!({
+        "gitIdentity": null,
+        "envVars": {},
+        "mcpServers": { OAUTH_SERVER: { "url": server_url, "authType": "oauth" } },
+    });
+    let (status, _) = post(&client, url, pairing, "/settings", Some(settings)).await;
+    if status != 200 {
+        return Err(format!("settings answered {status}"));
+    }
+    let (status, body) = post(
+        &client,
+        url,
+        pairing,
+        &format!("/mcp-oauth/{OAUTH_SERVER}/connect"),
+        None,
+    )
+    .await;
+    outcome.connect = format!("{status}");
+    if status != 200 {
+        return Err(format!("connect answered {status}: {body}"));
+    }
+    let started: Value = serde_json::from_str(&body).map_err(|error| error.to_string())?;
+    let authorization = started["authorizationUrl"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    let state = started["state"].as_str().unwrap_or("").to_string();
+    let (status, body) = get(
+        &client,
+        url,
+        pairing,
+        &format!("/mcp-oauth/{OAUTH_SERVER}/status?state={state}"),
+    )
+    .await;
+    if status != 200 || !body.contains("pending") {
+        return Err(format!("the connect is not pending: {status} {body}"));
+    }
+    let to_provider = browser
+        .get(&authorization)
+        .send()
+        .await
+        .map_err(|error| format!("the authorization page: {error}"))?;
+    let callback = to_provider
+        .headers()
+        .get(reqwest::header::LOCATION)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string)
+        .ok_or("the provider sent the browser nowhere")?;
+    if !callback.starts_with(&format!("{url}/mcp-oauth/callback?")) {
+        return Err("the provider's redirect is not the Worker's callback".into());
+    }
+    // The browser carries no pairing token back to the Worker.
+    let mut page_status = 0;
+    let mut page_text = String::new();
+    for _ in 0..20 {
+        let page = browser
+            .get(&callback)
+            .send()
+            .await
+            .map_err(|error| format!("the callback: {error}"))?;
+        page_status = page.status().as_u16();
+        page_text = page.text().await.unwrap_or_default();
+        if !not_yet_routed(page_status, &page_text) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_secs(3)).await;
+    }
+    outcome.callback = format!(
+        "{page_status} connected={}",
+        page_text.contains("is connected")
+    );
+    if page_status != 200 {
+        return Err(format!("the callback answered {page_status}"));
+    }
+    let (status, body) = get(&client, url, pairing, "/mcp-oauth").await;
+    outcome.credentials = format!("{status} {}", {
+        let parsed: Value = serde_json::from_str(&body).unwrap_or(Value::Null);
+        parsed["servers"].to_string()
+    });
+    outcome.credentials_hold_a_token = provider
+        .lock()
+        .expect("the provider")
+        .issued
+        .iter()
+        .any(|token| body.contains(token));
+
+    // 2. A sandbox starts, and its agent lists the server through the Worker.
+    let began = Instant::now();
+    let mut started = false;
+    let mut last = String::new();
+    for _ in 0..3 {
+        let (status, body) = post(
+            &client,
+            url,
+            pairing,
+            &format!("/w/{workspace}/start"),
+            None,
+        )
+        .await;
+        if status == 200 {
+            started = true;
+            break;
+        }
+        last = format!("start answered {status}: {body}");
+        tokio::time::sleep(Duration::from_secs(5)).await;
+    }
+    outcome.start_ms = began.elapsed().as_millis();
+    if !started {
+        return Err(last);
+    }
+    let launch = json!({
+        "env": {},
+        "providerKeys": { "ANTHROPIC_API_KEY": { "value": "provided-by-worker", "source": "entered" } },
+    });
+    let mut relay = Relay::open(url, pairing, workspace).await?;
+    let listed = relay
+        .request(
+            "listMcpServers",
+            json!({ "agent": "claude", "workspacePath": "/workspace", "launch": launch }),
+            Duration::from_secs(90),
+        )
+        .await;
+    outcome.listing = match &listed {
+        Ok(result) => result.to_string(),
+        Err(error) => error.clone(),
+    };
+
+    // 3. A tools/call from the sandbox with only the placeholder, then again after the access
+    // token is due for its refresh: the Worker refreshes it and sends the new one.
+    let tools_call = || {
+        json!({
+            "program": "curl",
+            "args": [
+                "-s", "-o", "/dev/null", "-w", "%{http_code}",
+                "-X", "POST", server_url,
+                "-H", "authorization: Bearer provided-by-worker",
+                "-H", "content-type: application/json",
+                "-H", "accept: application/json, text/event-stream",
+                "-d", json!({ "jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": { "name": TOOL, "arguments": {} } }).to_string(),
+            ],
+            "cwd": "/workspace",
+        })
+    };
+    let first = post(
+        &client,
+        url,
+        pairing,
+        &format!("/w/{workspace}/exec"),
+        Some(tools_call()),
+    )
+    .await;
+    outcome.first_call = format!("{} {}", first.0, first.1);
+    // The newest token was issued at most now; 35 s on it is inside the Worker's refresh margin.
+    tokio::time::sleep(Duration::from_secs(ACCESS_SECONDS - 55)).await;
+    let second = post(
+        &client,
+        url,
+        pairing,
+        &format!("/w/{workspace}/exec"),
+        Some(tools_call()),
+    )
+    .await;
+    outcome.after_refresh_call = format!("{} {}", second.0, second.1);
+
+    // 4. No token the provider issued is anywhere in the sandbox.
+    let hashes: Vec<String> = provider
+        .lock()
+        .expect("the provider")
+        .issued
+        .iter()
+        .map(|token| sha256_hex(token))
+        .collect();
+    let scanned = scan_sandbox(&client, url, pairing, workspace, &hashes, decoy).await?;
+    outcome.scan_ms = scanned.ms;
+    outcome.scan_log = scanned.log;
+    outcome.scan = scanned.counts;
+
+    let issued = provider.lock().expect("the provider").issued.clone();
+    outcome.relay_lines = relay.lines.len();
+    outcome.relay_lines_with_token = relay
+        .lines
+        .iter()
+        .filter(|line| issued.iter().any(|token| line.contains(token)))
+        .count();
+    let _ = relay.socket.close(None).await;
+    Ok(())
+}
+
+#[test]
+#[ignore = "live: deploys to the owner's Cloudflare account with Docker, then deletes everything"]
+fn an_agent_in_the_sandbox_reaches_an_oauth_mcp_server() {
+    let name = live_name();
+    let resources = resources();
+    assert!(
+        resources.join("worker.js").is_file() && resources.join("sandbox/Dockerfile").is_file(),
+        "the deploy inputs are missing: run `pnpm cloud:prepare` first"
+    );
+    let decoy = random_hex();
+    let pairing = make_pairing_token().expect("a pairing token");
+    let wrangler = live_wrangler();
+    let workspace = format!("c17oauth{}", &name[name.len() - 6..]);
+    let provider = Arc::new(Mutex::new(Provider::default()));
+    let home = std::env::temp_dir().join(format!("{name}-oauth-tunnel-home"));
+    std::fs::create_dir_all(&home).expect("the tunnel's home folder");
+
+    let port = tauri::async_runtime::block_on(start_provider(provider.clone()));
+    let tunnel = start_tunnel(port, &home);
+    let mut outcome = OAuthOutcome::default();
+    let mut deployed = false;
+    let mut tunnel_child: Option<Child> = None;
+
+    let run = std::panic::catch_unwind(AssertUnwindSafe(|| -> Result<(), String> {
+        let (child, public) = tunnel.map_err(|error| error.to_string())?;
+        tunnel_child = Some(child);
+        provider.lock().expect("the provider").public = public.clone();
+        let server_url = format!("{public}/mcp");
+        tauri::async_runtime::block_on(async {
+            let client = reqwest::Client::builder()
+                .timeout(Duration::from_secs(10))
+                .build()
+                .map_err(|error| error.to_string())?;
+            tokio::time::sleep(Duration::from_secs(20)).await;
+            let mut last = String::new();
+            for _ in 0..40 {
+                match client.get(format!("{public}/healthz")).send().await {
+                    Ok(answer) if answer.status().is_success() => return Ok(()),
+                    Ok(answer) => last = format!("answered {}", answer.status()),
+                    Err(error) => last = error.to_string(),
+                }
+                tokio::time::sleep(Duration::from_secs(3)).await;
+            }
+            Err(format!("the tunnel never answered: {last}"))
+        })?;
+        let deploy = deploy_worker(&wrangler, &resources, &name, &pairing, &|_step| {});
+        deployed = true;
+        let url = deploy.map_err(|error| format!("deploy failed: {error:?}"))?;
+        tauri::async_runtime::block_on(oauth_live_steps(
+            &url,
+            &pairing,
+            &workspace,
+            &server_url,
+            &decoy,
+            &provider,
+            &mut outcome,
+        ))
+    }));
+    let run = match run {
+        Ok(result) => result,
+        Err(_) => Err("a live step panicked".to_string()),
+    };
+
+    let (removed, left) = if deployed {
+        teardown(&wrangler, &resources, &name)
+    } else {
+        (Ok(()), String::from("nothing deployed"))
+    };
+    if let Some(mut child) = tunnel_child {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    let _ = std::fs::remove_dir_all(&home);
+    let held = provider.lock().expect("the provider");
+
+    println!(
+        "CLOUD-17 OAuth live: name={name} start_ms={}\nreadiness={}\nconnect={} callback={}\ncredentials={} \
+         credentials_hold_a_token={}\nlisting={}\nfirst_call={}\nafter_refresh_call={}\ngrants={:?} refused_grants={:?} \
+         registrations={} tokens_issued={}\nscan_ms={} scan_log={}\nscan={}\nrelay_lines={} relay_lines_with_token={}\n\
+         server_authorized={:?}\nserver_refused={:?}\nteardown={left} removed={removed:?}\nrun={run:?}",
+        outcome.start_ms,
+        outcome.readiness,
+        outcome.connect,
+        outcome.callback,
+        outcome.credentials,
+        outcome.credentials_hold_a_token,
+        outcome.listing,
+        outcome.first_call,
+        outcome.after_refresh_call,
+        held.grants,
+        held.refused_grants,
+        held.clients.len(),
+        held.issued.len(),
+        outcome.scan_ms,
+        outcome.scan_log,
+        outcome.scan,
+        outcome.relay_lines,
+        outcome.relay_lines_with_token,
+        held.seen.authorized,
+        held.seen.refused,
+    );
+
+    assert!(removed.is_ok(), "the teardown left something: {removed:?}");
+    assert!(run.is_ok(), "the live steps failed: {run:?}");
+    assert!(
+        outcome.callback.starts_with("200 connected=true"),
+        "the callback did not connect: {}",
+        outcome.callback
+    );
+    assert!(
+        outcome.credentials.contains("\"active\""),
+        "the Worker does not list the server as connected: {}",
+        outcome.credentials
+    );
+    assert!(
+        !outcome.credentials_hold_a_token,
+        "the desktop's answer held a token"
+    );
+    let listing: Value = serde_json::from_str(&outcome.listing).unwrap_or(Value::Null);
+    assert!(
+        listing["servers"]
+            .as_array()
+            .is_some_and(|servers| servers.iter().any(|server| server["name"] == OAUTH_SERVER)),
+        "the agent did not list {OAUTH_SERVER}: {}",
+        outcome.listing
+    );
+    assert!(
+        held.seen
+            .authorized
+            .iter()
+            .any(|method| method == "tools/list"),
+        "the agent never listed the server's tools with a token"
+    );
+    assert!(
+        outcome.first_call.contains("\"stdout\":\"200\"")
+            && outcome.after_refresh_call.contains("\"stdout\":\"200\""),
+        "the sandbox's calls were not answered: {} / {}",
+        outcome.first_call,
+        outcome.after_refresh_call
+    );
+    assert!(
+        held.grants.iter().any(|grant| grant == "refresh_token"),
+        "the Worker never refreshed the token: {:?}",
+        held.grants
+    );
+    assert!(
+        held.refused_grants.is_empty(),
+        "the provider refused a grant (a refresh token spent twice?): {:?}",
+        held.refused_grants
+    );
+    // The only request without a token is the Worker's own discovery probe, an `initialize` it
+    // sends unauthenticated to read the server's challenge.
+    assert!(
+        held.seen
+            .refused
+            .iter()
+            .all(|method| method == "initialize"),
+        "a request other than the discovery probe reached the server without a token: {:?}",
+        held.seen.refused
+    );
+    let scan: Value = serde_json::from_str(&outcome.scan).unwrap_or(Value::Null);
+    assert!(
+        scan["decoy"].as_u64().unwrap_or(0) >= 1,
+        "the scan missed its planted decoy"
+    );
+    assert_eq!(scan["token"].as_u64(), Some(0), "a token is in the sandbox");
+    assert_eq!(
+        outcome.relay_lines_with_token, 0,
+        "a token reached the agent's lines"
     );
 }
 
