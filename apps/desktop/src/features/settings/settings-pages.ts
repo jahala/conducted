@@ -73,6 +73,14 @@ export const USER_SETTINGS_PAGES: readonly {
 	{ id: "connections", title: "Connections", group: "more" },
 ];
 
+/**
+ * The user pages the Settings nav lists: every page, and the cloud-only ones while the switcher's
+ * active entry is the paired Worker. The nav and the end-to-end round trip both read this rule.
+ */
+export function listedUserPages(cloudActive: boolean): typeof USER_SETTINGS_PAGES {
+	return USER_SETTINGS_PAGES.filter((page) => cloudActive || page.cloudOnly !== true);
+}
+
 export const REPO_SETTINGS_PAGES: readonly { id: RepoSettingsPageId; title: string }[] = [
 	{ id: "git", title: "Git" },
 	{ id: "environment", title: "Environment" },

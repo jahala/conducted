@@ -37,13 +37,13 @@ import {
 import { Tooltip } from "../../ui/Tooltip.tsx";
 import {
 	DEFAULT_REPO_SETTINGS_PAGE,
+	listedUserPages,
 	REPO_SETTINGS_PAGES,
 	type RepoSettingsPageId,
 	SETTINGS_NAV_GROUP_TITLES,
 	type SettingsNavGroup,
 	type SettingsTarget,
 	settingsTargetKey,
-	USER_SETTINGS_PAGES,
 } from "./settings-pages.ts";
 
 export interface SettingsNavProps {
@@ -111,7 +111,7 @@ export function SettingsNav({
 	searchSlot,
 	cloudActive = false,
 }: SettingsNavProps) {
-	const listed = USER_SETTINGS_PAGES.filter((page) => cloudActive || page.cloudOnly !== true);
+	const listed = listedUserPages(cloudActive);
 	const activeRepoId = active.kind === "repo" ? active.repoId : null;
 	const activeKey = settingsTargetKey(active);
 

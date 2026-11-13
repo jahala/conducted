@@ -23,6 +23,8 @@ import { dirname, join } from "node:path";
 import type { ScriptedRepo } from "../../apps/desktop/src/catalogue/git-repo.ts";
 import { createRepositories } from "../../apps/desktop/src/core/db/repositories.ts";
 import type { Workspace } from "../../apps/desktop/src/core/model.ts";
+import type { PairingView } from "../../apps/desktop/src/core/organization.ts";
+import { getSettingDef } from "../../apps/desktop/src/core/registries/settings.ts";
 import {
 	createQueuedDatabase,
 	type SqlDatabase,
@@ -53,6 +55,11 @@ export interface World {
 	cloud: Workspace;
 	/** A private key with its `.pub` beside it, for the SSH key setting. */
 	sshKey: string;
+	/**
+	 * The organisation switcher's inputs: the folder's own Keychain holds no pairing, and the
+	 * stored choice is the setting's default, so the active entry is this Mac.
+	 */
+	organization: { pairing: PairingView; choice: string };
 }
 
 /**
@@ -168,7 +175,12 @@ export async function seedWorld(folder: FreshFolder): Promise<World> {
 			{ encoding: "utf8" },
 		);
 		if (keygen.status !== 0) throw new Error(`ssh-keygen failed: ${keygen.stderr}`);
-		return { projects, local, cloud, sshKey };
+		const choice = getSettingDef("active_organization")?.default;
+		const organization = {
+			pairing: { paired: false, url: null },
+			choice: typeof choice === "string" ? choice : "local",
+		};
+		return { projects, local, cloud, sshKey, organization };
 	} finally {
 		file.close();
 	}

@@ -20,10 +20,12 @@
  * set by its own gesture, such as resizing the sidebar), and the page's browser storage (panel
  * sizes, the open workspace).
  */
+
+import { activeOrganization, organizationsFor } from "../../apps/desktop/src/core/organization.ts";
 import { getSettingDef, SETTINGS } from "../../apps/desktop/src/core/registries/settings.ts";
 import {
+	listedUserPages,
 	REPO_SETTINGS_PAGES,
-	USER_SETTINGS_PAGES,
 } from "../../apps/desktop/src/features/settings/settings-pages.ts";
 import { changeControl, readControl } from "./controls.ts";
 import {
@@ -164,8 +166,13 @@ interface Page {
 	open(browser: Browser): Promise<void>;
 }
 
+/** The pages the Settings nav lists in this world: the MCP page only with the cloud entry active. */
 function pagesOf(world: World): Page[] {
-	const user = USER_SETTINGS_PAGES.map((page) => ({
+	const cloudActive = activeOrganization(
+		world.organization.choice,
+		organizationsFor(world.organization.pairing),
+	).isCloud;
+	const user = listedUserPages(cloudActive).map((page) => ({
 		label: page.id,
 		scope: "user",
 		open: (browser: Browser) => openUserSettings(browser, page.id, page.title),
