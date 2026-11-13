@@ -358,8 +358,9 @@ async function taskToolsChat(world: World): Promise<Scene> {
 			await openClosedRow(document, "Preview image");
 			await openClosedRow(document, "Send message");
 			await openClosedRow(document, "Subagent");
+			await openClosedRow(document, "Generated image");
 			await openRow(document, "Node REPL");
-			await openClosedRow(document, "Loading image");
+			await openClosedRow(document, "Generating image");
 		},
 		ready: (document) => shows(document, "process.versions.node"),
 	};
