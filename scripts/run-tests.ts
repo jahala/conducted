@@ -190,29 +190,43 @@ export function codeOf(file: string, source: string): string {
 /**
  * The repository files a module imports at run time, resolved as Bun resolves them: workspace
  * packages to their real folders, and nothing in node_modules or Bun's built-ins. Type-only
- * imports are left out, because they never run. "unreadable" when the source does not parse.
+ * imports are left out, because they never run. `missing` holds the imports that do not resolve.
+ * "unreadable" when the source does not parse.
  */
-export function importsOf(file: string, source: string): string[] | "unreadable" {
+export function scanImports(
+	file: string,
+	source: string,
+): { imports: string[]; missing: string[] } | "unreadable" {
 	const loader = LOADERS[extname(file)];
-	if (loader === undefined) return [];
+	if (loader === undefined) return { imports: [], missing: [] };
 	let found: { path: string }[];
 	try {
 		found = new Bun.Transpiler({ loader }).scanImports(source);
 	} catch {
 		return "unreadable";
 	}
-	const resolved: string[] = [];
+	const imports: string[] = [];
+	const missing: string[] = [];
 	for (const { path } of found) {
 		let target: string;
 		try {
 			target = Bun.resolveSync(path, dirname(file));
 		} catch {
-			// A package that is not installed here is outside the repository's graph.
+			missing.push(path);
 			continue;
 		}
-		if (isAbsolute(target) && !target.includes("/node_modules/")) resolved.push(target);
+		if (isAbsolute(target) && !target.includes("/node_modules/")) imports.push(target);
 	}
-	return resolved;
+	return { imports, missing };
+}
+
+/**
+ * The repository files a module imports at run time (`scanImports`). A package that is not
+ * installed here is outside the repository's graph, so an import that does not resolve is left out.
+ */
+export function importsOf(file: string, source: string): string[] | "unreadable" {
+	const scanned = scanImports(file, source);
+	return scanned === "unreadable" ? scanned : scanned.imports;
 }
 
 /**

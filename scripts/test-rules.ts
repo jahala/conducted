@@ -10,13 +10,14 @@
  *   every test of that runner.
  * - ALWAYS: the small set of tests on money, data loss and security paths that runs on every pull
  *   request, whatever changed (the owner's ruling).
- * - MACOS_JOB: what CI's macOS job (`rust`) checks, read or installs. A pull request runs that job
- *   only when it changes one of these (scripts/macos-job.ts); main always runs it.
+ * - MACOS_JOB: what CI's macOS job (`rust`) checks, reads or installs, besides the files the macOS
+ *   tests import, which scripts/macos-job.ts computes when it runs. A pull request runs that job
+ *   only when it changes one of these or one of those; main always runs it.
  *
  * Nothing checks the first three lists against the code but the main line: it runs everything
  * after every merge. When it fails on something a pull request's run skipped, add the path that
  * let it through here. MACOS_JOB is also checked by scripts/macos-job.test.ts, against the paths
- * the Rust crate names and the macOS tests import.
+ * the Rust crate names.
  */
 
 /** A path pattern (Bun.Glob, from the repository root) and why it is on the list. */
@@ -168,22 +169,10 @@ export const MACOS_JOB: readonly Rule[] = [
 		glob: "apps/desktop/src/{platform/tauri,core/app-paths}.ts",
 		why: "the Rust tests read the adapter's command names and the app's folder names",
 	},
-	{ glob: "apps/desktop/src/**/*.macos.test.ts", why: "the macOS tests" },
-	{
-		glob: "apps/desktop/src/test/{setup,hang-timeouts,dom-polyfills}.ts",
-		why: "the setup files Vitest runs before the macOS tests",
-	},
-	{
-		glob: "apps/desktop/src/{core/services/terminals,core/services/shell-integration,core/cloud/terminal,core/host,core/file-sync-view,core/status/archived,core/async/latest-wins,core/async/single-flight,platform/terminal-escapes}.ts",
-		why: "the UI files the macOS tests import",
-	},
 	{ glob: "apps/desktop/vite.config.ts", why: "the Vitest configuration of the macOS tests" },
 	{ glob: "apps/cloud/**", why: "the relay integration test starts the Worker from this folder" },
 	{ glob: "packages/sidecar/**", why: "the Rust tests and build.rs read the sidecar's files" },
-	{
-		glob: "packages/shared/**",
-		why: "the Rust tests read its fixtures; the macOS tests import it",
-	},
+	{ glob: "packages/shared/**", why: "the Rust tests read its fixtures" },
 	{ glob: "scripts/programs/**", why: "the Rust tests read the sample program manifests" },
 	{ glob: "bin/**", why: "the app bundles this folder, and a Rust test reads it" },
 	{ glob: "pnpm-lock.yaml", why: "the lockfile the job installs from" },
