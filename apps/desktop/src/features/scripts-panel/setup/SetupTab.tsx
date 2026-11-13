@@ -7,7 +7,9 @@
  * 5A.1.2 (SetupProcessStore).
  * Data: useSetupState (shaped by setup-state.ts), useWorkspace, useSessions, useActions().
  * Children: SetupStatusBar, SetupEmptyState, terminal/TerminalView for live output.
- * Must handle: every SetupTabKind in setup-state.ts, Stop while running, "Run setup again" after a
+ * Must handle: every SetupTabKind in setup-state.ts, settings that cannot be read ("Couldn't load
+ * setup script settings"), "Ask agent" with no chat to send to (Conductor's toast), Stop while
+ * running, "Run setup again" after a
  * failure (it needs no chat), the fix action sending the failure log to the chat, a saved log
  * that fails to load (the error's own message, with Retry), a Run again that fails for a reason
  * other than the script failing (that reason shows in the toast), a workspace whose initialization
@@ -135,11 +137,16 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 			</div>
 		);
 	}
-	if (setup.state === "error") {
-		return <EmptyState title="Setup is unavailable" body={setup.error.message} tone="failed" />;
-	}
 	if (workspace.state === "error") {
 		return <EmptyState title="Setup is unavailable" body={workspace.error.message} tone="failed" />;
+	}
+	if (setup.state === "error") {
+		// The workspace loaded, so what failed is the repository's settings, where the script lives.
+		return (
+			<div className="flex h-full w-full items-center justify-center px-8 text-center">
+				<p className="text-sm text-fg-muted">Couldn't load setup script settings</p>
+			</div>
+		);
 	}
 	if (sessions.state === "error") {
 		return <EmptyState title="Setup is unavailable" body={sessions.error.message} tone="failed" />;
@@ -172,7 +179,10 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 	};
 
 	const send = (prompt: string): void => {
-		if (activeSession === undefined) return;
+		if (activeSession === undefined) {
+			toast.error("No active chat to send setup request to");
+			return;
+		}
 		const sessionId = activeSession.id;
 		void run(
 			() => actions.sessions.send(sessionId, prompt, [], "auto"),
@@ -271,7 +281,7 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 			{kind === "no_script" ? (
 				<SetupEmptyState
 					hasScript={false}
-					canAskAgent={canSendToChat}
+					canAskAgent={!archived}
 					onAskAgent={() => send(ADD_SETUP_PROMPT)}
 					onAddManually={() =>
 						void navigate({ to: "/settings/user/$page", params: { page: "repos" } })

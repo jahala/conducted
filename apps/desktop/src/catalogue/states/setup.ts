@@ -2,7 +2,8 @@
  * @feature catalogue States of a workspace's Setup tab
  * Owns: the Setup tab before setup ever ran, for a project with no setup script (Add setup
  * script, Ask agent, Add manually), while the script runs, after it failed and was run again
- * (with the failure toast), and after the user stopped it; and the dashboard while a workspace
+ * (with the failure toast), and after the user stopped it, when the project's settings cannot be
+ * read, and Ask agent in a workspace with no chat; and the dashboard while a workspace
  * sets up beside one whose creation failed.
  * Behaviour: ui-map.md 3.7 (Setup states); services-map.md 5A.1.2 (idle, running, completed,
  * failed, cancelled); features/scripts-panel/setup/setup-state.ts picks what the tab shows;
@@ -105,6 +106,51 @@ export const SETUP_STATES: CatalogueState[] = [
 			},
 		},
 	),
+	{
+		// The cast is not animated here: its settings writes would meet the broken file first.
+		id: "setup-settings-unreadable",
+		group: "Setup",
+		title: "Setup tab: the project's settings file cannot be read",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			// An unclosed table header: the TOML reader refuses the whole file.
+			world.memory.controls.files.set(
+				`${cast.atlas.rootPath}/.conducted/settings.toml`,
+				'[scripts\nsetup = "pnpm install"\n',
+			);
+			return {
+				route: workspaceRoute(cast.arbor),
+				after: ({ document }) => click(document, "[role=tab]", "Setup", { prefix: true }),
+				ready: (document) => shows(document, "Couldn't load setup script settings"),
+			};
+		},
+	},
+	{
+		id: "setup-no-chat",
+		group: "Setup",
+		title: "Setup tab: Ask agent in a workspace with no chat",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			world.memory.controls.files.set(
+				`${cast.relay.rootPath}/.conducted/settings.toml`,
+				RUN_ONLY_SETTINGS,
+			);
+			const quiet = await addWorkspace(world, cast.relay, {
+				name: "lisbon",
+				branch: "sam/queue-metrics",
+				lastActivityAt: CATALOGUE_NOW - 5 * MINUTE,
+			});
+			return {
+				route: workspaceRoute(quiet),
+				after: async (context) => {
+					await animateCast(world, cast, context.app);
+					await click(context.document, "[role=tab]", "Setup", { prefix: true });
+					await click(context.document, "button", "Ask agent");
+				},
+				ready: (document) => shows(document, "No active chat to send setup request to"),
+			};
+		},
+	},
 	{
 		id: "dashboard",
 		group: "Pages",
