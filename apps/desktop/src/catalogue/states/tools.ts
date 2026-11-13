@@ -674,7 +674,8 @@ export const TOOL_STATES: CatalogueState[] = [
 	{
 		id: "chat-tool-cards-tasks",
 		group: "Workspace chat",
-		title: "A turn opened: a task created and read, a swarm spawned, a Node REPL and a generated image",
+		title:
+			"A turn opened: a task created and read, a swarm spawned, a Node REPL and a generated image",
 		seed: taskToolsChat,
 	},
 	{
