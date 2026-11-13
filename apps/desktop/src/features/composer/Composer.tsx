@@ -2,7 +2,7 @@
  * @feature COMP-01 Composer
  * Owns: The message box at the bottom of a chat: editor, toolbar (plus menu, model picker, mode
  * chips, ACP options, the Remote Control chip (RC-02), context wheel, MCP status) and the send or stop
- * button.
+ * button; above it, a local workspace's linked folders (LinkedDirectoryChips, WS-07).
  * Behaviour: ui-map.md 3.5 (Composer: TipTap editor, placeholder, toolbar, send or queue button,
  * stop button), 3.4 (send button icon and tooltip switch between 'Send message', 'Queue message'
  * and 'Save edit').
@@ -105,6 +105,7 @@ import { DictationButton } from "./DictationButton.tsx";
 import { FastModeUnavailableBanner } from "./FastModeUnavailableBanner.tsx";
 import { toastGoalError } from "./GoalBar.tsx";
 import { LinkDirectoriesDialog } from "./LinkDirectoriesDialog.tsx";
+import { LinkedDirectoryChips } from "./LinkedDirectoryChips.tsx";
 import { LinkIssueDialog } from "./LinkIssueDialog.tsx";
 import { ModeChips } from "./ModeChips.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
@@ -734,6 +735,10 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 				fastModeRequested={session?.config.fastMode === true}
 				fastModeAvailable={live?.fastModeAvailable ?? true}
 			/>
+			{/* Conductor shows the linked folders on local workspaces only (renderApp @9314568). */}
+			{workspaceRow.state === "ready" && workspaceRow.data.host.kind === "local" ? (
+				<LinkedDirectoryChips workspaceId={workspaceId} />
+			) : null}
 			<div
 				ref={containerRef}
 				className="relative min-h-[var(--composer-min-height)] cursor-text rounded-xl border border-border bg-muted pt-4 pr-4 pb-3 pl-[18px] shadow-xs"
