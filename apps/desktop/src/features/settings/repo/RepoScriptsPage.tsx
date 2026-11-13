@@ -6,7 +6,7 @@
  * is created; Archive script runs before archiving; run mode); services-map.md 5A.1.1 to 5A.1.4
  * (three kinds of script, run_script_mode concurrent or exclusive, shared file read-only).
  * Left out: the conductor.json migration banner (our files start in the new format).
- * Data: useRepoConfig(repoId), useActions().projects.updateConfig(repoId, config).
+ * Data: useRepoConfig(repoId), useActions().projects.updateConfig(repoId, patch).
  * Rows (our wording), RepoConfig field, control:
  *   Setup script                  setupScript                  multi-line code field
  *   Archive script                archiveScript                multi-line code field
@@ -19,13 +19,13 @@
  * Must handle: loading and error, an unsaved edit kept until the field loses focus, a save that
  * fails (text kept and the failure shown), and a script containing `$VARIABLE` names (the list of
  * variables the app provides is shown as help).
- * Test first: editing the setup script and blurring calls updateConfig with the new setupScript and
- * every other field unchanged.
+ * Test first: editing the setup script and blurring calls updateConfig with the new setupScript
+ * alone.
  */
 import type { RepoId } from "@conducted/shared";
 import { useEffect, useState } from "react";
 import { useActions, useRepoConfig } from "../../../core/hooks.ts";
-import type { RepoConfig } from "../../../core/model.ts";
+import type { RepoConfig, RepoConfigPatch } from "../../../core/model.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Label, Textarea } from "../../../ui/Input.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";
@@ -54,8 +54,8 @@ export function RepoScriptsPage({ repoId }: { repoId: RepoId }) {
 		setArchiveScript(ready.archiveScript ?? "");
 	}, [ready]);
 
-	const save = async (config: RepoConfig) => {
-		const saved = await actions.projects.updateConfig(repoId, config);
+	const save = async (patch: RepoConfigPatch) => {
+		const saved = await actions.projects.updateConfig(repoId, patch);
 		if (!saved.ok) {
 			setSaveError(saved.error.message);
 			toastError("Couldn't save the scripts", saved.error);
@@ -64,60 +64,53 @@ export function RepoScriptsPage({ repoId }: { repoId: RepoId }) {
 		setSaveError(null);
 	};
 
-	/** The saved config with the two text drafts, so a save never drops text typed in the other field. */
-	const withDrafts = (config: RepoConfig): RepoConfig => ({
-		...config,
-		setupScript: setupScript.trim() === "" ? null : setupScript,
-		archiveScript: archiveScript.trim() === "" ? null : archiveScript,
-	});
-
 	const textOrNull = (text: string): string | null => (text.trim() === "" ? null : text);
+
+	/**
+	 * The script drafts that differ from the saved config. Every save carries them, so it never
+	 * drops text typed in the other field, and it names no field the user left alone.
+	 */
+	const draftChanges = (
+		config: RepoConfig,
+		typed: { setupScript: string; archiveScript: string } = { setupScript, archiveScript },
+	): RepoConfigPatch => {
+		const patch: RepoConfigPatch = {};
+		for (const field of ["setupScript", "archiveScript"] as const) {
+			const text = textOrNull(typed[field]);
+			if (text !== config[field]) patch[field] = text;
+		}
+		return patch;
+	};
+
+	const saveIfChanged = (patch: RepoConfigPatch) => {
+		if (Object.keys(patch).length === 0) return;
+		void save(patch);
+	};
 
 	const saveText = (field: "setupScript" | "archiveScript", text: string) => {
 		if (value.state !== "ready") return;
-		const next: RepoConfig = {
-			...value.data,
-			setupScript: textOrNull(field === "setupScript" ? text : setupScript),
-			archiveScript: textOrNull(field === "archiveScript" ? text : archiveScript),
-		};
-		if (
-			next.setupScript === value.data.setupScript &&
-			next.archiveScript === value.data.archiveScript
-		) {
-			return;
-		}
-		void save(next);
+		saveIfChanged(draftChanges(value.data, { setupScript, archiveScript, [field]: text }));
 	};
 
 	const setRunMode = (runMode: RepoConfig["runMode"]) => {
 		if (value.state !== "ready") return;
-		const next = { ...withDrafts(value.data), runMode };
-		if (
-			value.data.runMode === runMode &&
-			next.setupScript === value.data.setupScript &&
-			next.archiveScript === value.data.archiveScript
-		) {
-			return;
-		}
-		void save(next);
+		const patch = draftChanges(value.data);
+		if (runMode !== value.data.runMode) patch.runMode = runMode;
+		saveIfChanged(patch);
 	};
 
 	const setAutoRun = (autoRunAfterSetup: boolean) => {
 		if (value.state !== "ready") return;
-		const next = { ...withDrafts(value.data), autoRunAfterSetup };
-		if (
-			value.data.autoRunAfterSetup === autoRunAfterSetup &&
-			next.setupScript === value.data.setupScript &&
-			next.archiveScript === value.data.archiveScript
-		) {
-			return;
+		const patch = draftChanges(value.data);
+		if (autoRunAfterSetup !== value.data.autoRunAfterSetup) {
+			patch.autoRunAfterSetup = autoRunAfterSetup;
 		}
-		void save(next);
+		saveIfChanged(patch);
 	};
 
 	const retry = () => {
 		if (value.state !== "ready") return;
-		void save(withDrafts(value.data));
+		void save(draftChanges(value.data));
 	};
 
 	return (

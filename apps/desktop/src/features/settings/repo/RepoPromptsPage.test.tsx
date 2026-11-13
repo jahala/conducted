@@ -70,17 +70,10 @@ describe("SET-07 RepoPromptSettings", () => {
 		fireEvent.blur(review);
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(updateConfig.mock.calls[0]?.[1]?.prompts).toEqual({
-			general: "Noted.",
-			codeReview: null,
-			createPr: null,
-			fixErrors: null,
-			resolveConflicts: null,
-			renameBranch: null,
-		});
+		expect(updateConfig.mock.calls[0]?.[1]).toEqual({ prompts: { codeReview: null } });
 	});
 
-	it("saves the other fields as they are shown when one is edited", async () => {
+	it("saves text typed in another field along with the edited one", async () => {
 		const initial = config();
 		const { updateConfig } = await renderPage(initial);
 
@@ -94,10 +87,11 @@ describe("SET-07 RepoPromptSettings", () => {
 		fireEvent.blur(review);
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(updateConfig.mock.calls[0]?.[1]?.prompts).toMatchObject({
-			general: "Noted.",
-			codeReview: "Check the tests first.",
-			createPr: "Write a short description.",
+		expect(updateConfig.mock.calls[0]?.[1]).toEqual({
+			prompts: {
+				codeReview: "Check the tests first.",
+				createPr: "Write a short description.",
+			},
 		});
 	});
 
@@ -109,7 +103,7 @@ describe("SET-07 RepoPromptSettings", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Reset" }));
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(updateConfig.mock.calls[0]?.[1]?.prompts.codeReview).toBeNull();
+		expect(updateConfig.mock.calls[0]?.[1]).toEqual({ prompts: { codeReview: null } });
 		expect(review.value).toBe("");
 	});
 

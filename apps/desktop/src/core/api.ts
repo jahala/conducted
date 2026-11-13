@@ -78,6 +78,7 @@ import type {
 	PullRequestSummary,
 	Repo,
 	RepoConfig,
+	RepoConfigPatch,
 	RepoIconChoice,
 	RepoNameCheck,
 	RunAction,
@@ -479,7 +480,8 @@ export interface Actions {
 		setDefaultBranch: Act<[repoId: RepoId, branch: string]>;
 		/** Saves the sidebar's project order by drag (NAV-04). */
 		reorder: Act<[orderedIds: RepoId[]]>;
-		updateConfig: Act<[repoId: RepoId, config: RepoConfig]>;
+		/** Saves the fields the patch names into the local file, leaving every other field alone. */
+		updateConfig: Act<[repoId: RepoId, patch: RepoConfigPatch]>;
 		/** The gitignored files a new workspace would copy, for the Misc page's preview (SET-07). */
 		copyPreview: Act<[repoId: RepoId], string[]>;
 		setIcon: Act<[repoId: RepoId, icon: RepoIconChoice]>;

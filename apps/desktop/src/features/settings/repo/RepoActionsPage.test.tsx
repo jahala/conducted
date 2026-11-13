@@ -153,6 +153,7 @@ describe("SET-07 RepoActionsPage", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Save action" }));
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
+		expect(Object.keys(updateConfig.mock.calls[0]?.[1] ?? {})).toEqual(["runScripts"]);
 		expect(updateConfig.mock.calls[0]?.[1]?.runScripts).toMatchObject([
 			{ id: "Tests", command: "pnpm test", isDefault: false, origin: "local" },
 		]);

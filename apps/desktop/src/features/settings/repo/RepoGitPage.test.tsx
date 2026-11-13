@@ -111,7 +111,7 @@ describe("SET-07 RepoGitPage", () => {
 		fireEvent.blur(remote);
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
-		expect(updateConfig.mock.calls[0]?.[1]).toMatchObject({ remoteName: "upstream" });
+		expect(updateConfig.mock.calls[0]?.[1]).toEqual({ remoteName: "upstream" });
 	});
 
 	// The project's config is read again when anything on the page saves (a switch here does), and

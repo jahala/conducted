@@ -25,7 +25,7 @@ import type { RepoId } from "@conducted/shared";
 import { useEffect, useState } from "react";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useHiddenRunActions, useRepoConfig } from "../../../core/hooks.ts";
-import type { RepoConfig, RunAction } from "../../../core/model.ts";
+import type { RepoConfigPatch, RunAction } from "../../../core/model.ts";
 import { actionIdsEqual, actionLabel, normalizeActionId } from "../../../core/settings-helpers.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { PlusIcon } from "../../../ui/icons.tsx";
@@ -72,10 +72,10 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 	}, [hiddenRunActions]);
 
 	const save = async (
-		config: RepoConfig,
+		patch: RepoConfigPatch,
 		failureTitle = "Couldn't save the actions",
 	): Promise<boolean> => {
-		const saved = await actions.projects.updateConfig(repoId, config);
+		const saved = await actions.projects.updateConfig(repoId, patch);
 		if (!saved.ok) {
 			toastError(failureTitle, saved.error);
 			return false;
@@ -91,7 +91,7 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 			const next = value.data.runScripts.map((candidate) =>
 				actionIdsEqual(candidate.id, id) ? { ...candidate, hidden } : candidate,
 			);
-			await save({ ...value.data, runScripts: next });
+			await save({ runScripts: next });
 			return;
 		}
 		const previous = hiddenIds;
@@ -162,7 +162,7 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 				};
 			});
 		}
-		const saved = await save({ ...config, runScripts });
+		const saved = await save({ runScripts });
 		if (saved) setDialogOpen(false);
 		return saved;
 	};
@@ -170,7 +170,6 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 	const remove = async (id: string) => {
 		if (value.state !== "ready") return;
 		await save({
-			...value.data,
 			runScripts: value.data.runScripts.filter((candidate) => !actionIdsEqual(candidate.id, id)),
 		});
 	};
@@ -186,7 +185,7 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 				origin: candidate.origin === "shared" ? "changed_locally" : candidate.origin,
 			};
 		});
-		await save({ ...value.data, runScripts });
+		await save({ runScripts });
 	};
 
 	const reset = async (id: string) => {
@@ -201,7 +200,7 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 	const setSpotlight = async (spotlightTesting: boolean) => {
 		if (value.state !== "ready") return;
 		// RUN-02: inventory toast row 903 names this failure on its own.
-		await save({ ...value.data, spotlightTesting }, "Failed to update spotlight testing");
+		await save({ spotlightTesting }, "Failed to update spotlight testing");
 	};
 
 	return (

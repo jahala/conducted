@@ -115,6 +115,14 @@ export interface RepoConfig {
 	};
 }
 
+/**
+ * A project config save. Only the fields it names change, each prompt on its own, and the service
+ * applies them to the local file as it stands, so two saves of different fields both land.
+ */
+export type RepoConfigPatch = Partial<Omit<RepoConfig, "prompts">> & {
+	prompts?: Partial<RepoConfig["prompts"]>;
+};
+
 export type WorkspaceState = "initializing" | "ready" | "failed" | "archiving" | "archived";
 export type KanbanStatus = "backlog" | "in_progress" | "in_review" | "done" | "canceled";
 

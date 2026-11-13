@@ -11,7 +11,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearCommandHandlers } from "../../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
-import type { RepoConfig, RunAction, Workspace } from "../../../core/model.ts";
+import type { RepoConfigPatch, RunAction, Workspace } from "../../../core/model.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../../test/container.ts";
 import { WithSurfaces } from "../../../test/surfaces.tsx";
 
@@ -27,7 +27,7 @@ vi.mock("../../../ui/Toast.tsx", () => ({
 const { RunTab } = await import("./RunTab.tsx");
 
 const dev: RunAction = {
-	id: "dev",
+	id: "dev-server",
 	label: "Dev server",
 	command: "bun dev",
 	args: [],
@@ -39,25 +39,7 @@ const dev: RunAction = {
 	availableIn: ["local", "cloud"],
 };
 
-const config = (runScripts: RunAction[]): RepoConfig => ({
-	setupScript: null,
-	runScripts,
-	runMode: "concurrent",
-	archiveScript: null,
-	copyFiles: [],
-	previewUrls: [],
-	spotlightTesting: false,
-	autoRunAfterSetup: false,
-	remoteName: "origin",
-	prompts: {
-		general: null,
-		codeReview: null,
-		createPr: null,
-		fixErrors: null,
-		resolveConflicts: null,
-		renameBranch: null,
-	},
-});
+const config = (runScripts: RunAction[]): RepoConfigPatch => ({ runScripts });
 
 const containers: ReturnType<typeof createTestContainer>[] = [];
 
