@@ -1198,12 +1198,7 @@ export const SETTINGS_STATES: CatalogueState[] = [
 			return {
 				route: "/settings/user/general",
 				after: async ({ app }) => {
-					const { actions, services } = app.container;
-					const loaded = await services.repo.loadConfig(repoId);
-					if (!loaded.ok)
-						throw new Error(`Loading atlas's settings failed: ${loaded.error.message}`);
-					const saved = await actions.projects.updateConfig(repoId, {
-						...loaded.value,
+					const saved = await app.container.actions.projects.updateConfig(repoId, {
 						previewUrls: [
 							{ name: "App", url: "http://localhost:$CONDUCTED_PORT" },
 							{ name: "Storybook", url: "http://localhost:6006" },
@@ -1261,7 +1256,6 @@ export const SETTINGS_STATES: CatalogueState[] = [
 					const dev = shared.find((action) => action.id === "dev");
 					if (dev === undefined) throw new Error("atlas has no dev action.");
 					const saved = await actions.projects.updateConfig(repoId, {
-						...loaded.value,
 						runScripts: [
 							// The origins the Edit and Add dialogs give: a shared action edited on this Mac,
 							// and an action of this Mac only.

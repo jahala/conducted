@@ -47,10 +47,7 @@ describe("SET-14 container wiring", () => {
 				"",
 			].join("\n");
 			harness.memory.controls.files.set(file, text);
-			const loaded = await harness.container.services.repo.loadConfig(repo.id);
-			if (!loaded.ok) throw new Error(loaded.error.message);
 			const saved = await harness.container.actions.projects.updateConfig(repo.id, {
-				...loaded.value,
 				setupScript: "pnpm install --frozen-lockfile",
 			});
 			expect(saved).toEqual(ok(undefined));

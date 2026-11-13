@@ -396,13 +396,7 @@ describe("s1-core-2 join: REV-04, RUN-02, SET-13, WS-07 and WS-11", () => {
 				path: `${root}/alpha`,
 			});
 			await test.container.platform.fs.mkdirp(workspace.path);
-			const config = must(await test.container.services.repo.loadConfig(repo.id));
-			must(
-				await test.container.services.repo.updateConfig(repo.id, {
-					...config,
-					spotlightTesting: true,
-				}),
-			);
+			must(await test.container.services.repo.updateConfig(repo.id, { spotlightTesting: true }));
 			// The sync loop is a process that stays up until Spotlight stops it. The memory PTY
 			// ends a spawned command at once, so this test holds the terminal open instead.
 			vi.spyOn(test.container.services.terminals, "runScript").mockResolvedValue(

@@ -20,14 +20,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandDispatcher, createCommandRegistry } from "../../../app/command-dispatcher.ts";
 import type { RunState } from "../../../core/api.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
-import type { PreviewUrlEntry, RepoConfig, RunAction, Workspace } from "../../../core/model.ts";
+import type {
+	PreviewUrlEntry,
+	RepoConfigPatch,
+	RunAction,
+	Workspace,
+} from "../../../core/model.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../../test/container.ts";
 import { renderWithRouter } from "../../../test/render-with-router.tsx";
 import { WithSurfaces } from "../../../test/surfaces.tsx";
 import { RunTab } from "./RunTab.tsx";
 
 const dev: RunAction = {
-	id: "dev",
+	id: "dev-server",
 	label: "Dev server",
 	command: "bun dev",
 	args: [],
@@ -39,24 +44,9 @@ const dev: RunAction = {
 	availableIn: ["local", "cloud"],
 };
 
-const config = (previewUrls: PreviewUrlEntry[]): RepoConfig => ({
-	setupScript: null,
+const config = (previewUrls: PreviewUrlEntry[]): RepoConfigPatch => ({
 	runScripts: [dev],
-	runMode: "concurrent",
-	archiveScript: null,
-	copyFiles: [],
 	previewUrls,
-	spotlightTesting: false,
-	autoRunAfterSetup: false,
-	remoteName: "origin",
-	prompts: {
-		general: null,
-		codeReview: null,
-		createPr: null,
-		fixErrors: null,
-		resolveConflicts: null,
-		renameBranch: null,
-	},
 });
 
 /** Stands in for the workspace screen: it prints the tab and browser URL it was opened with. */
@@ -84,7 +74,7 @@ async function setup(previewUrls: PreviewUrlEntry[] = []) {
 		actions: [dev],
 		running: [
 			{
-				actionId: "dev",
+				actionId: "dev-server",
 				terminalId: "t1" as TerminalId,
 				url: "http://localhost:3000",
 				phase: "running",

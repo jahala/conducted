@@ -12,7 +12,6 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
-import type { RepoConfig } from "../../core/model.ts";
 import {
 	createTestContainer,
 	seedRepo,
@@ -20,26 +19,6 @@ import {
 	type TestContainer,
 } from "../../test/container.ts";
 import { BrowserTab } from "./BrowserTab.tsx";
-
-const config: RepoConfig = {
-	setupScript: null,
-	runScripts: [],
-	runMode: "concurrent",
-	archiveScript: null,
-	copyFiles: [],
-	previewUrls: [],
-	spotlightTesting: false,
-	autoRunAfterSetup: false,
-	remoteName: "origin",
-	prompts: {
-		general: null,
-		codeReview: null,
-		createPr: null,
-		fixErrors: null,
-		resolveConflicts: null,
-		renameBranch: null,
-	},
-};
 
 const containers: TestContainer[] = [];
 const servers: Server[] = [];
@@ -90,8 +69,8 @@ async function setup(previewOn = true) {
 	containers.push(test);
 	const repo = await seedRepo(test.container);
 	const workspace = await seedWorkspace(test.container, { repoId: repo.id, port: 5173 });
-	const updated = await test.container.services.repo.updateConfig(repo.id, config);
-	if (!updated.ok) throw new Error(updated.error.message);
+	const loaded = await test.container.services.repo.loadConfig(repo.id);
+	if (!loaded.ok) throw new Error(loaded.error.message);
 	test.container.services.settings.store.setState((state) => ({
 		...state,
 		loaded: true,

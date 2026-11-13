@@ -180,7 +180,7 @@ export function RepoGitPage({ repoId }: { repoId: RepoId }) {
 		const trimmed = remote.trim();
 		const next = trimmed === "" ? null : trimmed;
 		if (next === config.data.remoteName) return;
-		const changed = { ...config.data, remoteName: next };
+		const changed = { remoteName: next };
 		const saved = await actions.projects.updateConfig(repoId, changed);
 		if (!saved.ok) {
 			toastSettingSaveFailed(saved.error, () =>
