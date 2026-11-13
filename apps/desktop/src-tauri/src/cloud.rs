@@ -1191,8 +1191,8 @@ impl ApiAnswer {
     }
 }
 
-/// The uninstall's calls to Cloudflare's API, with wrangler's login. wrangler's OAuth token lasts
-/// an hour, and `wrangler auth token` hands back the stored one until it has expired, so a token
+/// The uninstall's calls to Cloudflare's API, with wrangler's login. wrangler's OAuth token is
+/// short-lived, and `wrangler auth token` hands back the stored one until it has expired, so a token
 /// read before the bucket is emptied can expire partway through (issue #675). Cloudflare then
 /// refuses the login. The session asks wrangler for its login again and repeats the call once,
 /// only when wrangler hands back a different login. The same login is reported, never retried.
@@ -2531,7 +2531,7 @@ mod tests {
         expiry: Option<LoginExpiry>,
     }
 
-    /// An OAuth login that expires partway through an uninstall, as wrangler's one-hour token does
+    /// An OAuth login that expires partway through an uninstall, as wrangler's short-lived token does
     /// (issue #675). From then on Cloudflare answers the old token with 401, code 10000.
     struct LoginExpiry {
         after_requests: usize,
