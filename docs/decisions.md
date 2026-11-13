@@ -1283,3 +1283,17 @@ Gaps, reported:
 - Rust's standard library, compiled into the binary under MIT or Apache-2.0, is not listed: its licence files come with the toolchain, not with Cargo's data.
 
 Why: the owner's rule. No screen that Conductor lacks, the notices the licences ask for in the file that travels with the app, and a check for each way a package could ship without them.
+
+## D149. Three backend jobs ours does without the call Conductor makes (2026-11-13)
+
+Proposed by the backend-parity PR (#679), under the owner's rule "Match Conductor. Nothing made up; gaps are reported."; not yet ruled on by the owner.
+
+Context: the parity map's backend names (`docs/plans/parity-harness.md` section 3, check e) found three Conductor calls whose job our app does in another part, with no call of its own. D020 asks every such internal difference to have a decision entry, and none did.
+
+Chosen, as the rows were built:
+
+- **Page annotations in the preview** (RUN-05). Conductor's sidecar starts a proxy that puts its annotation toolbar into the previewed page (`startAgentationProxy`). Ours attaches the picker to the preview frame from the app (`AnnotationOverlay.tsx`), so the sidecar has no proxy.
+- **Saved terminal scrollback** (PLAT-08). Conductor's UI asks Rust to save a terminal's scrollback (`pty_persist_terminal_history`). Ours saves it in Rust when the terminal's process ends and when the app closes (`pty.rs`, `terminal_history.rs`), so there is no command.
+- **Moving a database down** (PLAT-17). Conductor records each migration's undo SQL in `migration_rollbacks` for a repository script it does not ship. Ours has no down-migrations: a database newer than the app asks the user to update (`db.rs`).
+
+Why: in each the user gets the same result, and a call or table of Conductor's shape would only add a second path for the same job.
