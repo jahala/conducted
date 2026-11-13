@@ -388,6 +388,28 @@ export interface ChatView {
 	progress: ProgressView | null;
 	/** The Codex goal of the chat, for the goal bar. Null when it has none or is not Codex. */
 	goal: CodexGoal | null;
+	/** What of the chat's stored history `turns` holds (CHAT-06): its last turns, at first. */
+	history: ChatHistoryView;
+	/** Every turn of the chat, loaded or not, for the turn outline (CHAT-25). */
+	outline: OutlineTurn[];
+}
+
+/** How much of a chat's stored history the list holds (CHAT-06). */
+export interface ChatHistoryView {
+	/** The turn just before the first loaded one, which reaching the top loads next. Null: none. */
+	olderTurnId: TurnId | null;
+	/** A load of older turns: running, failed and waiting for Retry, or neither. */
+	older: "idle" | "loading" | "failed";
+}
+
+/** One turn of a chat's outline (CHAT-25), loaded or not (CHAT-06). */
+export interface OutlineTurn {
+	turnId: TurnId;
+	/** The message that began the turn, or its start when the turn is not loaded. Null: the agent began it. */
+	text: string | null;
+	/** The turn proposed a plan. Known for loaded turns only, as in Conductor. */
+	plan: boolean;
+	running: boolean;
 }
 
 /** The agent's progress tracker for a chat (shape owned by @conducted/protocol). */

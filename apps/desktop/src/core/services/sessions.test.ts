@@ -260,9 +260,9 @@ describe("CHAT-01 sessions service", () => {
 		);
 		// The second event is stored and announced after the load read the log, before it set the store.
 		const second = userMessageEvent("e2", "t1", 11);
-		const listFrom = repositories.sessionEvents.listFrom.bind(repositories.sessionEvents);
-		vi.spyOn(repositories.sessionEvents, "listFrom").mockImplementation(async (...args) => {
-			const rows = await listFrom(...args);
+		const listTurns = repositories.sessionEvents.listTurns.bind(repositories.sessionEvents);
+		vi.spyOn(repositories.sessionEvents, "listTurns").mockImplementation(async (...args) => {
+			const rows = await listTurns(...args);
 			const appended = must(await repositories.sessionEvents.append(created.id, second, 101));
 			if (appended.kind !== "appended") throw new Error("expected an appended event");
 			service.applyStoredEvent(created.id, appended.idx, second, 101);
@@ -281,12 +281,12 @@ describe("CHAT-01 sessions service", () => {
 		must(
 			await repositories.sessionEvents.append(created.id, userMessageEvent("e1", "t1", 10), 100),
 		);
-		const lastIdx = vi.spyOn(repositories.sessionEvents, "lastIdx");
+		const storedTurns = vi.spyOn(repositories.sessionEvents, "storedTurns");
 
 		const results = await Promise.all([service.open(created.id), service.open(created.id)]);
 
 		expect(results).toEqual([ok(undefined), ok(undefined)]);
-		expect(lastIdx).toHaveBeenCalledTimes(1);
+		expect(storedTurns).toHaveBeenCalledTimes(1);
 	});
 
 	it("deletes a chat with its events and live state", async () => {

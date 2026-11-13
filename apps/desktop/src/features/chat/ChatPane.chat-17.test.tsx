@@ -22,7 +22,12 @@ import { VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearCommandHandlers, useCommandDispatcher } from "../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../core/context.tsx";
-import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
+import {
+	createTestContainer,
+	seedSessionEvent,
+	seedWorkspace,
+	type TestContainer,
+} from "../../test/container.ts";
 import { ChatPane } from "./ChatPane.tsx";
 import { ChatSearchBar } from "./ChatSearchBar.tsx";
 
@@ -103,9 +108,8 @@ async function mountChatWithMatches() {
 			config: CONFIG,
 		},
 	];
-	for (const [idx, event] of events.entries()) {
-		sessions.applyStoredEvent(chat.id, idx, event, event.at);
-	}
+	// Stored as the ingest stores them, so the chat's open and the transcript copy read them.
+	for (const event of events) await seedSessionEvent(test.container, chat.id, event, event.at);
 
 	const rootRoute = createRootRoute();
 	const route = createRoute({
@@ -317,6 +321,7 @@ describe("CHAT-17 chat search bar", () => {
 			const text = turn === 3 || turn === 57 ? `Turn ${turn} has the needle` : `Turn ${turn}`;
 			sessions.applyStoredEvent(chat.id, turn, userMessage(`t${turn}`, text, turn), turn);
 		}
+		must(await sessions.open(chat.id));
 		const revealed: number[] = [];
 		// The chat pane records its chat as the one on screen, and the find bar's shortcuts need an
 		// open chat. This test shows the bar without the pane, so it records the chat itself.
