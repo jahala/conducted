@@ -179,10 +179,6 @@ const DEFAULT_ANSWERS: SidecarAnswers = {
 	listAcpConfigOptions: () => ({ options: [] }),
 };
 
-/**
- * Builds a fresh world over a freshly migrated database: the Platform over it, and empty scripts. The
- * caller opens the database (sqlite.ts in the browser), so Bun tools can build the same world.
- */
 /** The app's view of the database: the same one, with the statements a state made fail. */
 function failingStatements(database: Database, failing: ReadonlySet<string>): Database {
 	const refuse = (sql: string): Error | null =>
@@ -201,6 +197,10 @@ function failingStatements(database: Database, failing: ReadonlySet<string>): Da
 	};
 }
 
+/**
+ * Builds a fresh world over a freshly migrated database: the Platform over it, and empty scripts. The
+ * caller opens the database (sqlite.ts in the browser), so Bun tools can build the same world.
+ */
 export function createWorld(database: Database): World {
 	const clock: Clock = { now: () => CATALOGUE_NOW };
 	const ids = createTestIds("c");
