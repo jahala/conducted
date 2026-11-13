@@ -3,11 +3,12 @@
 //!
 //! Owns: the macOS menu bar. Every custom item sends its command id to the UI; the shell does not
 //! run any of them. Accelerators come from the UI's command registry, so re-binding an item shows
-//! here unless its key is fixed.
+//! here unless its key is fixed. The UI sends keys only for the items Conductor's menu gives one
+//! (Send Feedback, Debug, Close Window); the others keep none.
 //!
 //! Behaviour: docs/research/conductor/native-and-sidecar-map.md A5 (Menus: App, View and Help
 //! items, Edit and Window from the defaults, Quit sends `quit_requested` so the UI can confirm and
-//! flush, the toggle items have no accelerator until the UI sends one).
+//! flush, the toggle items have no accelerator: Conductor's page binds Cmd+B itself).
 //!
 //! Must handle:
 //! - The standard App, Edit, Window and Help structure of a Mac app: About, Services, Hide and

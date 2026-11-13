@@ -100,6 +100,7 @@ const makeLookups = (
 				liveStates: {},
 				cancelling: {},
 				events: {},
+				histories: {},
 				progress: {},
 				sending: {},
 				openInteractions: {},

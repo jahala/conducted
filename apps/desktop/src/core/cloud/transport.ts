@@ -12,7 +12,7 @@
  * Test first: open, send and receive one line, then a closed relay reports one restart.
  */
 import type { Host } from "@conducted/protocol";
-import { appError, err, ok, type Result } from "@conducted/shared";
+import { appError, err, LineSplitter, ok, type Result } from "@conducted/shared";
 import type { Cloud, CloudRelay, SidecarTransport, Unsubscribe } from "../../platform/platform.ts";
 
 type CloudHost = Extract<Host, { kind: "cloud" }>;
@@ -28,8 +28,11 @@ export function createCloudTransport(cloud: Cloud, host: CloudHost): CloudTransp
 	let opening: Promise<Result<void>> | null = null;
 	let stopRelay: Unsubscribe | null = null;
 	let stopClosed: Unsubscribe | null = null;
-	/** Text from the Worker that has not ended in a newline yet. */
-	let buffered = "";
+	/**
+	 * Text from the Worker that has not ended in a newline yet. Each character is looked at once, so
+	 * a long line costs time in proportion to its length (#617).
+	 */
+	let buffered = new LineSplitter();
 	const lineListeners = new Set<(line: string) => void>();
 	const restartListeners = new Set<() => void>();
 
@@ -41,10 +44,7 @@ export function createCloudTransport(cloud: Cloud, host: CloudHost): CloudTransp
 	};
 
 	const deliver = (text: string): void => {
-		buffered += text;
-		const lines = buffered.split("\n");
-		buffered = lines.pop() ?? "";
-		for (const line of lines) {
+		for (const line of buffered.push(text)) {
 			if (line.trim() === "") continue;
 			for (const listener of lineListeners) listener(line);
 		}
@@ -54,7 +54,7 @@ export function createCloudTransport(cloud: Cloud, host: CloudHost): CloudTransp
 		const opened = await cloud.openRelay({ url: host.url, vmId: host.vmId });
 		if (!opened.ok) return opened;
 		relay = opened.value;
-		buffered = "";
+		buffered = new LineSplitter();
 		stopRelay = relay.onLine((line) => deliver(line));
 		stopClosed = relay.onClosed(() => {
 			detach();

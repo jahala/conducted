@@ -50,6 +50,7 @@ import { databaseCommands } from "../../apps/desktop/src/test/database-commands.
 import { createNodeSqlDatabase } from "../../apps/desktop/src/test/node-sql.ts";
 import { createNodeTauriBindings } from "../../apps/desktop/src/test/tauri-node-bindings.ts";
 import { cryptoIds, systemClock } from "../../packages/shared/src/clock.ts";
+import { LineSplitter } from "../../packages/shared/src/lines.ts";
 
 const REPO = resolve(import.meta.dirname, "../..");
 const MIGRATIONS = join(REPO, "apps/desktop/src-tauri/migrations");
@@ -123,7 +124,14 @@ export interface Measured {
 		/** The longest statement outside a transaction while the import ran. */
 		longestStatementSeconds: number;
 	};
-	largest: { events: number; turns: number; openSeconds: number; turnsSeconds: number } | null;
+	largest: {
+		events: number;
+		/** Every turn the chat shows, and how many of them the open loaded (CHAT-06). */
+		turns: number;
+		loadedTurns: number;
+		openSeconds: number;
+		turnsSeconds: number;
+	} | null;
 	reads: { keyPages: number; rowReads: number };
 	outside: { kept: number; refusedWrites: number; refusedCommands: number };
 	/** The scratch database's file and its journal, in bytes, when the dry run ended and after the import. */
@@ -454,20 +462,13 @@ function withRealSidecar(
 	let stopping = false;
 	const ensure = (): Promise<RealSidecar> => {
 		running ??= start().then((sidecar) => {
-			// A line's start waits in pieces until its newline comes, and only the new chunk is
-			// searched, so a line of many chunks is copied once (as the Rust shell's framer does).
-			let pending: string[] = [];
+			// The shared splitter copies a line of many chunks once (as the Rust shell's framer does).
+			const lines = new LineSplitter();
 			sidecar.socket.setEncoding("utf8");
 			sidecar.socket.on("data", (chunk: string) => {
-				let start = 0;
-				for (let end = chunk.indexOf("\n"); end !== -1; end = chunk.indexOf("\n", start)) {
-					pending.push(chunk.slice(start, end));
-					const line = pending.join("");
-					pending = [];
-					start = end + 1;
+				for (const line of lines.push(chunk)) {
 					for (const handler of [...lineHandlers]) handler(line);
 				}
-				if (start < chunk.length) pending.push(chunk.slice(start));
 			});
 			sidecar.socket.once("close", () => {
 				if (stopping) return;
@@ -710,7 +711,8 @@ export async function measureImport(input: MeasureInput): Promise<Measured> {
 			if (view === null) throw new StageFailure("open the largest chat");
 			return {
 				events: Number(top.n),
-				turns: view.turns.length,
+				turns: view.outline.length,
+				loadedTurns: view.turns.length,
 				openSeconds: seconds(openStarted, openEnded),
 				turnsSeconds: seconds(openEnded, turnsEnded),
 			};

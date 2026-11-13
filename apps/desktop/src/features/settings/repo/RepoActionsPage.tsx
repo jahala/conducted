@@ -17,8 +17,8 @@
  * outlined "Add" at its right and "No custom actions yet. Add one to get started." when empty.
  * Must handle: no actions (designed empty state), a shared action (hide for this user only, never
  * delete), a shared action changed on this Mac (Reset), the default action marked and changed,
- * and a save that fails (the user sees it and the list keeps its previous form; the Spotlight
- * switch says "Failed to update spotlight testing").
+ * and a save or Reset that fails (the settings writer's toast, with "Overwrite file" for an
+ * invalid file, as Conductor's writer does, main @389730; the list keeps its previous form).
  * Test first: hiding a shared action stores it as hidden for the user and leaves the file unchanged.
  */
 import type { RepoId } from "@conducted/shared";
@@ -38,6 +38,7 @@ import {
 	AddActionDialog,
 	draftForAction,
 } from "../../scripts-panel/run/AddActionDialog.tsx";
+import { toastSettingSaveFailed } from "../SettingRow.tsx";
 import { ActionList, type ActionListItem } from "./ActionList.tsx";
 import { RepoPromptSettings } from "./RepoPromptsPage.tsx";
 
@@ -71,13 +72,12 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 		setHiddenError(hiddenRunActions.error.message);
 	}, [hiddenRunActions]);
 
-	const save = async (
-		config: RepoConfig,
-		failureTitle = "Couldn't save the actions",
-	): Promise<boolean> => {
+	const save = async (config: RepoConfig): Promise<boolean> => {
 		const saved = await actions.projects.updateConfig(repoId, config);
 		if (!saved.ok) {
-			toastError(failureTitle, saved.error);
+			toastSettingSaveFailed(saved.error, () =>
+				actions.projects.updateConfig(repoId, config, { overwrite: true }),
+			);
 			return false;
 		}
 		return true;
@@ -190,18 +190,23 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 	};
 
 	const reset = async (id: string) => {
+		const forget = () =>
+			setHiddenIds((current) => current.filter((entry) => !actionIdsEqual(entry, id)));
 		const result = await actions.projects.resetRunAction(repoId, id);
 		if (!result.ok) {
-			toastError("Couldn't reset the action", result.error);
+			toastSettingSaveFailed(result.error, async () => {
+				const forced = await actions.projects.resetRunAction(repoId, id, { overwrite: true });
+				if (forced.ok) forget();
+				return forced;
+			});
 			return;
 		}
-		setHiddenIds((current) => current.filter((entry) => !actionIdsEqual(entry, id)));
+		forget();
 	};
 
 	const setSpotlight = async (spotlightTesting: boolean) => {
 		if (value.state !== "ready") return;
-		// RUN-02: inventory toast row 903 names this failure on its own.
-		await save({ ...value.data, spotlightTesting }, "Failed to update spotlight testing");
+		await save({ ...value.data, spotlightTesting });
 	};
 
 	return (

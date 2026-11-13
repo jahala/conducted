@@ -1,8 +1,8 @@
 /**
  * @feature SET-02 Setting row and setting controls
  * Owns: what the user is told when a setting could not be saved, as a toast's title, text and
- * "Overwrite file" button. Settings rows and the services that save a setting on the user's
- * behalf share it.
+ * "Overwrite file" button. Settings rows, a setting's Reset, a project's config pages and env file
+ * list, and the services that save a setting on the user's behalf share it (issue #654).
  * Behaviour: Conductor's settings writer toasts every failed save (Uz, main @389730), from a
  * settings row and from any other caller alike. A save stopped by a file that does not parse gets
  * an "Overwrite file" button when the writer can force it (mutateSettingsFile, @416065); the button

@@ -34,7 +34,7 @@ tauri-plugin-opener = "2"
 muda = { version = "0.20", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-base64 = "0.22"
+base64 = "0.23"
 # The app's one connection to conducted.db and its migrations (PLAT-02, D137). tauri-plugin-sql
 # ran on the same sqlx, but its pool closes connections under an open transaction (#616).
 sqlx = { version = "0.8.6", default-features = false, features = ["sqlite", "runtime-tokio", "migrate"] }
@@ -64,7 +64,7 @@ nucleo-matcher = "0.3"
 reqwest = { version = "0.13", default-features = false, features = ["native-tls", "stream", "system-proxy", "charset", "http2"] }
 futures-util = "0.3"
 # The Rust shell owns the cloud WebSocket because the web view cannot set its headers (CLOUD-03).
-tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
+tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
 sha2 = "0.11"
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }

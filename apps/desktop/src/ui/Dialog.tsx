@@ -15,6 +15,7 @@
 import { Dialog as Radix, VisuallyHidden } from "radix-ui";
 import type { ReactNode } from "react";
 import { cn } from "./cn.ts";
+import { letShortcutsThroughProps } from "./dialog-shortcuts.ts";
 
 export const Dialog = Radix.Root;
 export const DialogTrigger = Radix.Trigger;
@@ -28,6 +29,11 @@ export interface DialogContentProps {
 	className?: string;
 	/** The action Cmd+Enter runs while the dialog is open. */
 	onConfirm?: () => void;
+	/**
+	 * App shortcuts keep running while this is open, as under the dialogs Conductor keeps off its
+	 * dialog store (ui-map.md 5.4). Off by default: a dialog holds them.
+	 */
+	letShortcutsThrough?: boolean;
 	children: ReactNode;
 }
 
@@ -50,6 +56,7 @@ export function DialogContent({
 	size = "lg",
 	className,
 	onConfirm,
+	letShortcutsThrough = false,
 	children,
 }: DialogContentProps) {
 	const heading = (
@@ -77,6 +84,7 @@ export function DialogContent({
 						}
 					}}
 					{...(description ? {} : { "aria-describedby": undefined })}
+					{...letShortcutsThroughProps(letShortcutsThrough)}
 				>
 					{hideTitle ? <VisuallyHidden.Root>{heading}</VisuallyHidden.Root> : heading}
 					{description ? (

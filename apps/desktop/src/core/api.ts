@@ -479,12 +479,13 @@ export interface Actions {
 		setDefaultBranch: Act<[repoId: RepoId, branch: string]>;
 		/** Saves the sidebar's project order by drag (NAV-04). */
 		reorder: Act<[orderedIds: RepoId[]]>;
-		updateConfig: Act<[repoId: RepoId, config: RepoConfig]>;
+		/** `overwrite` saves over an invalid local settings file, Conductor's "Overwrite file". */
+		updateConfig: Act<[repoId: RepoId, config: RepoConfig, options?: { overwrite?: boolean }]>;
 		/** The gitignored files a new workspace would copy, for the Misc page's preview (SET-07). */
 		copyPreview: Act<[repoId: RepoId], string[]>;
 		setIcon: Act<[repoId: RepoId, icon: RepoIconChoice]>;
 		/** Drops this Mac's change to a shared run action, so the shared version applies again. */
-		resetRunAction: Act<[repoId: RepoId, actionId: string]>;
+		resetRunAction: Act<[repoId: RepoId, actionId: string, options?: { overwrite?: boolean }]>;
 		/** Hides or shows a run action for this user only. */
 		setRunActionHidden: Act<[repoId: RepoId, actionId: string, hidden: boolean]>;
 	};
@@ -553,6 +554,10 @@ export interface Actions {
 		/** `/clear`: starts a replacement chat, makes it active and hides the old one. */
 		clear: Act<[id: SessionId], Session>;
 		reopen: Act<[id: SessionId]>;
+		/** Loads the turn just before the chat's first loaded one, when the list's top is near (CHAT-06). */
+		loadOlder: Act<[id: SessionId]>;
+		/** Loads every turn back to this one, so the outline can scroll to it (CHAT-06, CHAT-25). */
+		revealTurn: Act<[id: SessionId, turnId: TurnId]>;
 		rename: Act<[id: SessionId, title: string]>;
 		/** Sends now, queues, or steers, depending on state and the follow-up setting. */
 		send: Act<
@@ -796,8 +801,11 @@ export interface Actions {
 	settings: {
 		/** `overwrite` saves over an invalid settings file, Conductor's "Overwrite file". */
 		set: Act<[key: string, value: unknown, options?: { overwrite?: boolean }]>;
-		/** Removes a stored setting so its registry default (or the layer above) applies again. */
-		reset: Act<[key: string]>;
+		/**
+		 * Removes a stored setting so its registry default (or the layer above) applies again.
+		 * `overwrite` removes it over an invalid settings file, as `set` does.
+		 */
+		reset: Act<[key: string, options?: { overwrite?: boolean }]>;
 		setEnvVar: Act<[name: string, value: string, scope: { repoId: RepoId } | "global"]>;
 		removeEnvVar: Act<[name: string, scope: { repoId: RepoId } | "global"]>;
 		/**

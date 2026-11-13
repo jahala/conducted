@@ -1,4 +1,5 @@
 import type { ModelInfo } from "@conducted/protocol";
+import { ok } from "@conducted/shared";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -481,5 +482,41 @@ describe("SET-02 DefaultModelsPage", () => {
 			default_plan_mode: true,
 		});
 		await waitFor(() => expect(toggle.getAttribute("aria-checked")).toBe("true"));
+	});
+
+	// Conductor's Reset removes a file-backed setting through the same writer as a save
+	// (deleteSetting, main @410865, onForce @411783), so a refused reset gets the writer's toast
+	// and its "Overwrite file" (Uz, @389730). Ours said "Failed to reset setting" (issue #654).
+	it("offers Overwrite file when a setting's Reset meets an invalid settings file, and pressing it resets", async () => {
+		const { container } = await renderPage();
+		render(<Toaster />);
+		expect(await container.actions.settings.set("default_plan_mode", true)).toEqual(ok(undefined));
+		const file = `${container.platform.fs.paths.home}/.conducted/settings.toml`;
+		test?.memory.controls.files.set(file, "[models\n");
+		const row = document.querySelector('[data-setting-key="default_plan_mode"]') as HTMLElement;
+
+		fireEvent.keyDown(within(row).getByRole("button", { name: "Setting actions" }), {
+			key: "Enter",
+		});
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Reset" }));
+
+		const shown = await waitFor(() => {
+			const element = document.querySelector("[data-sonner-toast]");
+			expect(element).not.toBeNull();
+			return element as HTMLElement;
+		});
+		expect(shown.querySelector("[data-title]")?.textContent).toBe(
+			"Can't save setting because your settings file is invalid",
+		);
+		fireEvent.click(within(shown).getByRole("button", { name: "Overwrite file" }));
+
+		await waitFor(() => {
+			const written = container.services.settings.readSettingsText(
+				test?.memory.controls.files.get(file) ?? "",
+				file,
+			);
+			expect(written.ok && written.value.values.default_model).toBe("fast-model");
+			expect(written.ok && "default_plan_mode" in written.value.values).toBe(false);
+		});
 	});
 });

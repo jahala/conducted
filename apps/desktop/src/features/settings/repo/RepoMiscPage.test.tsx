@@ -6,11 +6,12 @@ import { ServicesProvider } from "../../../core/context.tsx";
 import type { RepoConfig } from "../../../core/model.ts";
 import {
 	createTestContainer,
+	seedInvalidLocalSettings,
 	seedRepo,
 	seedWorkspace,
 	type TestContainer,
 } from "../../../test/container.ts";
-import { toast } from "../../../ui/Toast.tsx";
+import { Toaster, toast } from "../../../ui/Toast.tsx";
 import { RepoMiscPage } from "./RepoMiscPage.tsx";
 
 const navigate = vi.hoisted(() => vi.fn());
@@ -24,6 +25,7 @@ let test: TestContainer | undefined;
 
 afterEach(() => {
 	cleanup();
+	toast.dismiss();
 	vi.useRealTimers();
 	vi.restoreAllMocks();
 	navigate.mockReset();
@@ -333,5 +335,47 @@ describe("SET-07 RepoMiscPage", () => {
 		expect(await screen.findByRole("dialog", { name: "Change repository icon" })).toBeTruthy();
 		expect(screen.getByLabelText("Search emoji")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Remove emoji" })).toBeTruthy();
+	});
+
+	// Conductor saves the files to copy through its settings writer, whose failed-save toast offers
+	// "Overwrite file" for an invalid file (Uz, main @389730). The field's own "Failed to save files
+	// to copy" is only for a save that throws (renderApp @11275161, Oja @10903526). Ours said
+	// "Couldn't save the repository settings" (issue #654).
+	it("offers Overwrite file when the files to copy meet an invalid local settings file", async () => {
+		const testContainer = createTestContainer();
+		test = testContainer;
+		const container = testContainer.container;
+		const repo = await seedRepo(container);
+		const file = await seedInvalidLocalSettings(testContainer, repo);
+		container.services.repo.store.setState((state) => ({
+			...state,
+			configs: { ...state.configs, [repo.id]: config({ copyFiles: [".env"] }) },
+		}));
+		render(
+			<QueryClientProvider client={new QueryClient()}>
+				<ServicesProvider container={container}>
+					<RepoMiscPage repoId={repo.id} />
+					<Toaster />
+				</ServicesProvider>
+			</QueryClientProvider>,
+		);
+
+		fireEvent.click(await screen.findByRole("button", { name: "Remove .env" }));
+		const shown = await waitFor(() => {
+			const element = document.querySelector("[data-sonner-toast]");
+			expect(element).not.toBeNull();
+			return element as HTMLElement;
+		});
+		expect(shown.querySelector("[data-title]")?.textContent).toBe(
+			"Can't save setting because your settings file is invalid",
+		);
+		fireEvent.click(within(shown).getByRole("button", { name: "Overwrite file" }));
+
+		// The forced save wrote the file over the reading the earlier save left, so it parses again.
+		await waitFor(async () => {
+			const read = await container.services.settings.readSettingsFile(file);
+			expect(read.ok && read.value.values).toMatchObject({ archive_on_merge: true });
+		});
+		expect(container.services.repo.store.getState().configs[repo.id]?.copyFiles).toEqual([]);
 	});
 });

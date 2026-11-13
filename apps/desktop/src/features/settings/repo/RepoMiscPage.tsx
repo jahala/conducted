@@ -46,6 +46,7 @@ import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
 import { RepoIconAvatar } from "../../sidebar/RepoIcon.tsx";
 import { RepoIconPicker } from "../../sidebar/RepoIconPicker.tsx";
+import { toastSettingSaveFailed } from "../SettingRow.tsx";
 import { FilesToCopyField } from "./FilesToCopyField.tsx";
 import { RemoveRepoDialog } from "./RemoveRepoDialog.tsx";
 
@@ -135,7 +136,9 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 	const save = async (next: RepoConfig): Promise<boolean> => {
 		const saved = await actions.projects.updateConfig(repoId, next);
 		if (!saved.ok) {
-			toastError("Couldn't save the repository settings", saved.error);
+			toastSettingSaveFailed(saved.error, () =>
+				actions.projects.updateConfig(repoId, next, { overwrite: true }),
+			);
 			return false;
 		}
 		return true;

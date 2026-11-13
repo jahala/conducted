@@ -64,6 +64,7 @@ export function RemoveRepoDialog({
 			}}
 		>
 			<DialogContent
+				letShortcutsThrough
 				title="Remove repository"
 				description={`Remove ${repoName} and its ${workspaces} from Conducted? The repository folder is not deleted.`}
 				onConfirm={() => void confirm()}

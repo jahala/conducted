@@ -37,6 +37,7 @@ import {
 	type AppError,
 	appError,
 	err,
+	LineSplitter,
 	messageOf,
 	ok,
 	type Result,
@@ -218,7 +219,8 @@ export class AppToolsBridge {
 	private handleConnection(socket: Socket): void {
 		this.connections.add(socket);
 		socket.setEncoding("utf8");
-		let buffer = "";
+		// Each character is looked at once, so a long request costs time in proportion to its length.
+		const lines = new LineSplitter();
 		let settled = false;
 		let reading = true;
 		const timer = setTimeout(() => {
@@ -244,16 +246,18 @@ export class AppToolsBridge {
 		});
 		socket.on("data", (chunk: string) => {
 			if (settled || !reading) return;
-			buffer += chunk;
-			if (buffer.length > BRIDGE_MAX_LINE_CHARS) {
+			const line = lines.push(chunk)[0];
+			if (
+				line === undefined
+					? lines.pendingChars > BRIDGE_MAX_LINE_CHARS
+					: line.length > BRIDGE_MAX_LINE_CHARS
+			) {
 				reading = false;
 				finish({ ok: false, error: "The bridge request was too long." });
 				return;
 			}
-			const newline = buffer.indexOf("\n");
-			if (newline === -1) return;
+			if (line === undefined) return;
 			reading = false;
-			const line = buffer.slice(0, newline);
 			clearTimeout(timer);
 			void this.answer(line).then(finish);
 		});

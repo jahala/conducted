@@ -1078,6 +1078,7 @@ Chosen:
 - **The measure tells its stages apart.** It prints peak memory for the dry run, the import, and the open of the largest chat; the longest statement outside a transaction beside the longest transaction; and its relay joins a line once. Its test runs a chat of 200,700 rows and 338 million characters and bounds how far each process's memory rises while the import runs.
 
 Why: rule 3 is kept per chat, and the app's own writes wait at most for SQLite's copy of one chat, never for its reads. On the made-up chat the peak memory the measure reported was its own open of the chat, which the import does not do; the lead's run on the copy shows whether that holds for the owner's chats.
+Since D142: opening a chat reads its last turns only, so the measure's open no longer raises the peak.
 
 ## D137. The app's database is one connection that nothing replaces while the app runs (2026-11-12)
 
@@ -1169,7 +1170,36 @@ Chosen:
 
 Why not match the lost change: it reverts a setting the user saw saved, which is the defect the button exists to avoid.
 
-Not covered: settings saved on the user's behalf (`last_clone_directory`, `always_allow_local_execution`) live in the settings table, so they never meet an invalid file. A setting's Reset and a project's config pages do not show this toast yet; Conductor offers the button there too (issue #654).
+Not covered: settings saved on the user's behalf (`last_clone_directory`, `always_allow_local_execution`) live in the settings table, so they never meet an invalid file. A setting's Reset, a project's config pages and a project's env file list show this toast too, as Conductor's do (issue #654).
+
+## D143. A dialog holds app shortcuts unless Conductor keeps it off its dialog store, and the menu carries only Conductor's keys (2026-11-12)
+
+Decided by the agent fixing issue #610, which the owner filed. The owner's rulings: "Match Conductor. Nothing made up; gaps are reported", and on changes people see, "whatever conductor does?".
+
+Context: Conductor holds app shortcuts only while its dialog store has an active id (renderApp @681094). Its 23 `F0` dialogs and 8 alert dialogs set one; 15 dialogs on the bare root `S_` and 19 alert dialogs with their own state, many on Settings pages, do not. Its Settings registers Cmd+F as a plain handler, so the key waits under a store dialog. Its native menu gives a key only to Settings, Quit, Send Feedback, Debug and Close Window, and its page acts on every menu event it hears. Ours held app shortcuts under every modal, ran Settings' Cmd+F behind any dialog over Settings, and gave every menu item the registry's key, so Cmd+B and Cmd+W ran under any dialog through the menu.
+
+Chosen: a dialog holds app shortcuts unless it carries `letShortcutsThrough` (ui/dialog-shortcuts.ts); the eleven dialogs Conductor keeps off its store carry it, listed with their evidence in ui-map.md 5.4 and by a test. Under a holding dialog, a command not marked `overDialogs` runs only `modal` handlers, which is where every dialog registers its own keys, and Settings registers at `base`. The menu carries keys only for Send Feedback, Debug and Close Window (Settings and Quit stay fixed in Rust). A menu pick runs under a dialog, as Conductor's listeners do, except Close Window, which Conductor's page never hears and ours sends to the tab close: it follows the key's rule. The View menu's sidebar toggles no longer show a key.
+
+Why a mark on the dialogs that let shortcuts through, not on those that hold them: most of Conductor's dialogs hold, and ours with no Conductor counterpart keep today's behaviour. Why the `modal` priority, not a context that binds a handler to the dialog it sits in, as Conductor's `Kn` does: our dialogs register their keys in the component that draws the dialog, outside its content, so a context would miss them; the priority already marks them.
+
+## D144. A chat opens on its last five turns and loads older ones as the list reaches its top (2026-11-12)
+
+Decided by the agent fixing issue #617, which the owner filed, under the owner's rule "Match Conductor. Nothing made up; gaps are reported."
+
+Context: `sessions.open` loaded every event of a chat into memory. On a made-up chat of 200,700 rows and 608 million characters, the import's measure saw opening it take the process from 527 MB to 1,907 MB, in 1.59 s. Measured stage by stage, the parsed events the store kept were about 1.3 GB, twice their text; the rows' text read from SQLite was another 640 MB while it lasted; the turns built from them shared the events' strings and added about 50 MB. Each later rebuild of the turns, on every streamed event, also wrote every turn out as text to compare it, about 1.6 GB of garbage and 370 ms. The owner's longest imported chat has about 344,000 events. Conductor's chat reads a window of turns instead (frontend.md 5, "History in pages").
+
+Chosen:
+
+- **The last five turns, then one at a time.** The open reads the list of every turn the chat shows (its id, where its first event is, and the first 200 characters of the message that began it) and the events of the last five turns. While older turns are stored, the list's header says "Loading messages…" and loads one more turn each time its top is within 800 pixels. A failed load says "Couldn't load messages" with Retry. The list stays hidden under the loading skeleton until its turns fill it, nothing older is stored, a load failed or 5 seconds pass. Older turns join through Virtuoso's `firstItemIndex`, so the turns on screen stay still.
+- **The outline lists every turn.** A turn that is not loaded shows the start of its message, and its plan is not marked until it loads, as in Conductor. Find in the chat searches the loaded turns, as in Conductor.
+- **The gap: a picked turn loads every turn back to it.** Conductor loads the picked turn alone and leaves a gap marker that fills as the user scrolls into it. Ours loads every turn from the picked one to the first loaded one, so what is loaded is always one run of turns to the end. A gap filled from below inserts a turn above what the user reads, which Virtuoso, without the paid message list Conductor uses, does not hold still, and that could not be checked in a real window. A jump far back in a long chat therefore costs memory in proportion to the turns after the picked one. This is filed as #652.
+- **Late work stays in its card (D129).** A loaded turn can hold a background helper's work for a call in a turn that is not loaded. The open asks SQLite which of the call ids the loaded events name are calls in the other turns, and the turn builder leaves that work and its result out of the loaded turn, as a build of every turn does. The lookup reads the chat's agent events, so it runs only for ids not asked before.
+- **An event of a turn that is not loaded waits in the database.** Alone it would show as a turn of its own; it comes when its turn loads. One stored while its turn is being read is kept.
+- **What needs the whole chat reads it and keeps nothing.** Copying the transcript, attaching a chat to another (CHAT-26), reading one of its plans and the tab strip's fork build every turn from the stored events each time, as Conductor reads every row to copy a transcript.
+
+Why: the owner's rule. The chat behaves as Conductor's does, and opening it costs memory near what the screen shows: on the made-up chat the open now leaves the process's peak where the import left it and takes 0.12 s, and a test at 223,000 events keeps 5.6 MB where loading everything kept 403 MB.
+
+The tests: `apps/desktop/src/core/services/sessions.chat-06-memory.container.test.ts` (the bound), `sessions.chat-06.container.test.ts` and `features/chat/MessageList.chat-06.test.tsx` (the behaviour), and the measure's bound on the open in `scripts/conductor-import/measure.test.ts`.
 
 ## D145. Stage 2 runs the end-to-end test app, and the navigation guard follows the page Tauri opens (2026-11-13)
 

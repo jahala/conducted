@@ -490,6 +490,7 @@ function ServerDialog({
 	return (
 		<Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
 			<DialogContent
+				letShortcutsThrough
 				title={adding ? "Add MCP server" : "Edit MCP server"}
 				size="xl"
 				onConfirm={() => void save()}
@@ -752,7 +753,12 @@ function ImportDialog({
 
 	return (
 		<Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
-			<DialogContent title="Select MCP servers" size="xl" className="h-[30rem] overflow-hidden">
+			<DialogContent
+				title="Select MCP servers"
+				size="xl"
+				className="h-[30rem] overflow-hidden"
+				letShortcutsThrough
+			>
 				<div className="flex min-h-0 flex-1">{body}</div>
 				<DialogFooter>
 					<Button variant="ghost" size="sm" onClick={onClose}>

@@ -276,6 +276,7 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 
 			<Dialog open={githubOpen} onOpenChange={setGithubOpen}>
 				<DialogContent
+					letShortcutsThrough
 					title={signedIn ? "GitHub" : "Connect GitHub"}
 					description={
 						signedIn
@@ -410,6 +411,7 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 				}}
 			>
 				<AlertDialogContent
+					letShortcutsThrough
 					title="That doesn't look like a GitHub token"
 					description={pendingWarning ?? undefined}
 					confirmLabel="Save anyway"
@@ -423,6 +425,7 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 
 			<AlertDialog open={disconnectGithub} onOpenChange={setDisconnectGithub}>
 				<AlertDialogContent
+					letShortcutsThrough
 					title="Disconnect GitHub?"
 					description="The saved personal access token is removed from the Keychain. Your gh sign-in is left alone."
 					tone="destructive"

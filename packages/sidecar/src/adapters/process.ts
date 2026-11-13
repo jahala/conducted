@@ -15,7 +15,7 @@
  * uses, so the composition root (`modes/sidecar-mode.ts`) only wires real ones.
  */
 import type { AppError, Result } from "@conducted/shared";
-import { appError, err, messageOf, ok } from "@conducted/shared";
+import { appError, err, LineSplitter, messageOf, ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { startChild } from "../process/spawn-child.ts";
 import type { AcpChild, SpawnAcpChild } from "../runners/acp/acp-client.ts";
@@ -124,15 +124,11 @@ function spawnJsonRpcChild(
 	const lineListeners: ((line: string) => void)[] = [];
 	void (async () => {
 		const decoder = new TextDecoder();
-		let buffer = "";
+		// Each character is looked at once, so a long line costs time in proportion to its length.
+		const lines = new LineSplitter();
 		for await (const chunk of child.stdout) {
-			buffer += decoder.decode(chunk, { stream: true });
-			let index = buffer.indexOf("\n");
-			while (index >= 0) {
-				const line = buffer.slice(0, index);
-				buffer = buffer.slice(index + 1);
+			for (const line of lines.push(decoder.decode(chunk, { stream: true }))) {
 				for (const listener of lineListeners) listener(line);
-				index = buffer.indexOf("\n");
 			}
 		}
 	})().catch((cause: unknown) => {
