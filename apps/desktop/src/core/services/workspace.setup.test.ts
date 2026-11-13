@@ -1,8 +1,8 @@
 /**
  * @feature WS-03 Setup script in a terminal
  * Owns: tests for the setup run and its workspace state moves, and for the file-copy match rules.
- * Test first: a setup script that exits 0 moves the workspace from initializing to ready, and a
- * nonzero exit moves it to failed.
+ * Test first: a setup script that exits 0 moves the workspace from initializing to ready, and so
+ * does a nonzero exit, which only the setup run records as failed (Conductor, main @1101155).
  */
 import {
 	appError,
@@ -245,14 +245,14 @@ describe("WS-03 WorkspaceService.runSetup", () => {
 		expect(service.store.getState().setupRuns?.[rows[0]?.id ?? ""]?.state).toBe("completed");
 	});
 
-	it("moves the workspace to failed when the script exits nonzero", async () => {
+	it("keeps the workspace ready when the script exits nonzero, as Conductor does", async () => {
 		const { service, rows } = harness(async () => ok(setupResult({ exitCode: 2 })));
 
 		const result = await service.runSetup(rows[0]?.id as WorkspaceId);
 
 		expect(result.ok).toBe(false);
 		if (!result.ok) expect(result.error.message).toBe(SETUP_FAILED_MESSAGE);
-		expect(rows[0]?.state).toBe("failed");
+		expect(rows[0]?.state).toBe("ready");
 		expect(service.store.getState().setupRuns?.[rows[0]?.id ?? ""]?.exitCode).toBe(2);
 	});
 
@@ -264,7 +264,7 @@ describe("WS-03 WorkspaceService.runSetup", () => {
 		const result = await service.runSetup(rows[0]?.id as WorkspaceId);
 
 		expect(result.ok).toBe(false);
-		expect(rows[0]?.state).toBe("failed");
+		expect(rows[0]?.state).toBe("ready");
 		const run = service.store.getState().setupRuns?.[rows[0]?.id ?? ""];
 		expect(run?.state).toBe("failed");
 		expect(run?.exitCode).toBeNull();
@@ -321,12 +321,14 @@ describe("WS-03 WorkspaceService.runSetup", () => {
 
 		expect(stopWorkspace).toHaveBeenCalledWith(id);
 		expect(service.store.getState().setupRuns?.[id]?.state).toBe("cancelled");
-		expect(rows[0]?.state).toBe("failed");
+		expect(rows[0]?.state).toBe("ready");
 	});
 });
 
 describe("WS-03 loading a saved setup run", () => {
-	it("does not invent an exit code or a reason for a failed workspace", async () => {
+	// A setup run leaves its workspace ready, so a failed workspace is one that could not be made.
+	// Its state says nothing about how an earlier run's log ended.
+	it("infers no setup run for a workspace that could not be made", async () => {
 		const row = workspace({ state: "failed" });
 		const { service } = harness(async () => ok(setupResult()), {
 			rows: [row],
@@ -336,13 +338,7 @@ describe("WS-03 loading a saved setup run", () => {
 
 		await service.start();
 
-		expect(service.store.getState().setupRuns?.w1).toMatchObject({
-			state: "failed",
-			exitCode: null,
-			interruptedReason: null,
-			logPath: "/app/setup-logs/w1.log",
-			log: "saved",
-		});
+		expect(service.store.getState().setupRuns?.w1).toBeUndefined();
 	});
 
 	it("does not invent an exit code for a ready workspace", async () => {

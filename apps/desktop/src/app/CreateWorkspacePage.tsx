@@ -32,10 +32,12 @@
  * reused outside a chat. Conductor's "+" also adds attachments; ours offers plan mode only, because an
  * attachment is staged into a chat and none exists yet. Conductor shows "Add to backlog" for cloud
  * organisations only; ours shows it whenever unstarted workspaces are on.
- * Must handle: no project yet (point to "Add a project"); a failed create keeps the draft with Retry setup
- * and Recover prompt, and a failed setup script keeps a toast with "View logs" open (renderApp
- * @3745419); the workspace replaces the create page in history, standing in for Conductor's
- * replaceNewTabId; creation warnings are toasted; an empty prompt creates the workspace without a chat;
+ * Must handle: no project yet (the dialog opens as Conductor's does, its picker on "Select repo" with the
+ * ways to add a project in its menu, renderApp `Wwa` @10189388); a failed create keeps the draft with Retry setup
+ * and Recover prompt; a setup script that fails still opens the ready workspace and says "Setup script
+ * failed. Check the setup tab for logs." (main @1101155); the workspace replaces the create page in
+ * history, standing in for Conductor's replaceNewTabId; creation warnings are toasted; an empty prompt
+ * creates the workspace without a chat;
  * "Create from" a branch with no branch name is refused with a message under the field; a pull request that
  * was not loaded and an issue that was not picked are refused with a message; a second press while a create,
  * a backlog save or a start runs does nothing; "Add to backlog" is hidden when unstarted workspaces are off;
@@ -92,15 +94,14 @@ import {
 	cloudRepositories,
 } from "../core/organization.ts";
 import { newWorkspaceSessionConfig } from "../core/services/workspace-creation.ts";
+import { SETUP_FAILED_MESSAGE } from "../core/workspace-helpers.ts";
 import { useNewWorkspaceDraft } from "../features/composer/draft-sources.ts";
 import { type ModelChoice, ModelMenu } from "../features/composer/ModelPicker.tsx";
 import { SuggestionPopup } from "../features/composer/mentions/SuggestionPopup.tsx";
-import { AddProjectActions } from "../features/sidebar/AddProjectActions.tsx";
 import { AddProjectItems, useAddProject } from "../features/sidebar/AddProjectButton.tsx";
 import { Button } from "../ui/Button.tsx";
 import { cn } from "../ui/cn.ts";
 import { Dialog, DialogContent } from "../ui/Dialog.tsx";
-import { EmptyState } from "../ui/EmptyState.tsx";
 import { Input, Label } from "../ui/Input.tsx";
 import {
 	CheckIcon,
@@ -475,20 +476,6 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 		);
 	}
 
-	if (readyRepos.length === 0) {
-		return (
-			<div className="h-full p-8">
-				<EmptyState
-					title="Add a project to get started"
-					body="A workspace is a git worktree of one of your projects. Add a project first."
-					action={<AddProjectActions />}
-				/>
-			</div>
-		);
-	}
-
-	if (selectedRepo === undefined) return null;
-
 	const openWorkspace = (repoId: RepoId, workspaceId: WorkspaceId) => {
 		// Conductor replaces its new-tab placeholder with the new workspace's tab
 		// (renderApp @3744837). This page has no tab strip, so it replaces its own history entry
@@ -500,9 +487,11 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 		});
 	};
 
+	/** The creation's warnings, and Conductor's note when the new workspace's setup script failed. */
 	const toastWarnings = (workspaceId: WorkspaceId) => {
-		const warnings = services.services.workspace.store.getState().warnings?.[workspaceId] ?? [];
-		for (const warning of warnings) toast.warning(warning);
+		const state = services.services.workspace.store.getState();
+		for (const warning of state.warnings?.[workspaceId] ?? []) toast.warning(warning);
+		if (state.setupRuns?.[workspaceId]?.state === "failed") toast.error(SETUP_FAILED_MESSAGE);
 	};
 
 	const branchMissing = fromKind === "branch" && branchName.trim() === "";
@@ -622,25 +611,8 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			toast.dismiss(progress);
 			setBusy(false);
 			if (!result.ok) {
-				const state = services.services.workspace.store.getState();
-				const failed = state.lastFailedCreate;
+				const failed = services.services.workspace.store.getState().lastFailedCreate;
 				if (failed !== null && failed !== undefined) setFailedId(failed.id);
-				const logPath =
-					failed === null || failed === undefined
-						? null
-						: (state.setupRuns?.[failed.id]?.logPath ?? null);
-				if (result.error.code === "setup_failed" && logPath !== null) {
-					// Conductor keeps this toast until the user closes it and offers "View logs"
-					// (renderApp @3745419).
-					toast.error(result.error.message, {
-						duration: Number.POSITIVE_INFINITY,
-						action: {
-							label: "View logs",
-							onClick: () => void actions.attachments.openExternally(logPath),
-						},
-					});
-					return;
-				}
 				toastError("Failed to create workspace", result.error);
 				return;
 			}
@@ -742,7 +714,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 						) : isCloudOrg ? null : (
 							<ProjectMenu
 								repos={readyRepos}
-								selected={selectedRepo}
+								selected={localRepo}
 								disabled={fieldsLocked}
 								onPick={(value) => {
 									setRepoId(value);
@@ -774,7 +746,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 								</span>
 							</Tooltip>
 						) : null}
-						{isCloudOrg && !cloudMode ? null : (
+						{(isCloudOrg && !cloudMode) || selectedRepo === undefined ? null : (
 							<div className="-mr-1.5 flex min-w-0 max-w-72 items-center rounded-md hover:bg-hover has-aria-expanded:bg-hover">
 								<button
 									type="button"
@@ -821,7 +793,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 						</p>
 					) : null}
 
-					{pickerOpen && (!isCloudOrg || cloudMode) ? (
+					{pickerOpen && (!isCloudOrg || cloudMode) && selectedRepo !== undefined ? (
 						<div
 							id="create-from-picker"
 							className="flex flex-col gap-3 border-b border-border px-4 py-3"
@@ -972,7 +944,10 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							autoFocus
 							className="block min-h-40 w-full resize-none bg-transparent text-sm font-light text-fg outline-none placeholder:text-fg-subtle"
 						/>
-						{mention !== null && mention.query.length >= 2 && (!isCloudOrg || cloudMode) ? (
+						{mention !== null &&
+						mention.query.length >= 2 &&
+						(!isCloudOrg || cloudMode) &&
+						selectedRepo !== undefined ? (
 							<RepoFileSuggestions
 								repoId={selectedRepo.id}
 								query={mention.query}
@@ -984,7 +959,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 								}}
 							/>
 						) : null}
-						{slashMention !== null && (!isCloudOrg || cloudMode) ? (
+						{slashMention !== null && (!isCloudOrg || cloudMode) && selectedRepo !== undefined ? (
 							<RepoSlashSuggestions
 								repoRootPath={selectedRepo.rootPath}
 								query={slashMention.query}
@@ -1326,8 +1301,9 @@ function shortPath(path: string): string {
 }
 
 /**
- * The project picker at the top of the new-workspace dialog: the chosen project's name; its menu adds a
- * project (Open project, Open GitHub project, Quick start) or picks one of the projects under "Recents".
+ * The project picker at the top of the new-workspace dialog: the chosen project's name, or Conductor's
+ * "Select repo" while there is none (renderApp `Wwa` @10189388); its menu adds a project (Open project,
+ * Open GitHub project, Quick start) or picks one of the projects under "Recents".
  */
 function ProjectMenu({
 	repos,
@@ -1336,7 +1312,7 @@ function ProjectMenu({
 	onPick,
 }: {
 	repos: readonly { id: RepoId; name: string; rootPath: string }[];
-	selected: { id: RepoId; name: string };
+	selected: { id: RepoId; name: string } | undefined;
 	disabled: boolean;
 	onPick: (id: RepoId) => void;
 }) {
@@ -1352,16 +1328,16 @@ function ProjectMenu({
 						variant="ghost"
 						size="sm"
 						disabled={disabled}
-						aria-label={`Project: ${selected.name}`}
+						aria-label={selected === undefined ? "Select repo" : `Project: ${selected.name}`}
 						className="gap-1.5 px-2 text-sm font-medium text-fg"
 					>
-						<span className="max-w-60 truncate">{selected.name}</span>
+						<span className="max-w-60 truncate">{selected?.name ?? "Select repo"}</span>
 						<ChevronDownIcon className="size-3 shrink-0 text-fg-muted" />
 					</Button>
 				</MenuTrigger>
 				<MenuContent align="start" className="w-80">
 					<AddProjectItems add={add} />
-					<MenuLabel>Recents</MenuLabel>
+					{repos.length === 0 ? null : <MenuLabel>Recents</MenuLabel>}
 					{repos.map((repo) => (
 						<MenuItem
 							key={repo.id}

@@ -101,6 +101,7 @@ import { ChecksTab } from "./checks/ChecksTab.tsx";
 import { summarizeChecks } from "./checks/checks-summary.ts";
 import { commentsToAddToChat } from "./checks/git-status-rows.ts";
 import { FilesTab } from "./files/FilesTab.tsx";
+import { WorkingDirectoriesButton } from "./files/WorkingDirectoriesDialog.tsx";
 import { GitHeader } from "./GitHeader.tsx";
 import { GitPanelTabs, type GitPanelViewTab } from "./GitPanelTabs.tsx";
 import { ReviewPromptDialog } from "./ReviewPromptDialog.tsx";
@@ -606,6 +607,10 @@ export function GitPanel({
 				}
 				onReview={() => void startReview(null)}
 				onReviewWithEdit={() => setReviewPromptOpen(true)}
+				actions={
+					// Conductor's strip carries All files' working directories button (renderApp @4008200).
+					view === "files" ? <WorkingDirectoriesButton workspaceId={workspaceId} /> : null
+				}
 			/>
 			<div className="min-h-0 flex-1 overflow-hidden">
 				{view === "artifacts" ? (

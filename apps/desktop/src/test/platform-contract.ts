@@ -2686,6 +2686,8 @@ export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
 	"opener.openWith": "Starts another app; the Rust open_with tests own it.",
 	"clipboard.writeImage":
 		"Decodes a PNG in the web view's canvas, which Node does not have; needs the launched app.",
+	"attachments.iconPng":
+		"Draws in the web view's canvas, which Node does not have; scripts/catalogue/icon-resize.browser.ts runs it in Chromium (PRJ-05).",
 	"speech.cancel": "Apple dictation; the node bindings have no microphone or recognizer.",
 	"updater.install": "Downloads and installs an update; needs a signed release feed.",
 	"updater.relaunch": "Restarts the app; cannot run inside a test.",

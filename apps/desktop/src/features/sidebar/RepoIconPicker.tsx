@@ -6,7 +6,8 @@
  * repository icon), 4 (avatar sources), inventory toast rows 904, 905 and 907 for the upload
  * failures.
  * Must handle: a picked emoji or symbol; an upload with a bad type, one over 10 MB, or one that
- * fails to copy; clearing the icon back to the favicon or owner avatar, and a repository with
+ * cannot be drawn at icon size (the note under the Upload source says it is resized, renderApp
+ * @11291806); clearing the icon back to the favicon or owner avatar, and a repository with
  * neither ("No favicon detected"); a cancelled file
  * picker; the picker's own failure shown in the dialog.
  * Test first: searching for "rocket" and choosing the rocket stores an emoji icon.
@@ -235,15 +236,16 @@ export function RepoIconPicker({ open, onOpenChange, repo }: RepoIconPickerProps
 				) : null}
 
 				{tab === "upload" ? (
-					<div className="flex flex-col gap-2">
-						<p className="text-sm text-fg-muted">
-							Choose a PNG, JPEG, GIF, WebP, or SVG image under 10MB.
-						</p>
+					<div className="flex flex-col gap-4">
 						<div>
 							<Button variant="outline" size="sm" loading={busy} onClick={() => void upload()}>
 								Upload image
 							</Button>
 						</div>
+						{/* Conductor's note under its upload source (renderApp @11291806). */}
+						<p className="rounded-md bg-muted p-3 text-xs text-fg-muted">
+							Upload a PNG, JPEG, GIF, WebP, or SVG image. Conducted resizes it to icon size.
+						</p>
 					</div>
 				) : null}
 

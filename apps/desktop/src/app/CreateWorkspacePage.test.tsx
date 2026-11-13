@@ -236,34 +236,33 @@ describe("WS-01 CreateWorkspacePage", () => {
 		);
 	});
 
-	it("offers View logs on a failed setup script and opens its log, as Conductor does", async () => {
+	// Conductor makes the workspace ready when its setup script fails and says so in an error toast
+	// (main @1101155); the creation itself succeeded.
+	it("opens the new workspace and says its setup script failed", async () => {
 		const { create, workspaceStore } = await renderCreatePage();
-		const logPath = "/logs/ws-1.log";
 		create.mockImplementationOnce(async () => {
 			workspaceStore.setState({
-				lastFailedCreate: { ...workspace, state: "failed" },
 				setupRuns: {
 					[workspace.id]: {
 						state: "failed",
 						exitCode: 1,
 						terminalId: null,
-						logPath,
+						logPath: "/logs/ws-1.log",
 						log: "saved",
 						interruptedReason: null,
 					},
 				},
 			});
-			return err(appError("setup_failed", "Setup script failed. Check the setup tab for logs."));
+			return ok(workspace);
 		});
-		const open = vi
-			.spyOn(test.container.actions.attachments, "openExternally")
-			.mockResolvedValue(ok(undefined));
 
 		fireEvent.click(await screen.findByRole("button", { name: "Create workspace" }));
 
-		const viewLogs = await screen.findByRole("button", { name: "View logs" });
-		fireEvent.click(viewLogs);
-		await waitFor(() => expect(open).toHaveBeenCalledWith(logPath));
+		expect(
+			await screen.findByText("Setup script failed. Check the setup tab for logs."),
+		).toBeTruthy();
+		expect(await screen.findByText("Workspace opened")).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "Retry setup" })).toBeNull();
 	});
 
 	it("starts a chat on the model default when the settings leave model and effort empty", async () => {
@@ -346,8 +345,10 @@ describe("NAV-04 Create in section", () => {
 	});
 });
 
-describe("APP-04 Create with no projects yet", () => {
-	it("offers the same three ways to add a project as the first screen", async () => {
+// Conductor's new-workspace dialog opens with no project too: its repository picker reads "Select
+// repo" and its menu adds one (renderApp `Wwa` @10189388). The first-run screen is the other place.
+describe("WS-01 Create with no projects yet", () => {
+	it("opens the dialog on Select repo, whose menu adds a project", async () => {
 		test.container.services.repo.store.setState({
 			loaded: true,
 			reposById: {},
@@ -371,9 +372,14 @@ describe("APP-04 Create with no projects yet", () => {
 		);
 		await router.load();
 
-		expect(await screen.findByText("Add a project to get started")).toBeTruthy();
-		expect(screen.getByRole("button", { name: /Open project/ })).toBeTruthy();
-		expect(screen.getByRole("button", { name: /Open GitHub project/ })).toBeTruthy();
-		expect(screen.getByRole("button", { name: /Quick start/ })).toBeTruthy();
+		const picker = await screen.findByRole("button", { name: "Select repo" });
+		expect(picker.textContent).toContain("Select repo");
+		expect(screen.getByRole("textbox", { name: "First message" })).toBeTruthy();
+		expect(screen.queryByText("Add a project to get started")).toBeNull();
+
+		fireEvent.pointerDown(picker, { button: 0, ctrlKey: false });
+		expect(await screen.findByRole("menuitem", { name: /Open project/ })).toBeTruthy();
+		expect(screen.getByRole("menuitem", { name: /Open GitHub project/ })).toBeTruthy();
+		expect(screen.getByRole("menuitem", { name: /Quick start/ })).toBeTruthy();
 	});
 });

@@ -165,19 +165,16 @@ describe("PRJ-05 repository icon avatar", () => {
 		const source = "/tmp/picked-icon.png";
 		test?.memory.controls.files.set(source, "png bytes");
 		test?.memory.controls.queueDialogAnswers({ files: [source] });
-		test?.memory.controls.scriptShell((command) => {
-			if (command.program !== "cp") return null;
-			const from = command.args[1];
-			const to = command.args[2];
-			if (from === undefined || to === undefined) return null;
-			const text = test?.memory.controls.files.get(from);
-			if (text === undefined) return null;
-			test?.memory.controls.files.set(to, text);
-			return ok({ exitCode: 0, stdout: "", stderr: "" });
-		});
+		// jsdom has no canvas; the drawing runs in Chromium in scripts/catalogue/icon-resize.browser.ts.
+		test?.memory.controls.scriptIconImage(() => ok(new TextEncoder().encode("icon png")));
 		await openPicker(repo);
 
 		fireEvent.click(screen.getByRole("tab", { name: "Upload" }));
+		expect(
+			screen.getByText(
+				"Upload a PNG, JPEG, GIF, WebP, or SVG image. Conducted resizes it to icon size.",
+			),
+		).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Upload image" }));
 
 		await waitFor(() =>

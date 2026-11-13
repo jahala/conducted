@@ -1106,7 +1106,7 @@ CLOUD-13	operation	Create a cloud placeholder workspace, import or refresh a clo
 DATA-01	operation	List workspaces: all, by repo, by state.	services-map 2.3.1	covered
 WS-03	operation	Start setup: record state and the setup log path.	services-map 2.3.1	covered
 WS-03	operation	Finish setup moves the workspace from initializing to ready with a compare-and-set.	services-map 2.3.1	covered
-WS-03	operation	Fail setup or init moves the workspace to failed with a compare-and-set.	services-map 2.3.1	covered
+WS-03	operation	Fail init moves the workspace to failed with a compare-and-set; a failed setup script ends in ready.	services-map 2.3.1	covered
 WS-05	operation	Archive records the state, the branch name and the archive commit, and sets the archive time.	services-map 2.3.1	partly
 WS-06	operation	Unarchive sets state, branch, directory and path, even when the worktree returns at a new folder, and clears the archive time.	services-map 2.3.1	partly
 GIT-08	operation	Set the intended target branch of a workspace.	services-map 2.3.1	covered
@@ -1189,7 +1189,7 @@ WS-01	operation	Symlinks pending deletion: not needed.	services-map 2.3.5	covere
 WS-01	state	Workspace lifecycle: none to initializing when it is created.	services-map 2.4.1	covered
 WS-03	state	Workspace lifecycle: initializing to setting_up; setup runs while the row is initializing.	services-map 2.4.1	covered
 WS-03	state	Workspace lifecycle: setting_up to ready, as initializing to ready.	services-map 2.4.1	covered
-WS-03	state	Workspace lifecycle: to failed from setup or init.	services-map 2.4.1	covered
+WS-03	state	Workspace lifecycle: to failed from init; a failed setup script ends in ready.	services-map 2.4.1	covered
 WS-05	state	Workspace lifecycle: ready to archived, with an archiving step and an archive time.	services-map 2.4.1	partly
 WS-06	state	Workspace lifecycle: archived to initializing to ready on unarchive.	services-map 2.4.1	covered
 DATA-03	state	At startup, half-created local workspaces stay in the list as failed, with Retry (D034).	services-map 2.4.1	covered
@@ -3405,8 +3405,8 @@ NAV-10	rule	TabStrip Retry calls the whole sessions.start(); check that a second
 WS-08	message	Conductor shows "No workspace path available" (toast, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory toast R@2504857	missing
 WS-08	message	Conductor shows "Workspace is still loading, try again" (toast, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory toast R@2504925	missing
 WS-03	message	Conductor shows "No active session to attach setup logs to" (toast, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory toast R@2976926	missing
-WS-01	message	Conductor shows "Failed to copy prompt" (toast, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory toast R@2984332	missing
-WS-01	message	Conductor shows "Copied prompt to clipboard" (toast, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory toast R@2984388	missing
+CLOUD-03	message	A cloud workspace whose sandbox is gone shows Recover prompt on its start card in the first chat; a copy that fails says "Failed to copy prompt" (renderApp `rzs`, `s$t`).	inventory toast R@2984332	missing
+CLOUD-03	message	Recover prompt on a gone cloud workspace's start card copies its first message and says "Copied prompt to clipboard" (renderApp `rzs`, `s$t`).	inventory toast R@2984388	missing
 CLOUD-12	message	Conductor shows "Failed to copy SSH command" (toast, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory toast R@5563556	missing
 CHAT-06	message	Conductor shows "Workspace path unavailable." (toast, inventory-controls Composer); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory toast R@9510796	missing
 CHAT-06	message	Conductor shows "Failed to copy request" (toast, inventory-controls Composer); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory toast R@9513542	missing
@@ -3678,7 +3678,7 @@ SET-07	message	Conductor shows "Could not preview files to copy." (text, invento
 SET-07	message	Conductor shows "No matching gitignored files found." (text, inventory-controls Settings: Repository); ours shows it in catalogue state settings-repo-preview-urls.	inventory text R@11277725	covered
 PRJ-05	message	Conductor shows "Emoji failed to load" (text, inventory-controls Settings: Repository); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@11281817	missing
 PRJ-05	message	Conductor shows "No emoji found" (text, inventory-controls Settings: Repository); ours shows it in catalogue state settings-repo-icon-no-emoji.	inventory text R@11282175	covered
-PRJ-05	message	Conductor shows "Upload a PNG, JPEG, GIF, WebP, or SVG image. Conductor resizes it to icon size." (text, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@11291806	missing
+PRJ-05	message	Conductor shows "Upload a PNG, JPEG, GIF, WebP, or SVG image. Conductor resizes it to icon size." (text, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@11291806	covered
 REV-10	message	Conductor shows "Couldn't load this workspace's artifacts" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).	inventory text R@11339519	missing
 SET-02	message	Conductor shows "Old root path:" (text, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours shows it in catalogue state settings-advanced-root-path.	inventory text R@11407412	covered
 SET-02	message	Conductor shows "New root path:" (text, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours shows it in catalogue state settings-advanced-root-path.	inventory text R@11407755	covered

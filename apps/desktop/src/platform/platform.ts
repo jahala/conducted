@@ -152,6 +152,8 @@ export const PLATFORM_ERROR_CODES = [
 	"http_status",
 	"http_unscripted",
 	"http_url_not_allowed",
+	"icon_image_failed", // the web view could not decode or draw an uploaded icon
+	"icon_image_too_large", // an uploaded icon over the pixel limit on a side
 	"instance_lock_failed",
 	"invalid_cursor",
 	"io",
@@ -769,6 +771,12 @@ export interface AttachmentFiles {
 		destinationPath: string,
 		options: { resizeImage: boolean },
 	): Promise<Result<MaterializedFile>>;
+	/**
+	 * Draws an image the user picked as a repository icon: at most 128 pixels square, centred, as
+	 * PNG bytes (PRJ-05, platform/icon-image.ts). It runs in the web view's canvas, as Conductor's
+	 * does, which decodes PNG, JPEG, GIF, WebP and SVG alike.
+	 */
+	iconPng(bytes: Uint8Array, mimeType: string): Promise<Result<Uint8Array>>;
 }
 
 // ---------------------------------------------------------------- programs the app manages (D021, D024)

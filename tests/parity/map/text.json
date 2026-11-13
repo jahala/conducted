@@ -470,7 +470,7 @@
 		"state": "sidebar-sections",
 		"via": "text",
 		"role": "tab",
-		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > button:nth-of-type(4)",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > button:nth-of-type(4)",
 		"by": "seed"
 	},
 	"text:R2273904": {
@@ -548,7 +548,7 @@
 		"state": "sidebar-sections",
 		"via": "text",
 		"role": "tab",
-		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > button:nth-of-type(1)",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > button:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R2554858": {
@@ -556,7 +556,7 @@
 		"state": "sidebar-sections",
 		"via": "text",
 		"role": "tab",
-		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > button:nth-of-type(2)",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > button:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R2556165": {
@@ -769,10 +769,10 @@
 	},
 	"text:R2760613": {
 		"status": "matched",
-		"state": "git-scope-menu",
-		"via": "text",
-		"role": "span",
-		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div:nth-of-type(3) > span:nth-of-type(2) > span > span:nth-of-type(1)",
+		"state": "git-working-directories",
+		"via": "aria-label",
+		"role": "svg",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > svg:nth-of-type(2)",
 		"by": "seed"
 	},
 	"text:R2762831": {
@@ -817,10 +817,10 @@
 	},
 	"text:R2978975": {
 		"status": "matched",
-		"state": "setup-cancelled",
+		"state": "setup-timeline-init-failed",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > div:nth-of-type(1) > span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div > span > span",
 		"by": "seed"
 	},
 	"text:R2979610": {
@@ -860,7 +860,7 @@
 		"state": "setup-cancelled",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > div:nth-of-type(2) > div:nth-of-type(1) > p",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > div:nth-of-type(1) > div:nth-of-type(1) > p",
 		"by": "seed"
 	},
 	"text:R2982552": {
@@ -5129,12 +5129,10 @@
 		"by": "seed"
 	},
 	"text:R11281817": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Repository",
-		"backlog": "PRJ-05",
-		"item": "Conductor shows \"Emoji failed to load\" (text, inventory-controls Settings: Repository); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D152",
+		"note": "Conductor says this when its fetched emoji set fails to load; ours bundles its emoji (RepoIconPicker), so nothing can fail to load (D152).",
+		"by": "hand"
 	},
 	"text:R11282175": {
 		"status": "matched",
@@ -5153,12 +5151,12 @@
 		"by": "seed"
 	},
 	"text:R11291806": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "PRJ-05",
-		"item": "Conductor shows \"Upload a PNG, JPEG, GIF, WebP, or SVG image. Conductor resizes it to icon size.\" (text, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "settings-repo-icon-upload",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > p",
+		"by": "seed"
 	},
 	"text:R11292135": {
 		"status": "matched",
@@ -5927,12 +5925,10 @@
 		"by": "seed"
 	},
 	"text:R11772171": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "WS-07",
-		"item": "Conductor shows \"Loading...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D152",
+		"note": "The app starts its project service before it draws the first screen (app/startup.ts) and a reload keeps the list loaded, so Settings never sees the projects loading (D152).",
+		"by": "hand"
 	},
 	"text:R11775650": {
 		"status": "decided",

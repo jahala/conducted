@@ -261,7 +261,7 @@ Statement shapes are abbreviated. Offsets are the SQL position in the dump.
 | list workspaces | `SELECT w.*, r.root_path, ... FROM workspaces w JOIN repos r LEFT JOIN identity_associations` on db filtered by `Xf`, plus the same on cache | m@995401, m@995775, `ode` m@996193 |
 | start setup | `SET state='setting_up', initialization_log_path=?, initialization_files_copied=?` | m@1091866 |
 | finish setup | `SET state='ready' WHERE local_id=? AND state='setting_up'` | m@1100632 |
-| fail setup | `SET state='failed' WHERE ... AND state='setting_up'` | m@1102132 |
+| fail setup | `SET state='failed' WHERE ... AND state='setting_up'`, only when a workspace made from a checkpoint cannot be restored (`rlt`, called from m@1118975). A setup script that fails still ends in ready: `Zct` runs it, moves the row to ready, then toasts "Setup script failed. Check the setup tab for logs." (m@1101155) | m@1102132 |
 | fail init | `SET state='failed' WHERE ... AND state='initializing'` | m@1109003 |
 | archive | `SET state='archived', branch=?, archive_commit=?` (db only, local workspaces) | m@1144708 |
 | unarchive step 1 | `SET state='initializing'` | m@1147721 |
@@ -377,8 +377,8 @@ Local workspace:
 |---|---|---|---|
 | none to initializing | create workspace | none | m@1083668 |
 | initializing to setting_up | worktree and context folder created | none | m@1091866 |
-| setting_up to ready | setup script finished or repo has no setup script | `AND state='setting_up'` | m@1100632 |
-| setting_up to failed | setup error | `AND state='setting_up'` | m@1102132 |
+| setting_up to ready | setup script finished, failed or was stopped, or repo has no setup script | `AND state='setting_up'` | m@1100632, m@1101155 |
+| setting_up to failed | a checkpoint restore that throws (`rlt`), never a failed setup script | `AND state='setting_up'` | m@1102132, m@1118975 |
 | initializing to failed | `markWorkspaceInitializationFailed` | `AND state='initializing'` | m@1109003 |
 | ready to archived | archive (script then DB update, stores branch and archive_commit) | db only | m@1144708 |
 | archived to initializing | unarchive | none | m@1147721 |

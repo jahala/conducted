@@ -124,9 +124,33 @@ describe("WS-03 setup timeline in a new workspace's first chat", () => {
 		expect(send.mock.calls[0]?.[1]).toContain("The setup script failed.");
 	});
 
-	it("reads a failed setup script as one, though ours marks its workspace failed", async () => {
-		await setup({ run: { state: "failed", exitCode: 1 }, failed: true });
+	// Conductor keeps the workspace ready when its setup script fails (main @1101155), so the
+	// timeline reads the script's failure and never an initialization failure.
+	it("shows a real failed setup run as the script's failure, on a ready workspace", async () => {
+		const test = createTestContainer();
+		active = test;
+		const repo = await seedRepo(test.container, { name: "atlas" });
+		test.memory.controls.files.set(
+			`${repo.rootPath}/.conducted/settings.toml`,
+			'[scripts]\nsetup = "pnpm install"\n',
+		);
+		await test.container.services.repo.loadConfig(repo.id);
+		const workspace = await seedWorkspace(test.container, {
+			repoId: repo.id,
+			directoryName: "oslo",
+			branch: "sam/oslo",
+		});
+		const started = await test.container.services.sessions.start();
+		if (!started.ok) throw new Error(started.error.message);
+		test.memory.controls.queuePtyExit(1);
 
+		const ran = await test.container.services.workspace.runSetup(workspace.id);
+		render(wrap(test, <SetupTimeline workspaceId={workspace.id as WorkspaceId} />));
+
+		expect(ran.ok).toBe(false);
+		expect(
+			test.container.services.workspace.store.getState().workspacesById[workspace.id]?.state,
+		).toBe("ready");
 		expect(
 			await screen.findByRole("button", { name: "Setup script failed — fix it?" }),
 		).toBeTruthy();

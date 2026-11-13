@@ -827,6 +827,21 @@ describe("WS-01 WorkspaceService.create", () => {
 		});
 	});
 
+	// Conductor runs the setup script after the workspace is made and moves it to ready whatever the
+	// script did; only the Setup tab and the timeline say the script failed (main @1101155).
+	it("keeps the workspace ready and starts the first chat when the setup script fails", async () => {
+		const { service, rows, createFirstChat, runSetup } = makeHarness();
+		runSetup.mockResolvedValueOnce(ok({ scriptFound: true, exitCode: 1 }));
+
+		const result = await service.create(newInput);
+
+		expect(result.ok).toBe(true);
+		expect(rows[0]?.state).toBe("ready");
+		expect(service.store.getState().workspacesById[rows[0]?.id ?? ""]?.state).toBe("ready");
+		expect(service.store.getState().setupRuns?.[rows[0]?.id ?? ""]?.state).toBe("failed");
+		expect(createFirstChat).toHaveBeenCalledTimes(1);
+	});
+
 	it("keeps the row and marks it failed when the worktree cannot be made", async () => {
 		const { service, rows, createFirstChat } = makeHarness({
 			gitReply: (command, _cwd) => {
@@ -873,6 +888,20 @@ describe("WS-01 WorkspaceService.retrySetup", () => {
 		const result = await service.retrySetup(workspace.id);
 
 		expect(result.ok).toBe(true);
+		expect(rows[0]?.state).toBe("ready");
+	});
+});
+
+describe("WS-03 WorkspaceService.retrySetup when the setup script fails", () => {
+	it("returns the script's failure and leaves the workspace ready", async () => {
+		const workspace = makeWorkspace({ state: "failed" });
+		const { service, rows, runSetup } = makeHarness({ rows: [workspace], exists: true });
+		runSetup.mockResolvedValueOnce(ok({ scriptFound: true, exitCode: 1 }));
+
+		const result = await service.retrySetup(workspace.id);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe("setup_failed");
 		expect(rows[0]?.state).toBe("ready");
 	});
 });

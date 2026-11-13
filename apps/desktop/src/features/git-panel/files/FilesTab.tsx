@@ -1,9 +1,8 @@
 /**
  * @feature REV-06 All files tab
  * Owns: the All files tab body. A filter box over a virtualised tree of every file in the
- * workspace, with a row menu, and beside the box Conductor's "Select working directories" button.
- * Our design choice: that button sits beside the filter box, where this panel keeps a tab's own
- * buttons (as the Changes tab does); Conductor puts it in its tab strip, which in ours has no room.
+ * workspace, with a row menu. Its "Select working directories" button sits in the git panel's tab
+ * strip, as Conductor's does (GitPanelTabs).
  * Behaviour: ui-map.md 3.6, "All files" paragraph. Quick open (Cmd+P) and search in files
  * (Cmd+Shift+F) are separate dialogs owned by the palette feature (REV-07).
  * Data: useFileTree(workspaceId), useChangedFiles(workspaceId, branch),
@@ -35,7 +34,6 @@ import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { toastError } from "../../../ui/Toast.tsx";
 import { FileTreeRow } from "./FileTreeRow.tsx";
 import { buildFileTreeRows, type FileTreeRowModel } from "./file-tree-model.ts";
-import { WorkingDirectoriesButton } from "./WorkingDirectoriesDialog.tsx";
 
 export interface FilesTabProps {
 	workspaceId: WorkspaceId;
@@ -355,7 +353,6 @@ function LiveFilesTab({
 					onChange={(event) => setFilter(event.target.value)}
 					className="w-full"
 				/>
-				<WorkingDirectoriesButton workspaceId={workspaceId} />
 			</div>
 			<LoadableView
 				value={tree}

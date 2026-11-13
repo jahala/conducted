@@ -41,6 +41,7 @@
 import type { AppError, Clock, IdSource, ManagedProgram } from "@conducted/shared";
 import { err, messageOf, ok, type Result } from "@conducted/shared";
 import { globToRegExp } from "./glob.ts";
+import { drawIconPng } from "./icon-image.ts";
 import type {
 	AppInfo,
 	AppMenu,
@@ -113,6 +114,9 @@ export type ShellScript = (
 	command: ShellCommand,
 ) => Result<ShellOutput> | Promise<Result<ShellOutput>> | null;
 
+/** A scripted drawing of an uploaded icon: the PNG bytes, or the failure the canvas would give. */
+export type IconImageScript = (bytes: Uint8Array, mimeType: string) => Result<Uint8Array>;
+
 /** A scripted answer for a cloud request. Return null when the script does not know the path. */
 export type CloudScript = (
 	request: CloudRequest,
@@ -144,6 +148,11 @@ export interface MemoryPlatformOptions {
 export interface MemoryPlatformControls {
 	/** Replaces the shell script. Later scripts are tried first. */
 	scriptShell(script: ShellScript): void;
+	/**
+	 * Answers `attachments.iconPng` in place of the web view's canvas, for jsdom, which has none.
+	 * Without it the stand-in draws in the canvas as the app does, as in the catalogue's browser.
+	 */
+	scriptIconImage(script: IconImageScript): void;
 	/** Adds a cloud answer. Later scripts are tried first. */
 	scriptCloud(script: CloudScript): void;
 	/** Adds a deploy answer. Later scripts are tried first. */
@@ -538,6 +547,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const logs: { level: string; message: string }[] = [];
 	const shellCalls: ShellCommand[] = [];
 	const shellScripts: ShellScript[] = [];
+	let iconImageScript: IconImageScript | null = null;
 	const sidecarSent: string[] = [];
 	const notificationsShown: { title: string; body: string; deepLink?: string }[] = [];
 	const dialogAnswers: { folder?: string | null; files?: string[]; confirm?: boolean }[] = [];
@@ -1485,6 +1495,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 				resized: false,
 			});
 		},
+		iconPng: async (bytes, mimeType) =>
+			iconImageScript === null ? drawIconPng(bytes, mimeType) : iconImageScript(bytes, mimeType),
 	};
 
 	const statusFor = (program: ManagedProgram): ProgramStatus =>
@@ -1802,6 +1814,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const controls: MemoryPlatformControls = {
 		scriptShell: (script) => {
 			shellScripts.unshift(script);
+		},
+		scriptIconImage: (script) => {
+			iconImageScript = script;
 		},
 		scriptCloud: (script) => {
 			cloudScripts.unshift(script);

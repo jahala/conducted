@@ -7,7 +7,8 @@
  * a started chat), the slash command menu after typing "/" (Claude,
  * Codex, and with a Skills group), a typed command that cannot run here, the "+" menu, the Create
  * snippet dialog, the snippet picker with no snippets yet, Link workspaces and directories (and
- * searched with no match), a linked folder above the composer with its tooltip, the Link issue dialog with atlas's
+ * searched with no match), a linked folder above the composer with its tooltip, a linked workspace and
+ * "Linked from" above it with theirs, the Link issue dialog with atlas's
  * GitHub issues and Linear not connected (and with no open issues), the context usage card of a
  * chat signed in with an API key, and the warning when fast mode
  * cannot be paid for.
@@ -432,6 +433,52 @@ export const COMPOSER_STATES: CatalogueState[] = [
 						document,
 						"Files from this directory are accessible to the agent in this workspace.",
 					),
+			};
+		},
+	},
+	{
+		// arbor links grove's folder and a plain one: grove's chip names its project over its branch.
+		id: "composer-linked-workspace",
+		group: "Composer",
+		title:
+			"A linked workspace and a linked folder above the composer, the workspace's tooltip open",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			must(
+				await world.repositories.workspaces.setLinkedPaths(cast.arbor.id, [
+					cast.grove.path,
+					"/Users/sam/code/design-tokens",
+				]),
+			);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await hover(document, "button", "Open workspace relay");
+				},
+				ready: (document) =>
+					shows(
+						document,
+						"Files from this directory are accessible to Claude Code in this workspace.",
+					),
+			};
+		},
+	},
+	{
+		// grove is linked by arbor, so grove's composer says where the link comes from.
+		id: "composer-linked-from",
+		group: "Composer",
+		title: "Linked from above the composer of a workspace another one links, its tooltip open",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			must(await world.repositories.workspaces.setLinkedPaths(cast.arbor.id, [cast.grove.path]));
+			return {
+				route: chatRoute(cast.grove, cast.chats.grove),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.grove);
+					await hover(document, "button", "Open workspace", { prefix: true });
+				},
+				ready: (document) => shows(document, "can access this workspace."),
 			};
 		},
 	},

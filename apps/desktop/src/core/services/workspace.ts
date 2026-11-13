@@ -435,7 +435,9 @@ export class WorkspaceService {
 		for (const workspace of listed.value) {
 			workspacesById[workspace.id] = workspace;
 			if (workspace.host.kind !== "local") continue;
-			if (workspace.state !== "failed" && workspace.state !== "ready") continue;
+			// A setup run always ends in ready, so only a ready workspace has one to show. A failed
+			// workspace could not be made, and its state says nothing about an earlier run's log.
+			if (workspace.state !== "ready") continue;
 			const logPath = await this.#deps.repos.workspaces.getSetupLogPath(workspace.id);
 			if (!logPath.ok) {
 				// The workspace still loads; the caller hears that its setup log could not be found.
@@ -449,10 +451,11 @@ export class WorkspaceService {
 				logError ??= saved.error;
 				continue;
 			}
-			// The exit code and the interrupted reason are not stored, so the load leaves both
-			// null rather than inventing a value from the workspace state.
+			// The run's outcome, exit code and interrupted reason are not stored. Conductor's timeline
+			// reads a ready workspace as a completed setup after a restart, and so does ours; the exit
+			// code and reason stay null rather than invented.
 			setupRuns[workspace.id] = {
-				state: workspace.state === "ready" ? "completed" : "failed",
+				state: "completed",
 				exitCode: null,
 				terminalId: null,
 				logPath: logPath.value,
@@ -532,14 +535,11 @@ export class WorkspaceService {
 	}
 
 	/**
-	 * Runs the repo's setup script in a terminal and moves the workspace to ready or failed. An
-	 * unarchive that reruns setup keeps the restored workspace ready when the script fails, as
-	 * Conductor does; the Setup tab carries the failure.
+	 * Runs the repo's setup script in a terminal, then moves the workspace to ready however the
+	 * script ended, as Conductor does (main @1101155). The setup run carries a failure, which the
+	 * Setup tab and the timeline show, and so does the returned error.
 	 */
-	async runSetup(
-		workspaceId: WorkspaceId,
-		options: { keepStateOnFailure?: boolean } = {},
-	): Promise<Result<void>> {
+	async runSetup(workspaceId: WorkspaceId): Promise<Result<void>> {
 		// Register the start and its nonce before the first await. A second start or a cancel in
 		// the same tick then sees this run instead of slipping past a check that waits on the row.
 		if (this.#setupStarting.has(workspaceId)) return ok(undefined);
@@ -585,8 +585,7 @@ export class WorkspaceService {
 
 			if (!result.ok) {
 				this.#setSetupRun(workspaceId, { state: "failed", exitCode: null, log: "missing" });
-				if (options.keepStateOnFailure === true) return err(result.error);
-				const moved = await this.#finishSetup(workspaceId, false);
+				const moved = await this.#finishSetup(workspaceId);
 				return moved.ok ? err(result.error) : moved;
 			}
 
@@ -606,10 +605,7 @@ export class WorkspaceService {
 				logPath: run.scriptFound ? (run.logPath ?? null) : null,
 				log: run.log ?? "missing",
 			});
-			if (!succeeded && options.keepStateOnFailure === true) {
-				return err(appError("setup_failed", SETUP_FAILED_MESSAGE));
-			}
-			const moved = await this.#finishSetup(workspaceId, succeeded);
+			const moved = await this.#finishSetup(workspaceId);
 			if (!moved.ok) return moved;
 			return succeeded ? ok(undefined) : err(appError("setup_failed", SETUP_FAILED_MESSAGE));
 		} finally {
@@ -649,26 +645,27 @@ export class WorkspaceService {
 			stopped = err(appError("setup_stop_failed", "Couldn't stop the setup script.", cause));
 		}
 		this.#setSetupRun(workspaceId, { state: "cancelled", exitCode: null, terminalId: null });
-		const finished = await this.#finishSetup(workspaceId, false);
+		const finished = await this.#finishSetup(workspaceId);
 		return stopped.ok ? finished : stopped;
 	}
 
-	/** Moves the workspace row to ready or failed after a setup run ends. */
-	async #finishSetup(workspaceId: WorkspaceId, succeeded: boolean): Promise<Result<void>> {
+	/**
+	 * Moves an initializing workspace to ready once its setup run ends, whether the script passed,
+	 * failed or was stopped. Conductor does the same; only a workspace that could not be made is
+	 * failed (WorkspaceCreation.fail).
+	 */
+	async #finishSetup(workspaceId: WorkspaceId): Promise<Result<void>> {
 		const found = await this.#deps.repos.workspaces.get(workspaceId);
 		if (!found.ok) return found;
 		const workspace = found.value;
-		if (workspace === null) return ok(undefined);
-		const next = succeeded ? "ready" : "failed";
-		if (workspace.state === next) return ok(undefined);
-		if (workspace.state !== "initializing" && workspace.state !== "ready") return ok(undefined);
+		if (workspace === null || workspace.state !== "initializing") return ok(undefined);
 		const moved = await this.#deps.repos.workspaces.transitionState(
 			workspaceId,
-			workspace.state,
-			next,
+			"initializing",
+			"ready",
 		);
 		if (!moved.ok) return moved;
-		if (moved.value) this.#upsert({ ...workspace, state: next, updatedAt: this.#deps.now() });
+		if (moved.value) this.#upsert({ ...workspace, state: "ready", updatedAt: this.#deps.now() });
 		return ok(undefined);
 	}
 
@@ -1328,7 +1325,7 @@ export class WorkspaceService {
 
 		// A complete restore was archived with its dependencies in place. Conductor runs the setup
 		// script again here; a setup failure belongs to the Setup tab, not to the unarchive.
-		await this.runSetup(id, { keepStateOnFailure: true });
+		await this.runSetup(id);
 
 		return ok({ needsBranchName: false, uncommittedChangesLost });
 	}
@@ -1806,10 +1803,12 @@ export class WorkspaceService {
 		this.#baseShas.delete(id);
 		this.#creation.addWarnings(id, materialised.value.warnings);
 
-		// A failed creation kept its first message, so a successful retry can start the chat.
+		// A failed creation kept its first message, so a successful retry can start the chat. The
+		// workspace is ready even when its setup script failed, so the chat starts either way.
 		const firstInput = this.store.getState().failedFirstInputs?.[id];
 		if (firstInput !== undefined) await this.#creation.startFirstChat(id, firstInput);
-		return ok(undefined);
+		const { setupError } = materialised.value;
+		return setupError === null ? ok(undefined) : err(setupError);
 	}
 
 	/** Backs `Actions.workspaces.recoverPrompt`. */
