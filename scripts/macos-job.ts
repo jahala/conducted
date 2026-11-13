@@ -6,7 +6,7 @@
  *
  * The inputs are MACOS_JOB in scripts/test-rules.ts, and every file the macOS tests import, with
  * the Vitest setup files: that import graph is walked when this runs, as the TypeScript job's
- * changed-only selection walks its tests' imports (issue #650, D148). An import that does not
+ * changed-only selection walks its tests' imports (issue #650, D149). An import that does not
  * resolve stops it with an error, and a failed run makes CI run the job.
  *
  * It prints `macos=true` or `macos=false` on stdout, for $GITHUB_OUTPUT, and on stderr the changed

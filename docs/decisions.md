@@ -1152,7 +1152,7 @@ Context: the Rust test `git_16_every_program_the_ui_starts_is_allowed` in `shell
 
 Chosen: the `programs` guard in `scripts/guards/structure.ts` already ran the same scan on Linux on every pull request. It now also checks the programs the UI starts through a variable (zsh and the three helper scripts), and fails when the scan finds no `program: "git"`, so a scan of the wrong folder cannot pass. The Rust UI scan is gone; `git_16_allows_the_xcode_licence_programs`, which reads only Rust, stays. `MACOS_JOB` names only the desktop files the job reads: the two the Rust tests read (`platform/tauri.ts`, `core/app-paths.ts`), the macOS tests, the Vitest setup files and what they import. Replayed over main's last 80 merges, 38 skip the job, up from 10.
 
-Why not a TypeScript test: it would repeat the guard's scan, and the guard runs on every pull request whatever changed. Why not compute the macOS tests' imports when `scripts/macos-job.ts` runs: it would end the list's drift, but the list is short and `scripts/macos-job.test.ts` fails on main when a macOS test starts importing a file the list misses. D148 later computes them.
+Why not a TypeScript test: it would repeat the guard's scan, and the guard runs on every pull request whatever changed. Why not compute the macOS tests' imports when `scripts/macos-job.ts` runs: it would end the list's drift, but the list is short and `scripts/macos-job.test.ts` fails on main when a macOS test starts importing a file the list misses. D149 later computes them.
 
 ## D142. "Overwrite file" saves over the file as the last save left it (2026-11-12)
 
@@ -1258,7 +1258,7 @@ Why: it is Conductor's page and API on the user's own Worker, and the one store 
 
 Live verification: see `docs/research/cloud-spike-2026-11-06.md` (CLOUD-17 OAuth).
 
-## D148. The macOS job's selection walks the macOS tests' imports when it runs (2026-11-13)
+## D149. The macOS job's selection walks the macOS tests' imports when it runs (2026-11-13)
 
 Decided by the agent fixing issue #650, which the owner filed.
 
