@@ -25,7 +25,6 @@ import type { Actions } from "../../../core/api.ts";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useSessions, useSetupState, useWorkspace } from "../../../core/hooks.ts";
 import type { Session, SetupView, Workspace } from "../../../core/model.ts";
-import type { WorkspaceService } from "../../../core/services/workspace.ts";
 import { isArchivedWorkspace } from "../../../core/status/archived.ts";
 import {
 	SETUP_FAILED_MESSAGE,
@@ -76,7 +75,7 @@ export function setupRequestChat(
  */
 export async function requestSetupFix(
 	actions: Pick<Actions, "sessions">,
-	workspaceService: Pick<WorkspaceService, "readSetupLog">,
+	workspaceService: { readSetupLog(workspaceId: WorkspaceId): Promise<Result<string>> },
 	input: { workspaceId: WorkspaceId; sessionId: SessionId; hasSavedLog: boolean },
 ): Promise<Result<unknown>> {
 	let log: string | null = null;

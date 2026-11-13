@@ -30,6 +30,7 @@ import {
 	useSetupState,
 	useWorkspace,
 } from "../../core/hooks.ts";
+import type { Session, SetupView, Workspace } from "../../core/model.ts";
 import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { Button } from "../../ui/Button.tsx";
 import {
@@ -66,26 +67,53 @@ function Step({
 
 const muted = "size-3.5 text-fg-muted";
 
+/** Shows the timeline while the workspace is new: local, not archived, and no chat has a message. */
 export function SetupTimeline({ workspaceId }: { workspaceId: WorkspaceId }) {
-	const actions = useActions();
-	const navigate = useNavigate();
-	const workspaceService = useServices().services.workspace;
 	const workspace = useWorkspace(workspaceId);
 	const repos = useRepos();
 	const setup = useSetupState(workspaceId);
 	const sessions = useSessions(workspaceId);
-	const [busy, setBusy] = useState(false);
 
-	if (workspace.state !== "ready" || sessions.state !== "ready") return null;
+	if (workspace.state !== "ready" || sessions.state !== "ready" || setup.state === "loading") {
+		return null;
+	}
 	const row = workspace.data;
 	if (isArchivedWorkspace(row) || row.state === "archiving" || row.host.kind !== "local") {
 		return null;
 	}
 	// Conductor shows it until a chat of the workspace has a message (renderApp `Kma`).
 	if (sessions.data.some((chat) => chat.lastUserMessageAt !== null)) return null;
-	const repo = repos.state === "ready" ? repos.data.find((entry) => entry.id === row.repoId) : null;
-	const view = setup.state === "ready" ? setup.data : null;
-	const chats = sessions.data;
+	return (
+		<Timeline
+			row={row}
+			repoName={
+				repos.state === "ready"
+					? (repos.data.find((entry) => entry.id === row.repoId)?.name ?? "")
+					: ""
+			}
+			view={setup.state === "ready" ? setup.data : null}
+			chats={sessions.data}
+		/>
+	);
+}
+
+function Timeline({
+	row,
+	repoName,
+	view,
+	chats,
+}: {
+	row: Workspace;
+	repoName: string;
+	/** Null when the repository's settings could not be read, so the script is unknown. */
+	view: SetupView | null;
+	chats: readonly Session[];
+}) {
+	const actions = useActions();
+	const navigate = useNavigate();
+	const workspaceService = useServices().services.workspace;
+	const [busy, setBusy] = useState(false);
+	const workspaceId = row.id;
 	// Ours marks a workspace failed when its setup script fails, where Conductor keeps it ready and
 	// fails only the script. A failed script run is read as Conductor's script failure, so only a
 	// workspace that could not be made reads as an initialization failure.
@@ -128,13 +156,14 @@ export function SetupTimeline({ workspaceId }: { workspaceId: WorkspaceId }) {
 				</Step>
 			);
 		}
-		if (row.state === "initializing" || view === null) {
+		if (row.state === "initializing") {
 			return (
 				<Step state="not_started" icon={<CircleIcon className={muted} />}>
 					Detecting setup script...
 				</Step>
 			);
 		}
+		if (view === null) return null;
 		if (!view.hasScript) {
 			return (
 				<Step state="not_started" icon={<ChevronRightIcon className={muted} />}>
@@ -217,7 +246,7 @@ export function SetupTimeline({ workspaceId }: { workspaceId: WorkspaceId }) {
 			<div className="rounded-lg bg-muted p-3">
 				<h3 className="min-w-0 text-sm font-medium break-words text-fg">
 					You’re in a new copy of{" "}
-					<span className="font-mono font-medium break-all">{repo?.name ?? ""}</span> called{" "}
+					<span className="font-mono font-medium break-all">{repoName}</span> called{" "}
 					<span className="font-mono font-medium break-all">{row.directoryName}</span>
 				</h3>
 			</div>

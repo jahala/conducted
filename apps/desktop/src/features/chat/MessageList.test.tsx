@@ -23,6 +23,8 @@ vi.mock("../../core/hooks.ts", () => ({
 	useWorkspace: () => state.workspace,
 	useDraft: () => ({ text: "", attachmentPaths: [] }),
 	useSessions: () => ({ state: "ready", data: [] }),
+	useRepos: () => ({ state: "loading" }),
+	useSetupState: () => ({ state: "loading" }),
 	usePlans: () => ({ state: "ready", data: [] }),
 	useSetting: () => state.expand,
 	useLiveShortcut: () => null,
@@ -48,7 +50,6 @@ vi.mock("./UserMessage.tsx", () => ({
 vi.mock("./ChatBlockView.tsx", () => ({ ChatBlockView: () => null }));
 vi.mock("./TurnFooter.tsx", () => ({ TurnFooter: () => null }));
 vi.mock("./ChatBanner.tsx", () => ({ ChatBanner: () => null }));
-vi.mock("./SetupTimeline.tsx", () => ({ SetupTimeline: () => null }));
 
 const { MessageList } = await import("./MessageList.tsx");
 
