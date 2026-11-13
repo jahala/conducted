@@ -8,7 +8,7 @@
  * Our design choice: a Durable Object rather than the settings bucket, because a refresh token a
  * provider rotates may be spent once only; two Workers refreshing it at once would lose the grant.
  * The tokens never leave this object except as the header the outbound handler sends.
- * Test first: mcp-oauth.test.ts runs the flow on this object's own storage.
+ * Test first: refreshes an expired token once for two requests at the same moment.
  */
 import { DurableObject } from "cloudflare:workers";
 import type { Env } from "./env.ts";

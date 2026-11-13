@@ -25,8 +25,7 @@
  * live in that Durable Object's storage: `token:<name>`, `client:<name>` and `pending:<name>`, one
  * of each per server. A connect replaces the server's pending record; a pending record lives
  * 600 s; a disconnect, a deleted server or a changed one removes them (`prune`).
- * Test first: a connect, the provider's redirect and the callback leave an active token, and an
- * expired token is refreshed once for two requests at the same moment.
+ * Test first: connects through the provider's metadata, a registered client and PKCE.
  */
 import { err, ok, type Result } from "@conducted/shared";
 import type { CloudMcpServer } from "./settings.ts";

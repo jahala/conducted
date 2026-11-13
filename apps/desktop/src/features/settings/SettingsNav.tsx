@@ -8,6 +8,7 @@
  * A repository is one entry (Conductor's hrl): the open one is in medium text with its sections in
  * an indented column with a rule at its left, each with its icon as the other pages have; a click
  * opens the repository at Environment.
+ * The MCP page is listed only while the cloud organisation is active, as Conductor lists it.
  * Must handle: the active page marked (aria-current), no repositories (the group says so), many
  * repositories (the picker has type-ahead), and a repository page applying to the picked project.
  * Test first: the active page link has aria-current and the others do not.
@@ -17,6 +18,7 @@ import type { ReactElement, ReactNode, SVGProps } from "react";
 import { cn } from "../../ui/cn.ts";
 import {
 	ArrowLeftIcon,
+	BlocksIcon,
 	BotIcon,
 	CpuIcon,
 	FileCodeIcon,
@@ -52,6 +54,8 @@ export interface SettingsNavProps {
 	onNavigate: (target: SettingsTarget) => void;
 	onBack: () => void;
 	searchSlot: ReactNode;
+	/** True while the switcher's active entry is the paired Worker: the cloud-only pages show. */
+	cloudActive?: boolean;
 }
 
 /** Conductor's order: Personal, Agents & environment, the repositories, then More. */
@@ -85,6 +89,7 @@ const PAGE_ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => ReactElemen
 	agents: BotIcon,
 	environment: KeyIcon,
 	cloud: GlobeIcon,
+	mcp: BlocksIcon,
 	"remote-control": GlobeIcon,
 	experimental: FlaskIcon,
 	advanced: WrenchIcon,
@@ -104,7 +109,9 @@ export function SettingsNav({
 	onNavigate,
 	onBack,
 	searchSlot,
+	cloudActive = false,
 }: SettingsNavProps) {
+	const listed = USER_SETTINGS_PAGES.filter((page) => cloudActive || page.cloudOnly !== true);
 	const activeRepoId = active.kind === "repo" ? active.repoId : null;
 	const activeKey = settingsTargetKey(active);
 
@@ -133,22 +140,24 @@ export function SettingsNav({
 				{GROUPS_BEFORE_REPOSITORIES.map((group) => (
 					<div key={group} className="flex flex-col gap-0.5">
 						<p className="px-2 pb-1 text-xs text-fg-muted">{SETTINGS_NAV_GROUP_TITLES[group]}</p>
-						{USER_SETTINGS_PAGES.filter((page) => page.group === group).map((page) => {
-							const isActive = activeKey === settingsTargetKey({ kind: "user", page: page.id });
-							const Icon = PAGE_ICONS[page.id] ?? SlidersIcon;
-							return (
-								<button
-									key={page.id}
-									type="button"
-									className={linkClass(isActive)}
-									aria-current={isActive ? "page" : undefined}
-									onClick={() => onNavigate({ kind: "user", page: page.id })}
-								>
-									<Icon className="size-4 shrink-0" />
-									<span className="min-w-0 flex-1 truncate">{page.title}</span>
-								</button>
-							);
-						})}
+						{listed
+							.filter((page) => page.group === group)
+							.map((page) => {
+								const isActive = activeKey === settingsTargetKey({ kind: "user", page: page.id });
+								const Icon = PAGE_ICONS[page.id] ?? SlidersIcon;
+								return (
+									<button
+										key={page.id}
+										type="button"
+										className={linkClass(isActive)}
+										aria-current={isActive ? "page" : undefined}
+										onClick={() => onNavigate({ kind: "user", page: page.id })}
+									>
+										<Icon className="size-4 shrink-0" />
+										<span className="min-w-0 flex-1 truncate">{page.title}</span>
+									</button>
+								);
+							})}
 					</div>
 				))}
 
@@ -226,22 +235,24 @@ export function SettingsNav({
 				{GROUPS_AFTER_REPOSITORIES.map((group) => (
 					<div key={group} className="flex flex-col gap-0.5">
 						<p className="px-2 pb-1 text-xs text-fg-muted">{SETTINGS_NAV_GROUP_TITLES[group]}</p>
-						{USER_SETTINGS_PAGES.filter((page) => page.group === group).map((page) => {
-							const isActive = activeKey === settingsTargetKey({ kind: "user", page: page.id });
-							const Icon = PAGE_ICONS[page.id] ?? SlidersIcon;
-							return (
-								<button
-									key={page.id}
-									type="button"
-									className={linkClass(isActive)}
-									aria-current={isActive ? "page" : undefined}
-									onClick={() => onNavigate({ kind: "user", page: page.id })}
-								>
-									<Icon className="size-4 shrink-0" />
-									<span className="min-w-0 flex-1 truncate">{page.title}</span>
-								</button>
-							);
-						})}
+						{listed
+							.filter((page) => page.group === group)
+							.map((page) => {
+								const isActive = activeKey === settingsTargetKey({ kind: "user", page: page.id });
+								const Icon = PAGE_ICONS[page.id] ?? SlidersIcon;
+								return (
+									<button
+										key={page.id}
+										type="button"
+										className={linkClass(isActive)}
+										aria-current={isActive ? "page" : undefined}
+										onClick={() => onNavigate({ kind: "user", page: page.id })}
+									>
+										<Icon className="size-4 shrink-0" />
+										<span className="min-w-0 flex-1 truncate">{page.title}</span>
+									</button>
+								);
+							})}
 					</div>
 				))}
 			</nav>

@@ -4,7 +4,7 @@
  * store Durable Object's own storage, against the provider in oauth-test-provider.ts: a connect
  * and its callback leave an active token, an expired token is refreshed once however many ask, a
  * refused refresh needs re-auth, and a changed server never gets the old token.
- * Test first: a connect, the provider's redirect and the callback leave an active token.
+ * Test first: connects through the provider's metadata, a registered client and PKCE.
  */
 import { env, runInDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";

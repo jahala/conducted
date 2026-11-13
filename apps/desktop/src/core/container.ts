@@ -64,6 +64,7 @@ import { FileSyncService } from "./cloud/file-sync.ts";
 import { createHostedPlatform } from "./cloud/host-runtime.ts";
 import { createCloudHosts } from "./cloud/hosts.ts";
 import { type CloudMcpImport, createCloudMcpImport } from "./cloud/mcp-import.ts";
+import { type CloudMcpOAuthService, createCloudMcpOAuth } from "./cloud/mcp-oauth.ts";
 import {
 	CLOUD_DATA_PRIVACY_MESSAGE,
 	cloudRequestRuns,
@@ -195,6 +196,7 @@ export interface Services {
 	cloudDeploy: CloudDeployService;
 	cloudWorkspace: CloudWorkspaceService;
 	cloudSettings: CloudSettingsService;
+	cloudMcpOAuth: CloudMcpOAuthService;
 	cloudMcpImport: CloudMcpImport;
 	cloudFileSync: FileSyncService;
 	git: GitService;
@@ -1159,13 +1161,15 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	const cloudPairing = createCloudPairing(platform.cloud);
 	const cloudDeploy = createCloudDeploy(platform.cloud, () => cloudPairing.start());
-	const cloudSettings = createCloudSettings({
+	const cloudSettingsDeps = {
 		cloud: platform.cloud,
 		pairing: () => {
 			const state = cloudPairing.store.getState();
 			return state.state === "ready" ? state.pairing : { paired: false, url: null };
 		},
-	});
+	};
+	const cloudSettings = createCloudSettings(cloudSettingsDeps);
+	const cloudMcpOAuth = createCloudMcpOAuth(cloudSettingsDeps);
 	const cloudMcpImport = createCloudMcpImport({
 		files: platform.fs,
 		toml: inputs.toml,
@@ -1447,6 +1451,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		cloudWorkspace,
 		portForwards,
 		cloudSettings,
+		cloudMcpOAuth,
 		cloudMcpImport,
 		cloudFileSync,
 		git,
