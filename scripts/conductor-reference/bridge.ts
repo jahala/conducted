@@ -1,7 +1,7 @@
 /**
  * The bridge page of the live reference run (stage 2): what our app's own window loads in place of our
- * UI (live-config.ts points its `devUrl` here). It has our real `window.__TAURI_INTERNALS__` and runs
- * on the reference server's jobs:
+ * UI (live-config.ts points its `frontendDist` here). It has our real `window.__TAURI_INTERNALS__`
+ * and runs on the reference server's jobs:
  *
  * - `{ job, command, args }`: calls our real `invoke` and posts `{ job, ok, value | error }` back. A
  *   `__CHANNEL__:<n>` string anywhere in the arguments stands for a channel of the page that asked; it

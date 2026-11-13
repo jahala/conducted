@@ -39,7 +39,9 @@ const dev: RunAction = {
 	availableIn: ["local", "cloud"],
 };
 
-const config = (runScripts: RunAction[]): RepoConfigPatch => ({ runScripts });
+const config = (runScripts: RunAction[]): RepoConfigPatch => ({
+	runActions: runScripts.map((action) => ({ kind: "set", action })),
+});
 
 const containers: ReturnType<typeof createTestContainer>[] = [];
 

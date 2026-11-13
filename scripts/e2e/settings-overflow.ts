@@ -18,14 +18,11 @@
  * counts, as the one #488 found did. An element hidden by a clipping parent is not past the edge.
  */
 
-import {
-	REPO_SETTINGS_PAGES,
-	USER_SETTINGS_PAGES,
-} from "../../apps/desktop/src/features/settings/settings-pages.ts";
+import { REPO_SETTINGS_PAGES } from "../../apps/desktop/src/features/settings/settings-pages.ts";
 import appConfig from "../../apps/desktop/src-tauri/tauri.conf.json" with { type: "json" };
 import { type Browser, type Check, HANG_MS, until } from "./harness.ts";
 import { openRepoSettings, openUserSettings } from "./screens.ts";
-import { startInWorld } from "./world.ts";
+import { startInWorld, userPagesListedIn } from "./world.ts";
 
 /** Measures the page now. Each line names one element that scrolls sideways or passes the edge. */
 export async function sidewaysOverflow(browser: Browser): Promise<string[]> {
@@ -108,13 +105,14 @@ export const settingsOverflow: Check = {
 		const report = async (where: string): Promise<void> => {
 			for (const line of await sidewaysOverflow(browser)) failures.push(`${where}: ${line}`);
 		};
-		const first = USER_SETTINGS_PAGES[0];
+		const userPages = userPagesListedIn(world);
+		const first = userPages[0];
 		if (first === undefined) return ["there are no settings pages"];
 		await openUserSettings(browser, first.id, first.title);
 		if (!(await provesWideBox(browser))) {
 			return ["the measurement missed a box 1000px wide in the settings sidebar"];
 		}
-		for (const page of USER_SETTINGS_PAGES) {
+		for (const page of userPages) {
 			await openUserSettings(browser, page.id, page.title);
 			await report(page.id);
 		}

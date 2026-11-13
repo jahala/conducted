@@ -7,7 +7,14 @@
  * Behaviour: services-map.md 3.1 (remotes, DATA-09), 5A.1.2 (branch prefix), ui-map.md 3.9 (create
  * form), 3.7 (setup tab).
  */
-import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	err,
+	ok,
+	type Result,
+	trimTrailingSlashes,
+} from "@conducted/shared";
 import type { RepoConfig } from "./model.ts";
 
 /** A new chat's model when the setting is empty: the agent's own default. */
@@ -95,7 +102,7 @@ export function normaliseLinkedPaths(paths: readonly string[]): Result<string[]>
 				),
 			);
 		}
-		const normalised = trimmed.length > 1 ? trimmed.replace(/\/+$/, "") : trimmed;
+		const normalised = trimmed.length > 1 ? trimTrailingSlashes(trimmed) : trimmed;
 		if (seen.has(normalised)) continue;
 		seen.add(normalised);
 		cleaned.push(normalised);

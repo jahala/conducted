@@ -1650,9 +1650,7 @@
 	"label:R3977413": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-ui-text Git, review and files",
-		"backlog": "GIT-04",
-		"owner": "rule:neighbour"
+		"screen": "inventory-ui-text Git, review and files"
 	},
 	"label:R3978238": {
 		"status": "matched",
@@ -2529,9 +2527,7 @@
 	"label:R10044498": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "GIT-04",
-		"owner": "rule:neighbour"
+		"screen": "Unplaced"
 	},
 	"label:R10046733": {
 		"status": "matched",

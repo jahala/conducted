@@ -24,6 +24,7 @@ import {
 	err,
 	ok,
 	type Result,
+	trimTrailingSlashes,
 	type WorkspaceId,
 } from "@conducted/shared";
 import type { Platform } from "../../platform/platform.ts";
@@ -116,7 +117,7 @@ function appNameFor(path: string): string | null {
 
 /** True when `folder` is `root` or sits inside it. */
 function isInside(folder: string, root: string): boolean {
-	const clean = (value: string) => value.replace(/\/+$/, "");
+	const clean = (value: string) => trimTrailingSlashes(value);
 	if (clean(folder) === clean(root)) return true;
 	return clean(folder).startsWith(`${clean(root)}/`);
 }

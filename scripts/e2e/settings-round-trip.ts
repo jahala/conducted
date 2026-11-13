@@ -20,11 +20,9 @@
  * set by its own gesture, such as resizing the sidebar), and the page's browser storage (panel
  * sizes, the open workspace).
  */
+
 import { getSettingDef, SETTINGS } from "../../apps/desktop/src/core/registries/settings.ts";
-import {
-	REPO_SETTINGS_PAGES,
-	USER_SETTINGS_PAGES,
-} from "../../apps/desktop/src/features/settings/settings-pages.ts";
+import { REPO_SETTINGS_PAGES } from "../../apps/desktop/src/features/settings/settings-pages.ts";
 import { changeControl, readControl } from "./controls.ts";
 import {
 	type Browser,
@@ -35,7 +33,7 @@ import {
 	until,
 } from "./harness.ts";
 import { openRepoSettings, openUserSettings, openWorkspaceByLink } from "./screens.ts";
-import { startInWorld, type World } from "./world.ts";
+import { startInWorld, userPagesListedIn, type World } from "./world.ts";
 
 /** How long a row may take to load before a disabled control counts as not changeable. */
 const ROW_LOAD_MS = 5_000;
@@ -164,8 +162,9 @@ interface Page {
 	open(browser: Browser): Promise<void>;
 }
 
+/** The pages the Settings nav lists in this world: the MCP page only with the cloud entry active. */
 function pagesOf(world: World): Page[] {
-	const user = USER_SETTINGS_PAGES.map((page) => ({
+	const user = userPagesListedIn(world).map((page) => ({
 		label: page.id,
 		scope: "user",
 		open: (browser: Browser) => openUserSettings(browser, page.id, page.title),

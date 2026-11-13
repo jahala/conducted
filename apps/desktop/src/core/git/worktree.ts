@@ -20,7 +20,14 @@
  * from exactly what was fetched. Removal of the folder goes through the Trash (fs.trash).
  * Test first: nextFreeName("oslo", taken: oslo, oslo-v1) returns "oslo-v2".
  */
-import { appError, err, ok, type Result } from "@conducted/shared";
+import {
+	appError,
+	err,
+	ok,
+	type Result,
+	trimLeadingSlashes,
+	trimTrailingSlashes,
+} from "@conducted/shared";
 import type { FileSystem } from "../../platform/platform.ts";
 import { contextDir } from "../app-paths.ts";
 import {
@@ -74,7 +81,7 @@ const UNBORN_HEAD_PATTERN =
 	/ambiguous argument 'HEAD'|unknown revision|Needed a single revision|does not have any commits yet|bad revision 'HEAD'|unborn branch/i;
 
 const join = (left: string, right: string): string =>
-	`${left.replace(/\/+$/, "")}/${right.replace(/^\/+/, "")}`;
+	`${trimTrailingSlashes(left)}/${trimLeadingSlashes(right)}`;
 
 /**
  * Returns `base`, or `base-v1`, `base-v2`, ... until `isTaken` says the name is free.
@@ -399,7 +406,7 @@ const checkpointerSave = (checkpointerPath: string, id: string) => ({
 });
 
 const absoluteGitPath = (worktreePath: string, path: string): string =>
-	path.startsWith("/") ? path : `${worktreePath.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+	path.startsWith("/") ? path : `${trimTrailingSlashes(worktreePath)}/${trimLeadingSlashes(path)}`;
 
 /**
  * Resolves the unmerged paths and removes the leftover git operation files, so a checkpoint save

@@ -103,9 +103,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
         with:
           fetch-depth: 2
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # ratchet:actions/setup-node@v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # ratchet:oven-sh/setup-bun@v2.2.0
         with:
           bun-version-file: .bun-version
+      # The selection walks the macOS tests' imports, and a package import resolves only once the
+      # package is installed. Nothing runs, so no install script is needed.
+      - run: pnpm install --frozen-lockfile --ignore-scripts --filter "@conducted/desktop..."
       - id: select
         run: bun scripts/macos-job.ts --since HEAD^1 >> "$GITHUB_OUTPUT"
 

@@ -53,7 +53,14 @@
  * Test first: resolveConflicts with one "current" choice replaces that conflict's markers with the
  * current side and stages the file.
  */
-import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
+import {
+	appError,
+	err,
+	ok,
+	type Result,
+	trimTrailingSlashes,
+	type WorkspaceId,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type {
 	FileSearch,
@@ -192,7 +199,7 @@ interface ResolvedPath {
 	absolute: string;
 }
 
-const trimRoot = (root: string): string => (root === "/" ? "" : root.replace(/\/+$/, ""));
+const trimRoot = (root: string): string => (root === "/" ? "" : trimTrailingSlashes(root));
 
 /** The workspace's `.context` folder, with no trailing slash. */
 const contextFolderOf = (root: string): string => `${trimRoot(root)}/.context`;

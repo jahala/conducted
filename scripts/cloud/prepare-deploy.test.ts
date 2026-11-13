@@ -1,7 +1,9 @@
 /**
  * @feature CLOUD-08 Deploy flow for the user's Cloudflare account
- * Tests the deploy inputs' facts: they come from the Worker's own config, the bundling config has
- * no containers (so a dry run never builds the image), and a config missing a resource is refused.
+ * Tests the deploy inputs' facts: they come from the Worker's own config, every Durable Object
+ * class is bound and exported (the sandbox's and the MCP OAuth store's, CLOUD-17), the bundling
+ * config has no containers (so a dry run never builds the image), and a config missing a resource
+ * is refused.
  */
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -20,7 +22,10 @@ describe("CLOUD-08 the deploy inputs", () => {
 			instance: "basic",
 			className: "Workspace",
 			imageKey: "sandbox",
-			objectBinding: "WORKSPACE",
+			objects: [
+				{ className: "Workspace", binding: "WORKSPACE" },
+				{ className: "McpOAuth", binding: "MCP_OAUTH" },
+			],
 			backupBinding: "BACKUPS",
 		});
 	});
@@ -33,14 +38,31 @@ describe("CLOUD-08 the deploy inputs", () => {
 			main: "/repo/apps/cloud/src/index.ts",
 			compatibility_date: "2026-11-06",
 			compatibility_flags: ["nodejs_compat"],
-			exports: { Workspace: { type: "durable-object", storage: "sqlite" } },
+			exports: {
+				Workspace: { type: "durable-object", storage: "sqlite" },
+				McpOAuth: { type: "durable-object", storage: "sqlite" },
+			},
+			durable_objects: {
+				bindings: [
+					{ class_name: "Workspace", name: "WORKSPACE" },
+					{ class_name: "McpOAuth", name: "MCP_OAUTH" },
+				],
+			},
 		});
+	});
+
+	test("a config whose container class has no binding is refused", () => {
+		expect(() =>
+			readDeployFacts(
+				'{"name":"x","compatibility_date":"2026-11-06","vars":{"INSTANCE_TYPE":"basic"},"containers":[{"class_name":"W","images":{"sandbox":{}}}],"durable_objects":{"bindings":[{"class_name":"Other","name":"O"}]},"r2_buckets":[{"binding":"B"}]}',
+			),
+		).toThrow("a durable_objects binding for containers[0].class_name");
 	});
 
 	test("a config with no bucket is refused by name", () => {
 		expect(() =>
 			readDeployFacts(
-				'{"name":"x","compatibility_date":"2026-11-06","vars":{"INSTANCE_TYPE":"basic"},"containers":[{"class_name":"W","images":{"sandbox":{}}}],"durable_objects":{"bindings":[{"name":"W"}]}}',
+				'{"name":"x","compatibility_date":"2026-11-06","vars":{"INSTANCE_TYPE":"basic"},"containers":[{"class_name":"W","images":{"sandbox":{}}}],"durable_objects":{"bindings":[{"class_name":"W","name":"W"}]}}',
 			),
 		).toThrow("r2_buckets[0].binding");
 	});

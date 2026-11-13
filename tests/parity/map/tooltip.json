@@ -94,7 +94,9 @@
 	"tooltip:R8843427": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Composer"
+		"screen": "inventory-controls Composer",
+		"backlog": "REV-03",
+		"owner": "rule:neighbour"
 	},
 	"tooltip:R8922004": {
 		"status": "decided",

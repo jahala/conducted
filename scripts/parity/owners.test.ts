@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Inventory, Item, MapFile, SpecFile } from "./lib.ts";
-import { citedIds, NEIGHBOUR, owners, rowSites } from "./owners.ts";
+import { citedIds, NEIGHBOUR, ownerDrift, owners, rowSites } from "./owners.ts";
 
 const item = (id: string, text: string, research = "ui-map 3"): Item => ({
 	id,
@@ -8,19 +8,6 @@ const item = (id: string, text: string, research = "ui-map 3"): Item => ({
 	item: text,
 	research,
 	status: "missing",
-});
-
-// Two data rows of label.tsv and toast.tsv, in the inventories' own columns.
-const TSV: Record<string, string> = {
-	label:
-		"kind\ttext\tfile\toffset\tcontext\nlabel\tAuth\trenderApp-DeUrsznk.js\t100\tx\nlabel\tLogin method\trenderApp-DeUrsznk.js\t200\tx\n",
-	toast:
-		"kind\ttext\tfile\toffset\tcontext\ntoast\tSaved\tmain-BE1h_1MP.js\t300\tx\ntoast\tFailed\tmain-BE1h_1MP.js\t400\tx\n",
-};
-const sites = rowSites((kind) => {
-	const tsv = TSV[kind];
-	if (tsv === undefined) throw new Error(`no ${kind}.tsv`);
-	return tsv;
 });
 
 const spec = (inventory: Inventory, entries: [string, string, number][]): SpecFile => ({
@@ -33,6 +20,22 @@ const spec = (inventory: Inventory, entries: [string, string, number][]): SpecFi
 		offset,
 	})),
 });
+
+// Two rows of label.tsv, both in the spec, and two of toast.tsv, the first of them left out of the
+// spec as a logger call. The rows are the spec's entries and the left-out ones, by file and offset.
+const sites = rowSites(
+	new Map<Inventory, SpecFile>([
+		[
+			"label",
+			spec("label", [
+				["label:R100", "Auth", 100],
+				["label:R200", "Login method", 200],
+			]),
+		],
+		["toast", spec("toast", [["toast:M400", "Failed", 400]])],
+	]),
+	[{ inventory: "toast", file: "main-BE1h_1MP.js", offset: 300, rule: "logger" }],
+);
 
 const gap = { status: "gap", reason: "missing", screen: "S" } as const;
 
@@ -47,7 +50,12 @@ describe("owners", () => {
 			"toast:M400",
 		]);
 		expect(citedIds(item("SIDE-04", "x", "inventory:rpc cancel"), sites).names).toEqual(["cancel"]);
-		expect(() => citedIds(item("X-01", "x", "inventory title #3"), sites)).toThrow("no title.tsv");
+		expect(citedIds(item("WS-03", "x", "inventory:toast row 1"), sites).ids).toEqual([
+			"toast:M300",
+		]);
+		expect(() => citedIds(item("X-01", "x", "inventory literal #3"), sites)).toThrow(
+			"no literal inventory from a TSV",
+		);
 	});
 
 	test("a citation wins over a quote, a quote over a name, and a hand owner stays", () => {
@@ -137,5 +145,31 @@ describe("owners", () => {
 		expect(map["text:R30200"]).toEqual(gap);
 		expect(map["text:R60000"]).toEqual(gap);
 		expect(60_000 - 30_500).toBeGreaterThan(NEIGHBOUR);
+	});
+
+	test("drift names each committed entry that differs from what the owners derive", () => {
+		const specs = new Map<Inventory, SpecFile>([
+			[
+				"label",
+				spec("label", [
+					["label:R100", "Auth", 100],
+					["label:R9000", "Far from the cited row", 9000],
+				]),
+			],
+		]);
+		const items = [item("CHAT-28", "Account rows", "inventory label #0")];
+		const derived = { ...gap, backlog: "CHAT-28", item: "Account rows", owner: "rule:cite" };
+		// The same entry with its fields in another order is not drift: the map is compared as data.
+		const reordered = { owner: "rule:cite", ...gap, item: "Account rows", backlog: "CHAT-28" };
+		const current = new Map<Inventory, MapFile>([
+			["label", { "label:R100": reordered, "label:R9000": gap }],
+		]);
+		expect(ownerDrift(specs, current, items, sites)).toEqual([]);
+		const behind = new Map<Inventory, MapFile>([
+			["label", { "label:R100": gap, "label:R9000": gap }],
+		]);
+		expect(ownerDrift(specs, behind, items, sites)).toEqual([
+			{ inventory: "label", id: "label:R100", committed: gap, derived },
+		]);
 	});
 });

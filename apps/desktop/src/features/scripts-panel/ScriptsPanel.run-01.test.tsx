@@ -46,7 +46,9 @@ async function setup(runScripts: RunAction[] = [dev]): Promise<{
 	containers.push(test);
 	const repo = await seedRepo(test.container);
 	const workspace = await seedWorkspace(test.container, { repoId: repo.id });
-	const updated = await test.container.services.repo.updateConfig(repo.id, { runScripts });
+	const updated = await test.container.services.repo.updateConfig(repo.id, {
+		runActions: runScripts.map((action) => ({ kind: "set", action })),
+	});
 	if (!updated.ok) throw new Error(updated.error.message);
 	// The Setup tab reads the workspace's chats, which the app loads when the sessions service
 	// starts; the panel waits on "Loading setup" until it has.

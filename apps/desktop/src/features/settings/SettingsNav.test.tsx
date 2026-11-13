@@ -22,6 +22,27 @@ describe("SET-02 SettingsNav", () => {
 		expect(screen.getByRole("button", { name: "Account" }).getAttribute("aria-current")).toBeNull();
 	});
 
+	it("lists MCP under Agents & environment only while the cloud organisation is active (CLOUD-17)", () => {
+		const nav = (cloudActive: boolean) => (
+			<SettingsNav
+				active={{ kind: "user", page: "general" }}
+				repos={[]}
+				onNavigate={() => undefined}
+				onBack={() => undefined}
+				searchSlot={null}
+				cloudActive={cloudActive}
+			/>
+		);
+		const { rerender } = render(nav(false));
+		expect(screen.queryByRole("button", { name: "MCP" })).toBeNull();
+		rerender(nav(true));
+		const cloud = screen.getByRole("button", { name: "Cloud" });
+		const mcp = screen.getByRole("button", { name: "MCP" });
+		const remote = screen.getByRole("button", { name: "Remote control" });
+		expect(cloud.compareDocumentPosition(mcp) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+		expect(mcp.compareDocumentPosition(remote) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	});
+
 	it("puts the groups in Conductor's order, with Connections in More after Advanced", () => {
 		render(
 			<SettingsNav

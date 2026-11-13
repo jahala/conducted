@@ -257,7 +257,11 @@ async function openRunWorkspace() {
 	}
 	must(await container.services.workspace.start());
 	must(await container.services.settings.start());
-	must(await container.services.repo.updateConfig(repo.id, { runScripts: [DEV_ACTION] }));
+	must(
+		await container.services.repo.updateConfig(repo.id, {
+			runActions: [{ kind: "set", action: DEV_ACTION }],
+		}),
+	);
 	const realSpawn = container.platform.pty.spawn.bind(container.platform.pty);
 	// seam: NAV-15 the memory PTY ends a script at once; a dev server keeps running until stopped.
 	const spawns = vi

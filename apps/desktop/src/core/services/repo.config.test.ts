@@ -692,7 +692,7 @@ describe("PRJ-04 repo config reads", () => {
 				setupScript: "pnpm install",
 				copyFiles: [".env"],
 				prompts: { general: "Be careful." },
-				runScripts,
+				runActions: runScripts.map((action) => ({ kind: "set", action })),
 			}),
 		);
 
@@ -740,13 +740,110 @@ describe("PRJ-04 repo config reads", () => {
 			},
 		];
 
-		must(await ctx.service.updateConfig(repoId, { runScripts }));
+		must(
+			await ctx.service.updateConfig(repoId, {
+				runActions: runScripts.map((action) => ({ kind: "set", action })),
+			}),
+		);
 
 		expect(ctx.files.get(localPath)).toContain('available_in = [ "cloud" ]');
 		const reloaded = must(await ctx.service.loadConfig(repoId));
 		expect(reloaded.runScripts.find((action) => action.id === "deploy")?.availableIn).toEqual([
 			"cloud",
 		]);
+	});
+});
+
+// Conductor writes one task at a time by its id (updateTask, main @405635, through M8e @356875):
+// the other tasks stay as the file has them, a rename keeps its place, and "run" goes first.
+describe("SET-07 run actions are saved by id (issue #673)", () => {
+	const local = (id: string, command: string): RunAction => ({
+		id,
+		label: id,
+		command,
+		args: [],
+		cwd: null,
+		isDefault: false,
+		hidden: false,
+		icon: null,
+		origin: "local",
+		availableIn: ["local", "cloud"],
+	});
+	const actionKeys = (text: string | undefined): string[] => {
+		const parsed = tomlCodec.parse(text ?? "");
+		const document = (parsed.ok ? parsed.value : {}) as {
+			scripts?: { run?: Record<string, unknown> };
+		};
+		return Object.keys(document.scripts?.run ?? {});
+	};
+
+	it("changes one action and leaves an action the store has not read yet", async () => {
+		const ctx = makeService();
+		write(ctx.files, localPath, { scripts: { run: { docs: { command: "pnpm docs" } } } });
+		must(await ctx.service.loadConfig(repoId));
+		// A hand edit (or another save) adds an action after the read.
+		write(ctx.files, localPath, {
+			scripts: { run: { docs: { command: "pnpm docs" }, lint: { command: "pnpm lint" } } },
+		});
+
+		must(
+			await ctx.service.updateConfig(repoId, {
+				runActions: [{ kind: "set", action: local("docs", "pnpm docs --watch") }],
+			}),
+		);
+
+		const config = must(await ctx.service.loadConfig(repoId));
+		expect(config.runScripts.map((action) => [action.id, action.command])).toEqual([
+			["docs", "pnpm docs --watch"],
+			["lint", "pnpm lint"],
+		]);
+	});
+
+	it("renames an action in its place, deletes by id, and puts a new run action first", async () => {
+		const ctx = makeService();
+		write(ctx.files, localPath, {
+			scripts: {
+				run: {
+					docs: { command: "pnpm docs" },
+					lint: { command: "pnpm lint" },
+					test: { command: "pnpm test" },
+				},
+			},
+		});
+		must(await ctx.service.loadConfig(repoId));
+
+		must(
+			await ctx.service.updateConfig(repoId, {
+				runActions: [
+					{ kind: "set", action: local("Docs-site", "pnpm docs"), replaceId: "docs" },
+					{ kind: "delete", id: "LINT" },
+					{ kind: "set", action: local("run", "pnpm start") },
+				],
+			}),
+		);
+
+		expect(actionKeys(ctx.files.get(localPath))).toEqual(["run", "Docs-site", "test"]);
+		const config = must(await ctx.service.loadConfig(repoId));
+		expect(config.runScripts.map((action) => action.label)).toEqual(["Run", "Docs site", "Test"]);
+	});
+
+	it("keeps another action's invalid entry when one action is saved", async () => {
+		const ctx = makeService();
+		ctx.files.set(
+			localPath,
+			'[scripts.run.docs]\ncommand = "pnpm docs"\n\n[scripts.run.broken]\nicon = "play"\n',
+		);
+		must(await ctx.service.loadConfig(repoId));
+
+		must(
+			await ctx.service.updateConfig(repoId, {
+				runActions: [{ kind: "set", action: local("docs", "pnpm docs --watch") }],
+			}),
+		);
+
+		const text = ctx.files.get(localPath) ?? "";
+		expect(text).toContain("[scripts.run.broken]");
+		expect(text).toContain('command = "pnpm docs --watch"');
 	});
 });
 

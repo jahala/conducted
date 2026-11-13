@@ -73,7 +73,7 @@ import {
 	signInEnvVars,
 } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Result, SessionId } from "@conducted/shared";
-import { appError, err, ok } from "@conducted/shared";
+import { appError, err, ok, trimTrailingSlashes } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSystem, Keychain } from "../../platform/platform.ts";
 import { agentKey } from "../agent-catalog.ts";
@@ -354,7 +354,7 @@ const otherAgent = (agent: "claude" | "codex"): "claude" | "codex" =>
 	agent === "claude" ? "codex" : "claude";
 
 const configFolder = (home: string, agent: "claude" | "codex"): string => {
-	const root = home.replace(/\/+$/, "");
+	const root = trimTrailingSlashes(home);
 	return agent === "claude" ? `${root}/.claude` : `${root}/.codex`;
 };
 
