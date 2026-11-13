@@ -2154,12 +2154,12 @@ SET-03	message	The Agents page lets the user save a provider API key and shows "
 SET-03	message	The Agents page lets the user remove a provider API key and shows "API key removed".	inventory:toast row 844	missing
 SET-03	message	The Agents page can import a provider API key from the environment: "API key imported from env".	inventory:toast row 847	missing
 SET-03	message	The Agents page asks for all required Bedrock fields: "Enter all required Bedrock fields."	inventory:toast row 929	missing
-SET-04	message	Updating environment variable files can fail with "Failed to update env files".	inventory:toast row 831	covered
+SET-04	message	Updating environment variable files says "Failed to update env files" only when the write throws; a refused or failed write gets the settings writer's toast, with "Overwrite file" for an invalid file (issue #654).	inventory:toast row 831	covered
 SET-04	message	Saving environment variables can fail with "Couldn't update your environment variables".	inventory:toast row 833	covered
 PR-01	message	Refreshing GitHub data can fail with "Couldn't refresh GitHub".	inventory:toast row 856	covered
 PLAT-24	message	If System Settings cannot open, tell the user to grant Full Disk Access under Privacy & Security.	inventory:toast row 873	missing
 PLAT-09	message	The internal sidecar health check shows "Sidecar HTTP is healthy" or "Sidecar HTTP health check failed"; ours checks health over the socket (getHealth).	inventory:toast rows 894, 896	covered
-RUN-02	message	Turning Spotlight testing on or off can fail with "Failed to update spotlight testing".	inventory:toast row 903	covered
+RUN-02	message	Turning Spotlight testing on or off says "Failed to update spotlight testing" only when the call throws; a refused or failed write gets the settings writer's toast, with "Overwrite file" for an invalid file (issue #654).	inventory:toast row 903	covered
 APP-06	message	When no update is found, show "You're up to date!"	inventory:toast row 1033	covered
 APP-03	message	Copying the app logs for support shows "App logs copied".	inventory:toast row 809	covered
 PLAT-16	message	A deep link that cannot open its workspace shows "Couldn't open workspace".	inventory:toast row 959	covered
