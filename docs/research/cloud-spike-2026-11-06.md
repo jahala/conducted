@@ -634,7 +634,7 @@ What the passing run showed (`conducted-dev-c17l-113619`; the same steps passed 
 What the attempts before it taught:
 
 - `-112732`: a new `workers.dev` name answered 404 with error 1042 on the connect, after `/readiness` had already answered 200. Every Worker call in the test now waits out 1042.
-- `-112938`: the steps passed, but the app's uninstall stopped: Cloudflare answered 401 (code 10000) to deleting `settings/user.json`, although the same login had just listed the bucket and the run before had emptied its bucket the same way. The Worker and container were gone; the bucket and its object were deleted by hand with wrangler. Cause unknown; recorded for CLOUD-08.
+- `-112938`: the steps passed, but the app's uninstall stopped: Cloudflare answered 401 (code 10000) to deleting `settings/user.json`, although the same login had just listed the bucket and the run before had emptied its bucket the same way. The Worker and container were gone; the bucket and its object were deleted by hand with wrangler. The cause was wrangler's OAuth token expiring partway through the uninstall (#675, D138); the uninstall now reads the login again once.
 - `-113300`: the steps and the teardown passed; the test's own check read the curl answer wrongly and was fixed.
 
 Created and deleted on the account: Workers `conducted-dev-c17l-{112046, 112732, 112938, 113300, 113619}` (`-112046` is the bearer-token run, which passed), each with its container application, image, R2 bucket and local Docker image. Afterwards wrangler's container, image and bucket lists and `docker images` held no `c17l` entry, and `deployments list` said "does not exist" for all five. Whether a deleted Worker's `McpOAuth` storage goes with it was not checked: no Durable Object list was read.
