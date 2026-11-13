@@ -1,27 +1,21 @@
 {
 	"sidecar_call:codexGoalClear": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "AGENT-13",
-		"item": "Clear the Codex goal of the thread.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "changeGoal",
+		"by": "hand",
+		"note": "Clears the Codex goal; ours is changeGoal with clear (it also pauses and resumes). Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by s1-sidecar.join.test.ts \"AGENT-13 a Codex chat sets, reads, pauses, resumes and clears its goal\"."
 	},
 	"sidecar_call:codexGoalGet": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "AGENT-13",
-		"item": "Read the current Codex goal of the thread.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "getGoal",
+		"by": "hand",
+		"note": "Reads the Codex goal; ours is getGoal. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by s1-sidecar.join.test.ts \"AGENT-13 a Codex chat sets, reads, pauses, resumes and clears its goal\"."
 	},
 	"sidecar_call:codexGoalSet": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "AGENT-13",
-		"item": "Set a Codex goal for the thread.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "setGoal",
+		"by": "hand",
+		"note": "Sets the Codex goal of a thread; ours is setGoal. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by s1-sidecar.join.test.ts \"AGENT-13 a Codex chat sets, reads, pauses, resumes and clears its goal\"."
 	},
 	"sidecar_call:getShellEnv": {
 		"status": "matched",
@@ -29,124 +23,94 @@
 		"by": "seed"
 	},
 	"sidecar_call:message": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-05",
-		"item": "Notification carrying one streamed agent message (ours is the sessionEvent notification).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "sessionEvent",
+		"by": "hand",
+		"note": "A streamed agent message (sidecar.js @267328). Ours sends every agent output as a sessionEvent. In the sidecar differential run of 2026-11-13 (scripts/conductor-reference/sidecar-diff) Conductor sent the turns' output as sessionEventNotification and no message notice; agent output reached the app in the same order on both."
 	},
 	"sidecar_call:queryError": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-05",
-		"item": "Notification that a query failed; ours has no separate queryError, the failure arrives as an event and a live state.",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D031",
+		"note": "D031: there is no queryError; the failure arrives as an event and the live state. In the sidecar differential run of 2026-11-13 (scripts/conductor-reference/sidecar-diff), scenario cancel, Conductor sent queryError and ours ended the turn with turn_ended instead.",
+		"by": "hand"
 	},
 	"sidecar_call:codexMcpConsentDeliveryFailed": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "AGENT-08",
-		"item": "Notification that a Codex MCP consent answer could not be delivered to Codex, so the card can come back.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "liveState",
+		"by": "hand",
+		"note": "Conductor's sidecar sends it when a Codex permission or MCP form could not reach the app or timed out, and the app then clears the card (main @3107933). Ours clears the same card through the chat's live state: the broker closes the interaction and the app drops a card the new live state no longer carries (session/interactions.ts, sessions.ts applyLiveState; approval-bridge.test.ts \"a timed-out permission closes its card at the real broker, so the next one can open\"). Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by those tests."
 	},
 	"sidecar_call:sessionEventNotification": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-05",
-		"item": "Notification carrying a stored session event for the app to save (ours is sessionEvent).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "sessionEvent",
+		"by": "hand",
+		"note": "A stored event for the app to save; ours is sessionEvent. In the sidecar differential run of 2026-11-13 (scripts/conductor-reference/sidecar-diff) both sidecars sent each turn's events and the app acknowledged each one."
 	},
 	"sidecar_call:deliverSessionEvent": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-06",
-		"item": "Sidecar resends an event the app has not confirmed after a reconnect (ours is deliverEvent).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "deliverEvent",
+		"by": "hand",
+		"note": "The sidecar resends an event the app has not confirmed; ours is deliverEvent. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by outbox/replay.test.ts and handlers.chat-18.test.ts \"answers persisted true for a deliverEvent the ingest stored\"."
 	},
 	"sidecar_call:sessionStatusNotification": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-05",
-		"item": "Notification that the working status of a chat changed (ours is liveState).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D031",
+		"note": "D031: there is no sessionStatusNotification; live state and D008's turn_ended carry it. In the sidecar differential run of 2026-11-13 (scripts/conductor-reference/sidecar-diff) Conductor's turn ends were its idle status, ours were turn_ended.",
+		"by": "hand"
 	},
 	"sidecar_call:sessionStateNotification": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-05",
-		"item": "Notification with the live state of a chat (ours is liveState).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "liveState",
+		"by": "hand",
+		"note": "The chat's live state; ours is liveState. In the sidecar differential run of 2026-11-13 (scripts/conductor-reference/sidecar-diff) both sidecars sent it through every turn scenario."
 	},
 	"sidecar_call:fastModeUnavailableNotification": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-05",
-		"item": "Notification that fast mode is unavailable for the account (ours is liveState.fastModeAvailable).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "liveState",
+		"by": "hand",
+		"note": "Tells the app that fast mode is unavailable for the account; ours carries it in the chat's live state (fastModeAvailable), which the composer's banner reads. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by claude-session.test.ts \"the fast-mode refusal on stderr is reported\"."
 	},
 	"sidecar_call:shellEnvCaptureNotification": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-10",
-		"item": "Notification reporting the result of a login-shell environment capture; ours has no such notification and keeps the result inside the sidecar.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "shellEnvFailed",
+		"by": "hand",
+		"note": "Conductor sends it when a login-shell capture fails (cwd, kind, message), and the app shows an error toast (main @3098818). Ours is shellEnvFailed with the same fields; handlers.chat-18.test.ts \"passes a failed login-shell capture to the shell environment port\"."
 	},
 	"sidecar_call:exitPlanMode": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CHAT-12",
-		"item": "Sidecar asks the app to approve leaving plan mode (ours is requestInteraction with a plan approval).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "requestInteraction",
+		"by": "hand",
+		"note": "The sidecar asks the app to approve leaving plan mode; ours sends requestInteraction with a plan_approval. In the sidecar differential run of 2026-11-13 (scripts/conductor-reference/sidecar-diff), scenario plan-mode, Conductor's exitPlanMode and our requestInteraction carried the same plan and the approval reached the agent the same way."
 	},
 	"sidecar_call:askUserQuestion": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CHAT-10",
-		"item": "Sidecar asks the user a question from the agent (ours is requestInteraction with a question).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "requestInteraction",
+		"by": "hand",
+		"note": "The sidecar asks the user the agent's question; ours sends requestInteraction with a question. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by interactions.test.ts \"SIDE-11 gives Codex permissions and MCP forms an expiry and questions none\" and the question tool alias in constants.test.ts."
 	},
 	"sidecar_call:codexMcpElicitation": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "AGENT-08",
-		"item": "Sidecar asks the user to answer a Codex MCP form (ours is requestInteraction).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "requestInteraction",
+		"by": "hand",
+		"note": "The sidecar asks the app to answer a Codex MCP form; ours sends requestInteraction with an mcp_form. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by approval-bridge.test.ts \"an MCP form is shown as a card and accepted with its content\"."
 	},
 	"sidecar_call:codexPermissionApproval": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "AGENT-08",
-		"item": "Sidecar asks the user to grant a Codex permission (ours is requestInteraction).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "requestInteraction",
+		"by": "hand",
+		"note": "The sidecar asks the app to grant a Codex permission; ours sends requestInteraction with a permission_grant. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by approval-bridge.test.ts \"a permission request opens a permission grant with paths, reason and network\"."
 	},
 	"sidecar_call:toolApproval": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "AGENT-04",
-		"item": "Sidecar asks the user to approve a tool call (ours is requestInteraction).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "requestInteraction",
+		"by": "hand",
+		"note": "The sidecar asks the app to approve a tool call; ours sends requestInteraction with a tool_approval. In the sidecar differential run of 2026-11-13 (scripts/conductor-reference/sidecar-diff), scenarios approval and approval-denied, Conductor's toolApproval and our requestInteraction came at the same step and the answer reached the agent the same way."
 	},
 	"sidecar_call:getDiff": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-12",
-		"item": "Sidecar asks the app for the workspace diff for the GetWorkspaceDiff tool (ours is getWorkspaceDiff).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "getWorkspaceDiff",
+		"by": "hand",
+		"note": "The sidecar asks the app for the workspace diff for the GetWorkspaceDiff tool; ours is getWorkspaceDiff. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by tools.test.ts \"an empty diff is a plain no-changes answer, not an error\"."
 	},
 	"sidecar_call:getDiffComments": {
 		"status": "matched",
@@ -154,12 +118,10 @@
 		"by": "seed"
 	},
 	"sidecar_call:diffComment": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-12",
-		"item": "Sidecar asks the app to add diff comments for the DiffComment tool (ours is addDiffComments).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "addDiffComments",
+		"by": "hand",
+		"note": "The sidecar asks the app to add diff comments for the DiffComment tool; ours is addDiffComments. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by tools.test.ts \"two comments call addDiffComments once and answer Posted 2 comments\"."
 	},
 	"sidecar_call:getTerminalOutput": {
 		"status": "matched",
@@ -167,20 +129,16 @@
 		"by": "seed"
 	},
 	"sidecar_call:enterPlanModeNotification": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-20",
-		"item": "Notification that the agent entered plan mode by itself, so the app records the new mode.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "agentConfigChanged",
+		"by": "hand",
+		"note": "The agent entered plan mode by itself; ours is agentConfigChanged with reason entered_plan_mode. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by handlers.side-20.test.ts \"stores the config the agent changed\"."
 	},
 	"sidecar_call:checkpointCreated": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-08",
-		"item": "Notification that a start or end checkpoint of a turn exists, with the changed-file summary (ours is the checkpoint event).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "sessionEvent",
+		"by": "hand",
+		"note": "A start or end checkpoint of a turn, with the changed files; ours stores it as a checkpoint event (events.ts type checkpoint) sent with sessionEvent. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by checkpoint-service.test.ts \"an end checkpoint uses the end phase in its id\"."
 	},
 	"sidecar_call:frontendRelay": {
 		"status": "decided",
@@ -189,12 +147,10 @@
 		"by": "hand"
 	},
 	"sidecar_call:keepAwake": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-21",
-		"item": "Notification asking the app to keep the Mac awake while agents work (ours is an app-side setting driven by live state).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Sent every few seconds while the phone relay waits on a relayed request, and Conductor's app does nothing with it (sidecar.js @1360353, main @3103285). Our keep-awake is PLAT-21's app-side rule.",
+		"by": "hand"
 	},
 	"sidecar_call:remoteControlState": {
 		"status": "matched",
@@ -208,20 +164,16 @@
 		"by": "rule:phone-relay-backend"
 	},
 	"sidecar_call:query": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CHAT-02",
-		"item": "Query: the app starts a new agent turn with the message, attachments and chat settings (ours is sendMessage).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "sendMessage",
+		"by": "hand",
+		"note": "Starts a new turn with the message and the chat's settings; ours is sendMessage. In the sidecar differential run of 2026-11-13 (scripts/conductor-reference/sidecar-diff), every turn scenario sent Conductor's query and our sendMessage at the same step, and both agents got the same text."
 	},
 	"sidecar_call:steer": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CHAT-03",
-		"item": "Steer request: the app sends a message into a running turn instead of starting a new one (ours is sendMessage with delivery steer).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "sendMessage",
+		"by": "hand",
+		"note": "Sends a message into a running turn; ours is sendMessage with delivery steer. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by manager.test.ts \"SIDE-03 a steer goes to the runner and stays pending until the agent reads it\"."
 	},
 	"sidecar_call:cancel": {
 		"status": "matched",
@@ -229,36 +181,28 @@
 		"by": "seed"
 	},
 	"sidecar_call:updatePermissionMode": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "AGENT-04",
-		"item": "Switch the permission mode of a live chat between plan and default (ours is updateConfig with planMode).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "updateConfig",
+		"by": "hand",
+		"note": "Switches a live Claude chat between plan and default mode; ours is updateConfig with planMode. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by claude-session.test.ts \"AGENT-04 plan mode, approvals and auto mode switch the live permission mode\"."
 	},
 	"sidecar_call:setClaudeEditAutoAccept": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "AGENT-04",
-		"item": "Let the live Claude session accept file edits without asking for the rest of the session (ours is updateConfig with requireToolApproval).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "setAutoApproveEdits",
+		"by": "hand",
+		"note": "Conductor's notice that lets a live Claude chat accept file edits for the rest of the session; ours is setAutoApproveEdits. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by claude-session.test.ts \"AGENT-04 setAutoApproveEdits lets the live chat accept an edit without asking\"."
 	},
 	"sidecar_call:resetGenerator": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-07",
-		"item": "Reset the agent generator of a chat so the next message starts fresh (ours is resetAgent).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "resetAgent",
+		"by": "hand",
+		"note": "Resets a chat's agent so the next message starts fresh; ours is resetAgent. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by manager.test.ts \"SIDE-03 resetAgent forgets the chat and stops its agent\"."
 	},
 	"sidecar_call:setVerboseLogging": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-18",
-		"item": "Turn verbose logging on or off in the sidecar (ours is setLogLevel).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "setLogLevel",
+		"by": "hand",
+		"note": "Turns the sidecar's verbose logging on or off; ours is setLogLevel. Stage 2 translates it to our setLogLevel, but no state of the run sent it; ours is shown by handlers.test.ts \"SIDE-02 setLogLevel changes the root logger\"."
 	},
 	"sidecar_call:setInternalUser": {
 		"status": "decided",
@@ -285,28 +229,22 @@
 		"by": "rule:telemetry-backend"
 	},
 	"sidecar_call:setModelCatalog": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-14",
-		"item": "Push the model catalog to the sidecar; ours is the other way round, the sidecar owns the model list (deliberate, no visible difference).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D089",
+		"note": "Conductor's app pushes its hosted model catalog to the sidecar. D089: our sidecar reads each agent's list from the agent program, so nothing is pushed.",
+		"by": "hand"
 	},
 	"sidecar_call:claudeAuth": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-15",
-		"item": "Claude sign-in request: the app starts the Claude login flow through the sidecar (ours is startAgentLogin).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "startAgentLogin",
+		"by": "hand",
+		"note": "Starts the Claude sign-in through the sidecar; ours is startAgentLogin. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by agent-catalog.test.ts \"starts a sign-in for the agent and returns its instructions\"."
 	},
 	"sidecar_call:codexAuth": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-15",
-		"item": "Codex sign-in request: the app starts the Codex login flow through the sidecar (ours is startAgentLogin).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "startAgentLogin",
+		"by": "hand",
+		"note": "Starts the Codex sign-in through the sidecar; ours is startAgentLogin. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by agent-catalog.test.ts \"starts a sign-in for the agent and returns its instructions\"."
 	},
 	"sidecar_call:codexCloudAuthStart": {
 		"status": "decided",
@@ -339,68 +277,52 @@
 		"by": "rule:hosted-computer-backend"
 	},
 	"sidecar_call:fetchAvailableMCP": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-16",
-		"item": "List the MCP servers available to an agent in a workspace, with their status (ours is listMcpServers).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "listMcpServers",
+		"by": "hand",
+		"note": "Lists an agent's MCP servers in a workspace with their status; ours is listMcpServers. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by s1-sidecar.join.test.ts \"SIDE-21 model, slash command and MCP lists run the program and keys of the app's launch\"."
 	},
 	"sidecar_call:fetchSlashCommands": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-16",
-		"item": "List slash commands and skills of an agent in a workspace (ours is listSlashCommands).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "listSlashCommands",
+		"by": "hand",
+		"note": "Lists an agent's slash commands and skills; ours is listSlashCommands. In the sidecar differential run of 2026-11-13 (scripts/conductor-reference/sidecar-diff), scenario slash-commands, both lists matched by name."
 	},
 	"sidecar_call:fetchPreWorkspaceCompletions": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-22",
-		"item": "List slash commands and skills before any workspace exists, from a cached snapshot, for the new-workspace composer.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "listSlashCommands",
+		"by": "hand",
+		"note": "Slash commands and skills before a workspace exists, from a cached snapshot; ours is listSlashCommands without a workspace, answered from the cache (fromCache). Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by s1-sidecar.join.test.ts \"SIDE-22 the slash command cache answers before a chat starts\"."
 	},
 	"sidecar_call:listAcpModels": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-02",
-		"item": "List the models of an ACP agent (ours is listModels).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "listModels",
+		"by": "hand",
+		"note": "Lists an ACP agent's models; ours is listModels for every agent. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by handlers.test.ts \"SIDE-02 listModels is answered by the model catalog\"."
 	},
 	"sidecar_call:fetchAcpSessionConfigOptions": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "AGENT-17",
-		"item": "Fetch the per-chat config options of an ACP agent beyond the model.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "listAcpConfigOptions",
+		"by": "hand",
+		"note": "Lists an ACP chat's options beyond the model; ours is listAcpConfigOptions. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by s1-sidecar.join.test.ts \"AGENT-17 the ACP chat options are listed and set through the handlers\"."
 	},
 	"sidecar_call:syncAcpSessionModel": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "AGENT-17",
-		"item": "Tell an ACP agent which model a chat uses when a saved chat is reloaded.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "listAcpConfigOptions",
+		"by": "hand",
+		"note": "Tells an ACP agent which model a reloaded chat uses. Ours does it in the same reconcile step that runs before listAcpConfigOptions answers and before the first prompt (runners/acp/acp-session.ts header). Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by s1-sidecar.join.test.ts \"AGENT-17 the ACP chat options are listed and set through the handlers\"."
 	},
 	"sidecar_call:setAcpSessionConfigOption": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "AGENT-17",
-		"item": "Set one config option of an ACP session.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "setAcpConfigOption",
+		"by": "hand",
+		"note": "Sets one ACP chat option; ours is setAcpConfigOption. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by s1-sidecar.join.test.ts \"AGENT-17 the ACP chat options are listed and set through the handlers\"."
 	},
 	"sidecar_call:listCodexModels": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-02",
-		"item": "List the Codex models (ours is listModels).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "listModels",
+		"by": "hand",
+		"note": "Lists the Codex models; ours is listModels with agent codex. In the sidecar differential run of 2026-11-13 (scripts/conductor-reference/sidecar-diff), scenario list-models-codex, both sidecars listed the same models by name. In stage 2 it fails with \"Codex is not installed\": the run's world has no Codex, and Conductor's sidecar lists through codex app-server too (sidecar.js @12374406)."
 	},
 	"sidecar_call:warmAgent": {
 		"status": "matched",
@@ -408,52 +330,40 @@
 		"by": "seed"
 	},
 	"sidecar_call:warmShellEnv": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-10",
-		"item": "Warm the login-shell environment for a folder so the first turn starts faster; ours captures it at sidecar start and on warmAgent.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "getShellEnv",
+		"by": "hand",
+		"note": "Warms the login-shell environment for a folder; ours captures it with getShellEnv (and on warmAgent). Stage 2 translates it to our getShellEnv, but no state of the run sent it; ours is shown by shell-env-handlers.test.ts \"asks the provider for the workspace path it was given\"."
 	},
 	"sidecar_call:persistedSessionEvent": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-06",
-		"item": "App confirms an event is stored so the sidecar may drop it from its outbox (ours is the eventPersisted notification).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "eventPersisted",
+		"by": "hand",
+		"note": "The app confirms an event is stored; ours is eventPersisted. In the sidecar differential run of 2026-11-13 (scripts/conductor-reference/sidecar-diff) the app acknowledged every stored event this way on both sidecars."
 	},
 	"sidecar_call:remoteControlChanges": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "RC-02",
-		"item": "Notification that Remote Control changes arrived from the remote side (ours is part of the Remote Control status).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Sends the phone relay host the workspace changes it mirrors to a paired phone (sidecar.js @1352532: workspace, repository and revision rows). Our Remote Control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"sidecar_call:remoteControlStart": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "RC-01",
-		"item": "Start Remote Control for a chat so claude.ai can drive it (a different mechanism than Conductor's phone relay).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Starts Conductor's phone relay host: its parameters are the Conductor user id, host name and Roundhouse URL (sidecar.js @1354202). Our Remote Control is D019's claude.ai route, started with a chat's config.",
+		"by": "hand"
 	},
 	"sidecar_call:remoteControlStop": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "RC-02",
-		"item": "Stop Remote Control for a chat.",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Stops Conductor's phone relay host (sidecar.js @12418115, beside the pairing offers and paired devices). Our Remote Control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"sidecar_call:remoteControlStatus": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "RC-02",
-		"item": "Ask for the Remote Control connection status of a chat.",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Reads the state of Conductor's phone relay host (sidecar.js @12418115). Our Remote Control is D019's claude.ai route.",
+		"by": "hand"
 	},
 	"sidecar_call:remoteControlCreatePairingOffer": {
 		"status": "decided",
@@ -488,36 +398,28 @@
 		"owner": "rule:cite"
 	},
 	"sidecar_call:codexCompact": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "AGENT-14",
-		"item": "Codex compact: shrink the Codex thread history through thread/compact/start, started by the /compact command.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "compact",
+		"by": "hand",
+		"note": "Shrinks a Codex thread's history through thread/compact/start; ours is compact. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by s1-sidecar.join.test.ts \"AGENT-14 a Codex chat compacts its history through the compact handler\"."
 	},
 	"sidecar_call:contextUsage": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-17",
-		"item": "Ask for the context window use and plan usage of a chat (ours is getContextUsage).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "getContextUsage",
+		"by": "hand",
+		"note": "Asks for a chat's context and plan usage; ours is getContextUsage. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by usage-wiring.test.ts \"SIDE-17 the handler reads context usage and plan limits from the live agent\"."
 	},
 	"sidecar_call:acpOneShotPrompt": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-24",
-		"item": "Run one short prompt through an ACP agent for a chat title or branch name, then discard the session.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "runUtilityPrompt",
+		"by": "hand",
+		"note": "One short prompt through an ACP agent for a title or branch name; D030 makes runUtilityPrompt cover it for every agent. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by handlers.test.ts \"SIDE-24 runUtilityPrompt is answered by the utility runner\"."
 	},
 	"sidecar_call:cursorOneShotPrompt": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-24",
-		"item": "Run one short prompt through the Cursor agent for a chat title or branch name, then discard the session.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "runUtilityPrompt",
+		"by": "hand",
+		"note": "One short prompt through the Cursor agent for a title or branch name; D030 makes runUtilityPrompt cover it for every agent. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by handlers.test.ts \"SIDE-24 runUtilityPrompt is answered by the utility runner\"."
 	},
 	"sidecar_call:getSessionStatus": {
 		"status": "matched",
@@ -525,44 +427,34 @@
 		"by": "seed"
 	},
 	"sidecar_call:answerUserQuestion": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-11",
-		"item": "App answers a question card from the agent (ours is answerInteraction).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "answerInteraction",
+		"by": "hand",
+		"note": "The app answers a question card; ours is answerInteraction. Neither stage 2 nor the differential run sends it: no catalogue state runs a turn, so ours is shown by interactions.test.ts \"SIDE-11 an answer must have the kind of its interaction, and withdrawn fits all\"."
 	},
 	"sidecar_call:startAgentationProxy": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "RUN-05",
-		"item": "Start a small proxy that adds the page-annotation toolbar to the in-app browser preview; ours does this in the app, not the sidecar.",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D151",
+		"note": "Starts a proxy that puts the page-annotation toolbar into the in-app preview. Ours attaches the picker to the preview frame from the app (RUN-05, AnnotationOverlay.tsx), so the sidecar has no proxy.",
+		"by": "hand"
 	},
 	"sidecar_call:listLocalhostPorts": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "RUN-03",
-		"item": "List the ports that listen on localhost; ours reads them with lsof in the shell instead of asking the sidecar (deliberate, shell owns it).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D032",
+		"note": "Asks Conductor's sidecar for the ports listening on localhost. D032 reads listening ports with lsof in the app's own shell call, so the sidecar has no such method.",
+		"by": "hand"
 	},
 	"sidecar_call:getHarnessVersions": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-15",
-		"item": "Ask for the installed versions of the agent programs (ours is getAgentInstalls).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "getAgentInstalls",
+		"by": "hand",
+		"note": "Asks for the installed agent program versions; ours is getAgentInstalls. In stage 2's run of 2026-11-13 on this branch, our getAgentInstalls answered all 120 of its calls in the first 200 states."
 	},
 	"sidecar_call:harnessVersionsNotification": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-15",
-		"item": "Notification that the installed agent program versions changed (ours is agentInstallsChanged).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "agentInstallsChanged",
+		"by": "hand",
+		"note": "The installed agent program versions; ours is agentInstallsChanged. In the sidecar differential run of 2026-11-13 (scripts/conductor-reference/sidecar-diff) each sidecar sent its notice as the app connected, in every scenario."
 	},
 	"sidecar_call:crashTest": {
 		"status": "decided",

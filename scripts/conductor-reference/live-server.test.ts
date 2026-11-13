@@ -10,6 +10,8 @@ const INDEX = `<!doctype html><html><head><script type="module" src="/assets/app
 
 let dir: string;
 let server: LiveServer;
+/** The server's clock, which a test moves forward while our app answers. */
+let clock = 0;
 
 beforeAll(async () => {
 	dir = mkdtempSync(join(tmpdir(), "live-server-"));
@@ -21,6 +23,7 @@ beforeAll(async () => {
 	server = await startLiveServer({
 		bundles: { conductor: join(dir, "conductor"), ours: join(dir, "ours") },
 		port: 0,
+		now: () => clock,
 	});
 });
 
@@ -160,6 +163,45 @@ describe("startLiveServer", () => {
 				["ours", "keychain_get", "refused", 1],
 			],
 		);
+		await bridge.stop();
+		server.resetBridge();
+	});
+});
+
+describe("how long our app takes", () => {
+	test("each answered command's time is kept, with the slowest and its state", async () => {
+		server.prepare({
+			state: "chat-working",
+			front: "ours",
+			route: "/all-workspaces",
+			mapping: identityMapping(),
+			context: {},
+			globals: { isTauri: true },
+		});
+		const took: Record<string, number> = { shell_login_env: 9_000, health: 20 };
+		const bridge = await bridgeClient(({ command }) => {
+			clock += took[command] ?? 0;
+			return "ok";
+		});
+		await server.bridged();
+		for (const command of ["shell_login_env", "health", "health"]) {
+			expect(await server.ours.invoke(command, {})).toEqual({ ok: true, value: "ok" });
+		}
+		const durations = server.durations();
+		expect(durations.find((entry) => entry.command === "shell_login_env")).toEqual({
+			front: "ours",
+			command: "shell_login_env",
+			count: 1,
+			totalMs: 9_000,
+			maxMs: 9_000,
+			slowestState: "chat-working",
+		});
+		// health was asked once by the test above too, at no time on the clock.
+		expect(durations.find((entry) => entry.command === "health")).toMatchObject({
+			maxMs: 20,
+			totalMs: 40,
+			slowestState: "chat-working",
+		});
 		await bridge.stop();
 		server.resetBridge();
 	});

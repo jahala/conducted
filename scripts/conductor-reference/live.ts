@@ -21,7 +21,8 @@
  *
  * Output, in `<out>` (default `.context/shots/conductor-live/` of the main checkout):
  * `<state>-dark.png` (Conductor's frontend), `ours/<state>-dark.png` (our UI), `index.json` and
- * `live.json` (every call, by state, front, name and outcome, and the totals check e reads).
+ * `live.json` (every call, by state, front, name and outcome, the totals check e reads, and how long
+ * our app took to answer each command).
  *
  * Usage: bun scripts/conductor-reference/live.ts [state-id ...] [--out <dir>] [--fronts conductor,ours]
  *        [--target <cargo target dir>]
@@ -387,6 +388,19 @@ async function shootOne(options: {
 	}
 }
 
+/** The run's two logs, `live.json` (every call and the totals check e reads) and `index.json`. */
+function writeLogs(out: string, server: LiveServer, live: LiveMappingModule, shots: Shot[]): void {
+	const calls = server.calls();
+	writeFileSync(
+		join(out, "live.json"),
+		`${JSON.stringify({ commit: gitHead(), gaps: live.GAPS, summary: liveSummary(calls), durations: server.durations(), calls }, null, "\t")}\n`,
+	);
+	writeFileSync(
+		join(out, "index.json"),
+		`${JSON.stringify({ viewport: VIEWPORT, states: shots }, null, "\t")}\n`,
+	);
+}
+
 const inventoryOf = (
 	tally: Pick<CallTally, "kind" | "name">,
 ): { inventory: string; name: string } => {
@@ -499,17 +513,11 @@ async function main(args: string[]): Promise<number> {
 				console.log(
 					`${shot.file === null ? "none" : "ok  "} ${front.padEnd(9)} ${state.id}${notes.length > 0 ? ` (${notes.join("; ")})` : ""}`,
 				);
+				// Written after every picture, so a run that is stopped part way keeps what it measured.
+				writeLogs(out, server, live, shots);
 			}
 		}
-		const calls = server.calls();
-		writeFileSync(
-			join(out, "live.json"),
-			`${JSON.stringify({ commit: gitHead(), gaps: live.GAPS, summary: liveSummary(calls), calls }, null, "\t")}\n`,
-		);
-		writeFileSync(
-			join(out, "index.json"),
-			`${JSON.stringify({ viewport: VIEWPORT, states: shots }, null, "\t")}\n`,
-		);
+		writeLogs(out, server, live, shots);
 		const failed = shots.filter((shot) => shot.file === null && shot.route !== null).length;
 		console.log(`${shots.length} pictures, ${failed} failed. Written to ${out}`);
 		return failed === 0 ? 0 : 1;

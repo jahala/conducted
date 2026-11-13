@@ -579,36 +579,28 @@
 		"by": "hand"
 	},
 	"tauri_plugin_command:http|fetch": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-30",
-		"owner": "hand",
-		"note": "HTTP from the native side."
+		"status": "matched",
+		"ours": "tauri_command:http_fetch",
+		"by": "hand",
+		"note": "Starts an HTTP request through Tauri's HTTP plugin (main @2022870); ours makes the UI's HTTP requests with the http_fetch command. Stage 2 refuses the plugin: its calls go to Conductor's own servers or, with the run's network cut off, nowhere. Ours is shown by http.rs plat_30_fetch_returns_the_status_headers_and_body (ours allows only its listed hosts)."
 	},
 	"tauri_plugin_command:http|fetch_cancel": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-30",
-		"owner": "hand",
-		"note": "HTTP from the native side."
+		"status": "matched",
+		"ours": "tauri_command:http_cancel",
+		"by": "hand",
+		"note": "Cancels the plugin's request; ours is http_cancel. Ours is shown by http.rs plat_30_fetch_returns_the_status_headers_and_body (ours allows only its listed hosts)."
 	},
 	"tauri_plugin_command:http|fetch_send": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-30",
-		"owner": "hand",
-		"note": "HTTP from the native side."
+		"status": "matched",
+		"ours": "tauri_command:http_fetch",
+		"by": "hand",
+		"note": "Sends the request the plugin's fetch opened; ours sends it in the same http_fetch call. Ours is shown by http.rs plat_30_fetch_returns_the_status_headers_and_body (ours allows only its listed hosts)."
 	},
 	"tauri_plugin_command:http|fetch_read_body": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-30",
-		"owner": "hand",
-		"note": "HTTP from the native side."
+		"status": "matched",
+		"ours": "tauri_command:http_fetch",
+		"by": "hand",
+		"note": "Reads the body of the plugin's response; ours returns it with http_fetch's answer. Ours is shown by http.rs plat_30_fetch_returns_the_status_headers_and_body (ours allows only its listed hosts)."
 	},
 	"tauri_plugin_command:notification|is_permission_granted": {
 		"status": "matched",
@@ -631,28 +623,22 @@
 		"by": "seed"
 	},
 	"tauri_plugin_command:os|hostname": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-32",
-		"owner": "hand",
-		"note": "A system fact."
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Mac's host name, which Conductor reads only to name this Mac to a paired phone (renderApp @10639542, beside the paired devices). The phone relay stays out.",
+		"by": "hand"
 	},
 	"tauri_plugin_command:process|exit": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-15",
-		"owner": "hand",
-		"note": "Quit the app."
+		"status": "matched",
+		"ours": "tauri_command:app_quit",
+		"by": "hand",
+		"note": "Quits the app. Ours is app_quit. The run's host refuses quitting (live-server.ts); ours is driven by platform/tauri-platform.test.ts."
 	},
 	"tauri_plugin_command:process|restart": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-13",
-		"owner": "hand",
-		"note": "Restart after an update."
+		"status": "matched",
+		"ours": "tauri_command:updater_relaunch",
+		"by": "hand",
+		"note": "Restarts the app after an update. Ours is updater_relaunch. No catalogue state installs an update; ours is shown by updater.rs plat_13_a_verified_download_is_ready_for_the_relaunch."
 	},
 	"tauri_plugin_command:updater|download": {
 		"status": "matched",

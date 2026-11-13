@@ -328,6 +328,49 @@ describe("check e, backend lists", () => {
 			checkBackend(kept, ours({ table: ["repos", "sessions", "backlog_workspaces"] })),
 		).toEqual([]);
 	});
+
+	test("a match may name a counterpart in another of our lists, which then counts as matched", () => {
+		const base = inputs({
+			specs: new Map([
+				[
+					"tauri_plugin_command",
+					spec("tauri_plugin_command", [
+						["tauri_plugin_command:process|exit", "process|exit"],
+						["tauri_plugin_command:process|restart", "process|restart"],
+					]),
+				],
+			]),
+			maps: new Map<Inventory, MapFile>([
+				[
+					"tauri_plugin_command",
+					{
+						"tauri_plugin_command:process|exit": {
+							status: "matched",
+							ours: "tauri_command:app_quit",
+							by: "hand",
+						},
+						"tauri_plugin_command:process|restart": {
+							status: "matched",
+							ours: "tauri_command:updater_restart",
+							by: "hand",
+						},
+					},
+				],
+			]),
+		});
+		const findings = checkBackend(
+			base,
+			ours({ tauri_command: ["app_quit", "updater_relaunch"], tauri_plugin_command: [] }),
+		);
+		expect(findings.map((f) => [f.code, f.text, f.detail])).toEqual([
+			[
+				"backend-missing",
+				"process|restart",
+				"matched to updater_restart, which our tauri_command list does not have",
+			],
+			["backend-ours-only", "updater_relaunch", "ours only: no Conductor name is matched to it"],
+		]);
+	});
 });
 
 describe("check e with the live log (--live)", () => {

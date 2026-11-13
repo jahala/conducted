@@ -1,7 +1,7 @@
 /**
  * Our backend's name lists, read from the code that defines them, for the parity harness's backend
  * check: the protocol's method tables, the sidecar's app tools, the Tauri adapter's command map, the
- * Rust event names, the Tauri plugins the shell registers, the settings registry and the migrations.
+ * Rust event names and Tauri's own window events, the Tauri plugins the shell registers, the settings registry and the migrations.
  * Behaviour: docs/plans/parity-harness.md section 3, check e.
  * Must handle: a list that cannot be read (a moved file, a renamed table) is a thrown error naming
  * where it looked, never an empty list, so a broken read cannot pass as "nothing matches".
@@ -76,7 +76,33 @@ export function tauriCommands(root: string): string[] {
 	);
 }
 
-/** Event names the Rust shell emits, from its `EVENT_*: &str` constants. */
+/**
+ * The events Tauri itself sends a window in every Tauri 2 app: the API package's `TauriEvent`
+ * names, and the two a window gets once when it is made (`localTauriEvents` in its window module).
+ * ours.test.ts compares the list with the package the app ships.
+ */
+const CORE_EVENTS = [
+	"tauri://resize",
+	"tauri://move",
+	"tauri://close-requested",
+	"tauri://destroyed",
+	"tauri://focus",
+	"tauri://blur",
+	"tauri://scale-change",
+	"tauri://theme-changed",
+	"tauri://window-created",
+	"tauri://webview-created",
+	"tauri://suspended",
+	"tauri://resumed",
+	"tauri://drag-enter",
+	"tauri://drag-over",
+	"tauri://drag-drop",
+	"tauri://drag-leave",
+	"tauri://created",
+	"tauri://error",
+];
+
+/** Event names the Rust shell emits, from its `EVENT_*: &str` constants, and Tauri's own. */
 export function tauriEvents(root: string): string[] {
 	const names: string[] = [];
 	for (const path of files(join(root, TAURI_SRC), /\.rs$/)) {
@@ -84,7 +110,8 @@ export function tauriEvents(root: string): string[] {
 			names.push(match[1] ?? "");
 		}
 	}
-	return nonEmpty("Tauri events", names);
+	// The shell's own names are checked alone, so a broken read is never hidden by Tauri's.
+	return nonEmpty("Tauri events", [...nonEmpty("the shell's Tauri events", names), ...CORE_EVENTS]);
 }
 
 /** Plugin names the shell has: Tauri's core ones and each `tauri-plugin-<name>` dependency. */

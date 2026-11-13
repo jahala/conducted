@@ -1311,3 +1311,17 @@ Measured after, on the same chat: a streamed event with every turn loaded alloca
 Not covered: the store still copies the whole list of loaded rows for each event, and the list of turns and the outline are new lists of 22,300 entries after each change, so time and garbage still grow with the loaded turns, at a few MB. The hold was not shown to work in a browser: in Chromium the list loads every older turn while a long chat opens, so no gap is left to fill, and loading them one at a time made the list jump (issue #689). The same kind of jump shows on the main line's list for a 40-turn chat in about one opening of four.
 
 The tests: `turn-builder.chat-07-size.test.ts` (the bound per streamed event at 22,300 turns), `turn-builder.incremental.test.ts` (updates against fresh builds), `sessions.chat-06-memory.container.test.ts` (the jump's bound), and `sessions.chat-06.container.test.ts` and `MessageList.chat-06.test.tsx` (the gap's behaviour).
+
+## D151. Three backend jobs ours does without the call Conductor makes (2026-11-13)
+
+Proposed by the backend-parity PR (#679), under the owner's rule "Match Conductor. Nothing made up; gaps are reported."; not yet ruled on by the owner.
+
+Context: the parity map's backend names (`docs/plans/parity-harness.md` section 3, check e) found three Conductor calls whose job our app does in another part, with no call of its own. D020 asks every such internal difference to have a decision entry, and none did.
+
+Chosen, as the rows were built:
+
+- **Page annotations in the preview** (RUN-05). Conductor's sidecar starts a proxy that puts its annotation toolbar into the previewed page (`startAgentationProxy`). Ours attaches the picker to the preview frame from the app (`AnnotationOverlay.tsx`), so the sidecar has no proxy.
+- **Saved terminal scrollback** (PLAT-08). Conductor's UI asks Rust to save a terminal's scrollback (`pty_persist_terminal_history`). Ours saves it in Rust when the terminal's process ends and when the app closes (`pty.rs`, `terminal_history.rs`), so there is no command.
+- **Moving a database down** (PLAT-17). Conductor records each migration's undo SQL in `migration_rollbacks` for a repository script it does not ship. Ours has no down-migrations: a database newer than the app asks the user to update (`db.rs`).
+
+Why: in each the user gets the same result, and a call or table of Conductor's shape would only add a second path for the same job.

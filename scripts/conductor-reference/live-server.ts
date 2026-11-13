@@ -94,6 +94,16 @@ interface PageSession {
 	write?: (push: Push) => void;
 }
 
+/** How long our app took to answer one command over a run: the count, the total and the slowest. */
+export interface CallDuration {
+	front: Front;
+	command: string;
+	count: number;
+	totalMs: number;
+	maxMs: number;
+	slowestState: string;
+}
+
 export interface LiveServer {
 	/** Where the server listens. */
 	url: string;
@@ -106,6 +116,8 @@ export interface LiveServer {
 	calls(): CallTally[];
 	/** Our commands asked and not answered yet, by name. */
 	pending(): string[];
+	/** How long our app took to answer each command, per front. */
+	durations(): CallDuration[];
 	/** Forgets the bridge, so the next app run connects afresh. */
 	resetBridge(): void;
 	stop(): Promise<void>;
@@ -138,7 +150,10 @@ export async function startLiveServer(options: {
 	bundles: Record<Front, string>;
 	/** Our dev origin's port unless given; a test passes 0 for a free one. */
 	port?: number;
+	/** The clock the call times are read from, in milliseconds. */
+	now?: () => number;
 }): Promise<LiveServer> {
+	const now = options.now ?? Date.now;
 	for (const [front, dir] of Object.entries(options.bundles)) {
 		if (!existsSync(join(dir, "index.html")))
 			throw new Error(`The ${front} bundle at ${dir} has no index.html.`);
@@ -155,6 +170,8 @@ export async function startLiveServer(options: {
 	let nextJob = 1;
 	const waiting = new Map<number, (answer: LiveAnswer) => void>();
 	const waitingNames = new Map<number, string>();
+	const startedAt = new Map<number, number>();
+	const durations = new Map<string, CallDuration>();
 	let writeJob: ((line: string) => void) | null = null;
 	let jobQueue: string[] = [];
 	let connected: () => void = () => {};
@@ -178,9 +195,30 @@ export async function startLiveServer(options: {
 			const job = nextJob++;
 			const answer = new Promise<LiveAnswer>((resolve) => waiting.set(job, resolve));
 			waitingNames.set(job, command);
+			startedAt.set(job, now());
 			sendJob({ job, command, args, ...(bytes === true ? { bytes } : {}) });
 			return answer;
 		},
+	};
+	/** One answered command's time, kept per front and command with the slowest state. */
+	const timed = (command: string, ms: number): void => {
+		const front = opening?.front ?? "ours";
+		const key = `${front}|${command}`;
+		const entry = durations.get(key) ?? {
+			front,
+			command,
+			count: 0,
+			totalMs: 0,
+			maxMs: -1,
+			slowestState: "",
+		};
+		entry.count += 1;
+		entry.totalMs += ms;
+		if (ms > entry.maxMs) {
+			entry.maxMs = ms;
+			entry.slowestState = opening?.state ?? "";
+		}
+		durations.set(key, entry);
 	};
 	const listened = new Set<string>();
 	const listenOurs = (event: string): void => {
@@ -280,8 +318,12 @@ export async function startLiveServer(options: {
 				error?: unknown;
 			};
 			const resolve = waiting.get(answer.job);
+			const command = waitingNames.get(answer.job);
+			const started = startedAt.get(answer.job);
+			if (command !== undefined && started !== undefined) timed(command, now() - started);
 			waiting.delete(answer.job);
 			waitingNames.delete(answer.job);
+			startedAt.delete(answer.job);
 			resolve?.(
 				answer.ok ? { ok: true, value: answer.value ?? null } : { ok: false, error: answer.error },
 			);
@@ -405,6 +447,10 @@ export async function startLiveServer(options: {
 		},
 		calls: () => [...tallies.values()],
 		pending: () => [...waitingNames.values()],
+		durations: () =>
+			[...durations.values()]
+				.map((entry) => ({ ...entry }))
+				.sort((a, b) => a.front.localeCompare(b.front) || a.command.localeCompare(b.command)),
 		resetBridge: () => {
 			writeJob = null;
 			jobQueue = [];
@@ -412,6 +458,7 @@ export async function startLiveServer(options: {
 			for (const resolve of waiting.values()) resolve({ ok: false, error: "the app stopped" });
 			waiting.clear();
 			waitingNames.clear();
+			startedAt.clear();
 			bridgedOnce = new Promise<void>((resolve) => {
 				connected = resolve;
 			});

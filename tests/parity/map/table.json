@@ -10,12 +10,10 @@
 		"by": "seed"
 	},
 	"table:identity_associations": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-13",
-		"item": "Identity associations table for cloud hosts.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D103",
+		"note": "Pairs a row's local id with the id Conductor's server gave it (main @587576). D103 names it as not built: our cloud rows keep the id the Mac gave them.",
+		"by": "hand"
 	},
 	"table:repos": {
 		"status": "matched",
@@ -36,36 +34,28 @@
 		"owner": "rule:name"
 	},
 	"table:session_messages_outbox": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CHAT-04",
-		"item": "Table session_messages_outbox for queued follow-up messages.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "queued_messages",
+		"by": "hand",
+		"note": "Follow-up messages waiting to be sent, with their order, state and last error (main @1209573, \"This queued message could not be read\"). Ours is queued_messages (CHAT-04)."
 	},
 	"table:session_pending_messages_state": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CHAT-04",
-		"owner": "hand",
-		"note": "The follow-up queue."
+		"status": "decided",
+		"decision": "D025",
+		"note": "In Conductor's cache.db: the pause state and generation of a server-hosted session's pending messages (main @1213029). Our cloud chats keep the pause in sessions (D103).",
+		"by": "hand"
 	},
 	"table:session_pending_messages": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CHAT-04",
-		"owner": "hand",
-		"note": "The follow-up queue."
+		"status": "decided",
+		"decision": "D025",
+		"note": "In Conductor's cache.db: the pending messages of a session its server hosts, with sender, revision and generation from Roundhouse (main @1213218, keyed session-pending-messages:). Our cloud chats queue in queued_messages like local ones (D103).",
+		"by": "hand"
 	},
 	"table:session_assets_outbox": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CHAT-04",
-		"item": "Table session_assets_outbox for queued attachments.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "queued_messages",
+		"by": "hand",
+		"note": "The attachments of queued follow-ups (main @1216310). Ours keeps a queued message's attachments in queued_messages.attachment_paths."
 	},
 	"table:attachments": {
 		"status": "matched",
@@ -73,28 +63,22 @@
 		"by": "seed"
 	},
 	"table:client_cache_session_state": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "DATA-07",
-		"owner": "hand",
-		"note": "The cache for a fast restart."
+		"status": "decided",
+		"decision": "D103",
+		"note": "The cache version of a cloud session copied from Roundhouse (main @1403143). D103 keeps a cloud chat's events in session_events and names this table as not built.",
+		"by": "hand"
 	},
 	"table:session_messages": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "DATA-01",
-		"item": "Main tables: repos, workspaces, sessions, session_events and others (session_messages is dropped by D006).",
-		"owner": "rule:name"
+		"status": "decided",
+		"decision": "D006",
+		"note": "Conductor's old message table, written beside session_events. D006 keeps session_events as the only chat history.",
+		"by": "hand"
 	},
 	"table:client_cache_session_segments": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "DATA-07",
-		"owner": "hand",
-		"note": "The cache for a fast restart."
+		"status": "decided",
+		"decision": "D103",
+		"note": "Which feed segments of a cloud session Conductor has loaded from Roundhouse (main @1403375). D103 keeps a cloud chat's events in session_events, so there is no segment cache; it names this table as not built.",
+		"by": "hand"
 	},
 	"table:session_events": {
 		"status": "matched",
@@ -102,12 +86,10 @@
 		"by": "seed"
 	},
 	"table:session_state": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-05",
-		"item": "Table session_state.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "session_live_state",
+		"by": "hand",
+		"note": "A chat's last live state and config. Ours keeps the live state in session_live_state and the config in sessions.config."
 	},
 	"table:diff_comments": {
 		"status": "matched",
@@ -115,12 +97,10 @@
 		"by": "seed"
 	},
 	"table:session_messages_outbox_state": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CHAT-04",
-		"item": "Table session_messages_outbox_state for queue pause state.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "sessions",
+		"by": "hand",
+		"note": "When a chat's follow-up queue was paused (paused_at). Ours keeps it in sessions.queue_paused_at."
 	},
 	"table:sessions": {
 		"status": "matched",
@@ -128,12 +108,10 @@
 		"by": "seed"
 	},
 	"table:terminal_sessions": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-08",
-		"item": "Terminal rows keep the replay sequences and screen modes (rehydrate_sequences, alternate_screen, bracketed_paste) for a faithful restore.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"ours": "terminals",
+		"by": "hand",
+		"note": "A terminal's row, with what a restore needs. Ours is terminals; its screen_state keeps the screen modes (alternate screen, bracketed paste) the PTY's snapshot reports (pty.rs, PLAT-08)."
 	},
 	"table:port_forwards": {
 		"status": "matched",
@@ -146,20 +124,16 @@
 		"by": "seed"
 	},
 	"table:navigation_sections": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "NAV-04",
-		"item": "Table navigation_sections.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "sections",
+		"by": "hand",
+		"note": "The sidebar's sections, scoped by Conductor's server, organisation and user. Ours keeps them in sections for this Mac (NAV-04)."
 	},
 	"table:navigation_section_memberships": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "NAV-04",
-		"item": "Table navigation_section_memberships.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "section_members",
+		"by": "hand",
+		"note": "Which workspace sits in which sidebar section. Ours is section_members (NAV-04)."
 	},
 	"table:_sqlx_migrations": {
 		"status": "matched",
@@ -168,35 +142,27 @@
 		"note": "sqlx's migration ledger: Conductor's SQL plugin keeps it, and so does our shell's migrator (D137)."
 	},
 	"table:identity_acceptances": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-13",
-		"item": "Identity acceptances table for cloud hosts.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A table Conductor's schema creates that no frontend or sidecar statement names (only conductor-schema.sql has it).",
+		"by": "hand"
 	},
 	"table:local_workspace_deletion_tombstones": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-13",
-		"item": "Deletion tombstones for local workspaces synced to a cloud host.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Read only by the phone relay host, which tells a paired phone which local workspaces were deleted (sidecar.js @1610290).",
+		"by": "hand"
 	},
 	"table:local_workspace_revision_counter": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-13",
-		"item": "A local workspace revision counter for cloud sync.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Read only by the phone relay host, which lists the local workspaces changed since a revision for a paired phone (sidecar.js @1610003, used by the relay at @1623129).",
+		"by": "hand"
 	},
 	"table:migration_rollbacks": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-17",
-		"item": "Each migration registers its undo SQL (Conductor keeps it in a migration_rollbacks table); applied migrations stay locked, the undo SQL is a new file beside each one.",
-		"owner": "rule:name"
+		"status": "decided",
+		"decision": "D151",
+		"note": "Each Conductor migration registers its undo SQL here, for a repository script that moves a database down (native-and-sidecar-map A11). Ours has no down-migrations: a database newer than the app asks the user to update (db.rs, PLAT-17).",
+		"by": "hand"
 	}
 }
