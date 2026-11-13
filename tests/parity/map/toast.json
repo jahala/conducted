@@ -307,14 +307,14 @@
 	},
 	"toast:R2504857": {
 		"status": "decided",
-		"decision": "D151",
-		"note": "Conductor's Open in says this for a workspace with no folder yet; every workspace of ours has its path from the moment its row is written (D151).",
+		"decision": "D152",
+		"note": "Conductor's Open in says this for a workspace with no folder yet; every workspace of ours has its path from the moment its row is written (D152).",
 		"by": "hand"
 	},
 	"toast:R2504925": {
 		"status": "decided",
-		"decision": "D151",
-		"note": "Our workspace header shows \"Loading workspace…\" in place of Open in until the workspace has loaded (WorkspaceHeader), so Open in is never pressed before then (D151).",
+		"decision": "D152",
+		"note": "Our workspace header shows \"Loading workspace…\" in place of Open in until the workspace has loaded (WorkspaceHeader), so Open in is never pressed before then (D152).",
 		"by": "hand"
 	},
 	"toast:R2505067": {
@@ -351,8 +351,8 @@
 	},
 	"toast:R2976926": {
 		"status": "decided",
-		"decision": "D151",
-		"note": "Ours draws the setup timeline only inside a chat's empty message list (EmptyChat in MessageList), so the workspace always has a chat to send the logs to (D151).",
+		"decision": "D152",
+		"note": "Ours draws the setup timeline only inside a chat's empty message list (EmptyChat in MessageList), so the workspace always has a chat to send the logs to (D152).",
 		"by": "hand"
 	},
 	"toast:R2977083": {

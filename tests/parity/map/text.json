@@ -5130,8 +5130,8 @@
 	},
 	"text:R11281817": {
 		"status": "decided",
-		"decision": "D151",
-		"note": "Conductor says this when its fetched emoji set fails to load; ours bundles its emoji (RepoIconPicker), so nothing can fail to load (D151).",
+		"decision": "D152",
+		"note": "Conductor says this when its fetched emoji set fails to load; ours bundles its emoji (RepoIconPicker), so nothing can fail to load (D152).",
 		"by": "hand"
 	},
 	"text:R11282175": {
@@ -5926,8 +5926,8 @@
 	},
 	"text:R11772171": {
 		"status": "decided",
-		"decision": "D151",
-		"note": "The app starts its project service before it draws the first screen (app/startup.ts) and a reload keeps the list loaded, so Settings never sees the projects loading (D151).",
+		"decision": "D152",
+		"note": "The app starts its project service before it draws the first screen (app/startup.ts) and a reload keeps the list loaded, so Settings never sees the projects loading (D152).",
 		"by": "hand"
 	},
 	"text:R11775650": {
