@@ -880,7 +880,8 @@ export const COMPOSER_STATES: CatalogueState[] = [
 				world,
 				async ({ document }) => {
 					await typeInComposer(document, "@");
-					await click(document, "[role=option]", "Attach current terminal output");
+					// The row reads "terminal", then what it does.
+					await click(document, "[role=option]", "terminal", { prefix: true });
 				},
 				(document) => shows(document, "No terminal output available for this workspace"),
 			),
