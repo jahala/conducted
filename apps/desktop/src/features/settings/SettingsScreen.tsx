@@ -26,7 +26,7 @@ import type { RepoId } from "@conducted/shared";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
-import { useLiveShortcut, useRepos } from "../../core/hooks.ts";
+import { useLiveShortcut, useOrganizations, useRepos } from "../../core/hooks.ts";
 import { Button } from "../../ui/Button.tsx";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
@@ -43,6 +43,7 @@ import { ExperimentalPage } from "./pages/ExperimentalPage.tsx";
 import { GeneralPage } from "./pages/GeneralPage.tsx";
 import { GitPage } from "./pages/GitPage.tsx";
 import { KeyboardShortcutsPage } from "./pages/KeyboardShortcutsPage.tsx";
+import { McpPage } from "./pages/McpPage.tsx";
 import { RemoteControlPage } from "./pages/RemoteControlPage.tsx";
 import { RepoActionsPage } from "./repo/RepoActionsPage.tsx";
 import { RepoGitPage } from "./repo/RepoGitPage.tsx";
@@ -101,6 +102,8 @@ function UserPage({
 			return <EnvironmentPage focusSettingKey={focusSettingKey} />;
 		case "cloud":
 			return <CloudPage focusSettingKey={focusSettingKey} />;
+		case "mcp":
+			return <McpPage focusSettingKey={focusSettingKey} />;
 		case "remote-control":
 			return <RemoteControlPage focusSettingKey={focusSettingKey} />;
 	}
@@ -126,6 +129,8 @@ export function SettingsScreen({ page, onNavigate, onBack }: SettingsScreenProps
 	const router = useRouter();
 	const parsed = parseSettingsPage(page);
 	const repos = useRepos();
+	const organizations = useOrganizations();
+	const cloudActive = organizations.state === "ready" && organizations.data.active.isCloud === true;
 	const [focusSettingKey, setFocusSettingKey] = useState<string | null>(null);
 	const [repoChoice, setRepoChoice] = useState<string | null>(null);
 	const searchInput = useRef<HTMLInputElement>(null);
@@ -263,6 +268,7 @@ export function SettingsScreen({ page, onNavigate, onBack }: SettingsScreenProps
 				reposLoading={repos.state === "loading"}
 				onNavigate={go}
 				onBack={leave}
+				cloudActive={cloudActive}
 				searchSlot={
 					<SettingsSearch
 						index={index}

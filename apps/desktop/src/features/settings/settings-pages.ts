@@ -8,6 +8,9 @@
  * and cdi): Git, Environment, Scripts, Actions and Misc, in that order; a repository opens at
  * Environment (renderApp eWe). The custom instructions are rows of its Actions section.
  * Page ids follow Conductor's route names (ui-map.md header: key-bindings). Titles are ours.
+ * While a cloud organisation is active, Conductor adds its organisation pages to Agents &
+ * environment (renderApp `fY` list @11775268); of those, MCP is ours (CLOUD-17), after Cloud,
+ * which holds what Conductor's organisation Environment page does. Its address works either way.
  * Our design choice: Conductor shows its "Remote control" page only for local organisations; ours
  * (RC-04) is always there, under Agents & environment, since it is about agent chats. Connections
  * (the local port range) is ours too; Conductor has no such page, so it sits in More after Advanced,
@@ -34,6 +37,7 @@ export type UserSettingsPageId =
 	| "agents"
 	| "environment"
 	| "cloud"
+	| "mcp"
 	| "remote-control"
 	| "experimental"
 	| "advanced";
@@ -50,6 +54,8 @@ export const USER_SETTINGS_PAGES: readonly {
 	id: UserSettingsPageId;
 	title: string;
 	group: SettingsNavGroup;
+	/** Listed only while the cloud organisation is active, as Conductor lists its organisation pages. */
+	cloudOnly?: true;
 }[] = [
 	{ id: "general", title: "General", group: "personal" },
 	{ id: "account", title: "Account", group: "personal" },
@@ -60,11 +66,20 @@ export const USER_SETTINGS_PAGES: readonly {
 	{ id: "agents", title: "Agents", group: "agents_and_environment" },
 	{ id: "environment", title: "Environment", group: "agents_and_environment" },
 	{ id: "cloud", title: "Cloud", group: "agents_and_environment" },
+	{ id: "mcp", title: "MCP", group: "agents_and_environment", cloudOnly: true },
 	{ id: "remote-control", title: "Remote control", group: "agents_and_environment" },
 	{ id: "experimental", title: "Experimental", group: "more" },
 	{ id: "advanced", title: "Advanced", group: "more" },
 	{ id: "connections", title: "Connections", group: "more" },
 ];
+
+/**
+ * The user pages the Settings nav lists: every page, and the cloud-only ones while the switcher's
+ * active entry is the paired Worker. The nav and the end-to-end round trip both read this rule.
+ */
+export function listedUserPages(cloudActive: boolean): typeof USER_SETTINGS_PAGES {
+	return USER_SETTINGS_PAGES.filter((page) => cloudActive || page.cloudOnly !== true);
+}
 
 export const REPO_SETTINGS_PAGES: readonly { id: RepoSettingsPageId; title: string }[] = [
 	{ id: "git", title: "Git" },

@@ -92,16 +92,24 @@ function workerError(body: string): string | null {
 	}
 }
 
-/** One `GET` or `POST /settings` against the paired Worker. */
-async function requestSettings(
+/** The failure a Worker call names when the Worker cannot be reached or refuses it. */
+export interface WorkerFailure {
+	code: string;
+	message: string;
+}
+
+/**
+ * One JSON call to the paired Worker, through the shell's cloud door (which adds the pairing
+ * token). A refused token, a non-2xx answer (with the Worker's own `error`), and a body that is
+ * not JSON are each their own error.
+ */
+export async function requestWorkerJson(
 	deps: CloudSettingsDeps,
 	method: "GET" | "POST",
-	settings?: CloudSettings,
-	failure: { code: string; message: string } = {
-		code: "cloud_settings_unreachable",
-		message: CLOUD_SETTINGS_UNREACHABLE,
-	},
-): Promise<Result<CloudSettings>> {
+	path: string,
+	body: unknown,
+	failure: WorkerFailure,
+): Promise<Result<unknown>> {
 	const pairing = deps.pairing();
 	if (!pairing.paired || pairing.url === null) {
 		return err(appError("cloud_not_paired", "Pair this Mac with a Worker first."));
@@ -109,8 +117,8 @@ async function requestSettings(
 	const answer = await deps.cloud.request({
 		url: pairing.url,
 		method,
-		path: "/settings",
-		...(settings === undefined ? {} : { body: settings }),
+		path,
+		...(body === undefined ? {} : { body }),
 		timeoutMs: 20_000,
 	});
 	if (!answer.ok) return err(appError(failure.code, failure.message, answer.error));
@@ -125,15 +133,33 @@ async function requestSettings(
 	if (answer.value.status < 200 || answer.value.status >= 300) {
 		return err(appError(failure.code, workerError(answer.value.body) ?? failure.message));
 	}
-	let parsed: unknown;
 	try {
-		parsed = JSON.parse(answer.value.body);
+		return ok(JSON.parse(answer.value.body) as unknown);
 	} catch {
+		return err(
+			appError("cloud_bad_response", "The Worker answered with something that is not JSON."),
+		);
+	}
+}
+
+/** One `GET` or `POST /settings` against the paired Worker. */
+async function requestSettings(
+	deps: CloudSettingsDeps,
+	method: "GET" | "POST",
+	settings?: CloudSettings,
+	failure: WorkerFailure = {
+		code: "cloud_settings_unreachable",
+		message: CLOUD_SETTINGS_UNREACHABLE,
+	},
+): Promise<Result<CloudSettings>> {
+	const answer = await requestWorkerJson(deps, method, "/settings", settings, failure);
+	if (!answer.ok) {
+		if (answer.error.code !== "cloud_bad_response") return answer;
 		return err(
 			appError("cloud_bad_response", "The Worker answered with something other than its settings."),
 		);
 	}
-	const normalized = normalizeCloudSettings(parsed);
+	const normalized = normalizeCloudSettings(answer.value);
 	if (normalized === null) {
 		return err(
 			appError("cloud_bad_response", "The Worker answered with something other than its settings."),
@@ -150,12 +176,14 @@ function mcpServerOk(value: unknown): value is CloudMcpServer {
 		authType?: unknown;
 		bearerToken?: unknown;
 		headers?: unknown;
+		oauthClientId?: unknown;
+		oauthClientSecret?: unknown;
 	};
 	if (typeof server.url !== "string") return false;
-	if (server.authType !== "none" && server.authType !== "bearer" && server.authType !== "headers") {
-		return false;
+	if (!["none", "oauth", "bearer", "headers"].includes(server.authType as string)) return false;
+	for (const field of [server.bearerToken, server.oauthClientId, server.oauthClientSecret]) {
+		if (field !== undefined && typeof field !== "string") return false;
 	}
-	if (server.bearerToken !== undefined && typeof server.bearerToken !== "string") return false;
 	if (server.headers !== undefined) {
 		if (typeof server.headers !== "object" || server.headers === null) return false;
 		if (!Object.values(server.headers).every((entry) => typeof entry === "string")) return false;
