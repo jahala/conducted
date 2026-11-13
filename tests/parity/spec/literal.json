@@ -15,6 +15,18 @@
 			"offset": 18192
 		},
 		{
+			"id": "literal:M34407",
+			"text": "Unknown error",
+			"file": "main-BE1h_1MP.js",
+			"offset": 34407
+		},
+		{
+			"id": "literal:M204775",
+			"text": "Untitled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 204775
+		},
+		{
 			"id": "literal:M212284",
 			"text": "Austin",
 			"file": "main-BE1h_1MP.js",
@@ -471,6 +483,18 @@
 			"offset": 667863
 		},
 		{
+			"id": "literal:M733975",
+			"text": "Merged PR, but workspace was not archived because agents are still running",
+			"file": "main-BE1h_1MP.js",
+			"offset": 733975
+		},
+		{
+			"id": "literal:M734120",
+			"text": "Archiving failed. This workspace might be corrupted. Delete it manually from the workspace list.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 734120
+		},
+		{
 			"id": "literal:M795341",
 			"text": "Syncing",
 			"file": "main-BE1h_1MP.js",
@@ -639,12 +663,6 @@
 			"offset": 2656909
 		},
 		{
-			"id": "literal:M2685005",
-			"text": "Secret",
-			"file": "main-BE1h_1MP.js",
-			"offset": 2685005
-		},
-		{
 			"id": "literal:M2685029",
 			"text": "Private",
 			"file": "main-BE1h_1MP.js",
@@ -663,6 +681,36 @@
 			"offset": 3100221
 		},
 		{
+			"id": "literal:M3201134",
+			"text": "A remote agent wants to run a command on this Mac.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3201134
+		},
+		{
+			"id": "literal:M3202137",
+			"text": "Local execution is not available for this workspace.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3202137
+		},
+		{
+			"id": "literal:M3202263",
+			"text": "Local execution is turned off.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3202263
+		},
+		{
+			"id": "literal:M3202765",
+			"text": "The user did not respond to the local command request in time.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3202765
+		},
+		{
+			"id": "literal:M3202899",
+			"text": "The user denied local command execution.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3202899
+		},
+		{
 			"id": "literal:M3236681",
 			"text": "Agent finished. Click to view session.",
 			"file": "main-BE1h_1MP.js",
@@ -679,6 +727,18 @@
 			"text": "Couldn't fetch remote updates. Creating the workspace from the latest local revision.",
 			"file": "main-BE1h_1MP.js",
 			"offset": 3736277
+		},
+		{
+			"id": "literal:M3753660",
+			"text": "Because a Git operation (merge, rebase, cherry-pick, or revert) is in progress, archiving may lose some of your work.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3753660
+		},
+		{
+			"id": "literal:M3754118",
+			"text": "Archiving failed. This workspace might be corrupted. Delete permanently?",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3754118
 		},
 		{
 			"id": "literal:M3777807",
@@ -711,10 +771,22 @@
 			"offset": 3815658
 		},
 		{
+			"id": "literal:M3823878",
+			"text": "Cloud workspace isn't reachable right now. Try again in a moment.",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3823878
+		},
+		{
 			"id": "literal:M3833560",
 			"text": "SSH to the remote is blocked; HTTPS retry also failed",
 			"file": "main-BE1h_1MP.js",
 			"offset": 3833560
+		},
+		{
+			"id": "literal:M3840127",
+			"text": "IgnoreUnknown WarnWeakCrypto",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3840127
 		},
 		{
 			"id": "literal:R108074",
@@ -909,6 +981,18 @@
 			"offset": 1361690
 		},
 		{
+			"id": "literal:R1386779",
+			"text": "Play",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1386779
+		},
+		{
+			"id": "literal:R1386859",
+			"text": "Pause",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1386859
+		},
+		{
 			"id": "literal:R2141251",
 			"text": "Remote branch was rebased",
 			"file": "renderApp-DeUrsznk.js",
@@ -1011,10 +1095,28 @@
 			"offset": 2226671
 		},
 		{
+			"id": "literal:R2229758",
+			"text": "Create draft PR",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2229758
+		},
+		{
+			"id": "literal:R2230272",
+			"text": "Create PR manually",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2230272
+		},
+		{
 			"id": "literal:R2236069",
 			"text": "Resolve branch incompatibility with remote",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 2236069
+		},
+		{
+			"id": "literal:R2239646",
+			"text": "Failed to add comments to chat",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2239646
 		},
 		{
 			"id": "literal:R2259789",
@@ -1083,6 +1185,12 @@
 			"offset": 2734987
 		},
 		{
+			"id": "literal:R2756445",
+			"text": "Target branch cannot be changed for archived workspaces",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2756445
+		},
+		{
 			"id": "literal:R2763995",
 			"text": "Show flat list",
 			"file": "renderApp-DeUrsznk.js",
@@ -1149,10 +1257,10 @@
 			"offset": 3083063
 		},
 		{
-			"id": "literal:R3119108",
-			"text": "Proxy",
+			"id": "literal:R3122092",
+			"text": "Extract",
 			"file": "renderApp-DeUrsznk.js",
-			"offset": 3119108
+			"offset": 3122092
 		},
 		{
 			"id": "literal:R3122139",
@@ -1173,22 +1281,34 @@
 			"offset": 3122529
 		},
 		{
+			"id": "literal:R3122562",
+			"text": "Library",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3122562
+		},
+		{
 			"id": "literal:R3122801",
 			"text": "Path",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 3122801
 		},
 		{
-			"id": "literal:R3123099",
-			"text": "Scope",
-			"file": "renderApp-DeUrsznk.js",
-			"offset": 3123099
-		},
-		{
 			"id": "literal:R3123193",
 			"text": "Section",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 3123193
+		},
+		{
+			"id": "literal:R3123340",
+			"text": "Test",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3123340
+		},
+		{
+			"id": "literal:R3135274",
+			"text": "Iterable",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3135274
 		},
 		{
 			"id": "literal:R3167503",
@@ -1209,10 +1329,22 @@
 			"offset": 3352892
 		},
 		{
+			"id": "literal:R3353866",
+			"text": "Pair",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3353866
+		},
+		{
 			"id": "literal:R3392824",
 			"text": "Annotate",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 3392824
+		},
+		{
+			"id": "literal:R3396162",
+			"text": "Authenticate",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3396162
 		},
 		{
 			"id": "literal:R3396439",
@@ -1347,6 +1479,30 @@
 			"offset": 4381706
 		},
 		{
+			"id": "literal:R4400873",
+			"text": "In sync",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4400873
+		},
+		{
+			"id": "literal:R4400883",
+			"text": "File changes synced to local",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4400883
+		},
+		{
+			"id": "literal:R4401096",
+			"text": "Resuming sync…",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4401096
+		},
+		{
+			"id": "literal:R4401113",
+			"text": "Ready to sync",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4401113
+		},
+		{
 			"id": "literal:R4950293",
 			"text": "Shell",
 			"file": "renderApp-DeUrsznk.js",
@@ -1357,6 +1513,12 @@
 			"text": "Edit action",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 4986695
+		},
+		{
+			"id": "literal:R4988452",
+			"text": "Local mirror",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4988452
 		},
 		{
 			"id": "literal:R4988948",
@@ -1371,10 +1533,34 @@
 			"offset": 4997852
 		},
 		{
+			"id": "literal:R4998960",
+			"text": "Failed to start file sync",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4998960
+		},
+		{
+			"id": "literal:R5012324",
+			"text": "Cloud terminal",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5012324
+		},
+		{
 			"id": "literal:R5023567",
 			"text": "Start spotlight",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 5023567
+		},
+		{
+			"id": "literal:R5456260",
+			"text": "Forward ports",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5456260
+		},
+		{
+			"id": "literal:R5515768",
+			"text": "Repository settings",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5515768
 		},
 		{
 			"id": "literal:R5531377",
@@ -1419,10 +1605,52 @@
 			"offset": 5558634
 		},
 		{
+			"id": "literal:R5563960",
+			"text": "Copy SSH command",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5563960
+		},
+		{
+			"id": "literal:R5587048",
+			"text": "Turn off remote file sync",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5587048
+		},
+		{
+			"id": "literal:R5587076",
+			"text": "Turn on remote file sync",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5587076
+		},
+		{
+			"id": "literal:R5594780",
+			"text": "Open via SSH",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5594780
+		},
+		{
 			"id": "literal:R5601737",
 			"text": "Unavailable",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 5601737
+		},
+		{
+			"id": "literal:R5609531",
+			"text": "Starting workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5609531
+		},
+		{
+			"id": "literal:R5609552",
+			"text": "Restart workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5609552
+		},
+		{
+			"id": "literal:R5616428",
+			"text": "About agent cost",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5616428
 		},
 		{
 			"id": "literal:R5646000",
@@ -1509,6 +1737,18 @@
 			"offset": 8057713
 		},
 		{
+			"id": "literal:R8085434",
+			"text": "Unmute",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8085434
+		},
+		{
+			"id": "literal:R8085443",
+			"text": "Mute",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8085443
+		},
+		{
 			"id": "literal:R8137322",
 			"text": "Copied",
 			"file": "renderApp-DeUrsznk.js",
@@ -1527,16 +1767,70 @@
 			"offset": 8418352
 		},
 		{
+			"id": "literal:R8673972",
+			"text": "Couldn't add this MCP server",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8673972
+		},
+		{
+			"id": "literal:R8674321",
+			"text": "Couldn't update this MCP server",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8674321
+		},
+		{
+			"id": "literal:R8674530",
+			"text": "Couldn't delete this MCP server",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8674530
+		},
+		{
+			"id": "literal:R8676013",
+			"text": "Couldn't disconnect this MCP server",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8676013
+		},
+		{
+			"id": "literal:R8684647",
+			"text": "Connecting…",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8684647
+		},
+		{
+			"id": "literal:R8684705",
+			"text": "Needs re-auth",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8684705
+		},
+		{
 			"id": "literal:R8684721",
 			"text": "Disconnected",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 8684721
 		},
 		{
+			"id": "literal:R8685897",
+			"text": "Re-authenticate",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8685897
+		},
+		{
 			"id": "literal:R8718221",
 			"text": "Couldn't load MCP servers",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 8718221
+		},
+		{
+			"id": "literal:R8749867",
+			"text": "File has not been read yet. Read it first before writing to it.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8749867
+		},
+		{
+			"id": "literal:R8765148",
+			"text": "Local command",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8765148
 		},
 		{
 			"id": "literal:R8768165",
@@ -1549,6 +1843,12 @@
 			"text": "Reading",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 8768197
+		},
+		{
+			"id": "literal:R8785159",
+			"text": "Description:",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8785159
 		},
 		{
 			"id": "literal:R8798002",
@@ -1617,10 +1917,136 @@
 			"offset": 8830959
 		},
 		{
-			"id": "literal:R8852793",
-			"text": "Google Vertex AI",
+			"id": "literal:R8876644",
+			"text": "Airtable",
 			"file": "renderApp-DeUrsznk.js",
-			"offset": 8852793
+			"offset": 8876644
+		},
+		{
+			"id": "literal:R8876669",
+			"text": "Amplitude",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8876669
+		},
+		{
+			"id": "literal:R8876691",
+			"text": "Asana",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8876691
+		},
+		{
+			"id": "literal:R8876713",
+			"text": "Atlassian",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8876713
+		},
+		{
+			"id": "literal:R8876792",
+			"text": "Context7",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8876792
+		},
+		{
+			"id": "literal:R8876815",
+			"text": "Datadog",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8876815
+		},
+		{
+			"id": "literal:R8876833",
+			"text": "Exa",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8876833
+		},
+		{
+			"id": "literal:R8876853",
+			"text": "Firecrawl",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8876853
+		},
+		{
+			"id": "literal:R8876897",
+			"text": "Granola",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8876897
+		},
+		{
+			"id": "literal:R8876915",
+			"text": "Hex",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8876915
+		},
+		{
+			"id": "literal:R8876935",
+			"text": "Honeycomb",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8876935
+		},
+		{
+			"id": "literal:R8876987",
+			"text": "Microsoft Learn",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8876987
+		},
+		{
+			"id": "literal:R8877014",
+			"text": "Neon",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8877014
+		},
+		{
+			"id": "literal:R8877032",
+			"text": "Notion",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8877032
+		},
+		{
+			"id": "literal:R8877057",
+			"text": "PlanetScale",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8877057
+		},
+		{
+			"id": "literal:R8877083",
+			"text": "PostHog",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8877083
+		},
+		{
+			"id": "literal:R8877104",
+			"text": "Sentry",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8877104
+		},
+		{
+			"id": "literal:R8877123",
+			"text": "Slack",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8877123
+		},
+		{
+			"id": "literal:R8877145",
+			"text": "Snowflake",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8877145
+		},
+		{
+			"id": "literal:R8877168",
+			"text": "Stripe",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8877168
+		},
+		{
+			"id": "literal:R8877190",
+			"text": "Supabase",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8877190
+		},
+		{
+			"id": "literal:R8877232",
+			"text": "WorkOS",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8877232
 		},
 		{
 			"id": "literal:R8877958",
@@ -1827,6 +2253,30 @@
 			"offset": 9536630
 		},
 		{
+			"id": "literal:R9538214",
+			"text": "Session interrupted:",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9538214
+		},
+		{
+			"id": "literal:R9539916",
+			"text": "Exceeded Claude's context window. Please compact using /compact, or summarize into a new chat.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9539916
+		},
+		{
+			"id": "literal:R9540108",
+			"text": "Claude AI usage limit reached|",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9540108
+		},
+		{
+			"id": "literal:R9540980",
+			"text": "This limit is imposed by Anthropic and applies to all Claude Code usage.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9540980
+		},
+		{
 			"id": "literal:R9559666",
 			"text": "Command",
 			"file": "renderApp-DeUrsznk.js",
@@ -1855,6 +2305,18 @@
 			"text": "Collapse",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 9591015
+		},
+		{
+			"id": "literal:R9596240",
+			"text": "Loading messages…",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9596240
+		},
+		{
+			"id": "literal:R9596292",
+			"text": "Couldn't load messages",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9596292
 		},
 		{
 			"id": "literal:R9744963",
@@ -1903,6 +2365,18 @@
 			"text": "New chat, same files",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 10089377
+		},
+		{
+			"id": "literal:R10197102",
+			"text": "Checking machine availability...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10197102
+		},
+		{
+			"id": "literal:R10197173",
+			"text": "Computer isn't ready yet.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10197173
 		},
 		{
 			"id": "literal:R10218572",
@@ -2013,6 +2487,42 @@
 			"offset": 10245473
 		},
 		{
+			"id": "literal:R10359948",
+			"text": "Exclude terminal processes",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10359948
+		},
+		{
+			"id": "literal:R10359977",
+			"text": "Include terminal processes",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10359977
+		},
+		{
+			"id": "literal:R10360386",
+			"text": "Ungroup processes",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10360386
+		},
+		{
+			"id": "literal:R10360406",
+			"text": "Group by workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10360406
+		},
+		{
+			"id": "literal:R10360807",
+			"text": "Switch to flat view",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10360807
+		},
+		{
+			"id": "literal:R10360829",
+			"text": "Switch to tree view",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10360829
+		},
+		{
 			"id": "literal:R10361135",
 			"text": "Copy resource usage",
 			"file": "renderApp-DeUrsznk.js",
@@ -2043,10 +2553,28 @@
 			"offset": 10495167
 		},
 		{
+			"id": "literal:R10572578",
+			"text": "Redacted report copied",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10572578
+		},
+		{
+			"id": "literal:R10572603",
+			"text": "Report copied to clipboard",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10572603
+		},
+		{
 			"id": "literal:R10574968",
 			"text": "Run again",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 10574968
+		},
+		{
+			"id": "literal:R10576180",
+			"text": "Copy report",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10576180
 		},
 		{
 			"id": "literal:R10576510",
@@ -2055,16 +2583,286 @@
 			"offset": 10576510
 		},
 		{
+			"id": "literal:R10576939",
+			"text": "Ask agent to analyze redacted report",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10576939
+		},
+		{
+			"id": "literal:R10679916",
+			"text": "No command set",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10679916
+		},
+		{
+			"id": "literal:R10680748",
+			"text": "Add custom command",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10680748
+		},
+		{
 			"id": "literal:R10694047",
 			"text": "Add env file",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 10694047
 		},
 		{
+			"id": "literal:R10703686",
+			"text": "Variable name is required.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10703686
+		},
+		{
+			"id": "literal:R10703738",
+			"text": "Variable names must start with a letter or underscore and contain only letters, numbers, and underscores.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10703738
+		},
+		{
+			"id": "literal:R10703898",
+			"text": "That variable already exists.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10703898
+		},
+		{
+			"id": "literal:R10705985",
+			"text": "Hide documented variables",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10705985
+		},
+		{
+			"id": "literal:R10714225",
+			"text": "Failed to add environment variable",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10714225
+		},
+		{
+			"id": "literal:R10714262",
+			"text": "Failed to add environment variables",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10714262
+		},
+		{
+			"id": "literal:R10714410",
+			"text": "Add environment variables",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10714410
+		},
+		{
+			"id": "literal:R10714438",
+			"text": "Add environment variable",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10714438
+		},
+		{
+			"id": "literal:R10714599",
+			"text": "Paste a block of KEY=VALUE lines into the name field to add several at once.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10714599
+		},
+		{
+			"id": "literal:R10720486",
+			"text": "Bearer ",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10720486
+		},
+		{
+			"id": "literal:R10721865",
+			"text": "Enter a server URL",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10721865
+		},
+		{
+			"id": "literal:R10722100",
+			"text": "Enter a client ID",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10722100
+		},
+		{
+			"id": "literal:R10722342",
+			"text": "Enter a bearer token",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10722342
+		},
+		{
+			"id": "literal:R10724079",
+			"text": "Enter the client secret for the new client ID",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10724079
+		},
+		{
+			"id": "literal:R10724253",
+			"text": "Add MCP server",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10724253
+		},
+		{
+			"id": "literal:R10724270",
+			"text": "Edit MCP server",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10724270
+		},
+		{
+			"id": "literal:R10727570",
+			"text": "Configured — enter to replace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10727570
+		},
+		{
+			"id": "literal:R10727993",
+			"text": "Credential configured — enter a token to replace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10727993
+		},
+		{
+			"id": "literal:R10728044",
+			"text": "Paste token",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10728044
+		},
+		{
+			"id": "literal:R10728427",
+			"text": "Credential configured — enter headers to replace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10728427
+		},
+		{
+			"id": "literal:R10731201",
+			"text": "Authorization failed. Try connecting again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10731201
+		},
+		{
+			"id": "literal:R10731776",
+			"text": "Authorization timed out. Try connecting again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10731776
+		},
+		{
+			"id": "literal:R10732403",
+			"text": "Enter an HTTPS server URL",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10732403
+		},
+		{
+			"id": "literal:R10732464",
+			"text": "Enter a valid server URL",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10732464
+		},
+		{
+			"id": "literal:R10732579",
+			"text": "Enter a client secret",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10732579
+		},
+		{
+			"id": "literal:R10733427",
+			"text": "Couldn't open your browser to connect. Try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10733427
+		},
+		{
+			"id": "literal:R10740197",
+			"text": "Add and connect",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10740197
+		},
+		{
+			"id": "literal:R10751794",
+			"text": "Application Support",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10751794
+		},
+		{
+			"id": "literal:R10768843",
+			"text": "All local MCP servers are already added",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10768843
+		},
+		{
+			"id": "literal:R10768965",
+			"text": "No servers to import — only remote (HTTPS) servers are supported",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10768965
+		},
+		{
+			"id": "literal:R10769032",
+			"text": "No local MCP servers found",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10769032
+		},
+		{
+			"id": "literal:R10777101",
+			"text": "Added 1 MCP server",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10777101
+		},
+		{
+			"id": "literal:R10779718",
+			"text": "No MCP servers installed",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10779718
+		},
+		{
+			"id": "literal:R10779745",
+			"text": "No installed MCPs match your search",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10779745
+		},
+		{
+			"id": "literal:R10779957",
+			"text": "Adding…",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10779957
+		},
+		{
 			"id": "literal:R10902737",
 			"text": "Try again.",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 10902737
+		},
+		{
+			"id": "literal:R10906025",
+			"text": "Add your preferences here. The agent will be told to prioritize these instructions over its default instructions.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10906025
+		},
+		{
+			"id": "literal:R10927368",
+			"text": "Open ChatGPT settings",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10927368
+		},
+		{
+			"id": "literal:R10927392",
+			"text": "Open ChatGPT admin settings",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10927392
+		},
+		{
+			"id": "literal:R10928973",
+			"text": "Starting device code authorization...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10928973
+		},
+		{
+			"id": "literal:R10929027",
+			"text": "Waiting for approval—keep this dialog open.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10929027
+		},
+		{
+			"id": "literal:R10929355",
+			"text": "Restart device authorization",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10929355
+		},
+		{
+			"id": "literal:R10958630",
+			"text": "Loading models...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10958630
 		},
 		{
 			"id": "literal:R11034934",
@@ -2229,6 +3027,72 @@
 			"offset": 11384431
 		},
 		{
+			"id": "literal:R11398683",
+			"text": "Close running chats?",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11398683
+		},
+		{
+			"id": "literal:R11398706",
+			"text": "Close running chat?",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11398706
+		},
+		{
+			"id": "literal:R11399603",
+			"text": "Close anyway",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11399603
+		},
+		{
+			"id": "literal:R11400177",
+			"text": "Stop agents and archive",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11400177
+		},
+		{
+			"id": "literal:R11440128",
+			"text": "No agent set up yet.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11440128
+		},
+		{
+			"id": "literal:R11440709",
+			"text": "Cloud unavailable with enterprise data privacy.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11440709
+		},
+		{
+			"id": "literal:R11440837",
+			"text": "No repositories yet.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11440837
+		},
+		{
+			"id": "literal:R11442434",
+			"text": "Connect GitHub to create a cloud workspace.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11442434
+		},
+		{
+			"id": "literal:R11442519",
+			"text": "Set up an agent to create a cloud workspace.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11442519
+		},
+		{
+			"id": "literal:R11442722",
+			"text": "Add a repo to the computer to create a workspace.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11442722
+		},
+		{
+			"id": "literal:R11498856",
+			"text": "Checking organization...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11498856
+		},
+		{
 			"id": "literal:R11510134",
 			"text": "New section",
 			"file": "renderApp-DeUrsznk.js",
@@ -2245,6 +3109,12 @@
 			"text": "Edit snippet",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 11521421
+		},
+		{
+			"id": "literal:R11574350",
+			"text": "Open browser again",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11574350
 		},
 		{
 			"id": "literal:R11652846",
@@ -2287,6 +3157,12 @@
 			"text": "Make default",
 			"file": "renderApp-DeUrsznk.js",
 			"offset": 11713772
+		},
+		{
+			"id": "literal:R11746576",
+			"text": "Search keyboard shortcuts...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11746576
 		}
 	]
 }
