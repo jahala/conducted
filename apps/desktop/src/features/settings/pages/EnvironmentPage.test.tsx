@@ -187,6 +187,24 @@ describe("SET-04 EnvironmentPage", () => {
 		await waitFor(() => expect(screen.queryByText(".env.local")).toBeNull());
 	});
 
+	it("opens the system file picker with Conductor's title from Browse (D134)", async () => {
+		await mountPage(true);
+		const memory = (test as TestContainer).memory;
+		memory.controls.queueDialogAnswers({ files: [] });
+		const pickFiles = vi.spyOn(memory.platform.dialogs, "pickFiles");
+
+		fireEvent.click(screen.getByRole("button", { name: "Add env file" }));
+		fireEvent.click(await screen.findByRole("button", { name: "Browse for env file" }));
+
+		// The system picker's title, as Conductor's (renderApp @10691516). macOS draws the picker
+		// outside the page, so no catalogue state can show it.
+		await waitFor(() =>
+			expect(pickFiles).toHaveBeenCalledWith(
+				expect.objectContaining({ title: "Select env file", multiple: false }),
+			),
+		);
+	});
+
 	it("SET-02: resets a repository's own env file list so the shared settings apply again", async () => {
 		const { container, repo } = await mountPage(true);
 		expect(screen.queryByRole("button", { name: "Reset to shared settings" })).toBeNull();

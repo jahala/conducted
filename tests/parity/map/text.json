@@ -2004,8 +2004,8 @@
 		"status": "matched",
 		"state": "chat-tools-loading",
 		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(3) > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"role": "p",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(3) > div > div > p",
 		"by": "seed"
 	},
 	"text:R8823423": {
@@ -2722,10 +2722,10 @@
 	},
 	"text:R9643764": {
 		"status": "matched",
-		"state": "file-svg-preview",
+		"state": "git-diff-binary",
 		"via": "aria-label",
 		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > fieldset > button:nth-of-type(3)",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > fieldset > button:nth-of-type(5)",
 		"by": "seed"
 	},
 	"text:R9652412": {
@@ -2801,12 +2801,12 @@
 		"by": "seed"
 	},
 	"text:R9756537": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "REV-02",
-		"item": "Warning 'Binary file changed'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "git-diff-binary",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > div > div > div > div > div > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"text:R9957571": {
 		"status": "gap",
@@ -2881,20 +2881,20 @@
 		"by": "seed"
 	},
 	"text:R10000509": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-12",
-		"item": "Conductor shows \"Resolved\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-checks-comment-states",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(5) > ul > li:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"text:R10000794": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-12",
-		"item": "Conductor shows \"Outdated\" (control, Unplaced); ours holds it but no catalogue state draws it (parity gap, unshown).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-checks-comment-states",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(5) > ul > li:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"text:R10007781": {
 		"status": "gap",
@@ -3985,12 +3985,12 @@
 		"by": "seed"
 	},
 	"text:R10715045": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-04",
-		"item": "Variables table: Name, Value, 'Locally overwritten', 'Not set'",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-environment-paste-save-failed",
+		"via": "text",
+		"role": "label",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div > div:nth-of-type(2) > div > div > label",
+		"by": "seed"
 	},
 	"text:R10715128": {
 		"status": "matched",

@@ -328,36 +328,36 @@
 		"by": "seed"
 	},
 	"aria_label:R8075890": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "REV-08",
-		"item": "Video preview",
-		"owner": "hand"
+		"status": "matched",
+		"state": "file-video-player",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > section > div > input:nth-of-type(1)",
+		"by": "seed"
 	},
 	"aria_label:R8082977": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-08",
-		"item": "Video preview",
-		"owner": "hand"
+		"status": "matched",
+		"state": "file-video-player",
+		"via": "aria-label",
+		"role": "section",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > section",
+		"by": "seed"
 	},
 	"aria_label:R8085928": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-08",
-		"item": "Video preview",
-		"owner": "hand"
+		"status": "matched",
+		"state": "file-video-player",
+		"via": "aria-label",
+		"role": "combobox",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > section > div > select",
+		"by": "seed"
 	},
 	"aria_label:R8087654": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-08",
-		"item": "Video preview",
-		"owner": "hand"
+		"status": "matched",
+		"state": "file-video-player",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > section > div > input:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R8147878": {
 		"status": "matched",
@@ -593,10 +593,10 @@
 	},
 	"aria_label:R9643573": {
 		"status": "matched",
-		"state": "file-svg-preview",
+		"state": "git-diff-binary",
 		"via": "aria-label",
 		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > fieldset > button:nth-of-type(3)",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > fieldset > button:nth-of-type(5)",
 		"by": "seed"
 	},
 	"aria_label:R9734762": {

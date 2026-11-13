@@ -2349,12 +2349,12 @@
 		"by": "seed"
 	},
 	"label:R9406669": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-26",
-		"item": "Empty chat shelves 'Add chat transcripts:' and 'Add plans:' with 'New chat in <directory>.'",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "composer-empty-shelves-plans",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > p",
+		"by": "seed"
 	},
 	"label:R9537511": {
 		"status": "matched",

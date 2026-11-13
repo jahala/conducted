@@ -1293,3 +1293,13 @@ Context: D141 left `MACOS_JOB` listing the nine UI files the macOS tests import 
 Chosen: `scripts/macos-job.ts` walks the import graph of the tracked `*.macos.test.ts` files and the Vitest setup files each time it runs, with the same Bun resolver the changed-only test run uses (`scanImports` in `scripts/run-tests.ts`). A changed file in that graph asks for the job. The hand list, the macOS test glob and the setup file glob leave `MACOS_JOB`; what the Rust crate reads stays there. An import that does not resolve stops the selection with an error, and CI then runs the job, so a package left uninstalled cannot shrink the graph. The `macos-changes` job installs the desktop's packages for that reason (`--ignore-scripts`, since nothing runs).
 
 Why not keep the list and its test: the test only reports the drift after the pull request that caused it has merged. Why not ask Vitest's module graph, as the desktop's changed-only run does: it needs Vitest started in the job, while the Bun walk reads the same imports with a resolver already in use.
+
+## D150. A system notification's words are checked by a test, not a catalogue state (2026-11-13)
+
+Decided in the parity work under the owner's rule "Match Conductor. Nothing made up; gaps are reported", as D134 is for a system dialog's title.
+
+Context: Conductor's notifications say "Agent finished. Click to view session.", "Agent failed. Click to view session.", "Plan ready. Click to review and approve the plan." and "Agent has a question. Click to answer it." (main @3236681, @3236722, @3099729, @3100221). macOS draws a notification outside the page, so no catalogue state can show it, and the parity harness's check b never sees it. Ours passes the same words to `Platform.notifications.notify` (CHAT-19).
+
+Chosen: a parity entry that is the text of a system notification is mapped to D150. Its note names the test that asserts the text the Platform receives, over the real service that sends it. A message the app draws itself, such as a toast, stays a catalogue match.
+
+Why: the words are on screen and must match Conductor's. Only a test can see them, so the decision names the test that holds them.

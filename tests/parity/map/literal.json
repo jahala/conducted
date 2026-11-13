@@ -8,12 +8,10 @@
 		"by": "seed"
 	},
 	"literal:M18192": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-24",
-		"item": "Video player in assistant text",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "The name of a folder kind in the Tauri path API Conductor bundles (BaseDirectory.Video), not wording.",
+		"by": "hand"
 	},
 	"literal:M34407": {
 		"status": "gap",
@@ -670,20 +668,16 @@
 		"by": "seed"
 	},
 	"literal:M2298484": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-20",
-		"item": "Image cards 'Preview image' and 'Loading image' (image view, image generation)",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An object type inside the PDF viewer library Conductor bundles (pdf.js common objects), not wording.",
+		"by": "hand"
 	},
 	"literal:M2325013": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-07",
-		"item": "Tool GetTerminalOutput returns up to 1000 lines of a chosen terminal source with labelled output",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "An event name inside the PDF viewer library Conductor bundles (pdf.js annotation actions), not wording.",
+		"by": "hand"
 	},
 	"literal:M2329048": {
 		"status": "decided",
@@ -732,20 +726,16 @@
 		"by": "hand"
 	},
 	"literal:M3099729": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-19",
-		"item": "A notification fires when a plan is ready and when the agent asks a question.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D150",
+		"note": "The text of the notification a plan waiting for approval raises (CHAT-19). Ours sends the same text; notifications.chat-19.test.ts asserts it.",
+		"by": "hand"
 	},
 	"literal:M3100221": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-19",
-		"item": "A notification fires when a plan is ready and when the agent asks a question.",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D150",
+		"note": "The text of the notification an agent's question raises (CHAT-19). Ours sends the same text; notifications.chat-19.test.ts asserts it.",
+		"by": "hand"
 	},
 	"literal:M3201134": {
 		"status": "gap",
@@ -773,20 +763,16 @@
 		"screen": "Unplaced"
 	},
 	"literal:M3236681": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-19",
-		"item": "Conductor shows \"Agent finished. Click to view session.\" (literal, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D150",
+		"note": "The text of the notification a finished turn raises (CHAT-19). Ours sends the same text; notifications.chat-19.test.ts and s1-core-1.join.test.ts assert it.",
+		"by": "hand"
 	},
 	"literal:M3236722": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-19",
-		"item": "A failed turn raises the notice \"Agent failed. Click to view session.\"",
-		"owner": "rule:quote"
+		"status": "decided",
+		"decision": "D150",
+		"note": "The text of the notification a failed turn raises (CHAT-19). Ours sends the same text; notifications.chat-19.test.ts asserts it.",
+		"by": "hand"
 	},
 	"literal:M3736277": {
 		"status": "gap",
@@ -858,9 +844,10 @@
 		"owner": "hand"
 	},
 	"literal:M3840127": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A line Conductor writes into the SSH config file it generates, not wording on a screen.",
+		"by": "hand"
 	},
 	"literal:R108074": {
 		"status": "matched",
@@ -1114,11 +1101,11 @@
 	},
 	"literal:R1386779": {
 		"status": "matched",
-		"state": "settings-repo-add-action",
-		"via": "aria-label",
+		"state": "file-video-player",
+		"via": "text",
 		"role": "button",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(4) > div:nth-of-type(2) > fieldset > button:nth-of-type(1)",
-		"by": "seed-unsure"
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > section > div > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:R1386859": {
 		"status": "matched",
@@ -1457,9 +1444,10 @@
 		"by": "seed"
 	},
 	"literal:R3122092": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keyword of the Coq grammar in the code highlighter Conductor bundles, not wording.",
+		"by": "hand"
 	},
 	"literal:R3122139": {
 		"status": "decided",
@@ -1484,9 +1472,10 @@
 		"owner": "hand"
 	},
 	"literal:R3122562": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keyword of the Coq grammar in the code highlighter Conductor bundles, not wording.",
+		"by": "hand"
 	},
 	"literal:R3122801": {
 		"status": "matched",
@@ -1497,12 +1486,10 @@
 		"by": "seed"
 	},
 	"literal:R3123193": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "SET-01",
-		"item": "One declarative registry: tab, key, scopes, title, description, search terms",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A keyword of the Coq grammar in the code highlighter Conductor bundles, not wording.",
+		"by": "hand"
 	},
 	"literal:R3123340": {
 		"status": "matched",
@@ -1513,9 +1500,10 @@
 		"by": "seed"
 	},
 	"literal:R3135274": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A type name of the Dart grammar in the code highlighter Conductor bundles, not wording.",
+		"by": "hand"
 	},
 	"literal:R3167503": {
 		"status": "decided",
@@ -1538,17 +1526,16 @@
 		"by": "rule:key-name"
 	},
 	"literal:R3353866": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A type name of the Julia grammar in the code highlighter Conductor bundles, not wording.",
+		"by": "hand"
 	},
 	"literal:R3392824": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "RUN-05",
-		"item": "Browser tab annotation overlay and 'Add to chat'",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A symbol of the Mathematica grammar in the code highlighter Conductor bundles, not wording.",
+		"by": "hand"
 	},
 	"literal:R3396162": {
 		"status": "matched",
@@ -1613,12 +1600,10 @@
 		"owner": "hand"
 	},
 	"literal:R3458066": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-06",
-		"item": "Chat tab content: message list and composer",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A symbol of the Mathematica grammar in the code highlighter Conductor bundles, not wording.",
+		"by": "hand"
 	},
 	"literal:R3465496": {
 		"status": "matched",
@@ -2033,12 +2018,10 @@
 		"by": "seed"
 	},
 	"literal:R8034448": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "CHAT-24",
-		"item": "Mermaid diagrams with 'Rendering diagram...', 'Expand diagram', 'Copy Mermaid source', zoom in, zoom out, reset",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A class name inside the diagram library Conductor bundles (mermaid), not wording.",
+		"by": "hand"
 	},
 	"literal:R8057713": {
 		"status": "gap",
@@ -2049,18 +2032,20 @@
 		"owner": "rule:quote"
 	},
 	"literal:R8085434": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-08",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "file-video-muted",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > section > div > button:nth-of-type(8)",
+		"by": "seed"
 	},
 	"literal:R8085443": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "REV-08",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "file-video-player",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div > section > div > button:nth-of-type(8)",
+		"by": "seed"
 	},
 	"literal:R8137322": {
 		"status": "matched",
@@ -2205,12 +2190,12 @@
 		"by": "seed"
 	},
 	"literal:R8820980": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-ui-text Chat and tool cards",
-		"backlog": "CHAT-20",
-		"item": "Image cards 'Preview image' and 'Loading image' (image view, image generation)",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-tool-cards-tasks",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(10) > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:R8830530": {
 		"status": "matched",
@@ -2422,12 +2407,12 @@
 		"by": "seed"
 	},
 	"literal:R8909467": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "COMP-08",
-		"item": "Speech to text: waveform, 'Stop recording', 'Transcribing...', setting 'Voice mode'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-dictation-recording",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"dictation-button\"]",
+		"by": "seed"
 	},
 	"literal:R8909486": {
 		"status": "gap",
@@ -2454,12 +2439,12 @@
 		"by": "seed"
 	},
 	"literal:R8914848": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced",
-		"backlog": "COMP-01",
-		"item": "Send button states 'Send message', 'Queue message', 'Save edit'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "composer-queue-message",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"composer-send-button\"]",
+		"by": "seed"
 	},
 	"literal:R9234615": {
 		"status": "matched",
@@ -3129,23 +3114,23 @@
 	"literal:R10714225": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-04",
-		"owner": "rule:neighbour"
+		"screen": "inventory-controls Settings"
 	},
 	"literal:R10714262": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-04",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "settings-environment-paste-save-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(1) > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"literal:R10714410": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-04",
-		"owner": "rule:neighbour"
+		"status": "matched",
+		"state": "settings-environment-paste-save-failed",
+		"via": "text",
+		"role": "heading",
+		"selector": "div:nth-of-type(3) > div:nth-of-type(1) > div > div:nth-of-type(1) > h2",
+		"by": "seed"
 	},
 	"literal:R10714438": {
 		"status": "matched",
@@ -3158,14 +3143,13 @@
 	"literal:R10714599": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-controls Settings",
-		"backlog": "SET-04",
-		"owner": "rule:neighbour"
+		"screen": "inventory-controls Settings"
 	},
 	"literal:R10720486": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "inventory-controls Settings"
+		"status": "decided",
+		"decision": "D086",
+		"note": "The prefix Conductor puts before a bearer token in an Authorization header it builds, not wording.",
+		"by": "hand"
 	},
 	"literal:R10721865": {
 		"status": "gap",
@@ -3256,9 +3240,10 @@
 		"screen": "Unplaced"
 	},
 	"literal:R10751794": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "decided",
+		"decision": "D086",
+		"note": "A folder name in the path where Conductor looks for Claude Desktop's config file, not wording.",
+		"by": "hand"
 	},
 	"literal:R10768843": {
 		"status": "gap",
