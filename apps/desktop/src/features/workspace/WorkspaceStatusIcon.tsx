@@ -9,8 +9,8 @@
  * green, a merged one in the merged colour, the merge queue and running checks in the progress colour,
  * the rest muted.
  * Our design choice: the marks are our own line icons (ui/icons.tsx) in Conductor's shapes; a
- * workspace that is archiving keeps a spinner. The optional animated "status matrix" for working
- * local workspaces is left out (WS-09).
+ * workspace that is archiving keeps a spinner. A caller may ask for the matrix-style mark instead
+ * (WorkspaceStatusMatrix, WS-09), which a local workspace gets under its Experimental setting.
  * Must handle: a caller that names the status itself (the sidebar row names it on the icon's box, a card
  * prints it) passes `decorative`, so 300 rows are not 300 live regions; without it an active status is
  * announced as a status role; an unknown status (null) shows the branch glyph.
@@ -33,6 +33,7 @@ import {
 } from "../../ui/icons.tsx";
 import { Spinner, type SpinnerKind } from "../../ui/Spinner.tsx";
 import { statusText } from "./status-text.ts";
+import { WorkspaceStatusMatrix } from "./WorkspaceStatusMatrix.tsx";
 
 function spinnerKind(status: WorkspaceStatus | null): SpinnerKind {
 	if (status?.kind === "lifecycle" && status.label === "setting_up") return "setting-up";
@@ -116,11 +117,17 @@ function isLoader(status: WorkspaceStatus | null): boolean {
 export function WorkspaceStatusIcon({
 	status,
 	decorative = false,
+	matrix = false,
+	hasUnread = false,
 }: {
 	status: WorkspaceStatus | null;
 	/** True when the caller names the status itself, so the icon adds nothing to announce. */
 	decorative?: boolean;
+	/** Draws the matrix-style mark (WS-09) a local workspace gets under its Experimental setting. */
+	matrix?: boolean;
+	hasUnread?: boolean;
 }) {
+	if (matrix) return <WorkspaceStatusMatrix status={status} hasUnread={hasUnread} />;
 	if (isLoader(status)) {
 		const spinner = (
 			<Spinner

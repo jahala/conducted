@@ -114,12 +114,12 @@
 		"by": "seed"
 	},
 	"text:R1893004": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "PRJ-02",
-		"item": "Conductor shows \"Choose a recent repo or paste a clone URL.\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "clone-github-dialog",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > span > p",
+		"by": "seed"
 	},
 	"text:R1893165": {
 		"status": "matched",
@@ -146,12 +146,12 @@
 		"by": "seed"
 	},
 	"text:R1895265": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "PRJ-02",
-		"item": "Conductor shows \"Cloning...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "clone-github-cloning",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(6) > div > p",
+		"by": "seed"
 	},
 	"text:R1897964": {
 		"status": "matched",
@@ -345,7 +345,7 @@
 	},
 	"text:R2093609": {
 		"status": "matched",
-		"state": "create-github-repo",
+		"state": "new-workspace-section-gone",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > button:nth-of-type(1) > span",
@@ -514,12 +514,12 @@
 		"by": "seed"
 	},
 	"text:R2501184": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-08",
-		"item": "Conductor shows \"No apps available\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "cloud-open-in-no-apps",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(2) > div > p",
+		"by": "seed"
 	},
 	"text:R2506945": {
 		"status": "matched",
@@ -657,7 +657,7 @@
 	},
 	"text:R2644707": {
 		"status": "matched",
-		"state": "create-github-repo",
+		"state": "new-workspace-section-gone",
 		"via": "text",
 		"role": "p",
 		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section > p",
@@ -793,7 +793,7 @@
 	},
 	"text:R2765188": {
 		"status": "matched",
-		"state": "git-file-row-menu",
+		"state": "git-working-directories",
 		"via": "aria-label",
 		"role": "textbox",
 		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(1) > input",
@@ -824,12 +824,12 @@
 		"by": "seed"
 	},
 	"text:R2979610": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "WS-03",
-		"item": "Conductor shows \"Setup did not start\" (text, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "setup-timeline-init-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3) > div",
+		"by": "seed"
 	},
 	"text:R2979782": {
 		"status": "gap",
@@ -848,12 +848,12 @@
 		"owner": "rule:quote"
 	},
 	"text:R2980413": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "WS-03",
-		"item": "Conductor shows \"Setup script failed — fix it?\" (text, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "setup-timeline-failed",
+		"via": "text",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(3) > div > button",
+		"by": "seed"
 	},
 	"text:R2980653": {
 		"status": "matched",
@@ -921,7 +921,7 @@
 		"state": "chat-context-unknown",
 		"via": "text",
 		"role": "heading",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > h2",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > div:nth-of-type(2) > h2",
 		"by": "seed"
 	},
 	"text:R3983808": {
@@ -1055,12 +1055,12 @@
 		"by": "seed"
 	},
 	"text:R5018754": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-03",
-		"item": "Conductor shows \"Couldn't load setup script settings\" (text, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "setup-settings-unreadable",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > p",
+		"by": "seed"
 	},
 	"text:R5019114": {
 		"status": "matched",
@@ -1545,46 +1545,43 @@
 		"by": "seed"
 	},
 	"text:R5686320": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"note": "Checked by hand: the wording differs. Ours reads \"Browse\" (text) in create-project.",
+		"status": "matched",
+		"state": "composer-link-workspaces",
+		"via": "text",
 		"by": "hand",
-		"backlog": "WS-07",
-		"item": "Conductor shows \"Browse...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"note": "The Directories group's first item in Link workspaces and directories (LinkDirectoriesDialog)."
 	},
 	"text:R5687206": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-07",
-		"item": "Conductor shows \"No workspaces found\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "composer-link-workspaces-no-match",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > div > p",
+		"by": "seed"
 	},
 	"text:R5693367": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-07",
-		"item": "Conductor shows \"Loading directories...\" (region, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-working-directories-loading",
+		"via": "text",
+		"role": "div",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > div > div",
+		"by": "seed"
 	},
 	"text:R5694226": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-07",
-		"item": "Conductor shows \"Select all\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-working-directories",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div:nth-of-type(1) > button:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"text:R5694380": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-07",
-		"item": "Conductor shows \"Deselect all\" (control, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-working-directories",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div:nth-of-type(1) > button:nth-of-type(2) > span",
+		"by": "seed"
 	},
 	"text:R8047584": {
 		"status": "gap",
@@ -1909,7 +1906,7 @@
 		"state": "chat-plan-review",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(2) > div > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div:nth-of-type(2) > div > div:nth-of-type(2) > div > button > span:nth-of-type(2) > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"text:R8802449": {
@@ -1925,7 +1922,7 @@
 		"state": "chat-working",
 		"via": "text",
 		"role": "button",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(4) > div > div:nth-of-type(2) > div > button",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div:nth-of-type(2) > div > div:nth-of-type(4) > div > div:nth-of-type(2) > div > button",
 		"by": "seed"
 	},
 	"text:R8803962": {
@@ -1989,7 +1986,7 @@
 		"state": "chat-working",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(4) > div > div:nth-of-type(1) > span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div:nth-of-type(2) > div > div:nth-of-type(4) > div > div:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"text:R8822048": {
@@ -2335,12 +2332,12 @@
 		"by": "seed"
 	},
 	"text:R9268515": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-07",
-		"item": "Conductor shows \"Files from this directory are accessible to the agent in this workspace.\" (region, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "composer-linked-folder",
+		"via": "text",
+		"role": "tooltip",
+		"selector": "div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"text:R9306566": {
 		"status": "matched",
@@ -3335,7 +3332,7 @@
 		"state": "new-workspace",
 		"via": "text",
 		"role": "heading",
-		"selector": "div:nth-of-type(3) > div > span > h2",
+		"selector": "div:nth-of-type(3) > div > span:nth-of-type(1) > h2",
 		"by": "seed"
 	},
 	"text:R10341617": {
@@ -5099,12 +5096,12 @@
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"text:R11274850": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Repository",
-		"backlog": "PRJ-04",
-		"item": "Conductor shows \"Using .worktreeinclude from this repository. Remove that file to edit these patterns here.\" (region, inventory-controls Settings: Repository); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-repo-files-worktreeinclude",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div:nth-of-type(4) > div > div:nth-of-type(1) > p",
+		"by": "seed"
 	},
 	"text:R11277107": {
 		"status": "gap",
@@ -5147,12 +5144,12 @@
 		"by": "seed"
 	},
 	"text:R11285835": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Settings: Repository",
-		"backlog": "PRJ-05",
-		"item": "Conductor shows \"No favicon detected\" (control, inventory-controls Settings: Repository); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-repo-icon-no-favicon",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > p",
+		"by": "seed"
 	},
 	"text:R11291806": {
 		"status": "gap",
@@ -5203,12 +5200,12 @@
 		"by": "seed"
 	},
 	"text:R11320596": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-01",
-		"item": "Section picker 'Create in section' with 'No matching sections'",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "command-palette-move-to-section",
+		"via": "text",
+		"role": "presentation",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div",
+		"by": "seed"
 	},
 	"text:R11324211": {
 		"status": "decided",
@@ -5371,12 +5368,12 @@
 		"state": "new-workspace",
 		"via": "title",
 		"role": "button",
-		"selector": "div:nth-of-type(3) > div > form > header > button:nth-of-type(3)",
+		"selector": "div:nth-of-type(3) > div > form > header > div > button",
 		"by": "seed"
 	},
 	"text:R11464130": {
 		"status": "matched",
-		"state": "new-workspace-create-from",
+		"state": "new-workspace-from-branch",
 		"via": "text",
 		"role": "radio",
 		"selector": "div:nth-of-type(3) > div > form > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(1)",
@@ -5384,7 +5381,7 @@
 	},
 	"text:R11464188": {
 		"status": "matched",
-		"state": "new-workspace-create-from",
+		"state": "new-workspace-from-branch",
 		"via": "text",
 		"role": "radio",
 		"selector": "div:nth-of-type(3) > div > form > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(2)",
@@ -5392,7 +5389,7 @@
 	},
 	"text:R11464249": {
 		"status": "matched",
-		"state": "new-workspace-create-from",
+		"state": "new-workspace-from-branch",
 		"via": "text",
 		"role": "radio",
 		"selector": "div:nth-of-type(3) > div > form > div:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(3)",
@@ -5419,12 +5416,12 @@
 		"by": "seed"
 	},
 	"text:R11504834": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "WS-01",
-		"item": "'New workspace' dialog ('Draft the first message, then create and send it.')",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "new-workspace",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > span:nth-of-type(2) > p",
+		"by": "seed"
 	},
 	"text:R11508077": {
 		"status": "matched",
@@ -5533,12 +5530,12 @@
 		"owner": "hand"
 	},
 	"text:R11544294": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "PRJ-05",
-		"item": "Conductor shows \"Pick an icon, emoji, favicon, or uploaded image for this repository\" (region, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "settings-repo-icon-picker",
+		"via": "text",
+		"role": "p",
+		"selector": "div:nth-of-type(3) > div > span > p",
+		"by": "seed"
 	},
 	"text:R11548768": {
 		"status": "decided",
@@ -5930,7 +5927,7 @@
 	},
 	"text:R11772171": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "WS-07",
 		"item": "Conductor shows \"Loading...\" (region, Unplaced); ours has no counterpart yet (parity gap).",

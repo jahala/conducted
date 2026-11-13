@@ -176,6 +176,16 @@ describe("WS-01 CreateWorkspacePage", () => {
 		);
 	});
 
+	it("describes itself in Conductor's words, for screen readers only", async () => {
+		await renderCreatePage();
+
+		const description = await screen.findByText(
+			"Draft the first message, then create and send it.",
+		);
+		expect(description.closest("[style]")?.getAttribute("style")).toContain("clip");
+		expect(screen.getByRole("dialog").getAttribute("aria-describedby")).toBe(description.id);
+	});
+
 	it("replaces the create page, as Conductor replaces its new tab", async () => {
 		const { router } = await renderCreatePage();
 

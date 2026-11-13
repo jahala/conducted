@@ -4,8 +4,9 @@
  * workspace, with a preview of what matches.
  * Behaviour: ui-map.md 6, "Misc (repo)" (Files to copy) and "Environment page" ("Detecting files to
  * copy...", "Using .worktreeinclude from this repository..."); services-map.md 4.2.3
- * (file_include_globs). The workspace service copies the settings list and the `.worktreeinclude`
- * list together (services-map.md 5A.5.5); only the settings list is editable here.
+ * (file_include_globs). A repository's `.worktreeinclude` replaces the settings list (copyPatterns,
+ * as Conductor picks it, main @3729312), so while it exists the field shows its patterns locked
+ * under Conductor's note, renderApp @11274850.
  * Must handle: a pattern with no match (shown as "No matching gitignored files found."), a pattern
  * that reaches outside the repository (refused), a huge match list (first 50 and a count), a
  * detection that fails ("Could not preview files to copy.") and its Refresh, and a saved list the
@@ -14,7 +15,7 @@
  */
 import { useId, useState } from "react";
 import { Button } from "../../../ui/Button.tsx";
-import { Input, Label } from "../../../ui/Input.tsx";
+import { Input, Label, Textarea } from "../../../ui/Input.tsx";
 
 /** The most matched paths shown; the rest are reported as a count. */
 export const COPY_PREVIEW_LIMIT = 50;
@@ -29,6 +30,8 @@ export function isOutsideRepository(pattern: string): boolean {
 
 export interface FilesToCopyFieldProps {
 	patterns: string[];
+	/** The patterns of the repository's `.worktreeinclude`, which replace `patterns`; null without one. */
+	worktreeInclude?: readonly string[] | null;
 	/**
 	 * What the repository's ignored files match: detecting, the paths, a failure, or null while no
 	 * detector is available, so the field shows no false result.
@@ -41,6 +44,7 @@ export interface FilesToCopyFieldProps {
 
 export function FilesToCopyField({
 	patterns,
+	worktreeInclude = null,
 	matches,
 	onChange,
 	onRefresh,
@@ -64,6 +68,26 @@ export function FilesToCopyField({
 		setDraft("");
 		onChange([...patterns, pattern]);
 	};
+
+	if (worktreeInclude !== null) {
+		return (
+			<div className="flex flex-col gap-3">
+				<div className="relative">
+					<Textarea
+						aria-label="Files to copy"
+						value={worktreeInclude.join("\n")}
+						readOnly
+						className="min-h-[120px] w-full resize-none bg-muted font-mono text-xs text-fg-muted"
+					/>
+					<p className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-md bg-muted/80 px-4 text-center text-xs text-fg-muted">
+						Using .worktreeinclude from this repository. Remove that file to edit these patterns
+						here.
+					</p>
+				</div>
+				<CopyMatches matches={matches} onRefresh={onRefresh} />
+			</div>
+		);
+	}
 
 	return (
 		<div className="flex flex-col gap-3">
@@ -114,11 +138,15 @@ export function FilesToCopyField({
 				</ul>
 			)}
 
-			<p className="text-sm text-fg-muted">
-				If the repository has a .worktreeinclude file, the paths in it are copied as well. Edit that
-				file to add or remove them.
-			</p>
+			<CopyMatches matches={matches} onRefresh={onRefresh} />
+		</div>
+	);
+}
 
+/** What the patterns match: detecting, a count with Refresh, the first matched paths, or a failure. */
+function CopyMatches({ matches, onRefresh }: Pick<FilesToCopyFieldProps, "matches" | "onRefresh">) {
+	return (
+		<>
 			{matches === null ? null : (
 				<div className="flex items-center gap-1.5 text-xs text-fg-muted">
 					{matches.state === "detecting" ? (
@@ -151,7 +179,7 @@ export function FilesToCopyField({
 			{matches?.state === "ready" && matches.paths.length > 0 ? (
 				<MatchPreview paths={matches.paths} />
 			) : null}
-		</div>
+		</>
 	);
 }
 

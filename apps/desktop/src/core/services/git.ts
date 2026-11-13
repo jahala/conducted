@@ -117,6 +117,7 @@ import {
 	firstPushSteps,
 	forEachRefRemoteBranches,
 	isAncestor,
+	lsTreeSubdirectories,
 	lsTreeTopLevelDirectories,
 	mergeBase,
 	mergeFastForwardOnly,
@@ -2153,6 +2154,25 @@ export class GitService {
 			directories: enabled.value ? parseSparseCheckoutDirectories(directories.value) : [],
 			topLevelDirectories: parseSparseCheckoutDirectories(topLevel.value),
 		});
+	}
+
+	/**
+	 * Backs `Actions.git.sparseCheckoutSubdirectories`: the folders directly inside `parent` at HEAD,
+	 * which the working directories picker offers when the user types a nested path (Conductor's
+	 * `ls-tree -d --name-only HEAD <path>`, services-map.md 5A.5.3).
+	 */
+	async sparseCheckoutSubdirectories(
+		workspaceId: WorkspaceId,
+		parent: string,
+	): Promise<Result<string[]>> {
+		const checked = workspaceRelativePath(parent.trim());
+		if (!checked.ok) return checked;
+		const found = await this.#deps.contextOf(workspaceId);
+		if (!found.ok) return found;
+		const listed = await this.#deps.git.stdout(lsTreeSubdirectories(checked.value), {
+			cwd: found.value.workspacePath,
+		});
+		return listed.ok ? ok(parseSparseCheckoutDirectories(listed.value)) : listed;
 	}
 
 	/**

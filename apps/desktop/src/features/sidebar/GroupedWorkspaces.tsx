@@ -444,7 +444,11 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 		return true;
 	});
 	useCommandHandler("workspace.archive", "base", () => {
-		if (selectedId === null) return false;
+		if (selectedId === null) {
+			// Conductor's handler says so rather than doing nothing (renderApp @5643180).
+			toast.error("No workspace selected to archive");
+			return true;
+		}
 		const row = rows.get(selectedId);
 		if (row === undefined || isArchivedWorkspace(row.workspace)) return false;
 		void actions.workspaces.archive(selectedId, { deleteBranch: false }).then((result) => {

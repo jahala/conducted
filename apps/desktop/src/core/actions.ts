@@ -150,6 +150,8 @@ export function createActions(
 			sparseCheckoutSettings: (workspaceId) => services.git.sparseCheckoutSettings(workspaceId),
 			setSparseCheckoutDirectories: (workspaceId, directories) =>
 				services.git.setSparseCheckoutDirectories(workspaceId, directories),
+			sparseCheckoutSubdirectories: (workspaceId, parent) =>
+				services.git.sparseCheckoutSubdirectories(workspaceId, parent),
 		},
 		pullRequests: {
 			create: (workspaceId, options) => services.github.create(workspaceId, options),

@@ -913,7 +913,7 @@ describe("CLOUD-04 a cloud repo's shared clone", () => {
 });
 
 describe("SET-07 files-to-copy preview", () => {
-	it("returns the ignored files the copy patterns and .worktreeinclude match", async () => {
+	it("returns the ignored files .worktreeinclude matches, in place of the setting, as Conductor does", async () => {
 		const git = {
 			async run(command: { args: readonly string[] }) {
 				const ignored = command.args.includes("--ignored");
@@ -928,7 +928,25 @@ describe("SET-07 files-to-copy preview", () => {
 		write(ctx.files, sharedPath, { file_include_globs: ["*.env"] });
 		ctx.files.set(`${rootPath}/.worktreeinclude`, "secret/\n");
 
-		expect(must(await ctx.service.copyPreview(repoId))).toEqual(["a.env", "secret/key.txt"]);
+		expect(must(await ctx.service.copyPreview(repoId))).toEqual({
+			paths: ["secret/key.txt"],
+			worktreeInclude: ["secret/"],
+		});
+	});
+
+	it("returns the ignored files the setting matches when the repository has no .worktreeinclude", async () => {
+		const git = {
+			async run() {
+				return ok({ exitCode: 0, stdout: "a.env\0README.md\0", stderr: "" });
+			},
+		} as unknown as GitRunner;
+		const ctx = makeService({ git });
+		write(ctx.files, sharedPath, { file_include_globs: ["*.env"] });
+
+		expect(must(await ctx.service.copyPreview(repoId))).toEqual({
+			paths: ["a.env"],
+			worktreeInclude: null,
+		});
 	});
 
 	it("does not ask git when there is nothing to copy", async () => {
@@ -936,7 +954,10 @@ describe("SET-07 files-to-copy preview", () => {
 		const ctx = makeService({ git: { run } as unknown as GitRunner });
 		write(ctx.files, sharedPath, { file_include_globs: [] });
 
-		expect(must(await ctx.service.copyPreview(repoId))).toEqual([]);
+		expect(must(await ctx.service.copyPreview(repoId))).toEqual({
+			paths: [],
+			worktreeInclude: null,
+		});
 		expect(run).not.toHaveBeenCalled();
 	});
 });

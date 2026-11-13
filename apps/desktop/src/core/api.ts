@@ -59,6 +59,7 @@ import type {
 	ConfigSyncCategory,
 	ConfigSyncChange,
 	ConfigSyncResult,
+	CopyPreview,
 	DiagnosticsCapture,
 	DiffComment,
 	EnvScope,
@@ -492,7 +493,7 @@ export interface Actions {
 		 */
 		updateConfig: Act<[repoId: RepoId, patch: RepoConfigPatch, options?: { overwrite?: boolean }]>;
 		/** The gitignored files a new workspace would copy, for the Misc page's preview (SET-07). */
-		copyPreview: Act<[repoId: RepoId], string[]>;
+		copyPreview: Act<[repoId: RepoId], CopyPreview>;
 		setIcon: Act<[repoId: RepoId, icon: RepoIconChoice]>;
 		/** Drops this Mac's change to a shared run action, so the shared version applies again. */
 		resetRunAction: Act<[repoId: RepoId, actionId: string, options?: { overwrite?: boolean }]>;
@@ -644,6 +645,8 @@ export interface Actions {
 		sparseCheckoutSettings: Act<[workspaceId: WorkspaceId], SparseCheckoutSettings>;
 		/** Includes only these directories in the worktree. An empty list turns sparse checkout off. */
 		setSparseCheckoutDirectories: Act<[workspaceId: WorkspaceId, directories: string[]]>;
+		/** The folders directly inside a folder at HEAD, for a nested path typed in the picker. */
+		sparseCheckoutSubdirectories: Act<[workspaceId: WorkspaceId, parent: string], string[]>;
 	};
 	pullRequests: {
 		/** Asks the agent to open the PR, with written instructions; `draft` asks for a draft PR. */

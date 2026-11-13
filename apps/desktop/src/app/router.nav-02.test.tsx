@@ -11,6 +11,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
 import type { Repo, Workspace } from "../core/model.ts";
+import { toast } from "../ui/Toast.tsx";
 import { CommandRegistryProvider, createCommandRegistry } from "./command-dispatcher.ts";
 import { SAVED_LOCATION_KEY } from "./navigation-history.ts";
 import { useOverlayStore } from "./overlay-store.ts";
@@ -327,6 +328,21 @@ describe("Navigation and workspace commands reach their screens", () => {
 		expect(await screen.findByText("Old work")).toBeTruthy();
 		expect(screen.queryByText("Live work")).toBeNull();
 		expect(router.state.location.pathname).toBe("/all-workspaces");
+	});
+
+	it("Archive workspace with no workspace open says so, in Conductor's words", async () => {
+		const error = vi.spyOn(toast, "error");
+		const { registry, container } = await openApp("/all-workspaces", {
+			repos: [repo("r1")],
+			workspaces: [workspace({ id: "w-live", displayName: "Live work" })],
+		});
+		const archive = vi.spyOn(container.actions.workspaces, "archive");
+		await screen.findAllByText("Live work");
+
+		act(() => expect(registry.run("workspace.archive")).toBe(true));
+
+		expect(error).toHaveBeenCalledWith("No workspace selected to archive");
+		expect(archive).not.toHaveBeenCalled();
 	});
 
 	it("the sidebar's row commands act on the open workspace", async () => {

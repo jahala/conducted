@@ -102,8 +102,54 @@ describe("PRJ-05 repository icon avatar", () => {
 		);
 	});
 
+	it("describes itself in Conductor's words, for screen readers only", async () => {
+		const { repo } = await renderAvatar({ icon: "emoji:🚀" });
+		await openPicker(repo);
+
+		const description = screen.getByText(
+			"Pick an icon, emoji, favicon, or uploaded image for this repository",
+		);
+		expect(description.closest("[style]")?.getAttribute("style")).toContain("clip");
+	});
+
+	it("says No favicon detected for a repository with no remote, with its letter", async () => {
+		const { repo } = await renderAvatar({ name: "notes", icon: "emoji:🚀", remoteUrl: null });
+		await openPicker(repo);
+
+		fireEvent.click(screen.getByRole("tab", { name: "Favicon" }));
+
+		expect(screen.getByText("No favicon detected")).toBeTruthy();
+		expect(screen.queryByRole("button", { name: /favicon/i })).toBeNull();
+	});
+
+	it("offers the GitHub avatar for a GitHub repository while another icon is saved", async () => {
+		const { repo, container } = await renderAvatar({
+			icon: "emoji:🚀",
+			remoteUrl: "git@github.com:octocat/alpha.git",
+		});
+		await openPicker(repo);
+		fireEvent.click(screen.getByRole("tab", { name: "Favicon" }));
+
+		fireEvent.click(screen.getByRole("button", { name: "Use GitHub avatar" }));
+
+		await waitFor(() =>
+			expect(container.services.repo.store.getState().reposById[repo.id]?.icon).toBeNull(),
+		);
+	});
+
+	it("says Using GitHub avatar when no icon is saved", async () => {
+		const { repo } = await renderAvatar({ remoteUrl: "git@github.com:octocat/alpha.git" });
+		await openPicker(repo);
+		fireEvent.click(screen.getByRole("tab", { name: "Favicon" }));
+
+		expect(screen.getByRole("button", { name: "Using GitHub avatar" })).toBeTruthy();
+	});
+
 	it("clears back to the fallback from the Favicon tab", async () => {
-		const { repo, container } = await renderAvatar({ icon: "emoji:🚀" });
+		const { repo, container } = await renderAvatar({
+			icon: "emoji:🚀",
+			remoteUrl: "https://gitlab.example.com/me/conducted.git",
+		});
 		await openPicker(repo);
 
 		fireEvent.click(screen.getByRole("tab", { name: "Favicon" }));

@@ -7,7 +7,8 @@
  * @feature CLOUD-19 Create cloud workspaces: the organisation switcher and the new-workspace page in cloud mode
  * Owns: the "new workspace" dialog at /create: the project picker (with Open project, Open GitHub project,
  * Quick start and the projects under Recents), the "···" options (section, Backlog), the toggleable
- * "create from" picker (default branch, an existing local branch, a pull request or an issue), the first
+ * "create from" picker (default branch, an existing local branch, a pull request or an issue) with the X
+ * that clears a chosen source ("Clear create from selection"), the first
  * message with the composer's model menu, the "+" menu (plan mode), and the "Create ↵" button with its
  * "Create in section" dropdown. The first message is kept as the
  * new-workspace draft in the composer store, so the Create row can mark it and the dialog restores it
@@ -106,6 +107,7 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	CircleIcon,
+	CloseIcon,
 	FolderIcon,
 	GitBranchIcon,
 	MoreHorizontalIcon,
@@ -504,6 +506,18 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	};
 
 	const branchMissing = fromKind === "branch" && branchName.trim() === "";
+	// A chosen branch, pull request or issue, which Conductor's X clears back to the default branch.
+	const sourceChosen =
+		(fromKind === "branch" && branchName.trim() !== "") ||
+		(fromKind === "pull_request" && selectedPullRequest !== null) ||
+		(fromKind === "issue" && selectedIssue !== null);
+	const clearSource = () => {
+		setFromKind("default");
+		setBranchName("");
+		setBranchTouched(false);
+		setSelectedPullRequest(null);
+		setSelectedIssue(null);
+	};
 	// A backlog workspace starts from its saved row, so the fields show it and cannot be edited.
 	// The text fields are read-only rather than disabled, so focus and Cmd+Enter still work.
 	const fieldsLocked = busy || startMode;
@@ -679,6 +693,8 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			<DialogContent
 				title="New workspace"
 				hideTitle
+				description="Draft the first message, then create and send it."
+				hideDescription
 				size="3xl"
 				className="gap-0! rounded-xl! bg-muted! p-0!"
 			>
@@ -759,24 +775,43 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							</Tooltip>
 						) : null}
 						{isCloudOrg && !cloudMode ? null : (
-							<button
-								type="button"
-								aria-label="Show or hide the create-from picker"
-								aria-expanded={pickerOpen}
-								aria-controls="create-from-picker"
-								disabled={fieldsLocked}
-								title="Create from"
-								className="-mr-1.5 flex h-7 min-w-0 max-w-72 items-center gap-1.5 rounded-md px-1.5 text-fg outline-none hover:bg-hover focus-visible:ring-1 focus-visible:ring-focus aria-expanded:bg-hover disabled:opacity-50"
-								onClick={() => setPickerOpen((open) => !open)}
-							>
-								<FromSource
-									kind={fromKind}
-									branch={branchName.trim()}
-									pullRequest={selectedPullRequest}
-									issue={selectedIssue}
-								/>
-								<ChevronDownIcon className="size-3.5 shrink-0 text-fg-muted" />
-							</button>
+							<div className="-mr-1.5 flex min-w-0 max-w-72 items-center rounded-md hover:bg-hover has-aria-expanded:bg-hover">
+								<button
+									type="button"
+									aria-label="Show or hide the create-from picker"
+									aria-expanded={pickerOpen}
+									aria-controls="create-from-picker"
+									disabled={fieldsLocked}
+									title="Create from"
+									className={cn(
+										"flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-fg outline-none focus-visible:ring-1 focus-visible:ring-focus disabled:opacity-50",
+										sourceChosen && "pr-0",
+									)}
+									onClick={() => setPickerOpen((open) => !open)}
+								>
+									<FromSource
+										kind={fromKind}
+										branch={branchName.trim()}
+										pullRequest={selectedPullRequest}
+										issue={selectedIssue}
+									/>
+									{sourceChosen ? null : (
+										<ChevronDownIcon className="size-3.5 shrink-0 text-fg-muted" />
+									)}
+								</button>
+								{sourceChosen ? (
+									// Conductor swaps the chevron for this X once a source is chosen (renderApp @11462165).
+									<button
+										type="button"
+										aria-label="Clear create from selection"
+										disabled={fieldsLocked}
+										className="mr-1.5 ml-1 flex size-4 shrink-0 items-center justify-center rounded-sm text-fg-muted outline-none hover:text-fg focus-visible:ring-1 focus-visible:ring-focus disabled:opacity-50"
+										onClick={clearSource}
+									>
+										<CloseIcon className="size-3.5" />
+									</button>
+								) : null}
+							</div>
 						)}
 					</header>
 

@@ -203,6 +203,14 @@ describe("NAV-08 CommandPalette", () => {
 		expect(palette.getByText("Ideas")).toBeTruthy();
 	});
 
+	it("says No matching sections when the search finds none, as Conductor's sub-page does", async () => {
+		const { sections, palette } = await openSectionsPage();
+		fireEvent.change(sections, { target: { value: "zzz-no-such-section" } });
+
+		expect(await palette.findByText("No matching sections")).toBeTruthy();
+		expect(palette.queryByText("No results found")).toBeNull();
+	});
+
 	it("edits the highlighted section with Cmd+E pressed into the root dispatcher", async () => {
 		const { sections } = await openSectionsPage();
 		fireEvent.keyDown(sections, { key: "e", metaKey: true });

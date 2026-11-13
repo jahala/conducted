@@ -8,7 +8,8 @@
  * saved, for a settings file that does not parse, and for one that does not parse after an earlier
  * save, which offers "Overwrite file"; the Advanced page asking before it changes the root
  * folder, and Home after it changed; the MCP page with OAuth servers in each state (CLOUD-17); the Agents page's MCP servers for the chat last open; the Environment page's documented
- * variables; atlas's Add action dialog and icon picker (an emoji search with no match, the Favicon source); the Agents page's provider forms (Anthropic,
+ * variables; atlas's Add action dialog and icon picker (an emoji search with no match, the Favicon source, a
+ * project hosted outside GitHub, and a project with no remote, which has no favicon); Files to copy locked by a .worktreeinclude; the Agents page's provider forms (Anthropic,
  * subscription, Vertex, both Bedrock modes, ChatGPT, Cursor, custom), OpenCode's Providers dialog
  * searched (its matches in the open Provider select, and no match), its card badges and both
  * sign-in dialogs; a changed setting's actions menu; the Connect GitHub and disconnect dialogs; the
@@ -28,7 +29,7 @@ import { chatRoute, seedCast } from "../cast.ts";
 import { type ConductorRows, seedConductorDatabase } from "../conductor-database.ts";
 import { click, fillIn, find, findFirst, has, shows, typeInto } from "../dom.ts";
 import { scriptGitHub } from "../github.ts";
-import { setSetting } from "../seeds.ts";
+import { addRepo, must, setSetting } from "../seeds.ts";
 import { waitFor } from "../settle.ts";
 import type { CatalogueState } from "../state.ts";
 import type { World } from "../world.ts";
@@ -1363,6 +1364,26 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		},
 	},
 	{
+		id: "settings-repo-files-worktreeinclude",
+		group: "Settings",
+		title: "atlas: Misc, Files to copy taken over by the repository's .worktreeinclude",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			world.memory.controls.files.set(
+				`${cast.atlas.rootPath}/.worktreeinclude`,
+				"# Local secrets the dev server reads\n.env.local\nconfig/*.local.json\n",
+			);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/misc`,
+				after: async ({ document }) => {
+					const note = await find(document, "p", "Using .worktreeinclude", { prefix: true });
+					note.scrollIntoView({ block: "center" });
+				},
+				ready: (document) => shows(document, "Using .worktreeinclude from this repository."),
+			};
+		},
+	},
+	{
 		id: "settings-repo-icon-picker",
 		group: "Settings",
 		title: "atlas: Misc, the repository icon picker",
@@ -1403,7 +1424,46 @@ export const SETTINGS_STATES: CatalogueState[] = [
 					await click(document, "button", "Change repository icon");
 					await click(document, "[role=tab]", "Favicon");
 				},
+				// atlas is on GitHub, so its fallback is the owner's avatar.
+				ready: (document) => shows(document, "GitHub avatar"),
+			};
+		},
+	},
+	{
+		id: "settings-repo-icon-site-favicon",
+		group: "Settings",
+		title: "notes: Misc, the icon picker's Favicon source for a project hosted outside GitHub",
+		seed: async (world) => {
+			await seedCast(world);
+			const notes = await addRepo(world, {
+				name: "notes",
+				remoteUrl: "https://gitlab.com/sam/notes.git",
+			});
+			must(await world.repositories.repos.setIcon(notes.id, "emoji:📓"));
+			return {
+				route: `/settings/repos/${notes.id}/misc`,
+				after: async ({ document }) => {
+					await click(document, "button", "Change repository icon");
+					await click(document, "[role=tab]", "Favicon");
+				},
 				ready: (document) => shows(document, "Use favicon"),
+			};
+		},
+	},
+	{
+		id: "settings-repo-icon-no-favicon",
+		group: "Settings",
+		title: "notes: Misc, the icon picker's Favicon source for a project with no remote",
+		seed: async (world) => {
+			await seedCast(world);
+			const notes = await addRepo(world, { name: "notes", remoteUrl: null });
+			return {
+				route: `/settings/repos/${notes.id}/misc`,
+				after: async ({ document }) => {
+					await click(document, "button", "Change repository icon");
+					await click(document, "[role=tab]", "Favicon");
+				},
+				ready: (document) => shows(document, "No favicon detected"),
 			};
 		},
 	},

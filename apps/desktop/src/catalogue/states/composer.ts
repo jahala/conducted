@@ -2,11 +2,12 @@
  * @feature catalogue States of the composer
  * Owns: a new chat with an empty composer (the empty chat, and one offering an earlier chat as
  * context), the composer with a draft and two attached
- * files, the @ menu (and a search with no match, and its add directory row's dialog), the chat's find bar, the auto-accept chip, the composer with the model
+ * files, the @ menu (and a search with no match), the chat's find bar, the auto-accept chip, the composer with the model
  * picker open (searched with no match, and switching the model of
  * a started chat), the slash command menu after typing "/" (Claude,
  * Codex, and with a Skills group), a typed command that cannot run here, the "+" menu, the Create
- * snippet dialog, the snippet picker with no snippets yet, the Link issue dialog with atlas's
+ * snippet dialog, the snippet picker with no snippets yet, Link workspaces and directories (and
+ * searched with no match), a linked folder above the composer with its tooltip, the Link issue dialog with atlas's
  * GitHub issues and Linear not connected (and with no open issues), the context usage card of a
  * chat signed in with an API key, and the warning when fast mode
  * cannot be paid for.
@@ -17,7 +18,7 @@
 import type { Session, Workspace } from "../../core/model.ts";
 import { chatRoute, type GitWorld, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, find, has, hover, pressUntilTaken, shows, typeInto } from "../dom.ts";
+import { click, fillIn, find, has, hover, pressUntilTaken, shows, typeInto } from "../dom.ts";
 import { setLiveState } from "../live.ts";
 import { addChat, addEvents, CLAUDE_CONFIG, must, setSetting } from "../seeds.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
@@ -228,20 +229,6 @@ export const COMPOSER_STATES: CatalogueState[] = [
 			),
 	},
 	{
-		id: "composer-link-directories",
-		group: "Composer",
-		title: "The Link workspaces and directories dialog, from the @ menu's add directory row",
-		seed: (world) =>
-			newChat(
-				world,
-				async ({ document }) => {
-					await typeInComposer(document, "@");
-					await click(document, "[role=option]", "add directory", { prefix: true });
-				},
-				(document) => shows(document, "Select working directories"),
-			),
-	},
-	{
 		id: "composer-file-mention-no-match",
 		group: "Composer",
 		title: "Composer with the @ menu searched for a file the workspace lacks",
@@ -383,6 +370,70 @@ export const COMPOSER_STATES: CatalogueState[] = [
 				({ document }) => click(document, "button", PLUS_MENU),
 				(document) => shows(document, "Add snippet"),
 			),
+	},
+	{
+		id: "composer-link-workspaces",
+		group: "Composer",
+		title:
+			"Link workspaces and directories, from the + menu, with a linked folder and relay's workspaces",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			must(
+				await world.repositories.workspaces.setLinkedPaths(cast.arbor.id, [
+					"/Users/sam/code/design-tokens",
+				]),
+			);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await click(document, "button", PLUS_MENU);
+					await click(document, "[role=menuitem]", "Link workspaces", { prefix: true });
+				},
+				ready: (document) => shows(document, "Browse..."),
+			};
+		},
+	},
+	{
+		id: "composer-link-workspaces-no-match",
+		group: "Composer",
+		title: "Link workspaces and directories searched for a workspace that does not exist",
+		seed: (world) =>
+			newChat(
+				world,
+				async ({ document }) => {
+					await click(document, "button", PLUS_MENU);
+					await click(document, "[role=menuitem]", "Link workspaces", { prefix: true });
+					const search = await find(document, "input", "");
+					if (search instanceof HTMLInputElement) fillIn(search, "kyoto");
+				},
+				(document) => shows(document, "No workspaces found"),
+			),
+	},
+	{
+		id: "composer-linked-folder",
+		group: "Composer",
+		title: "A linked folder above the composer, its tooltip open",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			must(
+				await world.repositories.workspaces.setLinkedPaths(cast.arbor.id, [
+					"/Users/sam/code/design-tokens",
+				]),
+			);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await hover(document, "button", "design-tokens", { prefix: true });
+				},
+				ready: (document) =>
+					shows(
+						document,
+						"Files from this directory are accessible to the agent in this workspace.",
+					),
+			};
+		},
 	},
 	{
 		id: "composer-create-snippet",

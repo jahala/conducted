@@ -118,6 +118,15 @@ describe("REV-01 git panel with unbuilt tabs", () => {
 		expect(screen.getByRole("tab", { name: "Checks" })).toBeTruthy();
 	});
 
+	it("offers Select working directories on the All files tab only, as Conductor does", () => {
+		render(<GitPanel workspaceId={"w1" as WorkspaceId} />);
+		expect(screen.queryByRole("button", { name: "Select working directories" })).toBeNull();
+
+		choose("All files");
+
+		expect(screen.getByRole("button", { name: "Select working directories" })).toBeTruthy();
+	});
+
 	it("moves from an unbuilt tab to the built one without sticking on the first message", () => {
 		render(<GitPanel workspaceId={"w1" as WorkspaceId} />);
 		choose("Checks");

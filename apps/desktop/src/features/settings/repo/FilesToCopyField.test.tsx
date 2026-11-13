@@ -22,6 +22,27 @@ describe("SET-07 FilesToCopyField", () => {
 		expect(isOutsideRepository(".env*")).toBe(false);
 	});
 
+	it("shows .worktreeinclude's patterns locked, with Conductor's note, when the repository has one", () => {
+		render(
+			<FilesToCopyField
+				patterns={[".env*"]}
+				worktreeInclude={["secret/", "config/*.local"]}
+				matches={null}
+				onChange={() => {}}
+			/>,
+		);
+
+		expect(
+			screen.getByText(
+				"Using .worktreeinclude from this repository. Remove that file to edit these patterns here.",
+			),
+		).toBeTruthy();
+		const field = screen.getByRole("textbox", { name: "Files to copy" }) as HTMLTextAreaElement;
+		expect(field.value).toBe("secret/\nconfig/*.local");
+		expect(field.readOnly).toBe(true);
+		expect(screen.queryByLabelText("Add a file or pattern")).toBeNull();
+	});
+
 	it("adds an inside pattern and lists the saved patterns", () => {
 		const onChange = vi.fn();
 		const { rerender } = render(
@@ -65,12 +86,18 @@ describe("SET-07 FilesToCopyField", () => {
 		).toHaveLength(COPY_PREVIEW_LIMIT);
 	});
 
-	it("keeps the settings list editable and says .worktreeinclude is copied too", () => {
+	it("keeps the settings list editable when the repository has no .worktreeinclude", () => {
 		const onChange = vi.fn();
-		render(<FilesToCopyField patterns={[".env"]} matches={null} onChange={onChange} />);
+		render(
+			<FilesToCopyField
+				patterns={[".env"]}
+				worktreeInclude={null}
+				matches={null}
+				onChange={onChange}
+			/>,
+		);
 
-		expect(screen.getByText(/If the repository has a \.worktreeinclude file/)).toBeTruthy();
-		expect(screen.getByText(/the paths in it are copied as well/)).toBeTruthy();
+		expect(screen.queryByText(/Using \.worktreeinclude/)).toBeNull();
 		expect(screen.getByLabelText("Add a file or pattern")).toBeTruthy();
 
 		fireEvent.click(screen.getByRole("button", { name: "Remove .env" }));

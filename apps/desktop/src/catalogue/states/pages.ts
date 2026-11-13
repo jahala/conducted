@@ -12,7 +12,7 @@
 import { ok } from "@conducted/shared";
 import type { CloudReadiness } from "../../core/organization.ts";
 import { animateCast, seedCast, workspaceRoute } from "../cast.ts";
-import { click, find, shows, typeInto } from "../dom.ts";
+import { click, find, has, shows, typeInto } from "../dom.ts";
 import { addRepo, CLAUDE_CONFIG, must, setSetting } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
 import type { World } from "../world.ts";
@@ -140,6 +140,33 @@ export const PAGE_STATES: CatalogueState[] = [
 			return {
 				route: `/create?repo=${cast.atlas.id}`,
 				ready: (document) => document.querySelector('[role="dialog"] textarea') !== null,
+			};
+		},
+	},
+	{
+		id: "new-workspace-from-branch",
+		group: "Pages",
+		title: "New workspace dialog with a branch chosen, so the X clears it",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/create?repo=${cast.atlas.id}&branch=feature/pricing-table`,
+				ready: (document) => has(document, "button", "Clear create from selection"),
+			};
+		},
+	},
+	{
+		// The section was removed while the dialog was open: the workspace is made, but cannot join it.
+		id: "new-workspace-section-gone",
+		group: "Pages",
+		title: "New workspace created in a section that is gone",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/create?repo=${cast.atlas.id}&section=section-removed-meanwhile`,
+				after: ({ document }) => click(document, "button", "Create workspace"),
+				ready: (document) =>
+					shows(document, "Workspace created, but couldn't add it to the section."),
 			};
 		},
 	},

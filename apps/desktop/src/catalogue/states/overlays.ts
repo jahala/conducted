@@ -1,9 +1,9 @@
 /**
  * @feature catalogue States of the command palette, the file viewer and the scripts panel
  * Owns: the command palette open over a workspace, on its Workspaces, Projects, Actions and Settings tabs, and
- * the pickers its actions open (Move to section, File picker, Search in files, Link pull request,
+ * the pickers its actions open (Move to section, also searched for a section it lacks, File picker, Search in files, Link pull request,
  * Show keyboard shortcuts, the snippets manager
- * listing and editing a snippet), the Passport opened from it, the Feedback dialog (opened as Send feedback opens it), the Clone GitHub repo dialog with its repository lists, a code file open in the file viewer, the file viewer
+ * listing and editing a snippet), the Passport opened from it, the Feedback dialog (opened as Send feedback opens it), the Clone GitHub repo dialog with its repository lists and mid-clone, a code file open in the file viewer, the file viewer
  * for a file that is gone (its error state), a browser tab waiting for its dev server, and the scripts panel's Run tab before and after its dev
  * script ran. The in-memory Platform ends a command's terminal at once (platform/memory.ts), so a script
  * that is still running cannot be shown.
@@ -12,9 +12,10 @@
  */
 import { useOverlayStore } from "../../app/overlay-store.ts";
 import { chatRoute, refreshGit, seedCast, workspaceRoute } from "../cast.ts";
-import { click, has, pressUntilTaken, shows } from "../dom.ts";
+import { click, fillIn, find, findFirst, has, pressUntilTaken, shows } from "../dom.ts";
 import { setSetting } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
+import type { World } from "../world.ts";
 
 /**
  * The command palette over arbor's chat, then `step` inside it; ready once a field shows
@@ -99,6 +100,59 @@ const paletteAction = (
 		shown,
 	);
 
+/** The cast, and the user's GitHub repositories as the Clone GitHub repo dialog lists them. */
+async function seedCloneDialog(world: World): Promise<void> {
+	await seedCast(world);
+	const row = (name: string, description: string, isPrivate = false) => ({
+		name,
+		owner: { login: "sam" },
+		description,
+		isPrivate,
+		url: `https://github.com/sam/${name}`,
+		sshUrl: `git@github.com:sam/${name}.git`,
+		updatedAt: "2026-11-02T10:00:00Z",
+	});
+	const answer = (stdout: string) => ({
+		ok: true as const,
+		value: { stdout, stderr: "", exitCode: 0 },
+	});
+	world.scriptShell((command) => {
+		if (command.program !== "gh") return null;
+		const args = command.args.join(" ");
+		if (args === "api user/orgs --paginate --jq .[].login") return answer("");
+		if (args.startsWith("api user/repos")) {
+			// GitHub's REST shape, which the Recent repos list reads.
+			const recent = (name: string, description: string) => ({
+				name,
+				owner: { login: "sam" },
+				updated_at: "2026-11-02T10:00:00Z",
+				description,
+				private: true,
+				clone_url: `https://github.com/sam/${name}.git`,
+				ssh_url: `git@github.com:sam/${name}.git`,
+			});
+			return answer(
+				JSON.stringify([
+					recent("atlas", "The marketing site and its blog"),
+					recent("relay", "Webhook relay with retries and a dead-letter queue"),
+					recent("ledger", "Double-entry bookkeeping for the billing service"),
+				]),
+			);
+		}
+		if (args.startsWith("repo list ")) {
+			return answer(
+				JSON.stringify([
+					row("atlas", "The marketing site and its blog"),
+					row("relay", "Webhook relay with retries and a dead-letter queue"),
+					row("ledger", "Double-entry bookkeeping for the billing service"),
+					row("tern", "A tiny command-line task runner"),
+				]),
+			);
+		}
+		return null;
+	});
+}
+
 export const OVERLAY_STATES: CatalogueState[] = [
 	{
 		id: "command-palette",
@@ -123,6 +177,25 @@ export const OVERLAY_STATES: CatalogueState[] = [
 	paletteAction("command-palette-move-to-section", "Move to section", {
 		placeholder: "Search sections...",
 	}),
+	{
+		id: "command-palette-move-to-section-no-match",
+		group: "Overlays and panels",
+		title: "Command palette, Move to section searched for a section that does not exist",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await pressUntilTaken(document, "k", { meta: true });
+					await click(document, "[role=option]", "Move to section", { prefix: true });
+					const search = await findFirst(document, 'input[placeholder="Search sections..."]');
+					if (search instanceof HTMLInputElement) fillIn(search, "Shipped");
+				},
+				ready: (document) => shows(document, "No matching sections"),
+			};
+		},
+	},
 	paletteAction("quick-open", "File picker", { placeholder: "Search files..." }),
 	paletteAction("link-pull-request", "Link pull request", {
 		placeholder: "https://github.com/owner/repo/pull/123",
@@ -167,59 +240,36 @@ export const OVERLAY_STATES: CatalogueState[] = [
 		group: "Overlays and panels",
 		title: "Clone GitHub repo dialog with its repositories",
 		seed: async (world) => {
-			await seedCast(world);
-			const row = (name: string, description: string, isPrivate = false) => ({
-				name,
-				owner: { login: "sam" },
-				description,
-				isPrivate,
-				url: `https://github.com/sam/${name}`,
-				sshUrl: `git@github.com:sam/${name}.git`,
-				updatedAt: "2026-11-02T10:00:00Z",
-			});
-			const answer = (stdout: string) => ({
-				ok: true as const,
-				value: { stdout, stderr: "", exitCode: 0 },
-			});
-			world.scriptShell((command) => {
-				if (command.program !== "gh") return null;
-				const args = command.args.join(" ");
-				if (args === "api user/orgs --paginate --jq .[].login") return answer("");
-				if (args.startsWith("api user/repos")) {
-					// GitHub's REST shape, which the Recent repos list reads.
-					const recent = (name: string, description: string) => ({
-						name,
-						owner: { login: "sam" },
-						updated_at: "2026-11-02T10:00:00Z",
-						description,
-						private: true,
-						clone_url: `https://github.com/sam/${name}.git`,
-						ssh_url: `git@github.com:sam/${name}.git`,
-					});
-					return answer(
-						JSON.stringify([
-							recent("atlas", "The marketing site and its blog"),
-							recent("relay", "Webhook relay with retries and a dead-letter queue"),
-							recent("ledger", "Double-entry bookkeeping for the billing service"),
-						]),
-					);
-				}
-				if (args.startsWith("repo list ")) {
-					return answer(
-						JSON.stringify([
-							row("atlas", "The marketing site and its blog"),
-							row("relay", "Webhook relay with retries and a dead-letter queue"),
-							row("ledger", "Double-entry bookkeeping for the billing service"),
-							row("tern", "A tiny command-line task runner"),
-						]),
-					);
-				}
-				return null;
-			});
+			await seedCloneDialog(world);
 			return {
 				route: "/",
 				after: ({ document }) => click(document, "button", "Open GitHub project"),
 				ready: (document) => shows(document, "Recent repos"),
+			};
+		},
+	},
+	{
+		id: "clone-github-cloning",
+		group: "Overlays and panels",
+		title: "Clone GitHub repo dialog while the repository clones",
+		seed: async (world) => {
+			await seedCloneDialog(world);
+			// The clone never ends, so the picture holds the dialog mid-clone.
+			world.scriptShell((command) =>
+				command.program === "gh" && command.args[0] === "repo" && command.args[1] === "clone"
+					? new Promise(() => {})
+					: null,
+			);
+			return {
+				route: "/",
+				after: async ({ document }) => {
+					await click(document, "button", "Open GitHub project");
+					await click(document, "button", "sam/relay", { prefix: true });
+					await click(document, "button", "Clone repository");
+					// The progress and the button sit below a laptop window's fold; scroll to them.
+					(await find(document, "button", "Cloning...")).scrollIntoView({ block: "end" });
+				},
+				ready: (document) => shows(document, "Cloning..."),
 			};
 		},
 	},
