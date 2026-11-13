@@ -453,4 +453,33 @@ describe("SET-02 DefaultModelsPage", () => {
 		expect(parseError).not.toBe("");
 		expect(shown.textContent).toContain(parseError.split("\n")[0]);
 	});
+
+	// Conductor's invalid-file toast carries "Overwrite file" once the app has read the file whole
+	// for a save (Uz, main @389730; mutateSettingsFile, @416065). Pressing it saves the setting
+	// again over the file as that save left it (readSettingsFileDataForWrite, @416200).
+	it("offers Overwrite file for an invalid settings file, and pressing it saves the setting (issue #622)", async () => {
+		// renderPage saved the default model, so the app has read the file whole.
+		const { container } = await renderPage();
+		render(<Toaster />);
+		const file = `${container.platform.fs.paths.home}/.conducted/settings.toml`;
+		test?.memory.controls.files.set(file, "[models\n");
+		const row = document.querySelector('[data-setting-key="default_plan_mode"]') as HTMLElement;
+		const toggle = within(row).getByRole("switch");
+
+		fireEvent.click(toggle);
+		const overwrite = await screen.findByRole("button", { name: "Overwrite file" });
+		expect(container.services.settings.get("default_plan_mode")).toBe(false);
+		fireEvent.click(overwrite);
+
+		await waitFor(() => expect(container.services.settings.get("default_plan_mode")).toBe(true));
+		const written = container.services.settings.readSettingsText(
+			test?.memory.controls.files.get(file) ?? "",
+			file,
+		);
+		expect(written.ok && written.value.values).toMatchObject({
+			default_model: "fast-model",
+			default_plan_mode: true,
+		});
+		await waitFor(() => expect(toggle.getAttribute("aria-checked")).toBe("true"));
+	});
 });

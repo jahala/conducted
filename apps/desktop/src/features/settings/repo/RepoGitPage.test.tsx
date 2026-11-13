@@ -183,6 +183,32 @@ describe("SET-07 RepoGitPage", () => {
 		expect(toggle.getAttribute("aria-checked")).toBe("false");
 	});
 
+	// Conductor's invalid-file toast offers "Overwrite file" once a save has read the file whole
+	// (mutateSettingsFile, main @416065); pressing it saves the switch over that reading (issue #622).
+	it("offers Overwrite file when this repository's local file does not parse, and saves the switch", async () => {
+		const { repo, container } = await renderPage();
+		render(<Toaster />);
+		const { settings } = container.services;
+		await settings.start();
+		expect(await settings.setForRepo(repo.rootPath, "archive_on_merge", true)).toEqual(
+			ok(undefined),
+		);
+		const local = `${repo.rootPath}/.conducted/settings.local.toml`;
+		test?.memory.controls.files.set(local, "[git\n");
+		const toggle = await screen.findByRole("switch", { name: "Delete branch on archive" });
+		await waitFor(() => expect((toggle as HTMLButtonElement).disabled).toBe(false));
+
+		fireEvent.click(toggle);
+		fireEvent.click(await screen.findByRole("button", { name: "Overwrite file" }));
+
+		await waitFor(() => expect(toggle.getAttribute("aria-checked")).toBe("true"));
+		const read = await settings.readSettingsFile(local);
+		expect(read.ok && read.value.values).toMatchObject({
+			archive_on_merge: true,
+			delete_branch_on_archive: true,
+		});
+	});
+
 	// Conductor's row shows the value the setting falls back to while the repository's value loads:
 	// on for this switch (`effective.value !== "false"`), off for the other two (renderApp @11165946).
 	// Ours showed off, so a read while the page opened saw the switch turn off again (issue #615).

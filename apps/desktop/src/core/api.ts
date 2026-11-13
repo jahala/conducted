@@ -794,7 +794,8 @@ export interface Actions {
 		remove: Act<[id: SnippetId]>;
 	};
 	settings: {
-		set: Act<[key: string, value: unknown]>;
+		/** `overwrite` saves over an invalid settings file, Conductor's "Overwrite file". */
+		set: Act<[key: string, value: unknown, options?: { overwrite?: boolean }]>;
 		/** Removes a stored setting so its registry default (or the layer above) applies again. */
 		reset: Act<[key: string]>;
 		setEnvVar: Act<[name: string, value: string, scope: { repoId: RepoId } | "global"]>;
@@ -803,7 +804,7 @@ export interface Actions {
 		 * Removes one repository's own value of a setting from its local settings file, so the
 		 * repository's shared settings.toml (or a layer above it) applies again.
 		 */
-		resetForRepo: Act<[repoId: RepoId, key: string]>;
+		resetForRepo: Act<[repoId: RepoId, key: string, options?: { overwrite?: boolean }]>;
 		/** Where the user's settings file, or one project's local settings file, lives. */
 		filePath: Act<[file: "user" | { repoId: RepoId }], string>;
 		/** Opens that settings file in the named app, creating it empty when it is missing. */

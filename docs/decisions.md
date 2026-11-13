@@ -1153,3 +1153,20 @@ Context: the Rust test `git_16_every_program_the_ui_starts_is_allowed` in `shell
 Chosen: the `programs` guard in `scripts/guards/structure.ts` already ran the same scan on Linux on every pull request. It now also checks the programs the UI starts through a variable (zsh and the three helper scripts), and fails when the scan finds no `program: "git"`, so a scan of the wrong folder cannot pass. The Rust UI scan is gone; `git_16_allows_the_xcode_licence_programs`, which reads only Rust, stays. `MACOS_JOB` names only the desktop files the job reads: the two the Rust tests read (`platform/tauri.ts`, `core/app-paths.ts`), the macOS tests, the Vitest setup files and what they import. Replayed over main's last 80 merges, 38 skip the job, up from 10.
 
 Why not a TypeScript test: it would repeat the guard's scan, and the guard runs on every pull request whatever changed. Why not compute the macOS tests' imports when `scripts/macos-job.ts` runs: it would end the list's drift, but the list is short and `scripts/macos-job.test.ts` fails on main when a macOS test starts importing a file the list misses.
+
+## D142. "Overwrite file" saves over the file as the last save left it (2026-11-12)
+
+Decided by the agent fixing issue #622, which the owner filed. It departs from Conductor in one detail, which the owner may overrule.
+
+Context: Conductor's invalid-file toast offers "Overwrite file" when its writer holds a last-known-good parse of the file. It keeps that parse when a save reads the file, before the save's change is applied (readSettingsFileDataForWrite, main @416200), and a forced save writes that parse with the new change over the file. The parse is never updated after a write. So after save A, save B, a hand edit that breaks the file and an overwrite with change C, Conductor's file holds A and C: B is lost without a word, though the user saw it saved.
+
+Chosen:
+
+- **Shown exactly when Conductor shows it.** The button appears when a save into the file was refused because it does not parse, and an earlier save in this run read the file (or found none). The periodic reload keeps no copy, as in Conductor, so a file that was broken before the app's first save offers no button. A forced save never offers a second one.
+- **Pressing it does what Conductor's does.** No confirmation and no backup copy. The same save runs forced: the file on disk is not read, and the kept text with the change applied replaces it. With no kept text the save fails as "Failed to save setting". After a forced save into the user's file, the store reads that file again, as Conductor reads every layer again after a write.
+- **The kept text is the file as the last save read it or, once written, as it wrote it.** This is the departure: an overwrite keeps the last save's own change. The text is kept, rather than a parsed copy, so the overwrite goes through the same path as any save and keeps that text's comments (SET-14).
+- **The refusal carries whether it can be overwritten** (`SettingsFileRefusal.overwritable`, read by `settingsFileOverwritable`), so the screen that toasts knows without asking the service again. The screen passes the same save with `overwrite`, because only it knows what it was saving.
+
+Why not match the lost change: it reverts a setting the user saw saved, which is the defect the button exists to avoid.
+
+Not covered: settings saved on the user's behalf (`last_clone_directory`, `always_allow_local_execution`) live in the settings table, so they never meet an invalid file. A setting's Reset and a project's config pages do not show this toast yet; Conductor offers the button there too (issue #654).
