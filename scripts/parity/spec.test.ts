@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	bundleLiterals,
+	checkRowOrder,
 	decode,
 	parseTsv,
 	readsLikeWording,
@@ -27,6 +28,25 @@ describe("the inventory reader", () => {
 
 	test("a malformed line stops the build", () => {
 		expect(() => parseTsv("kind\ttext\nlabel")).toThrow("Malformed inventory line");
+	});
+
+	test("rows out of file and offset order stop the build, since owners.ts counts rows in that order", () => {
+		const row = (file: string, offset: number) => ({ text: "x", file, offset, before: "" });
+		const sorted = [
+			row("main-BE1h_1MP.js", 9),
+			row("renderApp-DeUrsznk.js", 1),
+			row("renderApp-DeUrsznk.js", 2),
+		];
+		expect(() => checkRowOrder("label", sorted)).not.toThrow();
+		expect(() =>
+			checkRowOrder(
+				"label",
+				[sorted[0], sorted[2], sorted[1]].flatMap((r) => (r ? [r] : [])),
+			),
+		).toThrow("label.tsv row 3 is not after row 2 in file and offset order");
+		expect(() =>
+			checkRowOrder("label", [row("main-BE1h_1MP.js", 9), row("main-BE1h_1MP.js", 9)]),
+		).toThrow("label.tsv row 2 is not after row 1");
 	});
 
 	test("decode keeps a string it cannot read as it was", () => {

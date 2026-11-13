@@ -47,6 +47,46 @@ export const INVENTORIES: readonly Inventory[] = [...UI_INVENTORIES, ...BACKEND_
 export const isUiInventory = (name: string): name is UiInventory =>
 	(UI_INVENTORIES as readonly string[]).includes(name);
 
+/** The inventories spec.ts reads from `.context/conductor-re/inventory/<kind>.tsv`, one row each. */
+export const TSV_KINDS = [
+	"text",
+	"label",
+	"aria_label",
+	"placeholder",
+	"title",
+	"tooltip",
+	"description",
+	"toast",
+	"route",
+	"test_id",
+	"sidecar_rpc_method",
+	"sidecar_tool_name",
+] as const satisfies readonly Inventory[];
+
+/** A TSV row the spec leaves out, kept by its site alone in `excluded.json` (never its text). */
+export interface ExcludedEntry {
+	inventory: string;
+	file: string;
+	offset: number;
+	rule: string;
+}
+
+export function readExcluded(dir: string = SPEC_DIR): ExcludedEntry[] {
+	return readJson<{ entries: ExcludedEntry[] }>(join(dir, "excluded.json")).entries;
+}
+
+/**
+ * Bundle file, then offset: the order of every inventory TSV's rows. Files compare by code unit, as
+ * the TSVs sort them, so the order is the same on every machine.
+ */
+export function bySite(
+	a: { file: string; offset: number | null },
+	b: { file: string; offset: number | null },
+): number {
+	if (a.file !== b.file) return a.file < b.file ? -1 : 1;
+	return (a.offset ?? 0) - (b.offset ?? 0);
+}
+
 /** One entry of Conductor's inventories: wording or an identifier, never code. */
 export interface SpecEntry {
 	id: string;
