@@ -116,6 +116,7 @@ import { emojiIconValue, fileIconPath, fileIconValue } from "../repo-icon-value.
 import { actionIdsEqual, actionLabel, type DroppedSetting } from "../settings-helpers.ts";
 import {
 	mergeSettingActions,
+	type SetOptions,
 	type SettingAction,
 	type SettingsFileContents,
 	type SettingsService,
@@ -1198,8 +1199,15 @@ export class RepoService {
 		return ok(selectIncludedPaths(candidates, patterns));
 	}
 
-	/** Backs `Actions.projects.updateConfig`. Writes the local file, leaving the shared one alone. */
-	async updateConfig(repoId: RepoId, config: RepoConfig): Promise<Result<void>> {
+	/**
+	 * Backs `Actions.projects.updateConfig`. Writes the local file, leaving the shared one alone.
+	 * `overwrite` writes over an invalid local file, Conductor's "Overwrite file" (SET-02).
+	 */
+	async updateConfig(
+		repoId: RepoId,
+		config: RepoConfig,
+		options: SetOptions = {},
+	): Promise<Result<void>> {
 		// Any read that began before this write may not put its older contents in the store.
 		this.#nextConfigLoad(repoId);
 		const found = await this.#deps.repos.repos.get(repoId);
@@ -1213,7 +1221,7 @@ export class RepoService {
 		if (!shared.ok) return shared;
 		const sharedConfig = repoConfigFrom(shared.value, emptyFileContents(shared.value.file)).config;
 
-		const written = await this.#deps.settings.updateSettingsFile(file, "repo", (contents) => {
+		const edit = (contents: SettingsFileContents): void => {
 			writeText(contents, "setup_script", config.setupScript, sharedConfig.setupScript);
 			writeText(contents, "archive_script", config.archiveScript, sharedConfig.archiveScript);
 			writeIfDifferent(contents, "run_script_mode", config.runMode, sharedConfig.runMode);
@@ -1276,7 +1284,8 @@ export class RepoService {
 			delete contents.values.run_script;
 			contents.actions = localActionsFrom(config.runScripts, sharedConfig.runScripts);
 			contents.preserved = withoutRepoConfigPreserved(contents.preserved);
-		});
+		};
+		const written = await this.#deps.settings.updateSettingsFile(file, "repo", edit, options);
 		if (!written.ok) return written;
 
 		// A read that began during the write may not overwrite the config that just reached disk.
@@ -1675,18 +1684,29 @@ export class RepoService {
 
 	/**
 	 * Backs `Actions.projects.resetRunAction`: drops this Mac's change to a shared action by
-	 * rewriting the local file without that action, then forgets that it was hidden.
+	 * rewriting the local file without that action, then forgets that it was hidden. It starts from
+	 * the config the page shows, so an invalid local file is refused by the write, which can then be
+	 * forced with `overwrite`, as Conductor's updateTask is (main @405338).
 	 */
-	async resetRunAction(repoId: RepoId, actionId: string): Promise<Result<void>> {
-		const loaded = await this.loadConfig(repoId);
+	async resetRunAction(
+		repoId: RepoId,
+		actionId: string,
+		options: SetOptions = {},
+	): Promise<Result<void>> {
+		const known = this.store.getState().configs[repoId];
+		const loaded = known === undefined ? await this.loadConfig(repoId) : ok(known);
 		if (!loaded.ok) return loaded;
 		const remaining = loaded.value.runScripts.filter(
 			(action) => !actionIdsEqual(action.id, actionId),
 		);
-		const saved = await this.updateConfig(repoId, {
-			...loaded.value,
-			runScripts: remaining,
-		});
+		const saved = await this.updateConfig(
+			repoId,
+			{
+				...loaded.value,
+				runScripts: remaining,
+			},
+			options,
+		);
 		if (!saved.ok) return saved;
 		return this.setRunActionHidden(repoId, actionId, false);
 	}

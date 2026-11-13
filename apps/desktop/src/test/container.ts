@@ -15,6 +15,7 @@
 
 import { LOCAL_HOST, type SessionEvent } from "@conducted/protocol";
 import type { Clock, MessageId, SessionId, TurnId, WorkspaceId } from "@conducted/shared";
+import { localSettingsFile } from "../core/app-paths.ts";
 import { initialSyncEnabled } from "../core/cloud/file-sync.ts";
 import {
 	type Container,
@@ -212,6 +213,20 @@ export async function seedRepo(
 	});
 	must(await container.services.repo.start());
 	return must(created);
+}
+
+/**
+ * Loads a project's config, saves one value into its local settings file so the app holds a
+ * reading of the file (what "Overwrite file" writes over), then breaks the file so it no longer
+ * parses. Returns the file's path.
+ */
+export async function seedInvalidLocalSettings(test: TestContainer, repo: Repo): Promise<string> {
+	const { services } = test.container;
+	must(await services.repo.loadConfig(repo.id));
+	must(await services.settings.setForRepo(repo.rootPath, "archive_on_merge", true));
+	const file = localSettingsFile(repo.rootPath);
+	test.memory.controls.files.set(file, "[git\n");
+	return file;
 }
 
 /** Writes one workspace through the repositories and loads the workspace store. */

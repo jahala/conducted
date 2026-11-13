@@ -1336,7 +1336,7 @@ SET-05	message	Conductor shows "Try connecting the MCP server again." (message, 
 SET-05	message	Conductor shows "Couldn't stop waiting" (message, Unplaced); ours has no counterpart yet (parity gap).	inventory toast M@8684256	missing
 SET-05	message	Conductor shows "Couldn't open your browser to connect" (message, Unplaced); ours has no counterpart yet (parity gap).	inventory toast M@8684358	missing
 SET-05	message	Conductor shows "Connection timed out" (message, Unplaced); ours has no counterpart yet (parity gap).	inventory toast M@8684476	missing
-SET-01	message	Conductor shows "Failed to reset setting" (message, Unplaced); ours has no counterpart yet (parity gap).	inventory toast M@8701195	missing
+SET-01	message	A setting's Reset says "Failed to reset setting" when a setting kept in the settings table cannot be removed; a file-backed setting's Reset gets the settings writer's toast, with "Overwrite file" for an invalid file (issue #654).	inventory toast M@8701195	covered
 COMP-02	message	Conductor shows "FYI: When you switch effort mid-chat with Claude, your next response will be slower and use more tokens." (message, Unplaced); ours has no counterpart yet (parity gap).	inventory toast M@8889053	missing
 COMP-02	message	Conductor shows "FYI: When you switch models mid-chat, your next response will be slower and use more tokens." (message, Unplaced); ours has no counterpart yet (parity gap).	inventory toast M@8889231	missing
 CHAT-02	message	Conductor shows "Session not found" (message, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).	inventory toast M@9299633	missing

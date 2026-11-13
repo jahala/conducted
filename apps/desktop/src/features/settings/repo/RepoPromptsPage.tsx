@@ -27,7 +27,7 @@ import { Textarea } from "../../../ui/Input.tsx";
 import { ChevronDownIcon } from "../../../ui/icons.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
-import { toastError } from "../../../ui/Toast.tsx";
+import { toastSettingSaveFailed } from "../SettingRow.tsx";
 
 /** Conductor's placeholder for a button's instructions. */
 const PREFERENCES_PLACEHOLDER =
@@ -132,17 +132,23 @@ export function RepoPromptSettings({ repoId }: { repoId: RepoId }) {
 			...value.data,
 			prompts,
 		};
+		const clearError = () =>
+			setErrors((current) => {
+				const nextErrors = { ...current };
+				delete nextErrors[key];
+				return nextErrors;
+			});
 		const saved = await actions.projects.updateConfig(repoId, next);
 		if (!saved.ok) {
 			setErrors((current) => ({ ...current, [key]: saved.error.message }));
-			toastError("Couldn't save the instructions", saved.error);
+			toastSettingSaveFailed(saved.error, async () => {
+				const forced = await actions.projects.updateConfig(repoId, next, { overwrite: true });
+				if (forced.ok) clearError();
+				return forced;
+			});
 			return;
 		}
-		setErrors((current) => {
-			const nextErrors = { ...current };
-			delete nextErrors[key];
-			return nextErrors;
-		});
+		clearError();
 	};
 
 	const commit = (key: PromptKey) => {

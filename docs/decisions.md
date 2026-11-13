@@ -1170,7 +1170,7 @@ Chosen:
 
 Why not match the lost change: it reverts a setting the user saw saved, which is the defect the button exists to avoid.
 
-Not covered: settings saved on the user's behalf (`last_clone_directory`, `always_allow_local_execution`) live in the settings table, so they never meet an invalid file. A setting's Reset and a project's config pages do not show this toast yet; Conductor offers the button there too (issue #654).
+Not covered: settings saved on the user's behalf (`last_clone_directory`, `always_allow_local_execution`) live in the settings table, so they never meet an invalid file. A setting's Reset, a project's config pages and a project's env file list show this toast too, as Conductor's do (issue #654).
 
 ## D143. A dialog holds app shortcuts unless Conductor keeps it off its dialog store, and the menu carries only Conductor's keys (2026-11-12)
 

@@ -1,11 +1,12 @@
 import { ok } from "@conducted/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { RepoConfig } from "../../../core/model.ts";
 import {
 	createTestContainer,
+	seedInvalidLocalSettings,
 	seedRepo,
 	seedWorkspace,
 	type TestContainer,
@@ -257,5 +258,36 @@ describe("SET-07 RepoGitPage", () => {
 
 		await waitFor(() => expect((loading as HTMLButtonElement).disabled).toBe(false));
 		expect(loading.getAttribute("aria-checked")).toBe("true");
+	});
+
+	// Ours keeps the remote name in the local settings file, so its save goes through the settings
+	// writer, whose failed-save toast offers "Overwrite file" for an invalid file (Uz, main @389730;
+	// mutateSettingsFile, @415335). Ours said "Couldn't save the repository settings" (issue #654).
+	it("offers Overwrite file when the remote name meets an invalid local settings file", async () => {
+		const { repo, container } = await renderPage();
+		render(<Toaster />);
+		if (test === undefined) throw new Error("no container");
+		const file = await seedInvalidLocalSettings(test, repo);
+		const remote = screen.getByLabelText("Remote origin");
+
+		fireEvent.change(remote, { target: { value: "upstream" } });
+		fireEvent.blur(remote);
+		const shown = await waitFor(() => {
+			const element = document.querySelector("[data-sonner-toast]");
+			expect(element).not.toBeNull();
+			return element as HTMLElement;
+		});
+		expect(shown.querySelector("[data-title]")?.textContent).toBe(
+			"Can't save setting because your settings file is invalid",
+		);
+		fireEvent.click(within(shown).getByRole("button", { name: "Overwrite file" }));
+
+		await waitFor(async () => {
+			const read = await container.services.settings.readSettingsFile(file);
+			expect(read.ok && read.value.values).toMatchObject({
+				archive_on_merge: true,
+				remote_name: "upstream",
+			});
+		});
 	});
 });
