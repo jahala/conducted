@@ -30,6 +30,8 @@ export interface CommentCardProps {
 	onSaveEdit: (body: string, suggestion: CommentSuggestion | null | undefined) => Promise<boolean>;
 	onCancelEdit: () => void;
 	onDelete: () => void;
+	/** Shown in place of a body with nothing written, as the comment tab says "No comment body". */
+	emptyBody?: string;
 }
 
 function authorName(comment: DiffComment): string {
@@ -52,6 +54,7 @@ export function CommentCard({
 	onSaveEdit,
 	onCancelEdit,
 	onDelete,
+	emptyBody,
 }: CommentCardProps) {
 	const owned = comment.author.kind === "user";
 	const deletable = comment.author.kind !== "github";
@@ -91,6 +94,8 @@ export function CommentCard({
 						)
 					}
 				/>
+			) : comment.body.trim().length === 0 && emptyBody !== undefined ? (
+				<p className="text-sm text-fg-muted italic">{emptyBody}</p>
 			) : (
 				<p className="whitespace-pre-wrap break-words text-sm text-fg">{comment.body}</p>
 			)}
