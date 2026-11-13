@@ -11,6 +11,7 @@
  */
 import type { LayoutSpec } from "./dump.ts";
 import {
+	BACKEND_INVENTORIES,
 	type BackendInventory,
 	type Dump,
 	type DumpState,
@@ -499,33 +500,54 @@ const BACKEND_GROUPS: BackendInventory[][] = [
 	["table"],
 ];
 
+/**
+ * The list of ours a matched backend entry names. `ours` is a name in the entry's own list, or
+ * `<inventory>:<name>` for a counterpart in another of our lists: a Conductor plugin command our
+ * shell answers with a command of its own, or a Conductor event whose job ours does in a command.
+ */
+export function oursTarget(
+	inventory: BackendInventory,
+	ours: string,
+): { inventory: BackendInventory; name: string } {
+	const colon = ours.indexOf(":");
+	const named = colon > 0 ? ours.slice(0, colon) : "";
+	return (BACKEND_INVENTORIES as readonly string[]).includes(named)
+		? { inventory: named as BackendInventory, name: ours.slice(colon + 1) }
+		: { inventory, name: ours };
+}
+
 /** Check e: our backend names against Conductor's, both ways. */
 export function checkBackend(inputs: Inputs, ours: Record<BackendInventory, string[]>): Finding[] {
 	const findings: Finding[] = [];
-	for (const group of BACKEND_GROUPS) {
-		const accounted = new Set<string>();
-		for (const inventory of group) {
-			const spec = inputs.specs.get(inventory);
-			const map = inputs.maps.get(inventory) ?? {};
-			const names = new Set(ours[inventory]);
-			for (const entry of spec?.entries ?? []) {
-				const mapped = map[entry.id];
-				if (mapped?.status !== "matched" || mapped.ours === undefined) continue;
-				accounted.add(mapped.ours);
-				if (!names.has(mapped.ours)) {
-					findings.push({
-						check: "e",
-						severity: "gap",
-						code: "backend-missing",
-						screen: BACKEND_SCREEN,
-						inventory,
-						id: entry.id,
-						text: entry.text,
-						detail: `matched to ${mapped.ours}, which our ${inventory} list does not have`,
-					});
-				}
+	const accounted = new Map<BackendInventory, Set<string>>();
+	for (const inventory of BACKEND_INVENTORIES) {
+		const spec = inputs.specs.get(inventory);
+		const map = inputs.maps.get(inventory) ?? {};
+		for (const entry of spec?.entries ?? []) {
+			const mapped = map[entry.id];
+			if (mapped?.status !== "matched" || mapped.ours === undefined) continue;
+			const target = oursTarget(inventory, mapped.ours);
+			let names = accounted.get(target.inventory);
+			if (names === undefined) {
+				names = new Set();
+				accounted.set(target.inventory, names);
+			}
+			names.add(target.name);
+			if (!ours[target.inventory].includes(target.name)) {
+				findings.push({
+					check: "e",
+					severity: "gap",
+					code: "backend-missing",
+					screen: BACKEND_SCREEN,
+					inventory,
+					id: entry.id,
+					text: entry.text,
+					detail: `matched to ${target.name}, which our ${target.inventory} list does not have`,
+				});
 			}
 		}
+	}
+	for (const group of BACKEND_GROUPS) {
 		const first = group[0];
 		if (first === undefined) continue;
 		const kept = new Set(
@@ -533,8 +555,10 @@ export function checkBackend(inputs: Inputs, ours: Record<BackendInventory, stri
 				.filter((item) => item.inventory !== undefined && group.includes(item.inventory))
 				.map((item) => item.text),
 		);
+		const matched = (name: string): boolean =>
+			group.some((inventory) => accounted.get(inventory)?.has(name) === true);
 		for (const name of ours[first]) {
-			if (accounted.has(name) || kept.has(name)) continue;
+			if (matched(name) || kept.has(name)) continue;
 			findings.push({
 				check: "e",
 				severity: "gap",
