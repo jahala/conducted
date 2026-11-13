@@ -1378,12 +1378,10 @@
 		"by": "hand"
 	},
 	"title:R1892068": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "PRJ-02",
-		"item": "Conductor shows \"Choose where to clone the repository\" (title, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D134",
+		"note": "The title of the system folder picker behind the Clone GitHub repo dialog's Browse. Ours passes the same title; CloneGithubDialog.prj-02.test.tsx asserts it.",
+		"by": "hand"
 	},
 	"title:R2031302": {
 		"status": "decided",
@@ -1433,7 +1431,7 @@
 	},
 	"title:R2140922": {
 		"status": "matched",
-		"state": "pr-merged",
+		"state": "sidebar-status-matrix",
 		"via": "text",
 		"role": "button",
 		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > div > button:nth-of-type(2)",
@@ -3276,14 +3274,12 @@
 		"by": "hand"
 	},
 	"title:R11399995": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"note": "Checked by hand: the wording differs. Ours reads \"Archive workspace\" (text) in command-palette.",
+		"status": "matched",
+		"state": "workspace-archive-running",
+		"via": "text",
+		"role": "heading",
 		"by": "hand",
-		"backlog": "WS-05",
-		"item": "Archiving a workspace with running agents asks 'Archive workspace?' first.",
-		"owner": "hand"
+		"note": "The question before archiving a workspace whose agent works (archive-workspace.tsx)."
 	},
 	"title:R11415774": {
 		"status": "matched",

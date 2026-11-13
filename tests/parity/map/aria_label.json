@@ -89,7 +89,7 @@
 	},
 	"aria_label:R2765026": {
 		"status": "matched",
-		"state": "git-file-row-menu",
+		"state": "git-working-directories",
 		"via": "aria-label",
 		"role": "textbox",
 		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(1) > input",
@@ -160,7 +160,10 @@
 	"aria_label:R4419387": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
+		"backlog": "RUN-03",
+		"item": "'Open' button and 'Choose preview URL'",
+		"owner": "rule:quote"
 	},
 	"aria_label:R4421044": {
 		"status": "matched",
@@ -510,10 +513,10 @@
 	},
 	"aria_label:R9413717": {
 		"status": "matched",
-		"state": "chat-subagent-late-work",
+		"state": "chat-working",
 		"via": "aria-label",
 		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div > div:nth-of-type(2) > button",
 		"by": "seed"
 	},
 	"aria_label:R9494117": {
@@ -553,7 +556,7 @@
 		"state": "chat-tool-cards-review",
 		"via": "aria-label",
 		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(3) > div > button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div > div:nth-of-type(3) > div > button",
 		"by": "seed"
 	},
 	"aria_label:R9627873": {
@@ -709,12 +712,10 @@
 		"by": "seed"
 	},
 	"aria_label:R10295355": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-01",
-		"item": "Full-page '/create' flow: repo, create from, prompt, model, plan mode, section",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D107",
+		"note": "A loadout slot whose agent this version lacks, shown only for someone else's loadout: a teammate's profile or a shared loadout to equip. Loadout sharing and team profiles stay out (D107, D004).",
+		"by": "hand"
 	},
 	"aria_label:R10311628": {
 		"status": "decided",
@@ -1134,12 +1135,12 @@
 		"by": "seed"
 	},
 	"aria_label:R11462165": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "WS-02",
-		"item": "'Create from' toggle (default branch, branch, PR, issue)",
-		"owner": "hand"
+		"status": "matched",
+		"state": "new-workspace-from-branch",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div:nth-of-type(3) > div > form > header > div > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R11487348": {
 		"status": "matched",
