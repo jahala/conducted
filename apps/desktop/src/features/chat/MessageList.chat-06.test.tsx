@@ -160,7 +160,10 @@ describe("CHAT-06 the message list loads older turns at its top (#617)", () => {
 	it("picking a turn in the outline that is not loaded loads every turn back to it and scrolls there", async () => {
 		const opened = await openedChat(9);
 		// The list's handle is made again when its turns change, so every handle it gets is recorded.
+		// Each scroll also records how many turns were loaded at that moment: once the list reaches
+		// its top, the ordinary paging may load one older turn, which is not the jump's doing.
 		const scrolledTo: unknown[] = [];
+		const loadedAtScroll: number[] = [];
 		let handle: VirtuosoHandle | null = null;
 		const listRef: { current: VirtuosoHandle | null } = {
 			get current() {
@@ -174,6 +177,7 @@ describe("CHAT-06 the message list loads older turns at its top (#617)", () => {
 								...next,
 								scrollToIndex: (location) => {
 									scrolledTo.push(location);
+									loadedAtScroll.push(loadedTurns(opened));
 									next.scrollToIndex(location);
 								},
 							};
@@ -185,6 +189,10 @@ describe("CHAT-06 the message list loads older turns at its top (#617)", () => {
 		fireEvent.click(await screen.findByRole("button", { name: "Stored turn 1" }));
 
 		await waitFor(() => expect(scrolledTo).toContainEqual({ index: 0, align: "start" }));
-		expect(loadedTurns(opened)).toBe(8);
+		// The jump loads every turn back to the picked one, and no further.
+		const jump = scrolledTo.findIndex(
+			(location) => JSON.stringify(location) === JSON.stringify({ index: 0, align: "start" }),
+		);
+		expect(loadedAtScroll[jump]).toBe(8);
 	});
 });
