@@ -59,6 +59,7 @@ import type {
 	ConfigSyncCategory,
 	ConfigSyncChange,
 	ConfigSyncResult,
+	CopyPreview,
 	DiagnosticsCapture,
 	DiffComment,
 	EnvScope,
@@ -486,7 +487,7 @@ export interface Actions {
 		 */
 		updateConfig: Act<[repoId: RepoId, patch: RepoConfigPatch, options?: { overwrite?: boolean }]>;
 		/** The gitignored files a new workspace would copy, for the Misc page's preview (SET-07). */
-		copyPreview: Act<[repoId: RepoId], string[]>;
+		copyPreview: Act<[repoId: RepoId], CopyPreview>;
 		setIcon: Act<[repoId: RepoId, icon: RepoIconChoice]>;
 		/** Drops this Mac's change to a shared run action, so the shared version applies again. */
 		resetRunAction: Act<[repoId: RepoId, actionId: string, options?: { overwrite?: boolean }]>;

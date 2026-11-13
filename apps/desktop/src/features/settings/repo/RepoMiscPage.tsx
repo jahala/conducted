@@ -92,7 +92,10 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 	const [removing, setRemoving] = useState(false);
 	const [iconOpen, setIconOpen] = useState(false);
 	const [copyPreview, setCopyPreview] = useState<
-		{ state: "detecting" } | { state: "ready"; paths: string[] } | { state: "error" } | null
+		| { state: "detecting" }
+		| { state: "ready"; paths: string[]; worktreeInclude: string[] | null }
+		| { state: "error" }
+		| null
 	>(null);
 	const readyConfig = config.state === "ready" ? config.data : null;
 
@@ -100,7 +103,7 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 	const refreshCopyPreview = useCallback(async (): Promise<void> => {
 		setCopyPreview({ state: "detecting" });
 		const result = await actions.projects.copyPreview(repoId);
-		setCopyPreview(result.ok ? { state: "ready", paths: result.value } : { state: "error" });
+		setCopyPreview(result.ok ? { state: "ready", ...result.value } : { state: "error" });
 	}, [actions, repoId]);
 
 	const copyPatterns = readyConfig?.copyFiles.join("\n") ?? null;
@@ -374,6 +377,9 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 										</p>
 										<FilesToCopyField
 											patterns={settings.copyFiles}
+											worktreeInclude={
+												copyPreview?.state === "ready" ? copyPreview.worktreeInclude : null
+											}
 											matches={copyPreview}
 											onChange={(patterns) => void save({ copyFiles: patterns })}
 											onRefresh={() => void refreshCopyPreview()}

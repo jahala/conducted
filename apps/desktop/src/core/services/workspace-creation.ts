@@ -272,10 +272,22 @@ export interface CopyIncludedFilesDeps {
 }
 
 /**
- * Copies the files the repository asks for into a new worktree: the lines of `.worktreeinclude`
- * plus the repository's `file_include_globs` (default `.env*`), each file up to 256 KiB
- * (services-map.md 3.1, 5A.5.5). Every path it could not copy comes back as a warning, so the
- * create page can tell the user rather than dropping it silently.
+ * The patterns a new workspace copies, as Conductor picks them (main @3729312): the repository's
+ * `.worktreeinclude` when it has one, else its Files to copy setting. `fromFile` is null when the
+ * repository has no such file.
+ */
+export function copyPatterns(
+	fromSettings: readonly string[],
+	fromFile: readonly string[] | null,
+): readonly string[] {
+	return fromFile ?? fromSettings;
+}
+
+/**
+ * Copies the files the repository asks for into a new worktree: the lines of `.worktreeinclude`,
+ * or without that file the repository's `file_include_globs` (default `.env*`), each file up to
+ * 256 KiB (services-map.md 3.1, 5A.5.5). Every path it could not copy comes back as a warning, so
+ * the create page can tell the user rather than dropping it silently.
  */
 export async function copyIncludedFiles(
 	deps: CopyIncludedFilesDeps,
@@ -294,17 +306,21 @@ export async function copyIncludedFiles(
 	}
 
 	const includePath = `${repo.rootPath}/.worktreeinclude`;
-	let fromFile: string[] = [];
+	let fromFile: string[] | null = null;
 	const hasInclude = await deps.fs.exists(includePath);
 	if (!hasInclude.ok) {
 		warnings.push(`Couldn't read .worktreeinclude: ${hasInclude.error.message}`);
 	} else if (hasInclude.value) {
 		const include = await deps.fs.readText(includePath);
+		// The file is there, so it replaces the setting even when it cannot be read.
 		if (include.ok) fromFile = parseWorktreeInclude(include.value);
-		else warnings.push(`Couldn't read .worktreeinclude: ${include.error.message}`);
+		else {
+			fromFile = [];
+			warnings.push(`Couldn't read .worktreeinclude: ${include.error.message}`);
+		}
 	}
 
-	const patterns = [...fromSettings, ...fromFile];
+	const patterns = copyPatterns(fromSettings, fromFile);
 	if (patterns.length === 0) return ok(warnings);
 
 	const listed = await deps.git.run(lsFilesIgnoredNul(), { cwd: repo.rootPath });

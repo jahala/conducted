@@ -1321,6 +1321,26 @@ export const SETTINGS_STATES: CatalogueState[] = [
 		},
 	},
 	{
+		id: "settings-repo-files-worktreeinclude",
+		group: "Settings",
+		title: "atlas: Misc, Files to copy taken over by the repository's .worktreeinclude",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			world.memory.controls.files.set(
+				`${cast.atlas.rootPath}/.worktreeinclude`,
+				"# Local secrets the dev server reads\n.env.local\nconfig/*.local.json\n",
+			);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/misc`,
+				after: async ({ document }) => {
+					const note = await find(document, "p", "Using .worktreeinclude", { prefix: true });
+					note.scrollIntoView({ block: "center" });
+				},
+				ready: (document) => shows(document, "Using .worktreeinclude from this repository."),
+			};
+		},
+	},
+	{
 		id: "settings-repo-icon-picker",
 		group: "Settings",
 		title: "atlas: Misc, the repository icon picker",

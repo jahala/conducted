@@ -100,7 +100,14 @@ import {
 import { githubRepoClone, githubRepoCreate, githubRepoUrl } from "../git/gh-commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { isGithubRemoteUrl } from "../github-text.ts";
-import type { Repo, RepoConfig, RepoConfigPatch, RepoIconChoice, RunAction } from "../model.ts";
+import type {
+	CopyPreview,
+	Repo,
+	RepoConfig,
+	RepoConfigPatch,
+	RepoIconChoice,
+	RunAction,
+} from "../model.ts";
 import {
 	GSTACK_TEMPLATE_URL,
 	isProjectTemplate,
@@ -124,7 +131,7 @@ import {
 	type SettingsService,
 } from "./settings.ts";
 import { expandHome } from "./workspace.ts";
-import { parseWorktreeInclude, selectIncludedPaths } from "./workspace-creation.ts";
+import { copyPatterns, parseWorktreeInclude, selectIncludedPaths } from "./workspace-creation.ts";
 
 /** What the clone dialog shows while a repository is cloned and after it ends. */
 export interface CloneProgress {
@@ -1213,10 +1220,11 @@ export class RepoService {
 
 	/**
 	 * Backs `Actions.projects.copyPreview`: the gitignored files a new workspace would copy for this
-	 * repository, from its file list and its `.worktreeinclude`, in the same order the copy uses.
-	 * Read-only, so the Misc page can show what the patterns match before a workspace exists.
+	 * repository, from its `.worktreeinclude` or else its file list, by the copy's own rule
+	 * (copyPatterns), with the file's patterns when it has one. Read-only, so the Misc page can show
+	 * what the patterns match before a workspace exists.
 	 */
-	async copyPreview(repoId: RepoId): Promise<Result<string[]>> {
+	async copyPreview(repoId: RepoId): Promise<Result<CopyPreview>> {
 		const found = await this.#deps.repos.repos.get(repoId);
 		if (!found.ok) return found;
 		if (found.value === null)
@@ -1226,7 +1234,7 @@ export class RepoService {
 		const loaded = known === undefined ? await this.loadConfig(repoId) : ok(known);
 		if (!loaded.ok) return loaded;
 		const includePath = `${repo.rootPath}/.worktreeinclude`;
-		let fromFile: string[] = [];
+		let fromFile: string[] | null = null;
 		const hasInclude = await this.#deps.platform.fs.exists(includePath);
 		if (!hasInclude.ok) return hasInclude;
 		if (hasInclude.value) {
@@ -1234,12 +1242,12 @@ export class RepoService {
 			if (!text.ok) return text;
 			fromFile = parseWorktreeInclude(text.value);
 		}
-		const patterns = [...loaded.value.copyFiles, ...fromFile];
-		if (patterns.length === 0) return ok([]);
+		const patterns = copyPatterns(loaded.value.copyFiles, fromFile);
+		if (patterns.length === 0) return ok({ paths: [], worktreeInclude: fromFile });
 		const listed = await this.#deps.git.run(lsFilesIgnoredNul(), { cwd: repo.rootPath });
 		if (!listed.ok) return listed;
 		const candidates = listed.value.stdout.split("\0").filter((path) => path !== "");
-		return ok(selectIncludedPaths(candidates, patterns));
+		return ok({ paths: selectIncludedPaths(candidates, patterns), worktreeInclude: fromFile });
 	}
 
 	/**
