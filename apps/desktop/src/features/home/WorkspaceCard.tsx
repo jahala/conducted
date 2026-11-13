@@ -29,7 +29,13 @@
 import type { Result } from "@conducted/shared";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useActions, useGitState, useSessions, useWorkspaceStatus } from "../../core/hooks.ts";
+import {
+	useActions,
+	useGitState,
+	useSessions,
+	useSetting,
+	useWorkspaceStatus,
+} from "../../core/hooks.ts";
 import type { PullRequest, Repo, Workspace } from "../../core/model.ts";
 import { isArchivedWorkspace } from "../../core/status/archived.ts";
 import { Badge } from "../../ui/Badge.tsx";
@@ -174,6 +180,10 @@ export function WorkspaceCard({ workspace, repo, now, display }: WorkspaceCardPr
 	const sessions = useSessions(workspace.id);
 	const unread =
 		sessions.state === "ready" && sessions.data.some((session) => session.unreadCount > 0);
+	// WS-09: the Experimental matrix mark, for workspaces on this Mac only.
+	const matrix =
+		useSetting<boolean>("internal_workspace_status_matrix") === true &&
+		workspace.host.kind === "local";
 	const tone = archived || git.state !== "ready" ? null : rowTone(git.data.pullRequest);
 	const counts =
 		git.state === "ready" && (git.data.linesAdded > 0 || git.data.linesRemoved > 0)
@@ -193,7 +203,9 @@ export function WorkspaceCard({ workspace, repo, now, display }: WorkspaceCardPr
 				/>
 			)}
 			<span className="flex size-4 shrink-0 items-center justify-center">
-				{archived ? null : <WorkspaceStatusIcon status={status} decorative />}
+				{archived ? null : (
+					<WorkspaceStatusIcon status={status} decorative matrix={matrix} hasUnread={unread} />
+				)}
 			</span>
 			<span className="flex min-w-0 flex-1 items-baseline gap-2">
 				<span

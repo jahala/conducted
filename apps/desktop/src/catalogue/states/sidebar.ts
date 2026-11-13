@@ -4,7 +4,8 @@
  * count), a section's actions menu, the section dialog opened by Rename, by New section, and after
  * its section was removed ("Section not found"), a
  * pinned workspace's actions menu ('Unpin'), the list's View options menu (group, filter by project,
- * sort), the new-workspace dialog's "Create in section" menu, and the organisation switcher open
+ * sort), the new-workspace dialog's "Create in section" menu, the status matrix mark (WS-09) on a
+ * merged workspace and one failing its checks, and the organisation switcher open
  * with this Mac and the paired Worker (CLOUD-19); and the footer's update notice for an update
  * that is available, and for one downloaded with the auto-restart on and off (APP-06).
  * Behaviour: ui-map.md 4 items 4 to 7 (Pinned, sections with name, emoji, collapse and count,
@@ -18,6 +19,7 @@ import { animateCast, type Cast, chatRoute, refreshGit, seedCast } from "../cast
 import { click, findFirst, rightClickOn, shows } from "../dom.ts";
 import { must, setSetting } from "../seeds.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
+import { CATALOGUE_NOW, DAY } from "../time.ts";
 import type { World } from "../world.ts";
 
 /**
@@ -170,6 +172,41 @@ export const SIDEBAR_STATES: CatalogueState[] = [
 		"Filter by project",
 		({ document }) => click(document, "button", "My workspaces actions"),
 	),
+	{
+		// arbor merged and beacon failing its checks, with the Experimental matrix mark on (WS-09).
+		id: "sidebar-status-matrix",
+		group: "App shell",
+		title:
+			"Sidebar with the workspace status matrix: a merged workspace and one failing its checks",
+		seed: async (world): Promise<Scene> => {
+			const pr = (kind: "merged" | "failing", number: number, branch: string, title: string) => ({
+				kind,
+				number,
+				branch,
+				title,
+				base: "main",
+				createdAt: CATALOGUE_NOW - DAY,
+			});
+			const cast = await seedCast(world, {
+				prs: [
+					pr("merged", 231, "sam/fix-login-redirect", "Keep the requested page after sign-in"),
+					pr("failing", 232, "sam/rate-limit-api", "Rate limit the public API"),
+				],
+			});
+			await setSetting(world, "internal_workspace_status_matrix", true);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app }) => {
+					await refreshGit(app, cast.arbor);
+					await refreshGit(app, cast.beacon);
+				},
+				ready: (document) =>
+					document.querySelector('[data-testid="workspace-status-matrix-merged-pattern"]') !==
+						null &&
+					document.querySelector('[data-testid="workspace-status-matrix-error-pattern"]') !== null,
+			};
+		},
+	},
 	{
 		id: "sidebar-organization-switcher",
 		group: "App shell",
