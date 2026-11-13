@@ -1300,25 +1300,23 @@ export const SETTINGS_STATES: CatalogueState[] = [
 					const dev = shared.find((action) => action.id === "dev");
 					if (dev === undefined) throw new Error("atlas has no dev action.");
 					const saved = await actions.projects.updateConfig(repoId, {
-						runScripts: [
+						runActions: [
 							// The origins the Edit and Add dialogs give: a shared action edited on this Mac,
 							// and an action of this Mac only.
-							...shared.map((action) =>
-								action.id === "dev"
-									? {
-											...action,
-											command: "pnpm dev --port 4000",
-											origin: "changed_locally" as const,
-										}
-									: action,
-							),
 							{
-								...dev,
-								id: "lint",
-								label: "Lint",
-								command: "pnpm lint",
-								isDefault: false,
-								origin: "local" as const,
+								kind: "set",
+								action: { ...dev, command: "pnpm dev --port 4000", origin: "changed_locally" },
+							},
+							{
+								kind: "set",
+								action: {
+									...dev,
+									id: "lint",
+									label: "Lint",
+									command: "pnpm lint",
+									isDefault: false,
+									origin: "local",
+								},
 							},
 						],
 					});
