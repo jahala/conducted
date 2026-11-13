@@ -57,6 +57,7 @@ export const PLATFORM_ERROR_CODES = [
 	"cloud_deploy_failed",
 	"cloud_deploy_no_url", // wrangler printed no workers.dev URL after a deploy
 	"cloud_docker_missing", // Docker, which builds the sandbox image, is not installed or not running
+	"cloud_login_refused", // Cloudflare refused wrangler's login, even after it was read again
 	"cloud_method_not_allowed",
 	"cloud_not_a_worker",
 	"cloud_not_paired",
