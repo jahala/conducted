@@ -6,7 +6,7 @@ Words used below:
 
 - **Spec**: Conductor 0.92.1's user-facing inventories, committed as data under `tests/parity/spec/`. Wording and identifiers only, never code or prompt text (D002). Every entry keeps its bundle file and offset.
 - **Map**: `tests/parity/map/<inventory>.json`. For each spec entry it says one of three things: **matched** (a catalogue state and the element in it that shows the entry), **decided** (a decision id from `docs/decisions.md` with a one-line reason), or **gap** (not resolved yet, with the screen it belongs to).
-- **Dump**: what the states catalogue draws, read from Chromium: every visible string and control name per state, and the computed styles the layout check needs. It is built on GitHub, never on the owner's Mac.
+- **Dump**: what the states catalogue draws, read from Chromium: every visible string and control name per state, and the computed styles the layout check needs. The full dump is built on GitHub, and a pull request's map is seeded from it before it merges. While working, a dump of a few states (`bun scripts/parity/dump.ts <state-id ...>`, seconds) can run locally, and `bun scripts/parity/seed.ts --partial <dump.json>` turns the gaps those states show into matches and leaves every other entry alone.
 
 ## 1. The spec
 
