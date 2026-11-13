@@ -313,6 +313,17 @@ async function taskToolsChat(world: World): Promise<Scene> {
 		output: "Message sent.",
 	});
 	talk.tool(turn, {
+		tool: "teammate",
+		rawName: "Teammate",
+		input: {
+			operation: "spawnTeam",
+			team_name: "release-check",
+			description: "Check every release step against the tests",
+			agent_type: "general-purpose",
+		},
+		output: "Team release-check started.",
+	});
+	talk.tool(turn, {
 		tool: "sub_agent",
 		rawName: "Task",
 		input: {
@@ -357,6 +368,7 @@ async function taskToolsChat(world: World): Promise<Scene> {
 			await openClosedRow(document, "Tasks");
 			await openClosedRow(document, "Preview image");
 			await openClosedRow(document, "Send message");
+			await openClosedRow(document, "Spawn swarm");
 			await openClosedRow(document, "Subagent");
 			await openRow(document, "Node REPL");
 			await openClosedRow(document, "Loading image");
@@ -662,7 +674,7 @@ export const TOOL_STATES: CatalogueState[] = [
 	{
 		id: "chat-tool-cards-tasks",
 		group: "Workspace chat",
-		title: "A turn opened: a task created and read, a Node REPL and a generated image",
+		title: "A turn opened: a task created and read, a swarm spawned, a Node REPL and a generated image",
 		seed: taskToolsChat,
 	},
 	{
