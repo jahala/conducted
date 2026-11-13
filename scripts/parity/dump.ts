@@ -1,8 +1,8 @@
 /**
  * The parity dump: opens every catalogue state in Chromium and writes what it shows (every visible
  * string and control name, and the layout readings `tests/parity/layout.json` asks for) to
- * `<out>/dump.json`. It is a browser run, so it runs on GitHub (`.github/workflows/parity.yml`), never
- * on the owner's Mac.
+ * `<out>/dump.json`. The full run is on GitHub (`.github/workflows/parity.yml`). A run of a few states,
+ * named on the command line, takes seconds and may run locally; `seed.ts --partial` reads it.
  * Behaviour: docs/plans/parity-harness.md section 3. The server start and the state list are the
  * screenshot run's (scripts/catalogue/shots.ts); `--app` points them at another checkout's desktop
  * app, which is how the instrument check reads the commit before #345.

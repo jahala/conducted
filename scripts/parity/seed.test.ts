@@ -51,11 +51,16 @@ const label = (entries: [string, string][]): SpecFile => ({
 	})),
 });
 
-function seed(specs: Map<Inventory, SpecFile>, maps: Map<Inventory, MapFile> = new Map()) {
+function seed(
+	specs: Map<Inventory, SpecFile>,
+	maps: Map<Inventory, MapFile> = new Map(),
+	partial = false,
+) {
 	return seedMaps({
 		specs,
 		maps,
 		dump,
+		partial,
 		ours: noBackend,
 		ourStrings: new Set(["Open draft"]),
 		screenFor: () => "ui-map 4. Left sidebar",
@@ -294,5 +299,45 @@ describe("seeding the map from a dump", () => {
 			reason: "missing",
 			screen: "Backend",
 		});
+	});
+
+	test("a partial dump only matches gaps; every other entry stays as the map has it", () => {
+		const maps = new Map<Inventory, MapFile>([
+			[
+				"label",
+				{
+					"label:R1": { status: "gap", reason: "missing", screen: "ui-map 4. Left sidebar" },
+					"label:R2": {
+						status: "matched",
+						state: "a-state-this-dump-lacks",
+						via: "text",
+						role: "p",
+						selector: "p",
+						by: "seed",
+					},
+					"label:R3": { status: "gap", reason: "unshown", screen: "ui-map 4. Left sidebar" },
+				},
+			],
+		]);
+		const map = seed(
+			new Map([
+				[
+					"label",
+					label([
+						["label:R1", "Add project"],
+						["label:R2", "Open draft"],
+						["label:R3", "Something no state here shows"],
+					]),
+				],
+			]),
+			maps,
+			true,
+		).get("label");
+		// A gap the dump shows becomes a match.
+		expect(map?.["label:R1"]).toMatchObject({ status: "matched", state: "sidebar", by: "seed" });
+		// A match to a state the partial dump left out stays matched, not a gap.
+		expect(map?.["label:R2"]).toEqual(maps.get("label")?.["label:R2"]);
+		// A gap the dump does not show stays the gap it was.
+		expect(map?.["label:R3"]).toEqual(maps.get("label")?.["label:R3"]);
 	});
 });

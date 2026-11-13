@@ -8,7 +8,12 @@
  * person to check; the first state in catalogue order wins when several show the same text, and the
  * seed is the same on every run for one dump.
  *
- * Usage: bun scripts/parity/seed.ts <dump.json>
+ * Usage: bun scripts/parity/seed.ts [--partial] <dump.json>
+ *
+ * `--partial` reads a dump of some states only (`bun scripts/parity/dump.ts <state-id ...>`, run
+ * locally in a minute): it turns the gaps those states show into matches and leaves every other
+ * entry as the map has it. The full dump from the Parity workflow is still the one a PR's map is
+ * seeded from before it merges, because only it knows which state shows an entry first.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -47,6 +52,11 @@ export interface SeedInputs {
 	ourStrings: Set<string>;
 	screenFor: (file: string, offset: number | null) => string;
 	rules: RuleContext;
+	/**
+	 * The dump holds only some states (`dump.ts <state-id ...>`), so an entry it does not show may
+	 * still be shown by a state it left out: only a gap it shows changes, to a match.
+	 */
+	partial?: boolean;
 }
 
 /** A gap that stays a gap keeps what was written about it: its class, owner and note. */
@@ -108,7 +118,13 @@ export function seedMaps(inputs: SeedInputs): Map<Inventory, MapFile> {
 				next[entry.id] = previous;
 				continue;
 			}
-			next[entry.id] = keepSorting(previous, seedOne(inventory, entry, inputs, routes));
+			const seededOne = seedOne(inventory, entry, inputs, routes);
+			if (inputs.partial === true && previous !== undefined) {
+				next[entry.id] =
+					previous.status === "gap" && seededOne.status === "matched" ? seededOne : previous;
+				continue;
+			}
+			next[entry.id] = keepSorting(previous, seededOne);
 		}
 		seeded.set(inventory, next);
 	}
@@ -145,8 +161,12 @@ function seedOne(
 	};
 }
 
-function main(dumpPath: string | undefined): void {
-	if (dumpPath === undefined) throw new Error("Usage: bun scripts/parity/seed.ts <dump.json>");
+function main(args: string[]): void {
+	const partial = args.includes("--partial");
+	const dumpPath = args.find((arg) => !arg.startsWith("--"));
+	if (dumpPath === undefined) {
+		throw new Error("Usage: bun scripts/parity/seed.ts [--partial] <dump.json>");
+	}
 	const specs = readSpec();
 	const maps = readMaps();
 	const ourStrings = new Set<string>();
@@ -161,6 +181,7 @@ function main(dumpPath: string | undefined): void {
 		ourStrings,
 		screenFor: researchScreens(ROOT),
 		rules: { places: new Set(PLACE_GAZETTEER.map((place) => place.name)) },
+		partial,
 	});
 	writeJsonFiles(
 		[...seeded].map(([inventory, map]) => ({
@@ -178,4 +199,4 @@ function main(dumpPath: string | undefined): void {
 	}
 }
 
-if (import.meta.main) main(process.argv[2]);
+if (import.meta.main) main(process.argv.slice(2));
