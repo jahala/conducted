@@ -961,7 +961,7 @@ export class SessionsService implements AgentMessenger {
 	/**
 	 * Backs `Actions.sessions.revealTurn`: loads every turn back to this one, so the turn outline
 	 * can scroll to it. Conductor loads only the turn and leaves a gap the list fills as it
-	 * scrolls; ours keeps one run of turns to the end, so the list only grows at its top (D142).
+	 * scrolls; ours keeps one run of turns to the end, so the list only grows at its top (D144).
 	 */
 	revealTurn(id: SessionId, turnId: TurnId): Promise<Result<void>> {
 		return this.#loadBack(id, (history) => history.positions.get(turnId) ?? history.unloaded);

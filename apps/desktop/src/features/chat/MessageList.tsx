@@ -22,7 +22,7 @@
  * The list opens at its end (the last turn's footer in view, as Conductor does), and its footer holds the
  * working line while the agent works. Older turns join at the top through `firstItemIndex`, which
  * falls by one for each, so the turns on screen stay where they are. Picking a turn in the outline
- * that is not loaded loads every turn back to it, then scrolls to it (D142).
+ * that is not loaded loads every turn back to it, then scrolls to it (D144).
  * Must handle: Loading (skeleton turns); an error card and the running turn's retry line (their
  * actions live in TurnItem and ChatBanner); empty chat (EmptyChat with starters, or none in an
  * archived workspace; the composer bar says the workspace is read-only); a turn added while the

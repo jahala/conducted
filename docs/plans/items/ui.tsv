@@ -746,7 +746,7 @@ SET-02	view	Settings group Repositories (Scripts, Actions, Prompts, Misc)	ui-map
 SET-02	view	Settings group More (Experimental, Advanced) and the Big terminal rows	ui-map 6	covered
 SET-02	state	Settings page not found with a link to General	ui-map 6	covered
 SET-02	state	Settings page skeleton and error with Retry	ui-map 7.3, 7.4	covered
-SET-02	message	'Can't save setting because your settings file is invalid' with 'Overwrite file'	services-map 4.2.1	partly
+SET-02	message	'Can't save setting because your settings file is invalid' with 'Overwrite file'	services-map 4.2.1	covered
 SET-02	message	Notice listing settings-file entries that were dropped (bad TOML, unknown key, wrong type)	services-map 4.2.1	partly
 RC-04	view	Remote Control settings page: default per new chat, keep the Mac awake while a remote session is connected (replaces the phone relay page)	ui-map 6	missing
 SET-02	control	General: 'Send messages with' (Enter, Cmd+Enter, Custom)	ui-map 6	partly

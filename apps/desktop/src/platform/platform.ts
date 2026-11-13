@@ -387,9 +387,19 @@ export interface FileSystem {
 	/** Moves to the macOS Trash. The app never deletes user files for good. */
 	trash(path: string): Promise<Result<void>>;
 	/**
+	 * Adds `Include <home>/.ssh/conducted_config` and a blank line in front of `~/.ssh/config` when
+	 * the file does not hold that text yet, and keeps every other byte (CLOUD-12, issue #611).
+	 * Ok(true) when the file changed. It is the one write the app makes to a `~/.ssh` file it does
+	 * not own, so it takes no path or text and the file commands never read that file. A missing
+	 * config is made; a missing `~/.ssh` is an Err with `fs_not_found`, and `mkdirp` of
+	 * `SSH_CONFIG_DIR_NAME` makes it.
+	 */
+	includeSshConfig(): Promise<Result<boolean>>;
+	/**
 	 * Lets the file commands reach `path` and everything below it until the app quits (PLAT-02).
-	 * Without it they reach only the app's own folders, the Claude configuration and
-	 * `~/conducted`, and refuse anything else with `fs_out_of_scope`. The project and workspace
+	 * Without it they reach only the app's own folders, the Claude configuration, `~/conducted`
+	 * and the app's two SSH config entries under `~/.ssh`, and refuse anything else with
+	 * `fs_out_of_scope`. The project and workspace
 	 * services register their folders whenever they add or load them. The folder need not exist
 	 * yet. A relative path is an Err with `fs_relative_path`.
 	 */
@@ -1080,6 +1090,14 @@ export const CONDUCTOR_COUNTED_TABLES = [
 
 /** The folder under the app data folder that holds the import's copies. */
 export const CONDUCTOR_COPY_FOLDER = "conductor-import";
+
+/**
+ * The SSH config file the app owns under `~/.ssh`, which `includeSshConfig` names in the user's
+ * config (CLOUD-12). files.rs holds the same name.
+ */
+export const SSH_CONFIG_NAME = "conducted_config";
+/** The folder of per-app SSH config files the app owns under `~/.ssh`. files.rs holds the same name. */
+export const SSH_CONFIG_DIR_NAME = "conducted_config.d";
 
 /** A copy of Conductor's database in the import's own folder. */
 export interface ConductorCopy {

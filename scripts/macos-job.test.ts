@@ -50,7 +50,19 @@ describe("macosJobReasons", () => {
 
 	test("a change the macOS tests import asks for the job", () => {
 		expect(macosJobReasons(["apps/desktop/src/core/services/terminals.ts"])).toHaveLength(1);
+		expect(macosJobReasons(["apps/desktop/src/test/setup.ts"])).toHaveLength(1);
 		expect(macosJobReasons(["packages/shared/src/index.ts"])).toHaveLength(1);
+	});
+
+	test("a UI change the job neither reads nor imports does not ask for it", () => {
+		// The `programs` guard checks the UI's programs against ALLOWED_PROGRAMS on Linux, so no Rust
+		// test reads the whole UI source (issue #647).
+		expect(
+			macosJobReasons([
+				"apps/desktop/src/features/chat/CodeBlock.tsx",
+				"apps/desktop/src/core/git/xcode-license.ts",
+			]),
+		).toEqual([]);
 	});
 });
 
@@ -101,10 +113,21 @@ function cratePaths(): string[] {
 	return [...found].filter((path) => !path.startsWith("apps/desktop/src-tauri/")).sort();
 }
 
-/** Every repository file the macOS tests import at run time, the tests included. */
+/** The setup files Vitest runs before every desktop test, the macOS ones too (vite.config.ts). */
+function desktopSetupFiles(): string[] {
+	const config = readFileSync(join(ROOT, "apps/desktop/vite.config.ts"), "utf8");
+	const list = /setupFiles:\s*\[([^\]]*)\]/.exec(config)?.[1] ?? "";
+	return [...list.matchAll(/"([^"]+)"/g)].map((match) =>
+		relative(ROOT, resolve(ROOT, "apps/desktop", match[1] ?? "")),
+	);
+}
+
+/** Every repository file the macOS tests import at run time, the tests and setup files included. */
 function macosTestInputs(): string[] {
 	const seen = new Set<string>();
-	const queue = trackedFiles("*.macos.test.ts").map((file) => join(ROOT, file));
+	const queue = [...trackedFiles("*.macos.test.ts"), ...desktopSetupFiles()].map((file) =>
+		join(ROOT, file),
+	);
 	for (let file = queue.pop(); file !== undefined; file = queue.pop()) {
 		if (seen.has(file)) continue;
 		seen.add(file);
@@ -124,7 +147,8 @@ describe("MACOS_JOB covers what the job reads", () => {
 			"packages/shared/fixtures/secret-names.json",
 			"packages/sidecar/src",
 			"packages/sidecar/package.json",
-			"apps/desktop/src",
+			"apps/desktop/src/platform/tauri.ts",
+			"apps/desktop/src/core/app-paths.ts",
 			"apps/cloud",
 			"bin",
 		])
@@ -135,6 +159,7 @@ describe("MACOS_JOB covers what the job reads", () => {
 	test("every file the macOS tests import is on the list", () => {
 		const inputs = macosTestInputs();
 		expect(inputs).toContain("apps/desktop/src/core/services/terminals.ts");
+		expect(inputs).toContain("apps/desktop/src/test/setup.ts");
 		expect(inputs.some((file) => file.startsWith("packages/shared/"))).toBe(true);
 		expect(inputs.filter((file) => !reaches(file))).toEqual([]);
 	});
@@ -143,6 +168,7 @@ describe("MACOS_JOB covers what the job reads", () => {
 		const without = MACOS_JOB.filter((rule) => rule.glob !== "packages/shared/**");
 		expect(cratePaths().filter((path) => !reaches(path, without))).toEqual([
 			"packages/shared/fixtures/secret-names.json",
+			"packages/shared/fixtures/ssh-include.json",
 		]);
 	});
 });

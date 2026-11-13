@@ -5,7 +5,9 @@
  *  1. commands: every `#[tauri::command]` is in `generate_handler!`, every registered name is in
  *     the `COMMANDS` map of the Tauri adapter, and every name in that map is registered or tagged
  *     with a backlog row not yet done.
- *  2. programs: every literal program the UI starts is in `ALLOWED_PROGRAMS` (compared by file name).
+ *  2. programs: every literal program the UI starts is in `ALLOWED_PROGRAMS` (compared by file name),
+ *     and so is each program it starts through a variable. The Rust tests leave this to the guard,
+ *     so a UI change does not need the macOS job (issue #647).
  *  3. migration-list: the `.sql` files, the list in `db.rs` and `migrations.lock` agree.
  *  4. placeholder-tests: no test asserts placeholder text or reads a backlog row's status.
  *  5. test-only-exports: no exported function, component, hook or class is used by tests alone,
@@ -217,6 +219,14 @@ export function programLiterals(source: string): string[] {
 	return [...source.matchAll(/\bprogram:\s*(["'`])([^"'`$\n]+)\1/g)].map((match) => match[2] ?? "");
 }
 
+/** Programs the UI starts through a variable (a script path or a shell), which no literal shows. */
+const PROGRAMS_STARTED_BY_VARIABLE = [
+	"zsh",
+	"checkpointer.sh",
+	"spotlighter.sh",
+	"git-busy-check.sh",
+];
+
 export function checkShellPrograms(root: string): Problem[] {
 	const guard = "programs";
 	const shellPath = join(root, SHELL_RS);
@@ -224,15 +234,31 @@ export function checkShellPrograms(root: string): Problem[] {
 	const allowed = allowedPrograms(read(shellPath));
 	if (allowed === null) return [{ guard, message: `${SHELL_RS} has no ALLOWED_PROGRAMS list` }];
 	const problems: Problem[] = [];
+	let startsGit = false;
 	for (const path of walk(root, join(root, "apps/desktop/src"), /\.tsx?$/)) {
 		if (isTestFile(path)) continue;
 		for (const program of new Set(programLiterals(read(path)))) {
+			if (program === "git") startsGit = true;
 			if (!allowed.has(basename(program))) {
 				problems.push({
 					guard,
 					message: `${rel(root, path)} starts "${program}", which is not in ALLOWED_PROGRAMS in ${SHELL_RS}`,
 				});
 			}
+		}
+	}
+	if (!startsGit) {
+		problems.push({
+			guard,
+			message: 'no file in apps/desktop/src starts "git", so the scan is not reading the UI source',
+		});
+	}
+	for (const program of PROGRAMS_STARTED_BY_VARIABLE) {
+		if (!allowed.has(program)) {
+			problems.push({
+				guard,
+				message: `the UI starts "${program}" through a variable, which is not in ALLOWED_PROGRAMS in ${SHELL_RS}`,
+			});
 		}
 	}
 	return problems;

@@ -1,11 +1,12 @@
 // @vitest-environment node
+import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { ok } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import { vitestContractHarness } from "../test/contract-harness.ts";
 import { createNodeQueuedDatabase } from "../test/node-sql.ts";
 import { type ContractControls, runPlatformContract } from "../test/platform-contract.ts";
-import { createMemoryPlatform } from "./memory.ts";
+import { createMemoryPlatform, withSshInclude } from "./memory.ts";
 
 let caseNumber = 0;
 let contractIdCounter = 0;
@@ -288,6 +289,41 @@ describe("PLAT-01 in-memory Platform", () => {
 			});
 			expect(result.ok).toBe(false);
 			if (!result.ok) expect(result.error.code).toBe("invalid_cursor");
+		} finally {
+			db.close();
+		}
+	});
+});
+
+describe("CLOUD-12 the include line in ~/.ssh/config", () => {
+	it("answers the cases files.rs answers", () => {
+		const fixture = JSON.parse(
+			readFileSync(
+				new URL("../../../../packages/shared/fixtures/ssh-include.json", import.meta.url),
+				"utf8",
+			),
+		) as { line: string; cases: { name: string; existing: string; next: string | null }[] };
+		expect(fixture.cases.length).toBeGreaterThan(0);
+		const decoder = new TextDecoder();
+		for (const testCase of fixture.cases) {
+			const next = withSshInclude(new TextEncoder().encode(testCase.existing), fixture.line);
+			expect(next === null ? null : decoder.decode(next), testCase.name).toBe(testCase.next);
+		}
+	});
+
+	it("keeps a config that is not UTF-8 byte for byte", async () => {
+		const { db, memory } = freshPlatform();
+		try {
+			const home = memory.platform.fs.paths.home;
+			const existing = new Uint8Array([0x48, 0x6f, 0x73, 0x74, 0x20, 0xff, 0x0a]);
+			memory.controls.blobs.set(`${home}/.ssh/config`, existing);
+			expect(await memory.platform.fs.includeSshConfig()).toEqual(ok(true));
+			expect(await memory.platform.fs.includeSshConfig()).toEqual(ok(false));
+			const head = new TextEncoder().encode(`Include ${home}/.ssh/conducted_config\n\n`);
+			expect([...(memory.controls.blobs.get(`${home}/.ssh/config`) ?? [])]).toEqual([
+				...head,
+				...existing,
+			]);
 		} finally {
 			db.close();
 		}

@@ -106,14 +106,30 @@ function RepoSwitchRow({
 	const change = async (next: boolean) => {
 		setError(null);
 		const saved = await services.settings.setForRepo(rootPath, settingKey, next);
-		if (!saved.ok) toastSettingSaveFailed(saved.error);
+		if (!saved.ok) {
+			toastSettingSaveFailed(saved.error, async () => {
+				const forced = await services.settings.setForRepo(rootPath, settingKey, next, {
+					overwrite: true,
+				});
+				setVersion((value) => value + 1);
+				return forced;
+			});
+		}
 		setVersion((value) => value + 1);
 	};
 
 	const reset = async () => {
 		setError(null);
 		const done = await actions.settings.resetForRepo(repoId, settingKey);
-		if (!done.ok) toastSettingSaveFailed(done.error);
+		if (!done.ok) {
+			toastSettingSaveFailed(done.error, async () => {
+				const forced = await actions.settings.resetForRepo(repoId, settingKey, {
+					overwrite: true,
+				});
+				setVersion((value) => value + 1);
+				return forced;
+			});
+		}
 		setVersion((value) => value + 1);
 	};
 

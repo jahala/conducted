@@ -14,7 +14,7 @@
  * was opened (loaded, never stored here).
  * Our design choice: what is loaded is always every turn from one point to the end, so the list
  * grows at its top only. Conductor can also load one turn alone from its outline and leave a gap;
- * ours loads every turn back to it (see `revealTurn` in sessions.ts, D142).
+ * ours loads every turn back to it (see `revealTurn` in sessions.ts, D144).
  * Test first: opening a chat of 223,000 events keeps less than the bound.
  */
 import type { TurnId } from "@conducted/shared";
