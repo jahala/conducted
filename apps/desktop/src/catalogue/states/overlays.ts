@@ -1,7 +1,7 @@
 /**
  * @feature catalogue States of the command palette, the file viewer and the scripts panel
  * Owns: the command palette open over a workspace, on its Workspaces, Projects, Actions and Settings tabs, and
- * the pickers its actions open (Move to section, File picker, Search in files, Link pull request,
+ * the pickers its actions open (Move to section, also searched for a section it lacks, File picker, Search in files, Link pull request,
  * Show keyboard shortcuts, the snippets manager
  * listing and editing a snippet), the Passport opened from it, the Feedback dialog (opened as Send feedback opens it), the Clone GitHub repo dialog with its repository lists and mid-clone, a code file open in the file viewer, the file viewer
  * for a file that is gone (its error state), a browser tab waiting for its dev server, and the scripts panel's Run tab before and after its dev
@@ -12,7 +12,7 @@
  */
 import { useOverlayStore } from "../../app/overlay-store.ts";
 import { chatRoute, refreshGit, seedCast, workspaceRoute } from "../cast.ts";
-import { click, find, has, pressUntilTaken, shows } from "../dom.ts";
+import { click, fillIn, find, findFirst, has, pressUntilTaken, shows } from "../dom.ts";
 import { setSetting } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
 import type { World } from "../world.ts";
@@ -177,6 +177,25 @@ export const OVERLAY_STATES: CatalogueState[] = [
 	paletteAction("command-palette-move-to-section", "Move to section", {
 		placeholder: "Search sections...",
 	}),
+	{
+		id: "command-palette-move-to-section-no-match",
+		group: "Overlays and panels",
+		title: "Command palette, Move to section searched for a section that does not exist",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await pressUntilTaken(document, "k", { meta: true });
+					await click(document, "[role=option]", "Move to section", { prefix: true });
+					const search = await findFirst(document, 'input[placeholder="Search sections..."]');
+					if (search instanceof HTMLInputElement) fillIn(search, "Shipped");
+				},
+				ready: (document) => shows(document, "No matching sections"),
+			};
+		},
+	},
 	paletteAction("quick-open", "File picker", { placeholder: "Search files..." }),
 	paletteAction("link-pull-request", "Link pull request", {
 		placeholder: "https://github.com/owner/repo/pull/123",
