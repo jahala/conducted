@@ -213,7 +213,8 @@ function makeHarness(
 	options: {
 		rows?: Workspace[];
 		settings?: Record<string, unknown>;
-		exists?: boolean;
+		/** Whether a path exists: one answer for every path, or one per path. */
+		exists?: boolean | ((path: string) => boolean);
 		draft?: { text: string; attachmentPaths: string[] };
 		gitReply?: (command: GitCommand, cwd: string) => ShellOutput | undefined;
 		chatFails?: boolean;
@@ -250,8 +251,9 @@ function makeHarness(
 			texts.set(path, text);
 			return ok(undefined);
 		},
-		async exists() {
-			return ok(options.exists ?? false);
+		async exists(path: string) {
+			const exists = options.exists ?? false;
+			return ok(typeof exists === "function" ? exists(path) : exists);
 		},
 		async stat() {
 			return err(appError("fs_not_found", "missing"));
@@ -989,7 +991,12 @@ describe("DATA-09 one home for a repository's remote at creation", () => {
 describe("WS-01 retrySetup pressed twice", () => {
 	it("prepares the worktree once when two retries start together", async () => {
 		const workspace = makeWorkspace({ state: "failed" });
-		const { service, calls } = makeHarness({ rows: [workspace], exists: true });
+		// The worktree is there; the repository has no .worktreeinclude, so the copy lists the
+		// ignored files its Files to copy setting names, once per prepared worktree.
+		const { service, calls } = makeHarness({
+			rows: [workspace],
+			exists: (path) => !path.endsWith("/.worktreeinclude"),
+		});
 
 		const [first, second] = await Promise.all([
 			service.retrySetup(workspace.id),
