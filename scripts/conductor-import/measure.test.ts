@@ -12,6 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { SPACE_MARGIN_BYTES } from "../../apps/desktop/src/core/conductor-import/plan.ts";
+import { OPEN_TURNS } from "../../apps/desktop/src/core/services/chat-history.ts";
 import {
 	conductorChatRows,
 	KNOWN_CHAT,
@@ -38,6 +39,13 @@ const BIG_ROWS = BIG_CHAT.reduce((sum, turn) => sum + turn.rows.length, 0);
  * chat's events took the import process about 620 MB up.
  */
 const IMPORT_RISE_MB = { app: 400, sidecar: 512 };
+/**
+ * How far opening the largest chat may raise the import process's peak, in MB (#617). Measured on
+ * this test's chat: loading every event raised it 772 MB (543 to 1,315); reading the last five
+ * turns raised it 0. On a chat of 608 million characters loading every event took it from 527 MB
+ * to 1,907 MB.
+ */
+const OPEN_RISE_MB = 64;
 /** Catches a hang only; a run on the large chat takes about 20 seconds on a loaded Mac. */
 setDefaultTimeout(300_000);
 const KNOWN_ROWS = KNOWN_CHAT.reduce((sum, turn) => sum + turn.rows.length, 0);
@@ -81,7 +89,7 @@ const LINES = [
 	`reads of the copy: ${N} pages of keys, ${N} reads of rows`,
 	`peak resident memory in MB, import process and sidecar, sampled every 250 ms \\(${N} samples\\):`,
 	`  (as the dry run began|dry run|import|opening the largest chat): ${N}, ${N}`,
-	`largest chat: (no chat has events|${N} events, ${N} turns; opened in ${S} s, turns built in ${S} s)`,
+	`largest chat: (no chat has events|${N} events, ${N} turns, ${N} of them loaded; opened in ${S} s, turns built in ${S} s)`,
 	`outside the run's folder: ${N} files written by the import kept in the run's folder, ${N} writes refused, ${N} commands refused`,
 	`scratch database in bytes, when the dry run ended: file ${N}, journal ${N}`,
 	`scratch database in bytes, after the import: file ${N}, journal ${N}`,
@@ -232,11 +240,11 @@ describe("APP-18 the full-size import measurement", () => {
 		);
 		// Every turn ends with one more event, so the large chat holds a turn's rows and its end.
 		expect(lines.find((line) => line.startsWith("largest chat:"))).toStartWith(
-			`largest chat: ${BIG_ROWS + BIG_TURNS} events, ${BIG_TURNS} turns;`,
+			`largest chat: ${BIG_ROWS + BIG_TURNS} events, ${BIG_TURNS} turns, ${OPEN_TURNS} of them loaded;`,
 		);
 		// Memory by stage (#598). The sampler found both processes, so the instrument reads
 		// something real. The import holds one read at a time, so its memory stays within the
-		// bound. Opening the chat loads every event of it, and is counted apart from the import.
+		// bound. Opening the chat reads its last turns only (#617), counted apart from the import.
 		const memory = (stage: string): { app: number; sidecar: number } => {
 			const found = new RegExp(`^  ${stage}: (\\d+), (\\d+)$`, "m").exec(stdout);
 			return { app: Number(found?.[1]), sidecar: Number(found?.[2]) };
@@ -248,7 +256,7 @@ describe("APP-18 the full-size import measurement", () => {
 		expect(began.sidecar).toBeGreaterThan(0);
 		expect(imported.app - began.app).toBeLessThan(IMPORT_RISE_MB.app);
 		expect(imported.sidecar - began.sidecar).toBeLessThan(IMPORT_RISE_MB.sidecar);
-		expect(opened.app).toBeGreaterThan(imported.app);
+		expect(opened.app - imported.app).toBeLessThan(OPEN_RISE_MB);
 		expect(lines).toContain(
 			"outside the run's folder: 1 files written by the import kept in the run's folder, 0 writes refused, 0 commands refused",
 		);

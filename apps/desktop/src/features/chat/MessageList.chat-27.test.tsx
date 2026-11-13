@@ -46,9 +46,10 @@ const turn = (id: string) =>
 	({ turnId: id, userMessage: null, steers: [], blocks: [] }) as unknown as ChatTurn;
 
 function view(): ChatView {
+	const turns = [turn("t1"), turn("t2")];
 	return {
 		session: { id: sessionId, config: { agent: "claude" } } as never,
-		turns: [turn("t1"), turn("t2")],
+		turns,
 		liveState: {
 			...idleLiveState,
 			status: "working",
@@ -58,6 +59,13 @@ function view(): ChatView {
 		openInteraction: null,
 		progress: null,
 		goal: null,
+		history: { olderTurnId: null, older: "idle" },
+		outline: turns.map((entry) => ({
+			turnId: entry.turnId,
+			text: null,
+			plan: false,
+			running: false,
+		})),
 	};
 }
 

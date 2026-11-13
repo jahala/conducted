@@ -67,6 +67,8 @@ async function storedChat(texts: readonly string[]) {
 		const event = userMessage(idx, text);
 		sessions.applyStoredEvent(chat.id, idx, event, event.at);
 	}
+	// The chat pane opens a chat it shows; this test shows the list alone.
+	must(await sessions.open(chat.id));
 	return { container: created.container, chat, workspace };
 }
 

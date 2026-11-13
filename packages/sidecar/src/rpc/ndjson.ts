@@ -10,7 +10,7 @@
  * Our design choice: the line limit of 16 MiB is ours. Conductor sends batches up to about 0.8 MiB,
  * so the limit leaves room for one large tool result.
  */
-import { type AppError, appError } from "@conducted/shared";
+import { type AppError, appError, LineSplitter } from "@conducted/shared";
 
 export const MAX_LINE_CHARS = 16 * 1024 * 1024;
 
@@ -23,22 +23,20 @@ export function encodeLine(message: unknown): string {
 	return `${JSON.stringify(message)}\n`;
 }
 
-/** Collects text chunks and returns the complete lines they contain. One decoder per connection. */
+/**
+ * Collects text chunks and returns the complete lines they contain. One decoder per connection.
+ * The shared splitter looks at each character once, so a long line costs time in proportion to
+ * its length (#617).
+ */
 export class LineDecoder {
-	private pending = "";
+	private readonly lines = new LineSplitter();
 	private skippingOversizeLine = false;
 
 	constructor(private readonly maxLineChars: number = MAX_LINE_CHARS) {}
 
 	push(chunk: string): DecodedLine[] {
 		const out: DecodedLine[] = [];
-		let rest = this.pending + chunk;
-		this.pending = "";
-		for (;;) {
-			const newline = rest.indexOf("\n");
-			if (newline === -1) break;
-			const line = rest.slice(0, newline);
-			rest = rest.slice(newline + 1);
+		for (const line of this.lines.push(chunk)) {
 			if (this.skippingOversizeLine) {
 				this.skippingOversizeLine = false;
 				continue;
@@ -46,7 +44,9 @@ export class LineDecoder {
 			const decoded = decodeLine(line, this.maxLineChars);
 			if (decoded) out.push(decoded);
 		}
-		if (rest.length > this.maxLineChars) {
+		if (this.lines.pendingChars > this.maxLineChars || this.skippingOversizeLine) {
+			// The unfinished line is dropped up to its newline, and reported once.
+			this.lines.discard();
 			if (!this.skippingOversizeLine) {
 				this.skippingOversizeLine = true;
 				out.push({
@@ -58,9 +58,7 @@ export class LineDecoder {
 					raw: "",
 				});
 			}
-			return out;
 		}
-		this.pending = this.skippingOversizeLine ? "" : rest;
 		return out;
 	}
 }
