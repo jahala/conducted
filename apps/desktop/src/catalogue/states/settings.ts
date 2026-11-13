@@ -26,9 +26,9 @@ import { agentProviders } from "@conducted/protocol";
 import { type EventId, ok, type TurnId } from "@conducted/shared";
 import { chatRoute, seedCast } from "../cast.ts";
 import { type ConductorRows, seedConductorDatabase } from "../conductor-database.ts";
-import { click, fillIn, find, findFirst, has, shows, typeInto } from "../dom.ts";
+import { click, fillIn, find, findField, findFirst, has, shows, typeInto } from "../dom.ts";
 import { scriptGitHub } from "../github.ts";
-import { setSetting } from "../seeds.ts";
+import { addRepo, setSetting } from "../seeds.ts";
 import { waitFor } from "../settle.ts";
 import type { CatalogueState } from "../state.ts";
 import type { World } from "../world.ts";
@@ -604,9 +604,10 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				route: "/settings/user/agents",
 				after: async ({ document }) => {
 					await openProviders(document, null);
-					const field = await findFirst(document, '[role=dialog] input[type="password"]');
-					if (!(field instanceof HTMLInputElement)) throw new Error("No token field.");
-					fillIn(field, "sk-ant-oat01-sample-token");
+					fillIn(
+						await findField(document, '[role=dialog] input[type="password"]'),
+						"sk-ant-oat01-sample-token",
+					);
 					await click(document, "button", "Save", { prefix: true });
 				},
 				ready: (document) =>
@@ -1535,6 +1536,135 @@ export const SETTINGS_STATES: CatalogueState[] = [
 				route: "/settings/user/general",
 				after: ({ document }) => click(document, "button", "Review import"),
 				ready: (document) => shows(document, "There is not enough free disk space"),
+			};
+		},
+	},
+	{
+		id: "settings-reset-failed",
+		group: "Settings",
+		title: "General, a changed setting's Reset that the database refuses",
+		seed: async (world) => {
+			await seedCast(world);
+			await setSetting(world, "default_message_send_mode", "queue");
+			return {
+				route: "/settings/user/general",
+				after: async ({ document, world: shown }) => {
+					await shown.failWrites("settings", "DELETE");
+					await click(document, "button", "Setting actions");
+					await click(document, "[role=menuitem]", "Reset");
+				},
+				ready: (document) => shows(document, "Failed to reset setting"),
+			};
+		},
+	},
+	{
+		id: "settings-send-key-update-failed",
+		group: "Settings",
+		title: "General, a change of the send key that the database refuses",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/general",
+				after: async ({ document, world: shown }) => {
+					await shown.failWrites("settings", "INSERT");
+					await choose(document, "Send messages with", "⌘ Enter");
+				},
+				ready: (document) => shows(document, "Failed to update message send key"),
+			};
+		},
+	},
+	{
+		id: "settings-send-key-reset-failed",
+		group: "Settings",
+		title: "General, a Reset of the send key that the database refuses",
+		seed: async (world) => {
+			await seedCast(world);
+			await setSetting(world, "message_send_key", "cmd-enter");
+			return {
+				route: "/settings/user/general",
+				after: async ({ document, world: shown }) => {
+					await shown.failWrites("settings", "UPDATE");
+					await click(document, "button", "Setting actions");
+					await click(document, "[role=menuitem]", "Reset");
+				},
+				ready: (document) => shows(document, "Failed to reset message send key"),
+			};
+		},
+	},
+	{
+		id: "settings-environment-paste-save-failed",
+		group: "Settings",
+		title: "Environment, two pasted variables whose save the database refuses",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/settings/user/environment",
+				after: async ({ document, world: shown }) => {
+					await click(document, "button", "Add environment variable");
+					const name = await findFirst(document, "input#env-add-name");
+					const pasted = new DataTransfer();
+					pasted.setData("text/plain", "API_BASE_URL=http://localhost:4000\nLOG_LEVEL=debug");
+					name.dispatchEvent(
+						new ClipboardEvent("paste", { clipboardData: pasted, bubbles: true, cancelable: true }),
+					);
+					await find(document, "ul", "Variables");
+					await shown.failWrites("env_vars", "INSERT");
+					await click(document, "button", "Save", { prefix: true });
+				},
+				ready: (document) =>
+					has(document, "ul", "Variables") &&
+					shows(document, "Couldn't update your environment variables"),
+			};
+		},
+	},
+	{
+		id: "settings-repo-add-action-name-taken",
+		group: "Settings",
+		title: "atlas: Actions, the Add action dialog with a name another action has",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/actions`,
+				after: async ({ document }) => {
+					await click(document, "button", "Add");
+					fillIn(await findField(document, 'input[placeholder="My action"]'), "Dev");
+				},
+				ready: (document) => shows(document, "Action names must be unique"),
+			};
+		},
+	},
+	{
+		id: "settings-repo-add-action-name-empty",
+		group: "Settings",
+		title: "atlas: Actions, the Add action dialog with a command and no name",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/settings/repos/${cast.atlas.id}/actions`,
+				after: async ({ document }) => {
+					await click(document, "button", "Add");
+					fillIn(await findField(document, 'textarea[placeholder="pnpm dev"]'), "pnpm lint");
+				},
+				ready: (document) => shows(document, "Action names can't be empty"),
+			};
+		},
+	},
+	{
+		id: "settings-repo-removed",
+		group: "Settings",
+		title:
+			"A project with no workspaces removed from its Misc page: the toast, on the Git settings",
+		seed: async (world) => {
+			await seedCast(world);
+			// No workspaces, so the removal has no worktree for the scripted git to take away.
+			const notes = await addRepo(world, { name: "notes", remoteUrl: null });
+			return {
+				route: `/settings/repos/${notes.id}/misc`,
+				after: async ({ document }) => {
+					await click(document, "button", "Remove repository");
+					await click(document, "[role=dialog] button", "Remove repository");
+				},
+				ready: (document) => shows(document, "Repository removed successfully"),
 			};
 		},
 	},

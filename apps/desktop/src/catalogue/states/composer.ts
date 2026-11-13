@@ -13,6 +13,7 @@
  * COMP-01 (drafts and attachments).
  * Test first: not applicable; the screenshot run opens every state.
  */
+import { draftAttachmentsDir } from "../../core/app-paths.ts";
 import type { Session, Workspace } from "../../core/model.ts";
 import { chatRoute, type GitWorld, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
@@ -127,6 +128,63 @@ async function contextNoteChat(world: World, agent: "claude" | "cursor"): Promis
 			),
 	};
 }
+
+/** The plan an earlier chat of arbor's proposed, which a new chat offers under "Add plans:". */
+const HEALTH_PLAN = `# Add a health check route
+
+1. Add GET /health to the HTTP router, answering 200 with the build's version.
+2. Leave it outside the auth middleware, so the load balancer can reach it.
+3. Cover both in src/http/health.test.ts.`;
+
+/**
+ * A new chat in arbor whose shelves offer arbor's earlier chat, which proposed HEALTH_PLAN, then
+ * `then`. With `blockAttachments`, a file stands where the new chat's attachments folder must go,
+ * so attaching anything to it fails.
+ */
+const shelvesState = (
+	id: string,
+	title: string,
+	ready: Scene["ready"],
+	then: (context: AfterContext, earlier: Session) => Promise<void>,
+	options: { blockAttachments?: boolean } = {},
+): CatalogueState => ({
+	id,
+	group: "Composer",
+	title,
+	seed: async (world) => {
+		const cast = await seedCast(world);
+		const earlier = await addChat(world, cast.arbor, {
+			title: "Plan the health check",
+			active: false,
+		});
+		const talk = conversation("arbor-plan", CATALOGUE_NOW - 2 * HOUR);
+		const turn = talk.user("Plan a health check route for the load balancer.");
+		talk.tool(turn, {
+			tool: "exit_plan_mode",
+			rawName: "ExitPlanMode",
+			input: { plan: HEALTH_PLAN },
+			output: "The user approved the plan.",
+		});
+		talk.end(turn);
+		await addEvents(world, earlier.id, talk.events);
+		must(await world.repositories.sessions.recordUserMessage(earlier.id, CATALOGUE_NOW - 2 * HOUR));
+		const chat = await addChat(world, cast.arbor, { title: null });
+		if (options.blockAttachments === true) {
+			world.memory.controls.addFile(
+				draftAttachmentsDir(world.memory.platform.fs.paths, chat.id),
+				"",
+			);
+		}
+		return {
+			route: chatRoute(cast.arbor, chat),
+			after: async (context) => {
+				await refreshGit(context.app, cast.arbor);
+				await then(context, earlier);
+			},
+			ready,
+		};
+	},
+});
 
 export const COMPOSER_STATES: CatalogueState[] = [
 	{
@@ -611,5 +669,62 @@ export const COMPOSER_STATES: CatalogueState[] = [
 				ready: (document) => shows(document, "This command isn't available in this workspace."),
 			};
 		},
+	},
+	shelvesState(
+		"composer-empty-shelves-plans",
+		"A new chat offering an earlier chat and the plan it proposed as context",
+		(document) => shows(document, "Add plans:"),
+		async () => {},
+	),
+	shelvesState(
+		"composer-shelf-plan-failed",
+		"A new chat whose plan from the shelf cannot be attached",
+		(document) => shows(document, "Failed to attach plan"),
+		({ document }) => click(document, "button", "Add a health check route"),
+		{ blockAttachments: true },
+	),
+	shelvesState(
+		"composer-shelf-transcript-failed",
+		"A new chat whose earlier chat's transcript cannot be attached",
+		(document) => shows(document, "Failed to attach chat transcript"),
+		({ document }, earlier) => click(document, "button", earlier.title ?? "chat"),
+		{ blockAttachments: true },
+	),
+	{
+		id: "composer-shelf-transcript-empty",
+		group: "Composer",
+		title: "A new chat offering an earlier chat whose messages are gone",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			// The chat is marked as having had the user's message, but holds no messages to attach.
+			const emptied = await addChat(world, cast.arbor, {
+				title: "Try the staging build",
+				active: false,
+			});
+			must(await world.repositories.sessions.recordUserMessage(emptied.id, CATALOGUE_NOW - HOUR));
+			const chat = await addChat(world, cast.arbor, { title: null });
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: async ({ app, document }) => {
+					await refreshGit(app, cast.arbor);
+					await click(document, "button", "Try the staging build");
+				},
+				ready: (document) => shows(document, "No messages in this chat"),
+			};
+		},
+	},
+	{
+		id: "composer-terminal-output-none",
+		group: "Composer",
+		title: "The @ menu's terminal output chosen in a workspace whose terminals show nothing yet",
+		seed: (world) =>
+			newChat(
+				world,
+				async ({ document }) => {
+					await typeInComposer(document, "@");
+					await click(document, "[role=option]", "Attach current terminal output");
+				},
+				(document) => shows(document, "No terminal output available for this workspace"),
+			),
 	},
 ];

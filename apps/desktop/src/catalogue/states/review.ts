@@ -12,7 +12,7 @@
 
 import { fileQueryKey } from "../../core/hooks.ts";
 import { ARBOR_FILES, type Cast } from "../cast.ts";
-import { click, fillIn, findFirst, has, hover, pressUntilTaken, shows } from "../dom.ts";
+import { click, fillIn, findField, findFirst, has, hover, pressUntilTaken, shows } from "../dom.ts";
 import type { ScriptedFile } from "../git-repo.ts";
 import { setSetting } from "../seeds.ts";
 import type { AfterContext, CatalogueState } from "../state.ts";
@@ -340,9 +340,10 @@ export const REVIEW_STATES: CatalogueState[] = [
 			after: async ({ document }) => {
 				await click(document, "button", "Diff scope");
 				await click(document, "[role=menuitem]", "Target branch");
-				const field = await findFirst(document, 'input[placeholder="Select target branch..."]');
-				if (!(field instanceof HTMLInputElement)) throw new Error("No branch field.");
-				fillIn(field, "release/2019");
+				fillIn(
+					await findField(document, 'input[placeholder="Select target branch..."]'),
+					"release/2019",
+				);
 			},
 			ready: (document) => shows(document, "No branch found."),
 		}),

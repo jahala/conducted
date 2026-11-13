@@ -2,7 +2,7 @@
  * @feature catalogue The outside world one catalogue state runs in
  * Owns: building the in-memory Platform over a real SQLite with a fixed clock and counting ids, the
  * repositories the seeds write through, the scripted shell answers (with the git repositories they
- * describe), the pictures a state gives its image files, and the scripted sidecar that answers the app's requests and delivers the lines a state
+ * describe), the pictures a state gives its image files, database writes a state makes fail, and the scripted sidecar that answers the app's requests and delivers the lines a state
  * needs.
  * Behaviour: not applicable, a development tool. The memory Platform's controls (platform/memory.ts) are
  * the same ones the tests script; nothing here changes what the app does with an answer.
@@ -69,6 +69,16 @@ export interface World {
 	holdSidecar(method: AppToSidecarRequest): void;
 	/** Answers every request for `method` with an error. */
 	failSidecar(method: AppToSidecarRequest): void;
+	/**
+	 * Makes every later `action` on `table` fail inside SQLite, with SQLite's own "disk I/O error",
+	 * as a damaged disk would. `columns` narrows an update to writes of those columns, so the app's
+	 * other writes to the table still land. Called from an after-step, once the app has started.
+	 */
+	failWrites(
+		table: string,
+		action: "INSERT" | "UPDATE" | "DELETE",
+		columns?: readonly string[],
+	): Promise<void>;
 	/** Delivers a notification from the sidecar to the app. */
 	notify(method: string, params: unknown): void;
 	/** Sends a request from the sidecar to the app, such as `requestInteraction`. */
@@ -283,6 +293,13 @@ export function createWorld(database: Database): World {
 		answerSidecar: (answer) => answers.push(answer),
 		holdSidecar: (method) => held.set(method, "hold"),
 		failSidecar: (method) => held.set(method, "fail"),
+		failWrites: async (table, action, columns = []) => {
+			const name = `catalogue_fails_${table}_${action.toLowerCase()}_${columns.join("_")}`;
+			const of = columns.length === 0 ? "" : ` OF ${columns.join(", ")}`;
+			await database.execute(
+				`CREATE TRIGGER "${name}" BEFORE ${action}${of} ON "${table}" BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END`,
+			);
+		},
 		notify: (method, params) => emit({ jsonrpc: "2.0", method, params }),
 		request: (method, params) => emit({ jsonrpc: "2.0", id: nextRequestId++, method, params }),
 		showPicture: (path, url) => pictures.set(path, url),
