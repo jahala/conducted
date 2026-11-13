@@ -199,9 +199,9 @@ export function newWorkspaceConfigFromSettings(setting: <T>(key: string) => T): 
 	});
 }
 
-/** Shown when the workspace is made but cannot join the chosen section. */
+/** Shown when the workspace is made but cannot join the chosen section, in Conductor's words. */
 export const SECTION_PLACEMENT_FAILED_MESSAGE =
-	"The workspace was created, but it couldn't be added to the section. You can move it from the sidebar.";
+	"Workspace created, but couldn't add it to the section. Move it from the sidebar.";
 
 /** Shown when the workspace is made but its first chat cannot be created or sent. */
 export const CHAT_CREATION_FAILED_MESSAGE =

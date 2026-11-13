@@ -724,6 +724,10 @@ describe("WS-01 WorkspaceService.create", () => {
 		expect(service.store.getState().warnings?.[rows[0]?.id ?? ""] ?? []).toContain(
 			SECTION_PLACEMENT_FAILED_MESSAGE,
 		);
+		// Conductor's words (renderApp @5547610).
+		expect(SECTION_PLACEMENT_FAILED_MESSAGE).toBe(
+			"Workspace created, but couldn't add it to the section. Move it from the sidebar.",
+		);
 	});
 
 	it("gives two creates started together different folders and ports", async () => {
