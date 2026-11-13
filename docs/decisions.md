@@ -1262,3 +1262,24 @@ What differs from Conductor, and why:
 Why: it is Conductor's page and API on the user's own Worker, and the one store makes the refresh safe without a second home for the tokens.
 
 Live verification: see `docs/research/cloud-spike-2026-11-06.md` (CLOUD-17 OAuth).
+
+## D148. The app bundle carries a generated third-party notices file, and a check fails anything shipped uncredited (2026-11-13)
+
+Decided by the lead under the owner's rule "Match Conductor. Nothing made up; gaps are reported." It settles where the credits show, which D131 left to the owner (#577): Conductor's frontend has no credits or acknowledgements screen, so ours has none either, and the notices travel in the app bundle as one file.
+
+Context: the app ships code and art under licences that ask for their notice to go with every copy: the Material Icon Theme, Font Awesome and codicons through react-icons, Devicons, and most other dependencies. No notice appeared anywhere.
+
+Chosen:
+
+- **One generated file.** `apps/desktop/src-tauri/THIRD-PARTY-NOTICES.txt` is written by `bun scripts/notices/generate.ts`, committed, and copied by every build to `Contents/Resources`. Each entry gives the package's name and version, the licence its manifest declares, the parts of the app it ships in, and every licence and notice file in the package's root, word for word, plus the file a `SEE LICENSE IN` or Cargo's `license-file` names. A package with no such file says so; nothing is filled in. A text several packages carry word for word, such as the Apache licence, is given once at the end under an id taken from its SHA-256, so ids stay put as packages come and go. That keeps the file at 1.6 MB instead of 4.9 MB.
+- **The package managers' own data.** npm: `pnpm licenses list --prod` for the desktop, the sidecar and the cloud package (the Worker and the sandbox entry the app carries). Rust: `cargo metadata --filter-platform aarch64-apple-darwin`, walked from the app's crate along normal dependencies, procedural macros included, build and dev dependencies not; the `e2e` feature is off, as in a release. A package whose manifest names an `os` or `cpu` is left out: pnpm installs it on some machines only, so the file would differ between the Mac and CI, and no bundle takes one (the Claude Agent SDK's native program package is the only one today).
+- **What the build itself adds.** Three build tools put their own code into the web UI and are listed with a note saying why: Tailwind CSS (its base styles and theme are in the stylesheet), Vite (its preload helper) and Rolldown (its runtime). Two items no package manager lists are added by hand: Bun's runtime, which every compiled sidecar program carries, with Bun's `LICENSE.md` for the version in `.bun-version` kept as `scripts/notices/bun-<version>-LICENSE.md` (the generator stops and names the file to fetch when Bun moves), and the Geist fonts with their `OFL.txt`.
+- **Three checks.** `pnpm guards` (`notices`) collects again and names each package that ships but is missing, is listed but no longer ships, or whose licence or files changed. `scripts/notices/bundles.build.test.ts` runs the four real bundlers (Vite with the app's config, Bun for the sidecar and the sandbox entry, wrangler for the Worker) and fails when any package they took is not listed, which catches a development dependency imported by shipped code. The release check (`verifyBundle`) fails a bundle whose notices are missing or differ from the repository's.
+
+Gaps, reported:
+
+- 17 crates (the `objc2` family, `block2`, `dispatch2`, `mac-notification-sys`, `selectors`, `alloc-stdlib`) and 3 npm packages (`lru_map`, `react-remove-scroll-bar`, `standardwebhooks`) carry no licence file. Their entries give the declared licence and say the package carries no file.
+- Bun's `LICENSE.md` names the libraries Bun links (JavaScriptCore under LGPL-2, BoringSSL, ICU and others) with links, not their texts. Bun links JavaScriptCore statically, and LGPL-2 also asks that a user can relink it; a notices file does not meet that part.
+- Rust's standard library, compiled into the binary under MIT or Apache-2.0, is not listed: its licence files come with the toolchain, not with Cargo's data.
+
+Why: the owner's rule. No screen that Conductor lacks, the notices the licences ask for in the file that travels with the app, and a check for each way a package could ship without them.

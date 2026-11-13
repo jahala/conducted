@@ -13,6 +13,7 @@ import { checkLifetimeLimits } from "./lifetime-limits.ts";
 import { checkLocalStorageKeys } from "./local-storage-keys.ts";
 import { checkMigrations } from "./migrations.ts";
 import { checkModuleState } from "./module-state.ts";
+import { checkNotices } from "./notices.ts";
 import { checkSettingsKeys } from "./settings-keys.ts";
 import { checkSidecarEdges } from "./sidecar-edges.ts";
 import { checkSite } from "./site.ts";
@@ -64,6 +65,7 @@ const guards: [string, (root: string) => Problem[] | Promise<Problem[]>][] = [
 	["test-only-exports", checkTestOnlyExports],
 	["unwired-deps", checkUnwiredDeps],
 	["conductor-code", checkConductorCode],
+	["notices", checkNotices],
 	["tests-cannot-fail", shape("tests-cannot-fail")],
 	["mocking-the-thing", shape("mocking-the-thing")],
 	["stand-in-home", shape("stand-in-home")],
