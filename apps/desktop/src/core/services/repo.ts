@@ -13,7 +13,7 @@
  * one of the three templates and creating its private GitHub repository (PRJ-03). Also owns the
  * repository icon (PRJ-05): validating an uploaded image and drawing it at icon size, saving an
  * emoji, and clearing the icon back to its fallback. An upload is drawn as a PNG of at most 128
- * pixels square (Platform `attachments.iconPng`, as Conductor's `UWa` does), written to a new file
+ * pixels square (Platform `attachments.iconPng`, as Conductor's upload does), written to a new file
  * in the icons folder (`<repoId>-<uuid>.png`), the database then points to it, and only then is the
  * earlier upload trashed; a failed write trashes the new file and keeps the old icon. Clearing or replacing an
  * icon, or removing its project, trashes the uploaded file. The web view is given the icons
