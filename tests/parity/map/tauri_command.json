@@ -127,7 +127,7 @@
 	},
 	"tauri_command:pty_persist_terminal_history": {
 		"status": "decided",
-		"decision": "D150",
+		"decision": "D151",
 		"note": "Conductor's UI asks Rust to save a terminal's scrollback. Ours saves it in Rust when the terminal's process ends (pty.rs exit watcher, terminal_history.rs), so there is no command.",
 		"by": "hand"
 	},

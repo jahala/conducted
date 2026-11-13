@@ -1,13 +1,15 @@
 /**
  * @feature catalogue States of the Git panel and the pull request header
  * Owns: the Changes tab with files, a file's diff and its View options menu, the workspace header's
- * actions menu, a chat tab's context menu, the diff scope menu with the branch's commits, the
+ * actions menu, a chat tab's context menu and its Rename chat dialog, the Artifacts tab's Attach to chat with no chat to attach to, the diff scope menu with the branch's commits, the
  * All files tab, the Checks tab, the header with no pull request, an open one, a draft, one with a
  * failed check, one ready to merge and a merged one, the Changes tab when the tree is clean and when git fails,
  * the Changes tab as a folder tree with a filter that matches nothing, the tab strip's new tab menu,
  * a file's right-click menu in All files, a changed file's discard confirm, the Rename workspace dialog, the toast
- * after Copy link, the question before archiving a workspace whose agent works, the Artifacts tab
- * with one file, and the All files tab holding every kind in Conductor's brand file icon table, in
+ * after Copy link, the question before archiving a workspace whose agent works, the toast when
+ * Archive workspace finds no workspace open, the Artifacts tab
+ * with one file, the working directories picker (and while git lists the folders), and the All
+ * files tab holding every kind in Conductor's brand file icon table, in
  * parts.
  * Behaviour: ui-map.md 3.6 (Git panel), 3.4 (diff view), 3.7.x (pull request header); core/status/
  * git-header.ts decides the header state and its main action.
@@ -25,8 +27,9 @@ import {
 	seedCast,
 	workspaceRoute,
 } from "../cast.ts";
-import { click, find, has, rightClick, shows, typeInto } from "../dom.ts";
+import { click, find, has, pressUntilTaken, rightClick, shows, typeInto } from "../dom.ts";
 import type { PrKind, ScriptedPr } from "../github.ts";
+import { must } from "../seeds.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, DAY } from "../time.ts";
 import type { World } from "../world.ts";
@@ -130,7 +133,57 @@ const kindsState = (names: readonly string[], part: number): CatalogueState => (
 	}),
 });
 
+/**
+ * arbor's All files tab with the working directories picker open. Git lists arbor's folders, with
+ * sparse checkout off; `hold` keeps the listing running.
+ */
+const workingDirectoriesState = (
+	id: string,
+	title: string,
+	text: string,
+	hold: boolean,
+): CatalogueState => ({
+	id,
+	group: "Git panel",
+	title,
+	seed: async (world) => {
+		const scene = await arborScene({
+			after: async ({ document }) => {
+				await click(document, "button,[role=tab]", "All files");
+				await click(document, "button", "Select working directories");
+			},
+			ready: (document) => shows(document, text),
+		})(world);
+		world.scriptShell((command) => {
+			if (command.program !== "git") return null;
+			const args = command.args[0] === "-c" ? command.args.slice(2) : command.args;
+			if (args[0] === "config" && args.at(-1) === "core.sparseCheckout") {
+				return { ok: true, value: { stdout: "", stderr: "", exitCode: 1 } };
+			}
+			if (args[0] !== "ls-tree" || args[1] !== "-d") return null;
+			if (hold) return new Promise(() => {});
+			return {
+				ok: true,
+				value: { stdout: "docs\npublic\nscripts\nsrc\ntests\n", stderr: "", exitCode: 0 },
+			};
+		});
+		return scene;
+	},
+});
+
 export const GIT_STATES: CatalogueState[] = [
+	workingDirectoriesState(
+		"git-working-directories",
+		"All files tab, the Select working directories picker",
+		"Working directories",
+		false,
+	),
+	workingDirectoriesState(
+		"git-working-directories-loading",
+		"All files tab, the working directories picker while git lists the folders",
+		"Loading directories...",
+		true,
+	),
 	{
 		id: "git-changes",
 		group: "Git panel",
@@ -174,6 +227,29 @@ export const GIT_STATES: CatalogueState[] = [
 			},
 			ready: (document) => document.activeElement?.textContent === "Attach to chat",
 		}),
+	},
+	{
+		id: "git-artifacts-no-chat",
+		group: "Git panel",
+		title: "Artifacts tab, Attach to chat when the workspace has no active chat",
+		seed: async (world) => {
+			const scene = await arborScene({
+				search: {},
+				files: { ".context/release-notes.md": "# Release notes\n" },
+				after: async ({ document }) => {
+					await click(document, "button,[role=tab]", "Artifacts");
+					await click(document, "button", "Attach to chat");
+				},
+				ready: (document) => shows(document, "No active chat selected."),
+			})(world);
+			// The workspace remembers no chat to send files to.
+			const arbor = must(await world.repositories.workspaces.listAll()).find(
+				(workspace) => workspace.directoryName === "arbor",
+			);
+			if (arbor === undefined) throw new Error("The cast has no arbor.");
+			must(await world.repositories.workspaces.setActiveSession(arbor.id, null));
+			return scene;
+		},
 	},
 	{
 		id: "git-diff",
@@ -250,12 +326,41 @@ export const GIT_STATES: CatalogueState[] = [
 		},
 	},
 	{
+		id: "archive-no-workspace",
+		group: "Workspace chat",
+		title: "Archive workspace pressed on Home, with no workspace open",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/all-workspaces",
+				after: async ({ document }) => {
+					await find(document, "a,button,span", "Rate limit api");
+					await pressUntilTaken(document, "a", { meta: true, shift: true });
+				},
+				ready: (document) => shows(document, "No workspace selected to archive"),
+			};
+		},
+	},
+	{
 		id: "chat-tab-menu",
 		group: "Workspace chat",
 		title: "A chat tab's context menu",
 		seed: arborScene({
 			after: ({ document }) => rightClick(document, "[role=tab]", "Fix the login redirect"),
 			ready: (document) => shows(document, "Rename chat"),
+		}),
+	},
+	{
+		id: "chat-rename",
+		group: "Workspace chat",
+		title: "The Rename chat dialog, from a chat tab's context menu",
+		seed: arborScene({
+			after: async ({ document }) => {
+				await rightClick(document, "[role=tab]", "Fix the login redirect");
+				await click(document, "[role=menuitem]", "Rename chat");
+			},
+			ready: (document) =>
+				document.querySelector('[role=dialog] input[value="Fix the login redirect"]') !== null,
 		}),
 	},
 	{

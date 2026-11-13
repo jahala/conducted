@@ -1,20 +1,29 @@
 /**
  * @feature WS-07 Linked workspaces and extra folders
  * Owns: tests of the Link workspaces and directories dialog over the real container.
- * Behaviour: ui-map.md 3.10 ("Link workspaces and directories", "Select working directories",
- * "Link a directory or workspace").
- * Test first: choosing a folder and saving stores its path on the workspace.
+ * Behaviour: ui-map.md 3.10; Conductor's picker (renderApp @5683700 to @5688200): a search over
+ * the workspaces of other repositories grouped by repository, a Directories group with "Browse..."
+ * and the linked folders, and "No workspaces found" for a search that matches none. Each pick links
+ * or unlinks at once.
+ * Test first: Browse... links the folder the system picker returns.
  */
 import { appError, err, type WorkspaceId } from "@conducted/shared";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
-import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
+import {
+	createTestContainer,
+	seedRepo,
+	seedWorkspace,
+	type TestContainer,
+} from "../../test/container.ts";
+import { toast } from "../../ui/Toast.tsx";
 import { LinkDirectoriesDialog } from "./LinkDirectoriesDialog.tsx";
 
 let active: TestContainer | undefined;
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	cleanup();
 	active?.close();
 	active = undefined;
@@ -28,12 +37,22 @@ const linkedPathsInDatabase = async (test: TestContainer, id: string): Promise<s
 	return JSON.parse(rows[0]?.linked_paths ?? "[]") as string[];
 };
 
-async function setup() {
+async function setup(linkedPaths: string[] = []) {
 	const test = createTestContainer();
 	active = test;
-	const workspace = await seedWorkspace(test.container);
-	const other = await seedWorkspace(test.container, { repoId: workspace.repoId });
-	return { test, workspace, other };
+	const home = await seedRepo(test.container, { name: "atlas" });
+	const elsewhere = await seedRepo(test.container, { name: "relay" });
+	const workspace = await seedWorkspace(test.container, { repoId: home.id, linkedPaths });
+	const sibling = await seedWorkspace(test.container, {
+		repoId: home.id,
+		directoryName: "lisbon",
+	});
+	const other = await seedWorkspace(test.container, {
+		repoId: elsewhere.id,
+		directoryName: "oslo",
+		branch: "sam/queue-metrics",
+	});
+	return { test, workspace, sibling, other };
 }
 
 const renderDialog = (test: TestContainer, workspaceId: string, onOpenChange = vi.fn()) => {
@@ -50,84 +69,102 @@ const renderDialog = (test: TestContainer, workspaceId: string, onOpenChange = v
 };
 
 describe("WS-07 Link workspaces and directories dialog", () => {
-	it("shows the dialog's two ways to link a folder", async () => {
-		const { test, workspace } = await setup();
-
-		renderDialog(test, workspace.id);
-
-		expect(
-			await screen.findByRole("heading", { name: "Link workspaces and directories" }),
-		).toBeTruthy();
-		expect(screen.getByText("Link a directory or workspace")).toBeTruthy();
-		expect(screen.getByRole("button", { name: "Select working directories" })).toBeTruthy();
-	});
-
-	it("saves a folder chosen from the system picker", async () => {
+	it("links the folder Browse... picks, at once, with Conductor's picker title", async () => {
 		const { test, workspace } = await setup();
 		test.memory.controls.queueDialogAnswers({ folder: "/code/shared" });
 		const pickFolder = vi.spyOn(test.memory.platform.dialogs, "pickFolder");
-		const onOpenChange = renderDialog(test, workspace.id);
+		renderDialog(test, workspace.id);
 
-		fireEvent.click(screen.getByRole("button", { name: "Select working directories" }));
-		expect(await screen.findByText("/code/shared")).toBeTruthy();
+		fireEvent.click(await screen.findByRole("option", { name: /Browse\.\.\./ }));
+
+		await waitFor(async () =>
+			expect(await linkedPathsInDatabase(test, workspace.id)).toEqual(["/code/shared"]),
+		);
 		// The system folder picker's title, as Conductor's (renderApp @5685048, D134).
 		expect(pickFolder).toHaveBeenCalledWith(
 			expect.objectContaining({ title: "Select directory to link" }),
 		);
-		fireEvent.click(screen.getByRole("button", { name: "Save" }));
-
-		await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-		expect(await linkedPathsInDatabase(test, workspace.id)).toEqual(["/code/shared"]);
-		expect(
-			test.container.services.workspace.store.getState().workspacesById[workspace.id]?.linkedPaths,
-		).toEqual(["/code/shared"]);
+		const directories = screen.getByRole("group", { name: "Directories" });
+		expect(await within(directories).findByText("/code/shared")).toBeTruthy();
 	});
 
-	it("links another workspace as its folder path", async () => {
-		const { test, workspace, other } = await setup();
-		const onOpenChange = renderDialog(test, workspace.id);
+	it("lists only other repositories' workspaces, under their repository, and links one", async () => {
+		const { test, workspace, sibling, other } = await setup();
+		renderDialog(test, workspace.id);
 
-		fireEvent.click(await screen.findByRole("checkbox", { name: other.directoryName }));
-		fireEvent.click(screen.getByRole("button", { name: "Save" }));
+		const relay = await screen.findByRole("group", { name: "relay" });
+		expect(screen.queryByRole("option", { name: new RegExp(sibling.directoryName) })).toBeNull();
+		fireEvent.click(within(relay).getByRole("option", { name: /oslo/ }));
 
-		await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-		expect(await linkedPathsInDatabase(test, workspace.id)).toEqual([other.path]);
+		await waitFor(async () =>
+			expect(await linkedPathsInDatabase(test, workspace.id)).toEqual([other.path]),
+		);
+		expect(await within(relay).findByText("Unlink")).toBeTruthy();
 	});
 
-	it("unlinks a folder that is already linked", async () => {
-		const { test } = await setup();
-		const workspace = await seedWorkspace(test.container, { linkedPaths: ["/code/shared"] });
-		const onOpenChange = renderDialog(test, workspace.id);
+	it("unlinks a linked folder when it is picked again", async () => {
+		const { test, workspace } = await setup(["/code/shared"]);
+		renderDialog(test, workspace.id);
 
-		fireEvent.click(await screen.findByRole("button", { name: "Unlink /code/shared" }));
-		fireEvent.click(screen.getByRole("button", { name: "Save" }));
+		const directories = await screen.findByRole("group", { name: "Directories" });
+		fireEvent.click(within(directories).getByRole("option", { name: /shared/ }));
 
-		await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-		expect(await linkedPathsInDatabase(test, workspace.id)).toEqual([]);
+		await waitFor(async () => expect(await linkedPathsInDatabase(test, workspace.id)).toEqual([]));
 	});
 
-	it("keeps the dialog open and shows why a save failed", async () => {
+	it("says No workspaces found when the search matches none", async () => {
+		const { test, workspace } = await setup();
+		renderDialog(test, workspace.id);
+
+		fireEvent.change(await screen.findByPlaceholderText("Search workspaces..."), {
+			target: { value: "no-such-place" },
+		});
+
+		expect(await screen.findByText("No workspaces found")).toBeTruthy();
+	});
+
+	it("finds a workspace by its branch or its repository's name", async () => {
+		const { test, workspace } = await setup();
+		renderDialog(test, workspace.id);
+		const search = await screen.findByPlaceholderText("Search workspaces...");
+
+		fireEvent.change(search, { target: { value: "queue-metrics" } });
+		expect(await screen.findByRole("option", { name: /oslo/ })).toBeTruthy();
+
+		fireEvent.change(search, { target: { value: "relay" } });
+		expect(await screen.findByRole("option", { name: /oslo/ })).toBeTruthy();
+	});
+
+	it("says why a link could not be saved", async () => {
 		const { test, workspace } = await setup();
 		vi.spyOn(test.container.actions.workspaces, "setLinkedPaths").mockResolvedValue(
 			err(appError("db_busy", "The database is locked.")),
 		);
-		const onOpenChange = renderDialog(test, workspace.id);
+		const error = vi.spyOn(toast, "error");
+		renderDialog(test, workspace.id);
 
-		fireEvent.click(screen.getByRole("button", { name: "Save" }));
+		fireEvent.click(await screen.findByRole("option", { name: /oslo/ }));
 
-		expect(await screen.findByText("The database is locked.")).toBeTruthy();
-		expect(onOpenChange).not.toHaveBeenCalledWith(false);
+		await waitFor(() =>
+			expect(error).toHaveBeenCalledWith(
+				"Couldn't save the linked directories",
+				expect.objectContaining({ description: "The database is locked." }),
+			),
+		);
 	});
 
-	it("keeps a cancelled folder picker from changing the list", async () => {
-		const { test, workspace } = await setup();
+	it("leaves the links alone when the folder picker is cancelled", async () => {
+		const { test, workspace } = await setup(["/code/shared"]);
 		test.memory.controls.queueDialogAnswers({ folder: null });
-		const onOpenChange = renderDialog(test, workspace.id);
+		const pickFolder = vi.spyOn(test.memory.platform.dialogs, "pickFolder");
+		const save = vi.spyOn(test.container.actions.workspaces, "setLinkedPaths");
+		renderDialog(test, workspace.id);
 
-		fireEvent.click(screen.getByRole("button", { name: "Select working directories" }));
-		fireEvent.click(screen.getByRole("button", { name: "Save" }));
+		fireEvent.click(await screen.findByRole("option", { name: /Browse\.\.\./ }));
 
-		await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-		expect(await linkedPathsInDatabase(test, workspace.id)).toEqual([]);
+		await waitFor(() => expect(pickFolder).toHaveBeenCalledTimes(1));
+		expect(await pickFolder.mock.results[0]?.value).toBeNull();
+		expect(save).not.toHaveBeenCalled();
+		expect(await linkedPathsInDatabase(test, workspace.id)).toEqual(["/code/shared"]);
 	});
 });

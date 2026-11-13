@@ -59,7 +59,7 @@ function view(): ChatView {
 		openInteraction: null,
 		progress: null,
 		goal: null,
-		history: { olderTurnId: null, older: "idle" },
+		history: { olderTurnId: null, older: "idle", gaps: [] },
 		outline: turns.map((entry) => ({
 			turnId: entry.turnId,
 			text: null,

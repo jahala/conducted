@@ -9,10 +9,10 @@
 	},
 	"toast:M389857": {
 		"status": "matched",
-		"state": "run-load-failed",
+		"state": "settings-save-file-invalid",
 		"via": "text",
-		"role": "p",
-		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > section > p",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
 		"by": "seed"
 	},
 	"toast:M390047": {
@@ -120,12 +120,12 @@
 		"by": "hand"
 	},
 	"toast:M3636992": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-01",
-		"item": "Conductor shows \"Couldn't reopen chat. Try again.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-reopen-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:M3686044": {
 		"status": "gap",
@@ -154,7 +154,7 @@
 	"toast:M3735892": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced",
+		"screen": "ui-map 5.4 Keyboard shortcuts",
 		"backlog": "WS-03",
 		"item": "Sending the setup failure to the agent can fail with \"Failed to attach setup context\".",
 		"owner": "rule:quote"
@@ -268,12 +268,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R1717306": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "NAV-10",
-		"item": "Conductor shows \"Failed to copy link\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "rule:quote"
+		"status": "matched",
+		"state": "chat-copy-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R2035043": {
 		"status": "matched",
@@ -317,7 +317,7 @@
 	},
 	"toast:R2504925": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "WS-08",
 		"item": "Conductor shows \"Workspace is still loading, try again\" (toast, Unplaced); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
@@ -348,16 +348,16 @@
 		"owner": "rule:cite"
 	},
 	"toast:R2520921": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "COMP-04",
-		"item": "Conductor shows \"No active chat selected.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-artifacts-no-chat",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(2)",
+		"by": "seed"
 	},
 	"toast:R2976926": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
 		"backlog": "WS-03",
 		"item": "Conductor shows \"No active session to attach setup logs to\" (toast, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
@@ -396,12 +396,10 @@
 		"by": "seed"
 	},
 	"toast:R2994853": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "CHAT-02",
-		"item": "Sending a message can fail with \"Couldn't send message\".",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D004",
+		"note": "Conductor's workspace chat between the people of a workspace, sent through its server (sendWorkspaceChatMessage): a team feature D004 leaves out.",
+		"by": "hand"
 	},
 	"toast:R3020329": {
 		"status": "gap",
@@ -428,12 +426,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R5000520": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-03",
-		"item": "Conductor shows \"No active chat to send setup request to\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "setup-no-chat",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R5007891": {
 		"status": "gap",
@@ -508,12 +506,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R5547610": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "WS-01",
-		"item": "If adding a new workspace to the chosen section fails, say so and tell the user to move it from the sidebar; the workspace still opens.",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "new-workspace-section-gone",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li:nth-of-type(1) > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R5554252": {
 		"status": "gap",
@@ -570,12 +568,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R5643180": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "WS-05",
-		"item": "Conductor shows \"No workspace selected to archive\" (message, inventory-ui-text Cloud (research only, no planned row yet)); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "archive-no-workspace",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R5643247": {
 		"status": "decided",
@@ -765,7 +763,7 @@
 	},
 	"toast:R9299633": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "CHAT-02",
 		"item": "Conductor shows \"Session not found\" (message, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
@@ -804,12 +802,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R9312315": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "CHAT-12",
-		"item": "Conductor shows \"Failed to copy plan\" (message, inventory-messages-sidecar Gap and Research only: toast messages and behaviours); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-plan-copy-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R9357302": {
 		"status": "gap",
@@ -964,20 +962,20 @@
 		"by": "seed"
 	},
 	"toast:R10074815": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-01",
-		"item": "Conductor shows \"Failed to close other chats. Try again.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-close-others-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R10074989": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-17",
-		"item": "Conductor shows \"No chat content to copy\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-copy-empty",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div",
+		"by": "seed"
 	},
 	"toast:R10075328": {
 		"status": "decided",
@@ -1014,12 +1012,12 @@
 		"owner": "rule:cite"
 	},
 	"toast:R10110444": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-01",
-		"item": "Conductor shows \"Failed to close chat. Try again.\" (message, Unplaced); ours has no counterpart yet (parity gap).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-close-failed",
+		"via": "text",
+		"role": "div",
+		"selector": "div > section > ol > li > div:nth-of-type(2) > div:nth-of-type(1)",
+		"by": "seed"
 	},
 	"toast:R10111109": {
 		"status": "gap",
@@ -1059,7 +1057,7 @@
 	},
 	"toast:R10572663": {
 		"status": "gap",
-		"reason": "missing",
+		"reason": "unshown",
 		"screen": "Unplaced",
 		"backlog": "APP-03",
 		"item": "Conductor shows \"Failed to copy report to clipboard\" (message, Unplaced); ours has no counterpart yet (parity gap).",
@@ -1419,7 +1417,7 @@
 	},
 	"toast:R11265782": {
 		"status": "gap",
-		"reason": "unshown",
+		"reason": "missing",
 		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
 		"backlog": "RUN-02",
 		"item": "Turning Spotlight testing on or off says \"Failed to update spotlight testing\" only when the call throws; a refused or failed write gets the settings writer's toast, with \"Overwrite file\" for an invalid file (issue #654).",
@@ -1478,7 +1476,7 @@
 	"toast:R11392647": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
+		"screen": "ui-map 5.4 Keyboard shortcuts",
 		"backlog": "APP-06",
 		"item": "Checking for an update while one check is running shows \"An update check is already in progress.\"",
 		"owner": "rule:cite"

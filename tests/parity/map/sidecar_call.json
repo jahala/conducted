@@ -434,7 +434,7 @@
 	},
 	"sidecar_call:startAgentationProxy": {
 		"status": "decided",
-		"decision": "D150",
+		"decision": "D151",
 		"note": "Starts a proxy that puts the page-annotation toolbar into the in-app preview. Ours attaches the picker to the preview frame from the app (RUN-05, AnnotationOverlay.tsx), so the sidecar has no proxy.",
 		"by": "hand"
 	},

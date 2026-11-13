@@ -90,6 +90,14 @@ export interface PreviewUrlEntry {
 	url: string;
 }
 
+/** What a new workspace of a repository would copy, for the Misc page's Files to copy preview. */
+export interface CopyPreview {
+	/** The gitignored files the patterns match. */
+	paths: string[];
+	/** The patterns of the repository's `.worktreeinclude`, which replace the setting; null without one. */
+	worktreeInclude: string[] | null;
+}
+
 /** Per-repo configuration from `.conducted/settings.toml` (shared) merged with local settings. */
 export interface RepoConfig {
 	setupScript: string | null;
@@ -343,7 +351,16 @@ export type ChatBlock =
 	| { kind: "tool"; call: ToolCallView }
 	| { kind: "todo"; item: Extract<AgentItem, { kind: "todo" }> }
 	| { kind: "notice"; item: Extract<AgentItem, { kind: "notice" }> }
-	| { kind: "error"; item: Extract<AgentItem, { kind: "error" }> };
+	| { kind: "error"; item: Extract<AgentItem, { kind: "error" }> }
+	/**
+	 * A task the agent started in the background, with the call that started it when that call is
+	 * in the same turn before it (Conductor's "Background Task" row, main @1420230).
+	 */
+	| {
+			kind: "background_task";
+			item: Extract<AgentItem, { kind: "background_task" }>;
+			source: Extract<AgentItem, { kind: "tool_call" }> | null;
+	  };
 
 /** One turn: the user's message and everything the agent did in reply. */
 export interface ChatTurn {
@@ -405,12 +422,20 @@ export interface ChatView {
 	outline: OutlineTurn[];
 }
 
+/** Which side of a gap a fill loads: the turn after the earlier run, or before the later one (#652). */
+export type GapSide = "after-earlier" | "before-later";
+
 /** How much of a chat's stored history the list holds (CHAT-06). */
 export interface ChatHistoryView {
 	/** The turn just before the first loaded one, which reaching the top loads next. Null: none. */
 	olderTurnId: TurnId | null;
 	/** A load of older turns: running, failed and waiting for Retry, or neither. */
 	older: "idle" | "loading" | "failed";
+	/**
+	 * The gaps between loaded runs of turns, each by the first loaded turn after it, with its fill:
+	 * running, failed and waiting for Retry, or neither (CHAT-06, #652).
+	 */
+	gaps: { beforeTurnId: TurnId; state: "idle" | "loading" | "failed" }[];
 }
 
 /** One turn of a chat's outline (CHAT-25), loaded or not (CHAT-06). */

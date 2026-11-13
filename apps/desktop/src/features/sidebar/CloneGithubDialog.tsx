@@ -11,7 +11,8 @@
  * Must handle: GitHub not signed in (the pickers explain it and the URL field still works); an empty
  * URL or location (Clone stays disabled); the folder dialog cancelled (nothing changes) or failing
  * (a message under the fields); a failed clone (its message stays visible and the dialog stays open);
- * a second Clone press while one runs (does nothing); the repository or recent list failing.
+ * a second Clone press while one runs (does nothing, and the button reads "Cloning..." as Conductor's
+ * does); the repository or recent list failing.
  * Test first: choosing a repository fills the URL, Browse fills the location, and Clone calls
  * projects.clone with both.
  */
@@ -153,7 +154,7 @@ export function CloneGithubDialog({ open, onOpenChange, onCloned }: CloneGithubD
 	};
 
 	const browse = async () => {
-		const picked = await actions.app.pickFolder("Choose a folder to clone into");
+		const picked = await actions.app.pickFolder("Choose where to clone the repository");
 		if (!picked.ok) {
 			setError(picked.error.message);
 			return;
@@ -189,7 +190,8 @@ export function CloneGithubDialog({ open, onOpenChange, onCloned }: CloneGithubD
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
 				title="Clone GitHub repo"
-				description="Clone a repository from GitHub and add it as a project."
+				description="Choose a recent repo or paste a clone URL."
+				hideDescription
 				size="xl"
 				onConfirm={() => {
 					if (canClone) void submit();
@@ -310,10 +312,10 @@ export function CloneGithubDialog({ open, onOpenChange, onCloned }: CloneGithubD
 					{cloneProgress !== null && cloneProgress !== undefined ? (
 						<div className="rounded-md border border-border bg-surface px-3 py-2 text-xs text-fg-muted">
 							{cloneProgress.state === "cloning" ? (
-								<span className="flex items-center gap-2">
-									<Spinner size="sm" label="Cloning" />
-									Cloning {cloneProgress.url}…
-								</span>
+								<div className="flex items-center gap-2">
+									<Spinner size="sm" label="Cloning..." />
+									<p>Cloning...</p>
+								</div>
 							) : null}
 							{cloneProgress.state === "failed" ? (
 								<p role="alert" className="text-danger">
@@ -337,8 +339,8 @@ export function CloneGithubDialog({ open, onOpenChange, onCloned }: CloneGithubD
 					<Button variant="ghost" disabled={busy} onClick={() => onOpenChange(false)}>
 						Cancel
 					</Button>
-					<Button loading={busy} disabled={!canClone} onClick={() => void submit()}>
-						Clone repository
+					<Button disabled={!canClone || busy} onClick={() => void submit()}>
+						{busy ? "Cloning..." : "Clone repository"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

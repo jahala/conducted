@@ -227,6 +227,7 @@ function PlanReviewForm({
 							<CopyButton
 								text={request.plan}
 								onCopy={(text) => actions.app.copyText(text)}
+								failureTitle="Failed to copy plan"
 								size="xs"
 								className="px-3"
 							/>

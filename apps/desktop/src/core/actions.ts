@@ -95,6 +95,7 @@ export function createActions(
 			reopen: (id) => services.sessions.reopen(id),
 			loadOlder: (id) => services.sessions.loadOlder(id),
 			revealTurn: (id, turnId) => services.sessions.revealTurn(id, turnId),
+			fillGap: (id, beforeTurnId, side) => services.sessions.fillGap(id, beforeTurnId, side),
 			rename: (id, title) => services.sessions.rename(id, title),
 			send: (id, text, attachmentPaths, delivery) =>
 				services.sessions.send(id, text, attachmentPaths, delivery),
@@ -149,6 +150,8 @@ export function createActions(
 			sparseCheckoutSettings: (workspaceId) => services.git.sparseCheckoutSettings(workspaceId),
 			setSparseCheckoutDirectories: (workspaceId, directories) =>
 				services.git.setSparseCheckoutDirectories(workspaceId, directories),
+			sparseCheckoutSubdirectories: (workspaceId, parent) =>
+				services.git.sparseCheckoutSubdirectories(workspaceId, parent),
 		},
 		pullRequests: {
 			create: (workspaceId, options) => services.github.create(workspaceId, options),

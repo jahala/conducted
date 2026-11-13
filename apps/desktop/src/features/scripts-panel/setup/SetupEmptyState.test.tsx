@@ -28,7 +28,7 @@ describe("WS-03 setup empty state", () => {
 		expect(onAddManually).toHaveBeenCalledTimes(1);
 	});
 
-	it("disables Ask agent without a chat", () => {
+	it("disables Ask agent when the tab says the agent cannot be asked", () => {
 		render(
 			<SetupEmptyState
 				hasScript={false}

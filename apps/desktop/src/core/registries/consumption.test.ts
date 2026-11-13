@@ -54,7 +54,6 @@ const KNOWN_UNUSED_SETTINGS: readonly string[] = [
 	"default_codex_thinking_level",
 	"experimental_auto_permission_mode",
 	"experimental_new_workspace_page",
-	"internal_workspace_status_matrix",
 ];
 
 /** Commands of a done feature that no handler or caller names yet. */

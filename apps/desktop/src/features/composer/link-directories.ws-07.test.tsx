@@ -82,21 +82,19 @@ describe("WS-07 opening the link dialog from the composer", () => {
 
 		fireEvent.click(await screen.findByRole("menuitem", { name: /Link workspaces/ }));
 
-		expect(
-			await screen.findByRole("heading", { name: "Link workspaces and directories" }),
-		).toBeTruthy();
+		expect(await screen.findByPlaceholderText("Search workspaces...")).toBeTruthy();
 	});
 
-	it("lists linked folders after '@' and opens the dialog from Select working directories", async () => {
+	it("lists linked folders after '@' and opens the dialog from its add directory row (renderApp @9301900)", async () => {
 		const { editor } = await setup();
 		act(() => editor()?.commands.insertContent("@"));
 
 		expect(await screen.findByRole("option", { name: /\/code\/shared/ })).toBeTruthy();
-		fireEvent.click(await screen.findByRole("option", { name: /Select working directories/ }));
+		const row = await screen.findByRole("option", { name: /add directory/ });
+		expect(row.textContent).toContain("Link a directory or workspace");
+		fireEvent.click(row);
 
-		expect(
-			await screen.findByRole("heading", { name: "Link workspaces and directories" }),
-		).toBeTruthy();
+		expect(await screen.findByPlaceholderText("Search workspaces...")).toBeTruthy();
 	});
 
 	it("opens it when the user runs /add-dir", async () => {
@@ -104,8 +102,6 @@ describe("WS-07 opening the link dialog from the composer", () => {
 		act(() => editor()?.commands.insertContent("/add-dir"));
 		fireEvent.click(await screen.findByRole("option", { name: /\/add-dir/ }));
 
-		expect(
-			await screen.findByRole("heading", { name: "Link workspaces and directories" }),
-		).toBeTruthy();
+		expect(await screen.findByPlaceholderText("Search workspaces...")).toBeTruthy();
 	});
 });

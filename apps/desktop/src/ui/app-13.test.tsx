@@ -114,8 +114,9 @@ describe("APP-13 CopyButton", () => {
 		);
 
 		fireEvent.click(screen.getByRole("button", { name: "Copy" }));
-		expect(await screen.findByText("Couldn't copy")).toBeTruthy();
-		expect(screen.getByText("denied")).toBeTruthy();
+		// Conductor's copy button says "Failed to copy" and "Please try again." (renderApp @1717306).
+		expect(await screen.findByText("Failed to copy")).toBeTruthy();
+		expect(screen.getByText("Please try again.")).toBeTruthy();
 		expect(screen.queryByRole("button", { name: "Copied" })).toBeNull();
 	});
 
@@ -129,9 +130,22 @@ describe("APP-13 CopyButton", () => {
 		);
 
 		fireEvent.click(screen.getByRole("button", { name: "Copy" }));
-		expect(await screen.findByText("Couldn't copy")).toBeTruthy();
-		expect(screen.getByText("No clipboard access")).toBeTruthy();
+		expect(await screen.findByText("Failed to copy")).toBeTruthy();
+		expect(screen.getByText("Please try again.")).toBeTruthy();
 		expect(screen.queryByRole("button", { name: "Copied" })).toBeNull();
+	});
+
+	it("names what failed to copy when the caller gives its words, as the plan bar does (renderApp @9312315)", async () => {
+		const onCopy = vi.fn(async () => err(appError("clipboard_denied", "No clipboard access")));
+		render(
+			<>
+				<Toaster />
+				<CopyButton text="the plan" onCopy={onCopy} failureTitle="Failed to copy plan" />
+			</>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+		expect(await screen.findByText("Failed to copy plan")).toBeTruthy();
 	});
 });
 

@@ -161,7 +161,7 @@
 	},
 	"table:migration_rollbacks": {
 		"status": "decided",
-		"decision": "D150",
+		"decision": "D151",
 		"note": "Each Conductor migration registers its undo SQL here, for a repository script that moves a database down (native-and-sidecar-map A11). Ours has no down-migrations: a database newer than the app asks the user to update (db.rs, PLAT-17).",
 		"by": "hand"
 	}

@@ -1,7 +1,11 @@
 /**
- * @feature NAV-10 Empty tab group
- * Owns: What the centre shows when no tab is open: three buttons to start one.
+ * @feature NAV-10 Empty tab group; CHAT-01 A cloud workspace with no open chat
+ * Owns: What the centre shows when no tab is open: three buttons to start one, or, in a cloud
+ * workspace, Conductor's "No open chats" with New chat.
  * Behaviour: ui-map.md 3.2 ('Empty group: three buttons New chat, Browser, Local terminal').
+ * A workspace that is not on this Mac shows "Loading chats" while its chats load, then "No open
+ * chats" with an outline "New chat" when chats can be started (not archived), as Conductor's
+ * xki does (renderApp @2093263, @2093709).
  * Our design choice: 'New chat' is the one primary button; all three actions come from useNewTab,
  * so the big-terminal preset behaves as it does in the '+' menu. The browser waits for a port.
  * Must handle: Creating fails (toast, buttons return); the workspace is archived (the gate shows
@@ -11,7 +15,9 @@
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { useState } from "react";
+import { useSessions, useWorkspace } from "../../core/hooks.ts";
 import { Button } from "../../ui/Button.tsx";
+import { EmptyState } from "../../ui/EmptyState.tsx";
 import { GlobeIcon, TerminalIcon } from "../../ui/icons.tsx";
 import { useNewTab } from "./useNewTab.tsx";
 import type { WorkspaceSearch } from "./workspace-search.ts";
@@ -23,6 +29,8 @@ export interface EmptyTabGroupProps {
 
 export function EmptyTabGroup({ workspaceId, onSearchChange }: EmptyTabGroupProps) {
 	const newTab = useNewTab({ workspaceId, onSearchChange });
+	const workspace = useWorkspace(workspaceId);
+	const chats = useSessions(workspaceId);
 	const [busy, setBusy] = useState<"chat" | "terminal" | null>(null);
 
 	const newChat = async () => {
@@ -46,6 +54,27 @@ export function EmptyTabGroup({ workspaceId, onSearchChange }: EmptyTabGroupProp
 	const openBrowser = () => {
 		newTab.openBrowser();
 	};
+
+	if (workspace.state === "ready" && workspace.data.host.kind !== "local") {
+		if (chats.state === "loading") return <EmptyState title="Loading chats" />;
+		return (
+			<EmptyState
+				title="No open chats"
+				action={
+					workspace.data.state === "archived" ? undefined : (
+						<Button
+							variant="outline"
+							size="sm"
+							loading={busy === "chat"}
+							onClick={() => void newChat()}
+						>
+							New chat
+						</Button>
+					)
+				}
+			/>
+		);
+	}
 
 	return (
 		<div className="flex h-full w-full flex-col items-center justify-center gap-4 p-10 text-center">

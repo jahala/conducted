@@ -165,6 +165,33 @@ describe("WS-02 create from lists", () => {
 		expect(create.mock.calls[0]?.[0].from).toEqual({ kind: "pull_request", number: 42 });
 	});
 
+	it("clears a chosen source with Conductor's X, and creates from the default branch again", async () => {
+		const { container, create } = await renderPage();
+		vi.spyOn(container.services.github, "listPullRequests").mockResolvedValue(
+			ok([
+				{
+					number: 42,
+					title: "Add the login form",
+					branch: "feature/login",
+					authorLogin: "ada",
+					authorAvatarUrl: null,
+					state: "open",
+					updatedAt: 1000,
+				},
+			]),
+		);
+		expect(screen.queryByRole("button", { name: "Clear create from selection" })).toBeNull();
+		await chooseSource("Pull request");
+		fireEvent.click(await screen.findByRole("option", { name: /#42 Add the login form/ }));
+
+		fireEvent.click(screen.getByRole("button", { name: "Clear create from selection" }));
+
+		expect(screen.queryByRole("button", { name: "Clear create from selection" })).toBeNull();
+		fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));
+		await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+		expect(create.mock.calls[0]?.[0].from).toEqual({ kind: "default" });
+	});
+
 	it("picks a GitHub issue and creates from its provider and id", async () => {
 		const { container, create } = await renderPage();
 		vi.spyOn(container.services.github, "listIssues").mockResolvedValue(

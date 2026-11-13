@@ -922,12 +922,12 @@
 		"owner": "hand"
 	},
 	"label:M1420230": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "CHAT-20",
-		"item": "Task cards: 'Task created', 'Task details' with Status, Subject, Blocked by, Blocks, 'No tasks'",
-		"owner": "hand"
+		"status": "matched",
+		"state": "chat-tool-cards-tasks",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(9) > button > span:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:M2477618": {
 		"status": "decided",
@@ -1449,10 +1449,10 @@
 	},
 	"label:R2271428": {
 		"status": "matched",
-		"state": "chat-working",
+		"state": "chat-plan-copy-failed",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(4) > button > span:nth-of-type(2) > span:nth-of-type(2) > span:nth-of-type(2)",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div:nth-of-type(2) > div > div:nth-of-type(2) > div > button > span:nth-of-type(2) > span:nth-of-type(2) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R2271674": {
@@ -1481,10 +1481,10 @@
 	},
 	"label:R2959583": {
 		"status": "matched",
-		"state": "settings-general",
-		"via": "text",
-		"role": "span",
-		"selector": "[data-testid=\"settings-screen\"] > aside > nav > div:nth-of-type(1) > button:nth-of-type(2) > span",
+		"state": "chat-context-usage-api-key",
+		"via": "aria-label",
+		"role": "ul",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > ul",
 		"by": "seed"
 	},
 	"label:R2959626": {
@@ -1654,7 +1654,7 @@
 	},
 	"label:R3978238": {
 		"status": "matched",
-		"state": "pr-merged",
+		"state": "sidebar-status-matrix",
 		"via": "text",
 		"role": "button",
 		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > div > button:nth-of-type(2)",
@@ -1794,10 +1794,10 @@
 	},
 	"label:R5599685": {
 		"status": "matched",
-		"state": "settings-agents-anthropic",
+		"state": "chat-context-usage-api-key",
 		"via": "text",
-		"role": "label",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(1) > label",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > ul > li:nth-of-type(1) > span:nth-of-type(1)",
 		"by": "seed"
 	},
 	"label:R5599753": {
@@ -2023,14 +2023,12 @@
 		"by": "seed"
 	},
 	"label:R8853002": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Composer",
-		"note": "Checked by hand: not a match. Ours shows the sample value \"auth\" in file-viewer, which is data, not this wording.",
-		"by": "hand",
-		"backlog": "CHAT-28",
-		"item": "Usage popover lists account rows: login method, organization, email, plan, and Codex limits",
-		"owner": "rule:cite"
+		"status": "matched",
+		"state": "chat-context-usage-api-key",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > ul > li:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "hand"
 	},
 	"label:R8853060": {
 		"status": "matched",
@@ -2237,12 +2235,12 @@
 		"owner": "rule:quote"
 	},
 	"label:R9301900": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "COMP-04",
-		"item": "'@' mentions files and directories with fuzzy search",
-		"owner": "hand"
+		"status": "matched",
+		"state": "composer-file-mention",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(2) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"label:R9328374": {
 		"status": "matched",
@@ -2318,26 +2316,26 @@
 	},
 	"label:R9380499": {
 		"status": "matched",
-		"state": "chat-context-unknown",
+		"state": "chat-copy-empty",
 		"via": "text",
 		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(3) > button:nth-of-type(1)",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > div:nth-of-type(3) > button:nth-of-type(1)",
 		"by": "seed"
 	},
 	"label:R9380678": {
 		"status": "matched",
-		"state": "chat-context-unknown",
+		"state": "chat-copy-empty",
 		"via": "text",
 		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(3) > button:nth-of-type(2)",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > div:nth-of-type(3) > button:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R9380779": {
 		"status": "matched",
-		"state": "chat-context-unknown",
+		"state": "chat-copy-empty",
 		"via": "text",
 		"role": "button",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(3) > button:nth-of-type(3)",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > div:nth-of-type(3) > button:nth-of-type(3)",
 		"by": "seed"
 	},
 	"label:R9406451": {
@@ -2345,7 +2343,7 @@
 		"state": "composer-empty-shelves",
 		"via": "text",
 		"role": "p",
-		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(1) > div > div > p",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div > div:nth-of-type(1) > div > div > p",
 		"by": "seed"
 	},
 	"label:R9406669": {
@@ -2361,7 +2359,7 @@
 		"state": "chat-retrying",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(5) > div > div:nth-of-type(2) > button:nth-of-type(1) > span",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div:nth-of-type(2) > div > div:nth-of-type(5) > div > div:nth-of-type(2) > button:nth-of-type(1) > span",
 		"by": "seed"
 	},
 	"label:R9627220": {
@@ -2555,7 +2553,7 @@
 	},
 	"label:R10091068": {
 		"status": "matched",
-		"state": "create-github-repo",
+		"state": "new-workspace-section-gone",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > button:nth-of-type(1) > span",
@@ -2563,7 +2561,7 @@
 	},
 	"label:R10091233": {
 		"status": "matched",
-		"state": "create-github-repo",
+		"state": "new-workspace-section-gone",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > button:nth-of-type(2) > span",
@@ -2571,7 +2569,7 @@
 	},
 	"label:R10091398": {
 		"status": "matched",
-		"state": "create-github-repo",
+		"state": "new-workspace-section-gone",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > button:nth-of-type(3) > span",
@@ -2798,7 +2796,7 @@
 		"state": "new-workspace",
 		"via": "text",
 		"role": "heading",
-		"selector": "div:nth-of-type(3) > div > span > h2",
+		"selector": "div:nth-of-type(3) > div > span:nth-of-type(1) > h2",
 		"by": "seed"
 	},
 	"label:R10569570": {
@@ -2828,7 +2826,7 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "tab",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(2)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > button:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R10676842": {
@@ -2836,7 +2834,7 @@
 		"state": "settings-agents",
 		"via": "text",
 		"role": "tab",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(4)",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(1) > button:nth-of-type(4)",
 		"by": "seed"
 	},
 	"label:R10676910": {
@@ -2993,10 +2991,10 @@
 	},
 	"label:R10929460": {
 		"status": "matched",
-		"state": "settings-agents",
+		"state": "chat-context-usage-api-key",
 		"via": "text",
-		"role": "button",
-		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div > div:nth-of-type(2) > section > div:nth-of-type(1) > div > button:nth-of-type(2)",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div > div:nth-of-type(3) > ul > li:nth-of-type(2) > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"label:R10929522": {
@@ -3476,7 +3474,7 @@
 		"state": "chat-tool-cards-tasks",
 		"via": "text",
 		"role": "button",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(8) > div > div > div > button",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(11) > div > div > div > button",
 		"by": "seed"
 	}
 }

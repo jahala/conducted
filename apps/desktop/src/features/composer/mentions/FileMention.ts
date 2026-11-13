@@ -1,14 +1,14 @@
 /**
  * @feature COMP-04 @ file mentions
  * Owns: The '@' trigger: fuzzy search of files and directories in the workspace, the extra rows the
- * composer supplies (today "Attach current terminal output"), and the chip the trigger inserts.
+ * composer supplies (today "terminal" and "add directory"), and the chip the trigger inserts.
  * Behaviour: ui-map.md 3.5 ('@' mentions: files and directories with fuzzy search,
  * 'Attach current terminal output'), sessions-and-chats.md (the sidecar expands file mentions).
  * Data: `search` is passed in and reads the workspace file list; `actions` are the extra rows the
  * composer supplies; `onOpen` lets the caller refresh that list each time the trigger opens. The
  * chip stores the path it was given.
  * Not built here: '@' plans (no plan list exists yet, CHAT-26). Linked directories and the
- * 'Select working directories' row are supplied as extra rows by the composer (WS-07).
+ * 'add directory' row are supplied as extra rows by the composer (WS-07).
  * Our design choice: the trigger is one ProseMirror plugin rather than TipTap's suggestion helper,
  * because the editor already carries no extra TipTap packages. The plugin holds the query, the
  * ranked rows and the selected row, and draws them with SuggestionPopup.
@@ -43,7 +43,7 @@ export interface FileMentionAction {
 
 export interface FileMentionDeps {
 	search: (query: string) => FileMentionItem[];
-	/** Extra rows beside the files, such as "Attach current terminal output". */
+	/** Extra rows beside the files, such as "terminal" ("Attach current terminal output"). */
 	actions?: readonly FileMentionAction[];
 	/** Called each time the '@' trigger opens, so the caller can refresh the file list. */
 	onOpen?: () => void;

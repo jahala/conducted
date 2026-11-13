@@ -59,11 +59,13 @@ import type {
 	ConfigSyncCategory,
 	ConfigSyncChange,
 	ConfigSyncResult,
+	CopyPreview,
 	DiagnosticsCapture,
 	DiffComment,
 	EnvScope,
 	EnvVarView,
 	FileContent,
+	GapSide,
 	GitHubAccess,
 	GitHubOwner,
 	GitHubRepoSummary,
@@ -491,7 +493,7 @@ export interface Actions {
 		 */
 		updateConfig: Act<[repoId: RepoId, patch: RepoConfigPatch, options?: { overwrite?: boolean }]>;
 		/** The gitignored files a new workspace would copy, for the Misc page's preview (SET-07). */
-		copyPreview: Act<[repoId: RepoId], string[]>;
+		copyPreview: Act<[repoId: RepoId], CopyPreview>;
 		setIcon: Act<[repoId: RepoId, icon: RepoIconChoice]>;
 		/** Drops this Mac's change to a shared run action, so the shared version applies again. */
 		resetRunAction: Act<[repoId: RepoId, actionId: string, options?: { overwrite?: boolean }]>;
@@ -565,8 +567,13 @@ export interface Actions {
 		reopen: Act<[id: SessionId]>;
 		/** Loads the turn just before the chat's first loaded one, when the list's top is near (CHAT-06). */
 		loadOlder: Act<[id: SessionId]>;
-		/** Loads every turn back to this one, so the outline can scroll to it (CHAT-06, CHAT-25). */
+		/** Loads this turn alone, so the outline can scroll to it (CHAT-06, CHAT-25, #652). */
 		revealTurn: Act<[id: SessionId, turnId: TurnId]>;
+		/**
+		 * Loads one turn of the gap before `beforeTurnId`: the one after the earlier run, or the one
+		 * before the later run (CHAT-06, #652).
+		 */
+		fillGap: Act<[id: SessionId, beforeTurnId: TurnId, side: GapSide]>;
 		rename: Act<[id: SessionId, title: string]>;
 		/** Sends now, queues, or steers, depending on state and the follow-up setting. */
 		send: Act<
@@ -578,7 +585,7 @@ export interface Actions {
 		revertTo: Act<[id: SessionId, turnId: TurnId]>;
 		forkFrom: Act<[id: SessionId, turnId: TurnId], Session>;
 		saveDraft: (id: SessionId, draft: Draft) => void;
-		copyTranscript: Act<[id: SessionId, detail: "concise" | "full"]>;
+		copyTranscript: Act<[id: SessionId, detail: "concise" | "full"], "copied" | "empty">;
 		/**
 		 * Sends an approved plan to a chat that carries it out ("Hand off"): the chosen one, or a new
 		 * chat when `target` is null. Returns that chat.
@@ -638,6 +645,8 @@ export interface Actions {
 		sparseCheckoutSettings: Act<[workspaceId: WorkspaceId], SparseCheckoutSettings>;
 		/** Includes only these directories in the worktree. An empty list turns sparse checkout off. */
 		setSparseCheckoutDirectories: Act<[workspaceId: WorkspaceId, directories: string[]]>;
+		/** The folders directly inside a folder at HEAD, for a nested path typed in the picker. */
+		sparseCheckoutSubdirectories: Act<[workspaceId: WorkspaceId, parent: string], string[]>;
 	};
 	pullRequests: {
 		/** Asks the agent to open the PR, with written instructions; `draft` asks for a draft PR. */

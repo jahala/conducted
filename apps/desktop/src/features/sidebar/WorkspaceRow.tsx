@@ -44,6 +44,7 @@ import {
 	useLiveShortcut,
 	usePortForwards,
 	useSessions,
+	useSetting,
 	useWorkspaceStatus,
 } from "../../core/hooks.ts";
 import type { Repo, Workspace } from "../../core/model.ts";
@@ -143,6 +144,10 @@ export function WorkspaceRow({
 	const unread =
 		sessions.state === "ready" && sessions.data.some((session) => session.unreadCount > 0);
 	const statusWords = statusText(status).text;
+	// WS-09: the Experimental matrix mark, for workspaces on this Mac only.
+	const matrix =
+		useSetting<boolean>("internal_workspace_status_matrix") === true &&
+		workspace.host.kind === "local";
 	const liveShortcut = useLiveShortcut(
 		shortcutIndex === null ? "workspace.switch1" : `workspace.switch${shortcutIndex}`,
 	);
@@ -219,7 +224,7 @@ export function WorkspaceRow({
 							: { role: "img", "aria-label": statusWords, title: statusWords })}
 						className="flex size-4 shrink-0 items-center justify-center overflow-hidden"
 					>
-						<WorkspaceStatusIcon status={status} decorative />
+						<WorkspaceStatusIcon status={status} decorative matrix={matrix} hasUnread={unread} />
 					</span>
 				</span>
 				<span className="flex min-w-0 flex-1 flex-col">

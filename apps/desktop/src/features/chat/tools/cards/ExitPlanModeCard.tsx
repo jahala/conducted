@@ -39,7 +39,7 @@ export function ExitPlanModeCard({ call, defaultExpanded }: ToolCardProps) {
 	const feedback = result?.isError === true ? result.output.trim() : "";
 
 	function copy(): void {
-		void reportFailure(actions.app.copyText(plan), "Couldn't copy the plan");
+		void reportFailure(actions.app.copyText(plan), "Failed to copy plan");
 	}
 
 	return (

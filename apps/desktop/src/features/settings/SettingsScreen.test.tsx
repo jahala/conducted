@@ -204,11 +204,11 @@ describe("SET-02 SettingsScreen", () => {
 		);
 	});
 
-	it("says the projects are loading while the project list is read", async () => {
+	it("says Loading... under Repositories while the project list is read, as Conductor does", async () => {
 		await mount(<SettingsScreen page="general" />);
 		await screen.findByRole("heading", { name: "General" });
 
-		expect(screen.getByText("Loading projects…")).toBeTruthy();
+		expect(screen.getByText("Loading...")).toBeTruthy();
 		expect(screen.queryByText(/No projects yet/)).toBeNull();
 	});
 

@@ -40,6 +40,7 @@ import { TaskGetCard } from "./cards/TaskGetCard.tsx";
 import { TaskListCard } from "./cards/TaskListCard.tsx";
 import { TaskStopCard } from "./cards/TaskStopCard.tsx";
 import { TaskUpdateCard } from "./cards/TaskUpdateCard.tsx";
+import { TeammateCard } from "./cards/TeammateCard.tsx";
 import { TodoCard } from "./cards/TodoCard.tsx";
 import { ToolSearchCard } from "./cards/ToolSearchCard.tsx";
 import { WebFetchCard } from "./cards/WebFetchCard.tsx";
@@ -81,6 +82,7 @@ export const TOOL_CARDS: Record<CanonicalTool, ToolCardComponent> = {
 	tool_search: ToolSearchCard,
 	schedule_wakeup: ScheduleWakeupCard,
 	send_message: SendMessageCard,
+	teammate: TeammateCard,
 	app_tool: AppToolCard,
 	mcp: McpCard,
 	unknown: GenericToolCard,
