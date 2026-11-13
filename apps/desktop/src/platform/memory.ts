@@ -236,11 +236,12 @@ export interface MemoryPlatformControls {
 	readonly clipboardText: string | null;
 	/** Puts files on the clipboard, as if copied in Finder. */
 	setClipboardFilePaths(paths: readonly string[]): void;
-	/** Answers for dialogs, consumed in order. */
+	/** Answers for dialogs, consumed in order. `savePath` is where the save dialog saves. */
 	queueDialogAnswers(answers: {
 		folder?: string | null;
 		files?: string[];
 		confirm?: boolean;
+		savePath?: string | null;
 	}): void;
 	/** Secrets by key. */
 	readonly secrets: Map<string, string>;
@@ -532,7 +533,12 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const shellScripts: ShellScript[] = [];
 	const sidecarSent: string[] = [];
 	const notificationsShown: { title: string; body: string; deepLink?: string }[] = [];
-	const dialogAnswers: { folder?: string | null; files?: string[]; confirm?: boolean }[] = [];
+	const dialogAnswers: {
+		folder?: string | null;
+		files?: string[];
+		confirm?: boolean;
+		savePath?: string | null;
+	}[] = [];
 	const programStatuses = new Map<ManagedProgram, ProgramStatus>();
 	const ptyHistory = new Map<string, Uint8Array>();
 	const ptyExitCodes: (number | null)[] = [];
@@ -1329,8 +1335,10 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 
 	/** Takes the oldest queued answer that has the field, so a call never eats another kind's answer. */
 	const takeAnswer = (
-		field: "folder" | "files" | "confirm",
-	): { folder?: string | null; files?: string[]; confirm?: boolean } | undefined => {
+		field: "folder" | "files" | "confirm" | "savePath",
+	):
+		| { folder?: string | null; files?: string[]; confirm?: boolean; savePath?: string | null }
+		| undefined => {
 		const index = dialogAnswers.findIndex((answer) => field in answer);
 		return index < 0 ? undefined : dialogAnswers.splice(index, 1)[0];
 	};
@@ -1338,7 +1346,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const dialogs: Dialogs = {
 		pickFolder: async () => takeAnswer("folder")?.folder ?? null,
 		pickFiles: async () => takeAnswer("files")?.files ?? [],
-		pickSavePath: async () => null,
+		pickSavePath: async () => takeAnswer("savePath")?.savePath ?? null,
 		confirm: async () => takeAnswer("confirm")?.confirm ?? false,
 	};
 

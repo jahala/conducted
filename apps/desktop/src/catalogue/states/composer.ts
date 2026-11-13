@@ -76,8 +76,15 @@ async function submitSlash(document: Document, text: string): Promise<void> {
 	);
 }
 
-/** arbor's chat with a finished turn whose usage the context wheel can show. */
-async function contextUsageChat(world: World, holdDetails = false): Promise<Scene> {
+/**
+ * arbor's chat with a finished turn whose usage the context wheel can show. With `withAccount`, the
+ * agent reports a five-hour window and the account it is signed in with.
+ */
+async function contextUsageChat(
+	world: World,
+	holdDetails = false,
+	withAccount = false,
+): Promise<Scene> {
 	const cast = await seedCast(world);
 	await setSetting(world, "always_show_context_wheel", true);
 	must(await world.repositories.modelContextWindows.record("claude", "claude-opus-4-7", 200_000));
@@ -95,13 +102,31 @@ async function contextUsageChat(world: World, holdDetails = false): Promise<Scen
 	talk.end(turn);
 	await addEvents(world, chat.id, talk.events);
 	if (holdDetails) world.holdSidecar("getContextUsage");
+	if (withAccount) {
+		world.answerSidecar({
+			getContextUsage: () => ({
+				usedTokens: 150_000,
+				windowTokens: 200_000,
+				rateLimits: [
+					{ label: "5h", windowMinutes: 300, usedPercent: 38, resetsAt: CATALOGUE_NOW + 2 * HOUR },
+				],
+				account: {
+					provider: "Anthropic API",
+					plan: "Max",
+					loginMethod: "Claude account",
+					email: "sam@example.com",
+				},
+			}),
+		});
+	}
 	return {
 		route: chatRoute(cast.arbor, chat),
 		after: async ({ app, document }) => {
 			await refreshGit(app, cast.arbor);
 			await hover(document, "button", "Context usage");
 		},
-		ready: (document) => shows(document, holdDetails ? "Loading details…" : "Window used"),
+		ready: (document) =>
+			shows(document, holdDetails ? "Loading details…" : withAccount ? "Plan" : "Window used"),
 	};
 }
 
@@ -204,6 +229,12 @@ export const COMPOSER_STATES: CatalogueState[] = [
 		group: "Composer",
 		title: "The context usage card open: window used, token breakdown, model and service tier",
 		seed: (world) => contextUsageChat(world),
+	},
+	{
+		id: "chat-context-account",
+		group: "Composer",
+		title: "The context usage card with a plan limit and the signed-in account's rows",
+		seed: (world) => contextUsageChat(world, false, true),
 	},
 	{
 		id: "chat-context-loading",

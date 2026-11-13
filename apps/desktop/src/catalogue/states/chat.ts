@@ -21,7 +21,7 @@ import { setLiveState } from "../live.ts";
 import { addChat, addEvents, addRepo, must } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, MINUTE } from "../time.ts";
-import type { World } from "../world.ts";
+import { HOME, type World } from "../world.ts";
 
 /** The cast, with one of its chats open. */
 const castChat =
@@ -242,6 +242,64 @@ export const CHAT_STATES: CatalogueState[] = [
 			return attachmentChat(world, {
 				step: (document) => click(document, "button", "Copy image"),
 				text: "Copied image to clipboard",
+			});
+		},
+	},
+	{
+		id: "chat-attachment-copy-failed",
+		group: "Workspace chat",
+		title: "A chat image whose copy from the attachment viewer fails",
+		seed: (world) => {
+			// The copy script cannot read the file, so it prints nothing and fails.
+			world.scriptShell((command) =>
+				command.program === "sh" && command.args.includes("conducted-copy-image")
+					? { ok: true, value: { stdout: "", stderr: "", exitCode: 1 } }
+					: null,
+			);
+			return attachmentChat(world, {
+				step: (document) => click(document, "button", "Copy image"),
+				text: "Failed to copy to clipboard",
+			});
+		},
+	},
+	{
+		id: "chat-attachment-saved",
+		group: "Workspace chat",
+		title: "A chat image saved from the attachment viewer to Downloads",
+		seed: (world) => {
+			world.memory.controls.queueDialogAnswers({ savePath: `${HOME}/Downloads/redirect.png` });
+			world.scriptShell((command) =>
+				command.program === "cp"
+					? { ok: true, value: { stdout: "", stderr: "", exitCode: 0 } }
+					: null,
+			);
+			return attachmentChat(world, {
+				step: (document) => click(document, "button", "Download file"),
+				text: "Image saved",
+			});
+		},
+	},
+	{
+		id: "chat-attachment-save-failed",
+		group: "Workspace chat",
+		title: "A chat image whose save from the attachment viewer is refused",
+		seed: (world) => {
+			world.memory.controls.queueDialogAnswers({ savePath: "/Library/redirect.png" });
+			world.scriptShell((command) =>
+				command.program === "cp"
+					? {
+							ok: true,
+							value: {
+								stdout: "",
+								stderr: "cp: /Library/redirect.png: Permission denied\n",
+								exitCode: 1,
+							},
+						}
+					: null,
+			);
+			return attachmentChat(world, {
+				step: (document) => click(document, "button", "Download file"),
+				text: "Failed to save image",
 			});
 		},
 	},
