@@ -1973,7 +1973,8 @@ export const SETTINGS_STATES: CatalogueState[] = [
 			mcpScene(
 				world,
 				MCP_SERVERS,
-				(document) => typeInto(document, "input", "Search installed MCPs", "jira"),
+				async (document) =>
+					fillIn(await findField(document, 'input[placeholder="Search installed MCPs"]'), "jira"),
 				(document) => shows(document, "No installed MCPs match your search"),
 			),
 	},
