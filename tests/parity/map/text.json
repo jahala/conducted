@@ -875,7 +875,7 @@
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "inventory-ui-text Cloud (research only, no planned row yet)",
-		"backlog": "WS-01",
+		"backlog": "WS-03",
 		"owner": "rule:neighbour"
 	},
 	"text:R2984256": {
@@ -2485,7 +2485,10 @@
 	"text:R9534245": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-controls Chat view"
+		"screen": "inventory-controls Chat view",
+		"backlog": "CHAT-06",
+		"item": "Conductor shows \"This content could not be displayed.\" (region, inventory-controls Chat view); ours has no counterpart yet (parity gap).",
+		"owner": "rule:cite"
 	},
 	"text:R9539350": {
 		"status": "matched",
@@ -2628,17 +2631,13 @@
 		"reason": "missing",
 		"screen": "Unplaced",
 		"note": "Checked by hand: the wording differs. Ours reads \"Input:\" (text) in chat-working.",
-		"by": "hand",
-		"backlog": "CHAT-16",
-		"owner": "rule:neighbour"
+		"by": "hand"
 	},
 	"text:R9587041": {
 		"status": "gap",
 		"reason": "unshown",
 		"screen": "Unplaced",
 		"note": "Not drawn yet: the seed matched it to the Node REPL card's \"Output:\", which is another control.",
-		"backlog": "CHAT-16",
-		"owner": "rule:neighbour",
 		"by": "hand"
 	},
 	"text:R9587290": {
@@ -5097,9 +5096,7 @@
 	"text:R11264124": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours",
-		"backlog": "RUN-02",
-		"owner": "rule:neighbour"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"text:R11274850": {
 		"status": "gap",

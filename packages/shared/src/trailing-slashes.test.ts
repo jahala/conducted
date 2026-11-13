@@ -6,7 +6,7 @@
  * Test first: reads each character once, however many slashes the text holds.
  */
 import { describe, expect, test } from "bun:test";
-import { trailingSlashCount, trimTrailingSlashes } from "./trailing-slashes.ts";
+import { trailingSlashCount, trimLeadingSlashes, trimTrailingSlashes } from "./trailing-slashes.ts";
 
 describe("CLOUD-17 trimming trailing slashes", () => {
 	test("gives the same answers as the old pattern", () => {
@@ -33,5 +33,11 @@ describe("CLOUD-17 trimming trailing slashes", () => {
 		expect(reads(slashes)).toBe(100_000);
 		expect(trimTrailingSlashes(slashes)).toBe("");
 		expect(reads(`x${slashes}`)).toBe(100_001);
+	});
+
+	test("trims leading slashes with the same answers as the old pattern", () => {
+		for (const text of ["", "/", "///", "mcp", "/mcp", "///mcp/", "a//b", "//a//"]) {
+			expect(trimLeadingSlashes(text)).toBe(text.replace(/^\/+/, ""));
+		}
 	});
 });

@@ -89,13 +89,17 @@ async function openedChat(
 	return { test: created, id: chat.id, workspaceId: workspace.id };
 }
 
+/** The list's viewport, in pixels, under jsdom, which has no layout. */
+const VIEWPORT_PX = 800;
+
 function renderList(
 	opened: { test: TestContainer; id: SessionId; workspaceId: WorkspaceId },
 	listRef?: React.RefObject<VirtuosoHandle | null>,
+	turnHeight = 200,
 ) {
 	return render(
 		<ServicesProvider container={opened.test.container}>
-			<VirtuosoMockContext.Provider value={{ viewportHeight: 800, itemHeight: 200 }}>
+			<VirtuosoMockContext.Provider value={{ viewportHeight: VIEWPORT_PX, itemHeight: turnHeight }}>
 				<MessageList sessionId={opened.id} workspaceId={opened.workspaceId} listRef={listRef} />
 			</VirtuosoMockContext.Provider>
 		</ServicesProvider>,
@@ -183,7 +187,16 @@ describe("CHAT-06 the message list loads older turns at its top (#617)", () => {
 							};
 			},
 		};
-		renderList(opened, listRef);
+		// The list must be far from its top, or the ordinary paging loads the older turns itself
+		// (#674). Five turns of 400 px end 1,200 px below the top of an 800 px viewport, past the
+		// 800 px that count as near. jsdom never moves the scroller, so the list is put at its bottom
+		// by a scroll event before anything awaits: Virtuoso reads its first position a few frames
+		// after mounting, and at 0 the paging would start.
+		const turnHeight = 400;
+		renderList(opened, listRef, turnHeight);
+		fireEvent.scroll(screen.getByTestId("virtuoso-scroller"), {
+			target: { scrollTop: 5 * turnHeight - VIEWPORT_PX },
+		});
 
 		fireEvent.click(await screen.findByRole("button", { name: "Table of contents" }));
 		fireEvent.click(await screen.findByRole("button", { name: "Stored turn 1" }));

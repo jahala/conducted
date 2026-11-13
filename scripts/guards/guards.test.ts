@@ -329,6 +329,29 @@ describe("markers", () => {
 		expect(messages.some((m) => m.startsWith("apps/desktop/src/features/c.tsx"))).toBe(false);
 		expect(messages.some((m) => m.startsWith("apps/desktop/src/features/d.ts:2"))).toBe(true);
 	});
+
+	test("flags a trailing-slash pattern in code, but not in a comment or a test (#680)", () => {
+		put(
+			"apps/desktop/src/core/a.ts",
+			'/** a */\nexport const a = (p: string) => p.replace(/\\/+$/, "");\n',
+		);
+		put(
+			"apps/desktop/src/core/b.ts",
+			'/** b */\nexport const b = (p: string) => p.replace(/^\\/+|\\/+$/g, "");\n',
+		);
+		put(
+			"packages/c/src/c.ts",
+			'/** Replaces `text.replace(/\\/+$/, "")`. */\nexport const c = 1;\n',
+		);
+		put("packages/c/src/c.test.ts", 'expect(trim(t)).toBe(t.replace(/\\/+$/, ""));\n');
+		const messages = checkMarkers(root)
+			.map((p) => p.message)
+			.filter((m) => m.includes("trimTrailingSlashes"));
+		expect(messages.map((m) => m.split(" ")[0])).toEqual([
+			"apps/desktop/src/core/a.ts:2",
+			"apps/desktop/src/core/b.ts:2",
+		]);
+	});
 });
 
 describe("our name", () => {

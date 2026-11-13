@@ -56,6 +56,7 @@ import {
 	ok,
 	type RepoId,
 	type Result,
+	trimTrailingSlashes,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
@@ -1938,7 +1939,7 @@ export class SettingsService {
 
 	async #ensureGitExclude(repoRootPath: string): Promise<Result<void>> {
 		const fs = this.#deps.platform.fs;
-		const excludePath = `${repoRootPath.replace(/\/+$/, "")}/.git/info/exclude`;
+		const excludePath = `${trimTrailingSlashes(repoRootPath)}/.git/info/exclude`;
 		const lines = ["/.conducted/*", "!.conducted/settings.toml"];
 		let text = "";
 		const found = await fs.exists(excludePath);
@@ -1948,7 +1949,7 @@ export class SettingsService {
 			if (!read.ok) return read;
 			text = read.value;
 		} else {
-			const made = await fs.mkdirp(`${repoRootPath.replace(/\/+$/, "")}/.git/info`);
+			const made = await fs.mkdirp(`${trimTrailingSlashes(repoRootPath)}/.git/info`);
 			if (!made.ok) return made;
 		}
 		const current = text.split("\n");

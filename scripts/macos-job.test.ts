@@ -1,38 +1,52 @@
 /**
  * CI's macOS job runs on a pull request only when the change can reach it (issue #641). The first
- * part checks the choice on small inputs. The second holds the rules to the repository: every path
- * the Rust crate names outside itself, and every file the macOS tests import, is on MACOS_JOB.
+ * part checks the choice on small inputs. The second walks the macOS tests' imports, as the job's
+ * selection does when it runs (issue #650). The third holds the rules to the repository: every path
+ * the Rust crate names outside itself is on MACOS_JOB.
  */
-import { describe, expect, test } from "bun:test";
-import { readFileSync, realpathSync, statSync } from "node:fs";
+import { afterAll, describe, expect, test } from "bun:test";
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
-import { macosJobReasons } from "./macos-job.ts";
-import { importsOf } from "./run-tests.ts";
+import { macosJobInputs, macosJobReasons, macosTestInputs } from "./macos-job.ts";
 import { MACOS_JOB, type Rule } from "./test-rules.ts";
 
 const ROOT = realpathSync(join(import.meta.dir, ".."));
 const CRATE = join(ROOT, "apps/desktop/src-tauri");
+/** What the macOS tests import in this checkout, as the job's selection computes it. */
+const INPUTS = new Set(macosJobInputs(ROOT));
 
 describe("macosJobReasons", () => {
 	test("a change to scripts or docs only does not ask for the job", () => {
 		// The files #638 changed, the pull request that waited on a macOS runner for nothing.
 		expect(
-			macosJobReasons([
-				"scripts/e2e/harness.ts",
-				"scripts/e2e/harness.test.ts",
-				"docs/engineering.md",
-				"CLAUDE.md",
-			]),
+			macosJobReasons(
+				[
+					"scripts/e2e/harness.ts",
+					"scripts/e2e/harness.test.ts",
+					"docs/engineering.md",
+					"CLAUDE.md",
+				],
+				INPUTS,
+			),
 		).toEqual([]);
-		expect(macosJobReasons([])).toEqual([]);
+		expect(macosJobReasons([], INPUTS)).toEqual([]);
 	});
 
 	test("a change to the Rust crate asks for the job", () => {
-		expect(macosJobReasons(["apps/desktop/src-tauri/src/cloud.rs"])).toEqual([
+		expect(macosJobReasons(["apps/desktop/src-tauri/src/cloud.rs"], INPUTS)).toEqual([
 			"apps/desktop/src-tauri/src/cloud.rs: the Rust crate: its code, tests, fixtures, Cargo.lock and rust-toolchain.toml",
 		]);
-		expect(macosJobReasons(["apps/desktop/src-tauri/rust-toolchain.toml"])).toHaveLength(1);
-		expect(macosJobReasons(["apps/desktop/src-tauri/Cargo.lock"])).toHaveLength(1);
+		expect(macosJobReasons(["apps/desktop/src-tauri/rust-toolchain.toml"], INPUTS)).toHaveLength(1);
+		expect(macosJobReasons(["apps/desktop/src-tauri/Cargo.lock"], INPUTS)).toHaveLength(1);
 	});
 
 	test("a change to ci.yml, a lockfile, a manifest or a runtime version asks for the job", () => {
@@ -44,24 +58,32 @@ describe("macosJobReasons", () => {
 			".node-version",
 			".bun-version",
 		])
-			expect(macosJobReasons([path])).toHaveLength(1);
-		expect(macosJobReasons([".github/workflows/e2e.yml"])).toEqual([]);
+			expect(macosJobReasons([path], INPUTS)).toHaveLength(1);
+		expect(macosJobReasons([".github/workflows/e2e.yml"], INPUTS)).toEqual([]);
 	});
 
 	test("a change the macOS tests import asks for the job", () => {
-		expect(macosJobReasons(["apps/desktop/src/core/services/terminals.ts"])).toHaveLength(1);
-		expect(macosJobReasons(["apps/desktop/src/test/setup.ts"])).toHaveLength(1);
-		expect(macosJobReasons(["packages/shared/src/index.ts"])).toHaveLength(1);
+		expect(macosJobReasons(["apps/desktop/src/core/services/terminals.ts"], INPUTS)).toEqual([
+			"apps/desktop/src/core/services/terminals.ts: the macOS tests import it",
+		]);
+		expect(macosJobReasons(["apps/desktop/src/test/setup.ts"], INPUTS)).toHaveLength(1);
+		expect(macosJobReasons(["packages/shared/src/index.ts"], INPUTS)).toHaveLength(1);
+		// No rule names the file: only the computed imports ask for the job.
+		const imported = "apps/desktop/src/core/services/terminals.ts";
+		expect(macosJobReasons([imported], new Set())).toEqual([]);
 	});
 
 	test("a UI change the job neither reads nor imports does not ask for it", () => {
 		// The `programs` guard checks the UI's programs against ALLOWED_PROGRAMS on Linux, so no Rust
 		// test reads the whole UI source (issue #647).
 		expect(
-			macosJobReasons([
-				"apps/desktop/src/features/chat/CodeBlock.tsx",
-				"apps/desktop/src/core/git/xcode-license.ts",
-			]),
+			macosJobReasons(
+				[
+					"apps/desktop/src/features/chat/CodeBlock.tsx",
+					"apps/desktop/src/core/git/xcode-license.ts",
+				],
+				INPUTS,
+			),
 		).toEqual([]);
 	});
 });
@@ -70,7 +92,7 @@ describe("macosJobReasons", () => {
 function reaches(path: string, rules: readonly Rule[] = MACOS_JOB): boolean {
 	// A folder is reached when a change inside it is.
 	const probe = isFolder(join(ROOT, path)) ? `${path}/any` : path;
-	return macosJobReasons([probe], rules).length > 0;
+	return macosJobReasons([probe], new Set(), rules).length > 0;
 }
 
 function isFolder(path: string): boolean {
@@ -113,30 +135,59 @@ function cratePaths(): string[] {
 	return [...found].filter((path) => !path.startsWith("apps/desktop/src-tauri/")).sort();
 }
 
-/** The setup files Vitest runs before every desktop test, the macOS ones too (vite.config.ts). */
-function desktopSetupFiles(): string[] {
-	const config = readFileSync(join(ROOT, "apps/desktop/vite.config.ts"), "utf8");
-	const list = /setupFiles:\s*\[([^\]]*)\]/.exec(config)?.[1] ?? "";
-	return [...list.matchAll(/"([^"]+)"/g)].map((match) =>
-		relative(ROOT, resolve(ROOT, "apps/desktop", match[1] ?? "")),
-	);
-}
+describe("the macOS tests' imports", () => {
+	const made: string[] = [];
+	afterAll(() => {
+		for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true });
+	});
 
-/** Every repository file the macOS tests import at run time, the tests and setup files included. */
-function macosTestInputs(): string[] {
-	const seen = new Set<string>();
-	const queue = [...trackedFiles("*.macos.test.ts"), ...desktopSetupFiles()].map((file) =>
-		join(ROOT, file),
-	);
-	for (let file = queue.pop(); file !== undefined; file = queue.pop()) {
-		if (seen.has(file)) continue;
-		seen.add(file);
-		const found = importsOf(file, readFileSync(file, "utf8"));
-		if (found === "unreadable") throw new Error(`${relative(ROOT, file)} does not parse`);
-		queue.push(...found);
+	function workspace(files: Record<string, string>): string {
+		const root = realpathSync(mkdtempSync(join(tmpdir(), "macos-job-graph-")));
+		made.push(root);
+		for (const [path, text] of Object.entries(files)) {
+			mkdirSync(dirname(join(root, path)), { recursive: true });
+			writeFileSync(join(root, path), text);
+		}
+		return root;
 	}
-	return [...seen].map((file) => relative(ROOT, file)).sort();
-}
+
+	test("a file a macOS test reaches through another file is an input, and one it does not is not", () => {
+		const root = workspace({
+			"a.macos.test.ts": 'import { b } from "./b.ts";\nb;',
+			"setup.ts": 'import "./polyfill.ts";',
+			"polyfill.ts": "export {};",
+			"b.ts": 'import { c } from "./lib/c.ts";\nexport const b = c;',
+			"lib/c.ts": 'import "node:fs";\nexport const c = 1;',
+			"other.ts": "export const other = 1;",
+		});
+		expect(macosTestInputs(root, ["a.macos.test.ts", "setup.ts"])).toEqual([
+			"a.macos.test.ts",
+			"b.ts",
+			"lib/c.ts",
+			"polyfill.ts",
+			"setup.ts",
+		]);
+	});
+
+	test("an import that does not resolve stops the selection, so the job runs", () => {
+		// A package that is not installed would cut the graph short without a word.
+		const root = workspace({ "a.macos.test.ts": 'import { x } from "not-installed-here";\nx;' });
+		expect(() => macosTestInputs(root, ["a.macos.test.ts"])).toThrow(
+			'a.macos.test.ts imports "not-installed-here", which does not resolve',
+		);
+	});
+
+	test("in this checkout they are the tests, the setup files and what those import", () => {
+		expect(INPUTS.has("apps/desktop/src/core/services/terminals.run-09.zsh.macos.test.ts")).toBe(
+			true,
+		);
+		expect(INPUTS.has("apps/desktop/src/core/services/terminals.ts")).toBe(true);
+		expect(INPUTS.has("apps/desktop/src/test/setup.ts")).toBe(true);
+		expect(INPUTS.has("apps/desktop/src/test/dom-polyfills.ts")).toBe(true);
+		expect([...INPUTS].some((file) => file.startsWith("packages/shared/"))).toBe(true);
+		expect(INPUTS.has("apps/desktop/src/features/chat/CodeBlock.tsx")).toBe(false);
+	});
+});
 
 describe("MACOS_JOB covers what the job reads", () => {
 	test("every path the Rust crate names outside itself is on the list", () => {
@@ -154,14 +205,6 @@ describe("MACOS_JOB covers what the job reads", () => {
 		])
 			expect(paths).toContain(known);
 		expect(paths.filter((path) => !reaches(path))).toEqual([]);
-	});
-
-	test("every file the macOS tests import is on the list", () => {
-		const inputs = macosTestInputs();
-		expect(inputs).toContain("apps/desktop/src/core/services/terminals.ts");
-		expect(inputs).toContain("apps/desktop/src/test/setup.ts");
-		expect(inputs.some((file) => file.startsWith("packages/shared/"))).toBe(true);
-		expect(inputs.filter((file) => !reaches(file))).toEqual([]);
 	});
 
 	test("the check fails when a rule the crate needs is missing", () => {

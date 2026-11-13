@@ -16,11 +16,14 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { mainCheckout } from "../conductor-reference/paths.ts";
 import {
+	bySite,
+	type ExcludedEntry,
 	type Inventory,
 	ROOT,
 	SPEC_DIR,
 	type SpecEntry,
 	type SpecFile,
+	TSV_KINDS,
 	writeJsonFiles,
 } from "./lib.ts";
 
@@ -31,20 +34,6 @@ const FILE_CODES: Record<string, string> = {
 	"sidecar.js": "S",
 };
 const APP_CHUNKS = ["main-BE1h_1MP.js", "renderApp-DeUrsznk.js"];
-const TSV_KINDS = [
-	"text",
-	"label",
-	"aria_label",
-	"placeholder",
-	"title",
-	"tooltip",
-	"description",
-	"toast",
-	"route",
-	"test_id",
-	"sidecar_rpc_method",
-	"sidecar_tool_name",
-] as const;
 
 export interface TsvRow {
 	text: string;
@@ -65,6 +54,23 @@ export function parseTsv(source: string): TsvRow[] {
 		rows.push({ text: decode(text), file, offset: Number(offset), before: before ?? "" });
 	}
 	return rows;
+}
+
+/**
+ * Stops the build unless each row's site comes after the row before it, by file and then offset.
+ * owners.ts reads an item's row citation from the committed spec and excluded rows in that order,
+ * so a TSV in another order would move every citation.
+ */
+export function checkRowOrder(kind: string, rows: TsvRow[]): void {
+	for (let index = 1; index < rows.length; index += 1) {
+		const before = rows[index - 1];
+		const row = rows[index];
+		if (before !== undefined && row !== undefined && bySite(before, row) >= 0) {
+			throw new Error(
+				`${kind}.tsv row ${index + 1} is not after row ${index} in file and offset order.`,
+			);
+		}
+	}
 }
 
 /** The inventory keeps a string's escapes as they are in the bundle; this reads them. */
@@ -246,7 +252,7 @@ function main(): void {
 	);
 
 	const specs: SpecFile[] = [];
-	const excluded: { inventory: string; file: string; offset: number; rule: string }[] = [];
+	const excluded: ExcludedEntry[] = [];
 	const known = new Set<string>();
 	const toastNames = new Map(
 		[...bundle].map(([file, code]) => [file, toastReceivers(code)] as const),
@@ -255,6 +261,7 @@ function main(): void {
 	for (const kind of TSV_KINDS) {
 		const path = join(inventoryDir, `${kind}.tsv`);
 		const rows = parseTsv(readFileSync(path, "utf8"));
+		checkRowOrder(kind, rows);
 		const entries: SpecEntry[] = [];
 		for (const row of rows) {
 			known.add(row.text);

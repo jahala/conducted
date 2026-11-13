@@ -785,32 +785,72 @@ describe("CHAT-07 a long chat with background helpers (D129)", () => {
 		return events;
 	}
 
-	/** Milliseconds to build the chat `times` times over. */
-	const msToBuild = (events: readonly StoredEvent[], times = 1): number => {
-		const start = performance.now();
-		for (let run = 0; run < times; run += 1) buildTurns(events, live({ status: "working" }));
-		return performance.now() - start;
-	};
-	const median = (values: number[]): number =>
-		[...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
+	/**
+	 * The work of one build: each read of a field of the stored events (at any depth), and each
+	 * lookup in a Map or Set (`get` and `has`). A rescan of earlier turns, whether it reads their
+	 * events again or looks a call up in each earlier turn's index, adds work per turn for every
+	 * turn before it. Counted rather than timed, so a busy machine cannot change the answer (#681).
+	 */
+	function workToBuild(events: readonly StoredEvent[]): number {
+		let work = 0;
+		const watched = new WeakMap<object, object>();
+		const watch = <T>(value: T): T => {
+			if (typeof value !== "object" || value === null) return value;
+			let proxy = watched.get(value);
+			if (proxy === undefined) {
+				proxy = new Proxy(value, {
+					get(target, key, receiver) {
+						work += 1;
+						return watch(Reflect.get(target, key, receiver));
+					},
+				});
+				watched.set(value, proxy);
+			}
+			return proxy as T;
+		};
+		const lookups: [object, string][] = [
+			[Map.prototype, "get"],
+			[Map.prototype, "has"],
+			[Set.prototype, "has"],
+		];
+		const originals = lookups.map(([proto, name]) => {
+			const descriptor = Object.getOwnPropertyDescriptor(proto, name);
+			if (descriptor === undefined) throw new Error(`no ${name} to count`);
+			return descriptor;
+		});
+		lookups.forEach(([proto, name], index) => {
+			const original = originals[index]?.value as (this: unknown, ...args: unknown[]) => unknown;
+			Object.defineProperty(proto, name, {
+				...originals[index],
+				value: function (this: unknown, ...args: unknown[]) {
+					work += 1;
+					return original.apply(this, args);
+				},
+			});
+		});
+		try {
+			buildTurns(watch(events), live({ status: "working" }));
+		} finally {
+			lookups.forEach(([proto, name], index) => {
+				const descriptor = originals[index];
+				if (descriptor !== undefined) Object.defineProperty(proto, name, descriptor);
+			});
+		}
+		return work;
+	}
 
-	it("builds 1,400 turns from about 60,000 events in time that grows linearly with the events", () => {
+	it("builds 1,400 turns from about 60,000 events with work that grows linearly with the events", () => {
 		const quarter = stored(longChat(TURNS / 4));
 		const whole = stored(longChat());
 		expect(whole.length).toBeGreaterThan(60_000);
 
-		// Four builds of a quarter of the chat against one build of all of it: the same work when the
-		// build is linear, a quarter of it when the build grows with the square of the size (a per-turn
-		// rescan of earlier turns read 6 times the linear ratio here). Interleaved runs, so a busy
-		// moment on the machine slows both sides alike.
-		const quarters: number[] = [];
-		const wholes: number[] = [];
-		for (let run = 0; run < 7; run += 1) {
-			quarters.push(msToBuild(quarter, 4));
-			wholes.push(msToBuild(whole));
-		}
-		expect(median(wholes) / median(quarters)).toBeLessThan(2);
-	}, 60_000);
+		// The work per event of the whole chat against a quarter of it. The linear build does the
+		// same work per event at both sizes (a ratio of 1.00). Checked on two rescans of earlier
+		// turns: reading their events again gave 3.86, and a parent lookup in each earlier turn's
+		// index 1.46.
+		const perEvent = (events: readonly StoredEvent[]) => workToBuild(events) / events.length;
+		expect(perEvent(whole) / perEvent(quarter)).toBeLessThan(1.1);
+	});
 
 	it("in a 1,400-turn chat, an appended event replaces only the turn whose view it changes", () => {
 		const events = longChat();

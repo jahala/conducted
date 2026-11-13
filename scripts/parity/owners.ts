@@ -5,26 +5,32 @@
  * Must handle: an owner a person wrote (`"owner": "hand"`) is never overwritten; an entry two items
  * own takes the first in file order (ui.tsv, then system.tsv), so a rerun writes the same map; an
  * item's row-number citation is read from the inventory it cites, so a renumbered inventory moves it.
- * Runs only where the main checkout's `.context/` holds the inventories, as spec.ts does; its output is
- * committed and CI reads it.
+ * Reads committed files only: an inventory's rows are the spec's entries and its excluded rows, by
+ * file and offset. So `pnpm guards` checks everywhere, CI included, that the committed map is what
+ * this derives (`ownerDrift`, the parity-owners guard).
  *
  * Usage: bun scripts/parity/owners.ts
  */
-import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { mainCheckout } from "../conductor-reference/paths.ts";
+import { isDeepStrictEqual } from "node:util";
 import {
+	bySite,
+	type ExcludedEntry,
 	INVENTORIES,
 	type Inventory,
 	type Item,
 	isUiInventory,
 	MAP_DIR,
+	type MapEntry,
 	type MapFile,
 	normalise,
+	readExcluded,
 	readItems,
 	readMaps,
 	readSpec,
 	type SpecEntry,
+	type SpecFile,
+	TSV_KINDS,
 	writeJsonFiles,
 } from "./lib.ts";
 
@@ -191,36 +197,71 @@ function neighbours(
 }
 
 /**
- * The site of row `row` of `<kind>.tsv`, as a spec id's suffix (`R8853002`). A cited inventory that
- * is not there is thrown, naming the file: a silent miss would drop every owner it cites.
+ * The site of row `row` of `<kind>.tsv`, as a spec id's suffix (`R8853002`). The TSV's data rows are
+ * the spec's entries and the rows `excluded.json` lists, in file and offset order: spec.ts refuses a
+ * TSV in any other order. A cited inventory the spec does not build from a TSV is thrown, naming it:
+ * a silent miss would drop every owner it cites.
  */
 export function rowSites(
-	read: (kind: string) => string,
+	specs: Map<Inventory, SpecFile>,
+	excluded: ExcludedEntry[],
 ): (kind: string, row: number) => string | undefined {
-	const cache = new Map<string, string[][]>();
+	const cache = new Map<string, { file: string; offset: number | null }[]>();
 	return (kind, row) => {
 		let rows = cache.get(kind);
 		if (rows === undefined) {
-			rows = read(kind)
-				.split("\n")
-				.slice(1)
-				.map((line) => line.split("\t"));
+			const tsvKind = TSV_KINDS.find((name) => name === kind);
+			if (tsvKind === undefined) {
+				throw new Error(
+					`An item cites ${kind} by row, but the spec builds no ${kind} inventory from a TSV.`,
+				);
+			}
+			rows = [
+				...(specs.get(tsvKind)?.entries ?? []),
+				...excluded.filter((entry) => entry.inventory === kind),
+			].sort(bySite);
 			cache.set(kind, rows);
 		}
 		const found = rows[row - 1];
-		const code = FILE_CODE[found?.[2] ?? ""];
-		return found === undefined || code === undefined ? undefined : `${code}${found[3]}`;
+		const code = FILE_CODE[found?.file ?? ""];
+		return found === undefined || code === undefined ? undefined : `${code}${found.offset}`;
 	};
 }
 
+export interface Drift {
+	inventory: Inventory;
+	id: string;
+	committed: MapEntry | undefined;
+	derived: MapEntry | undefined;
+}
+
+/**
+ * Every map entry that differs from what `owners` derives from the same spec, map and items. Entries
+ * are compared as data, so the order of their fields does not count.
+ */
+export function ownerDrift(
+	specs: Map<Inventory, SpecFile>,
+	maps: Map<Inventory, MapFile>,
+	items: Item[],
+	rowSite: (kind: string, row: number) => string | undefined,
+): Drift[] {
+	const next = owners(specs, maps, items, rowSite);
+	const drift: Drift[] = [];
+	for (const inventory of INVENTORIES) {
+		const committed = maps.get(inventory) ?? {};
+		const derived = next.get(inventory) ?? {};
+		for (const id of new Set([...Object.keys(committed), ...Object.keys(derived)])) {
+			if (!isDeepStrictEqual(committed[id], derived[id])) {
+				drift.push({ inventory, id, committed: committed[id], derived: derived[id] });
+			}
+		}
+	}
+	return drift;
+}
+
 if (import.meta.main) {
-	const inventoryDir = join(mainCheckout(), ".context/conductor-re/inventory");
-	const read = (kind: string) => {
-		const path = join(inventoryDir, `${kind}.tsv`);
-		if (!existsSync(path)) throw new Error(`${path} does not exist; an item cites it by row.`);
-		return readFileSync(path, "utf8");
-	};
-	const next = owners(readSpec(), readMaps(), readItems(), rowSites(read));
+	const specs = readSpec();
+	const next = owners(specs, readMaps(), readItems(), rowSites(specs, readExcluded()));
 	writeJsonFiles(
 		[...next].map(([inventory, map]) => ({ path: join(MAP_DIR, `${inventory}.json`), value: map })),
 	);

@@ -7,7 +7,14 @@
  * token shape check. These are the pure parts of the GitHub service.
  * Behaviour: services-map.md 3.1 (remotes), 5B.1.7 (merge), ui-map.md 6 (Account page).
  */
-import { appError, err, ok, type Result } from "@conducted/shared";
+import {
+	appError,
+	err,
+	ok,
+	type Result,
+	trimLeadingSlashes,
+	trimTrailingSlashes,
+} from "@conducted/shared";
 
 /** Shown by the Account page when the text in the token field is not shaped like a GitHub token. */
 export const GITHUB_TOKEN_WARNING = "That doesn't look like a GitHub token. Are you sure?";
@@ -183,9 +190,7 @@ export function githubRemoteFromUrl(url: string): Result<GithubRemote> {
 		path = parsed.pathname;
 	}
 	if (!isGithubHost(host)) return err(appError("github_not_github", NOT_GITHUB_REMOTE));
-	const parts = path
-		.replace(/^\/+/, "")
-		.replace(/\/+$/, "")
+	const parts = trimTrailingSlashes(trimLeadingSlashes(path))
 		.replace(/\.git$/i, "")
 		.split("/")
 		.filter((part) => part.length > 0);

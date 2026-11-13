@@ -1154,7 +1154,7 @@ Context: the Rust test `git_16_every_program_the_ui_starts_is_allowed` in `shell
 
 Chosen: the `programs` guard in `scripts/guards/structure.ts` already ran the same scan on Linux on every pull request. It now also checks the programs the UI starts through a variable (zsh and the three helper scripts), and fails when the scan finds no `program: "git"`, so a scan of the wrong folder cannot pass. The Rust UI scan is gone; `git_16_allows_the_xcode_licence_programs`, which reads only Rust, stays. `MACOS_JOB` names only the desktop files the job reads: the two the Rust tests read (`platform/tauri.ts`, `core/app-paths.ts`), the macOS tests, the Vitest setup files and what they import. Replayed over main's last 80 merges, 38 skip the job, up from 10.
 
-Why not a TypeScript test: it would repeat the guard's scan, and the guard runs on every pull request whatever changed. Why not compute the macOS tests' imports when `scripts/macos-job.ts` runs: it would end the list's drift, but the list is short and `scripts/macos-job.test.ts` fails on main when a macOS test starts importing a file the list misses.
+Why not a TypeScript test: it would repeat the guard's scan, and the guard runs on every pull request whatever changed. Why not compute the macOS tests' imports when `scripts/macos-job.ts` runs: it would end the list's drift, but the list is short and `scripts/macos-job.test.ts` fails on main when a macOS test starts importing a file the list misses. D149 later computes them.
 
 ## D142. "Overwrite file" saves over the file as the last save left it (2026-11-12)
 
@@ -1283,3 +1283,13 @@ Gaps, reported:
 - Rust's standard library, compiled into the binary under MIT or Apache-2.0, is not listed: its licence files come with the toolchain, not with Cargo's data.
 
 Why: the owner's rule. No screen that Conductor lacks, the notices the licences ask for in the file that travels with the app, and a check for each way a package could ship without them.
+
+## D149. The macOS job's selection walks the macOS tests' imports when it runs (2026-11-13)
+
+Decided by the agent fixing issue #650, which the owner filed.
+
+Context: D141 left `MACOS_JOB` listing the nine UI files the macOS tests import by hand, and named why not to compute them: the list was short, and `scripts/macos-job.test.ts` failed on main when a macOS test began to import a file the list missed. That failure comes after the merge. A pull request that changed only a newly imported file skipped the macOS job, and main's run found it.
+
+Chosen: `scripts/macos-job.ts` walks the import graph of the tracked `*.macos.test.ts` files and the Vitest setup files each time it runs, with the same Bun resolver the changed-only test run uses (`scanImports` in `scripts/run-tests.ts`). A changed file in that graph asks for the job. The hand list, the macOS test glob and the setup file glob leave `MACOS_JOB`; what the Rust crate reads stays there. An import that does not resolve stops the selection with an error, and CI then runs the job, so a package left uninstalled cannot shrink the graph. The `macos-changes` job installs the desktop's packages for that reason (`--ignore-scripts`, since nothing runs).
+
+Why not keep the list and its test: the test only reports the drift after the pull request that caused it has merged. Why not ask Vitest's module graph, as the desktop's changed-only run does: it needs Vitest started in the job, while the Bun walk reads the same imports with a resolver already in use.
