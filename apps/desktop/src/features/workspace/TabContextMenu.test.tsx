@@ -2,6 +2,7 @@ import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "../../core/model.ts";
+import { Toaster } from "../../ui/Toast.tsx";
 
 const state = vi.hoisted(() => ({
 	rename: vi.fn(),
@@ -72,7 +73,7 @@ beforeEach(() => {
 	state.rename.mockResolvedValue({ ok: true, value: undefined });
 	state.close.mockResolvedValue({ ok: true, value: undefined });
 	state.copyText.mockResolvedValue({ ok: true, value: undefined });
-	state.copyTranscript.mockResolvedValue({ ok: true, value: undefined });
+	state.copyTranscript.mockResolvedValue({ ok: true, value: "copied" });
 	state.markRead.mockResolvedValue({ ok: true, value: undefined });
 	state.markUnread.mockResolvedValue({ ok: true, value: undefined });
 });
@@ -109,6 +110,23 @@ describe("CHAT-01 chat tab context menu; CHAT-17 copy transcript", () => {
 		fireEvent.change(field, { target: { value: "New name" } });
 		fireEvent.click(screen.getByRole("button", { name: "Rename" }));
 		await waitFor(() => expect(state.rename).toHaveBeenCalledWith(sessionId, "New name"));
+	});
+
+	it("an empty chat's transcript copy warns No chat content to copy (renderApp @10074989)", async () => {
+		state.copyTranscript.mockResolvedValue({ ok: true, value: "empty" });
+		render(<Toaster />);
+		await openMenu();
+		fireEvent.click(await screen.findByRole("menuitem", { name: /Copy concise transcript/ }));
+		expect(await screen.findByText("No chat content to copy")).toBeTruthy();
+	});
+
+	it("the rename dialog reads Conductor's hint to a screen reader", async () => {
+		await openMenu();
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Rename chat" }));
+		const dialog = await screen.findByRole("dialog", { name: "Rename chat" });
+		expect(dialog.getAttribute("aria-describedby")).not.toBeNull();
+		const hint = document.getElementById(dialog.getAttribute("aria-describedby") ?? "");
+		expect(hint?.textContent).toBe("Enter a new name for this chat");
 	});
 
 	it("copies a deep link to the chat", async () => {

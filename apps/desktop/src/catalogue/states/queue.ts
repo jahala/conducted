@@ -14,6 +14,8 @@
 
 import type { SessionEvent } from "@conducted/protocol";
 import type { EventId, SessionId, TurnId } from "@conducted/shared";
+import { QUEUED_MESSAGES_SQL } from "../../core/db/queued-messages.ts";
+import { SESSIONS_SQL } from "../../core/db/sessions.ts";
 import { animateCast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { click, clickOn, find, findFirst, shows } from "../dom.ts";
 import { deliverEvents, setLiveState } from "../live.ts";
@@ -133,7 +135,7 @@ export const QUEUE_STATES: CatalogueState[] = [
 		"Working: deleting the queued follow-up fails",
 		toastShows("Failed to delete queued message"),
 		async ({ document, world }) => {
-			await world.failWrites("queued_messages", "DELETE");
+			world.failStatement(QUEUED_MESSAGES_SQL.deleteUnlessSending);
 			await click(document, `${QUEUE} button`, "Delete");
 		},
 	),
@@ -151,7 +153,7 @@ export const QUEUE_STATES: CatalogueState[] = [
 			await failSteer(context);
 			// The row turns failed once the steer's own writes have landed; only then may they fail.
 			const retry = await find(context.document, `${QUEUE} button`, "Retry");
-			await context.world.failWrites("queued_messages", "UPDATE", ["state"]);
+			context.world.failStatement(QUEUED_MESSAGES_SQL.setState);
 			clickOn(retry);
 		},
 	),
@@ -164,7 +166,7 @@ export const QUEUE_STATES: CatalogueState[] = [
 			if (!stopped.ok) throw new Error(`Stopping beacon failed: ${stopped.error.message}`);
 			deliverEvents(world, beacon.id, [STOPPED], 16);
 			setLiveState(world, beacon.id, { status: "idle" });
-			await world.failWrites("sessions", "UPDATE", ["queue_paused_at"]);
+			world.failStatement(SESSIONS_SQL.resumeQueue);
 			await click(document, "button", "Resume");
 		},
 		(world) => world.answerSidecar({ cancel: () => ({ wasWorking: true, droppedMessageIds: [] }) }),
@@ -177,7 +179,7 @@ export const QUEUE_STATES: CatalogueState[] = [
 			for (const text of ["Second queued message.", "Third queued message."]) {
 				must(await app.container.actions.sessions.send(beacon.id, text, [], "queue"));
 			}
-			await world.failWrites("queued_messages", "UPDATE", ["position"]);
+			world.failStatement(QUEUED_MESSAGES_SQL.setPosition);
 			await dragFirstBelowLast(document);
 		},
 	),

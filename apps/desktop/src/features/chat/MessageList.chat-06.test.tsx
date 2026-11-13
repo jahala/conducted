@@ -1,15 +1,15 @@
 /**
  * @feature CHAT-06 Message list: a chat's history loads a few turns at a time
  * Owns: the list over the real container and a real SQLite, for a chat longer than its first
- * page: the header that loads older turns, its Retry, and the outline's jump to a turn that is not
- * loaded.
+ * page: the header that loads older turns, its Retry, the outline's jump to a turn that is not
+ * loaded, and the gap that jump leaves, with its own Retry (#652).
  * Behaviour: renderApp `_ma` @9596613 and `tWt` @9596053 ("Loading messages…", "Couldn't load
  * messages" with Retry), `Wma` @9609810 (the list stays hidden while older turns fill it).
  * Test first: a chat longer than its first page shows "Loading messages…" above its turns.
  */
 import type { SessionConfig, SessionEvent } from "@conducted/protocol";
 import type { EventId, MessageId, SessionId, TurnId, WorkspaceId } from "@conducted/shared";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { type VirtuosoHandle, VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
@@ -161,14 +161,18 @@ describe("CHAT-06 the message list loads older turns at its top (#617)", () => {
 		await waitFor(() => expect(loadedTurns(opened)).toBeGreaterThan(5));
 	});
 
-	it("picking a turn in the outline that is not loaded loads every turn back to it and scrolls there", async () => {
-		const opened = await openedChat(9);
+	it("picking a turn in the outline that is not loaded loads that turn alone and scrolls there (#652)", async () => {
+		// Long enough that the ordinary paging at the list's top, which may run meanwhile, cannot reach
+		// the picked turn's neighbours.
+		const opened = await openedChat(30);
 		// The list's handle is made again when its turns change, so every handle it gets is recorded.
-		// Each scroll also records how many turns were loaded at that moment: once the list reaches
-		// its top, the ordinary paging may load one older turn, which is not the jump's doing.
-		const scrolledTo: unknown[] = [];
-		const loadedAtScroll: number[] = [];
+		// Each scroll records the turn at its index and the turns loaded at that moment.
+		const scrolls: { turnId: string | undefined; loaded: string[] }[] = [];
 		let handle: VirtuosoHandle | null = null;
+		const loaded = (): string[] =>
+			opened.test.container.services.sessions
+				.chatView(opened.id)
+				?.turns.map((turn) => turn.turnId) ?? [];
 		const listRef: { current: VirtuosoHandle | null } = {
 			get current() {
 				return handle;
@@ -180,8 +184,12 @@ describe("CHAT-06 the message list loads older turns at its top (#617)", () => {
 						: {
 								...next,
 								scrollToIndex: (location) => {
-									scrolledTo.push(location);
-									loadedAtScroll.push(loadedTurns(opened));
+									const index = typeof location === "number" ? location : location.index;
+									const turns = loaded();
+									scrolls.push({
+										turnId: typeof index === "number" ? turns[index] : undefined,
+										loaded: turns,
+									});
 									next.scrollToIndex(location);
 								},
 							};
@@ -201,11 +209,40 @@ describe("CHAT-06 the message list loads older turns at its top (#617)", () => {
 		fireEvent.click(await screen.findByRole("button", { name: "Table of contents" }));
 		fireEvent.click(await screen.findByRole("button", { name: "Stored turn 1" }));
 
-		await waitFor(() => expect(scrolledTo).toContainEqual({ index: 0, align: "start" }));
-		// The jump loads every turn back to the picked one, and no further.
-		const jump = scrolledTo.findIndex(
-			(location) => JSON.stringify(location) === JSON.stringify({ index: 0, align: "start" }),
-		);
-		expect(loadedAtScroll[jump]).toBe(8);
+		await waitFor(() => expect(scrolls.map((scroll) => scroll.turnId)).toContain("t1"));
+		// The jump loads the picked turn alone: none of the turns after it up to the last ones.
+		const jump = scrolls.find((scroll) => scroll.turnId === "t1");
+		expect(jump?.loaded).not.toContain("t2");
+		expect(jump?.loaded).not.toContain("t20");
+		// A gap stands between it and the turns the chat opened on. Its marker is drawn in the
+		// failed-fill test below, where no paging at the top can move the list meanwhile.
+		const gaps = opened.test.container.services.sessions.chatView(opened.id)?.history.gaps ?? [];
+		expect(gaps).toHaveLength(1);
+	});
+
+	it("a gap whose fill failed says Couldn't load messages on its marker, and Retry loads a turn of it", async () => {
+		let failing = false;
+		const opened = await openedChat(9, () => failing);
+		const actions = opened.test.container.actions.sessions;
+		// Turns 0 and 1 load on their own, so nothing is older and the list shows at once.
+		must(await actions.revealTurn(opened.id, "t1" as TurnId));
+		must(await actions.revealTurn(opened.id, "t0" as TurnId));
+		failing = true;
+		const failed = await actions.fillGap(opened.id, "t4" as TurnId, "after-earlier");
+		expect(failed.ok).toBe(false);
+		renderList(opened);
+
+		const marker = await waitFor(() => {
+			const found = document.querySelector<HTMLElement>("[data-transcript-gap-marker]");
+			if (found === null) throw new Error("No gap marker yet.");
+			return found;
+		});
+		expect(marker.textContent).toContain("Couldn't load messages");
+		failing = false;
+		// Virtuoso keeps its item list at visibility hidden until it reaches its first scroll place,
+		// which it has not here, so the button is found by its words.
+		fireEvent.click(within(marker).getByText("Retry"));
+
+		await waitFor(() => expect(loadedTurns(opened)).toBe(8));
 	});
 });

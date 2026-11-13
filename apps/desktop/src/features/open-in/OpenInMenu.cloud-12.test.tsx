@@ -94,6 +94,18 @@ describe("CLOUD-12 Open in on a cloud workspace", () => {
 		]);
 	});
 
+	it("says No apps available when none of the three remote editors is installed", async () => {
+		const { workspace } = await setup();
+		if (test === undefined) throw new Error("No container.");
+		test.memory.platform.opener.installedApps = async () => ["Finder", "Ghostty"];
+		renderMenu(workspace.id);
+
+		const menu = await openMenu();
+
+		expect(await within(menu).findByText("No apps available")).toBeTruthy();
+		expect(menuLabels(menu)).toEqual(["Copy SSH command", "Copy path"]);
+	});
+
 	it("opens the menu with Cmd+Alt+O when no default remote editor is set", async () => {
 		const { workspace } = await setup();
 		if (test === undefined) throw new Error("Create the test container first.");

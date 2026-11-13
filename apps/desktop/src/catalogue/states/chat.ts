@@ -8,15 +8,18 @@
  * found"); and a reply that uses every Markdown part (headings, lists, inline code, a code block, a
  * table, a quote, a callout, links and a rule); a long user message shortened with Show more; the reply just copied; the
  * plan review bar's three tooltips; and the toast
- * after copying a chat image.
+ * after copying a chat image; Conductor's toasts when a chat tab, the other chat tabs or a closed
+ * chat could not close or reopen; the warning when a chat with no messages is copied; and the toasts
+ * when the clipboard refuses a reply or a plan.
  * Behaviour: ui-map.md 3.3 (chat), sessions-and-chats.md "Questions, approvals and plans".
  * Test first: not applicable; the screenshot run opens every state.
  */
 
+import { SESSIONS_SQL } from "../../core/db/sessions.ts";
 import type { Workspace } from "../../core/model.ts";
 import { animateCast, type Cast, chatRoute, refreshGit, seedCast } from "../cast.ts";
 import { conversation } from "../conversation.ts";
-import { click, has, hover, shows } from "../dom.ts";
+import { click, has, hover, rightClick, shows } from "../dom.ts";
 import { setLiveState } from "../live.ts";
 import { addChat, addEvents, addRepo, must } from "../seeds.ts";
 import type { CatalogueState, Scene } from "../state.ts";
@@ -232,6 +235,42 @@ export const CHAT_STATES: CatalogueState[] = [
 		},
 	},
 	{
+		id: "chat-copy-failed",
+		group: "Workspace chat",
+		title: "The turn footer's copy button when the clipboard refused the text: Conductor's toast",
+		seed: async (world: World): Promise<Scene> => {
+			const cast = await seedCast(world);
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await animateCast(world, cast, app);
+					await refreshGit(app, cast.arbor);
+					world.memory.controls.refuseClipboard();
+					await click(document, "button", "Copy final message");
+				},
+				ready: (document) => shows(document, "Please try again."),
+			};
+		},
+	},
+	{
+		id: "chat-plan-copy-failed",
+		group: "Workspace chat",
+		title: "Plan review, its copy button when the clipboard refused the plan: Conductor's toast",
+		seed: async (world: World): Promise<Scene> => {
+			const cast = await seedCast(world);
+			return {
+				route: chatRoute(cast.fjord, cast.chats.fjord),
+				after: async ({ app, document }) => {
+					await animateCast(world, cast, app);
+					await refreshGit(app, cast.fjord);
+					world.memory.controls.refuseClipboard();
+					await click(document, "button", "Copy");
+				},
+				ready: (document) => shows(document, "Failed to copy plan"),
+			};
+		},
+	},
+	{
 		id: "chat-long-message",
 		group: "Workspace chat",
 		title: "A long message from the user, shortened with Show more",
@@ -412,6 +451,80 @@ export const CHAT_STATES: CatalogueState[] = [
 			return {
 				route: `/repository/${cast.grove.repoId}/workspace/${cast.grove.id}`,
 				ready: (document) => has(document, "button", "View chat history"),
+			};
+		},
+	},
+	{
+		id: "chat-close-failed",
+		group: "Workspace chat",
+		title: "A chat tab that could not close: Conductor's toast",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			await addChat(world, cast.arbor, { title: "Write the release notes", active: false });
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await animateCast(world, cast, app);
+					world.failStatement(SESSIONS_SQL.close);
+					await click(document, "button", "Close Write the release notes");
+				},
+				ready: (document) => shows(document, "Failed to close chat. Try again."),
+			};
+		},
+	},
+	{
+		id: "chat-close-others-failed",
+		group: "Workspace chat",
+		title: "Close others, when the other chats could not close: Conductor's toast",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			await addChat(world, cast.arbor, { title: "Write the release notes", active: false });
+			return {
+				route: chatRoute(cast.arbor, cast.chats.arbor),
+				after: async ({ app, document }) => {
+					await animateCast(world, cast, app);
+					world.failStatement(SESSIONS_SQL.close);
+					await rightClick(document, "[role=tab]", "Fix the login redirect");
+					await click(document, "[role=menuitem]", "Close others");
+				},
+				ready: (document) => shows(document, "Failed to close other chats. Try again."),
+			};
+		},
+	},
+	{
+		id: "chat-copy-empty",
+		group: "Workspace chat",
+		title: "Copy transcript on a chat with no messages: Conductor's warning",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			const chat = await addChat(world, cast.arbor, { title: "Untitled" });
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: async ({ app, document }) => {
+					await animateCast(world, cast, app);
+					await rightClick(document, "[role=tab]", "Untitled");
+					await click(document, "[role=menuitem]", "Copy concise transcript", { prefix: true });
+				},
+				ready: (document) => shows(document, "No chat content to copy"),
+			};
+		},
+	},
+	{
+		id: "chat-reopen-failed",
+		group: "Workspace chat",
+		title: "A closed chat that could not reopen from the chat history: Conductor's toast",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			const chat = await addChat(world, cast.grove, { title: "Fix the login redirect" });
+			must(await world.repositories.sessions.close(chat.id));
+			return {
+				route: `/repository/${cast.grove.repoId}/workspace/${cast.grove.id}`,
+				after: async ({ document }) => {
+					world.failStatement(SESSIONS_SQL.reopen);
+					await click(document, "button", "View chat history");
+					await click(document, "[role=menuitem]", "Fix the login redirect", { prefix: true });
+				},
+				ready: (document) => shows(document, "Couldn't reopen chat. Try again."),
 			};
 		},
 	},

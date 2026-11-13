@@ -96,6 +96,9 @@ const DROPPED_TYPES = new Set([
 	"control_cancel_request",
 ]);
 
+/** Task kinds that are agents: Conductor shows them as their own cards, not as background tasks. */
+const AGENT_TASK_TYPES: ReadonlySet<string> = new Set(["local_agent", "remote_agent", "subagent"]);
+
 export class ClaudeTranslator {
 	readonly state: ClaudeTranslatorState = {
 		droppedToolUses: new Set(),
@@ -249,10 +252,11 @@ export class ClaudeTranslator {
 						`Retrying the request (attempt ${message.attempt} of ${message.max_retries})`,
 					),
 				];
+			case "task_started":
+				return this.taskStarted(message);
 			case "session_state_changed":
 			case "thinking_tokens":
 			case "task_progress":
-			case "task_started":
 			case "task_notification":
 			case "task_updated":
 			case "background_tasks_changed":
@@ -287,6 +291,32 @@ export class ClaudeTranslator {
 	private resetProcessState(): void {
 		this.state.droppedToolUses.clear();
 		this.state.lastReportedCostUsd = 0;
+	}
+
+	/**
+	 * A task started in the background shows as Conductor's "Background Task" row (main Xft
+	 * @1420230): not housekeeping (skip_transcript, ambient), not a task the call waits on
+	 * (is_backgrounded false), and not an agent, which shows as its own card.
+	 */
+	private taskStarted(message: Extract<SDKMessage, { subtype: "task_started" }>): AgentMessage[] {
+		if (message.skip_transcript === true || message.ambient === true) return [];
+		if (message.is_backgrounded === false || message.subagent_type !== undefined) return [];
+		if (message.task_type !== undefined && AGENT_TASK_TYPES.has(message.task_type)) return [];
+		return [
+			this.agentMessage(message, [
+				{
+					kind: "background_task",
+					taskId: message.task_id,
+					...(message.description === "" ? {} : { description: message.description }),
+					...(message.prompt === undefined || message.prompt === ""
+						? {}
+						: { prompt: message.prompt }),
+					...(message.tool_use_id === undefined
+						? {}
+						: { toolUseId: message.tool_use_id as ToolUseId }),
+				},
+			]),
+		];
 	}
 
 	private notice(

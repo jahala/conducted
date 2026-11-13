@@ -52,6 +52,23 @@ describe("REV-03 CommentTab", () => {
 		expect(existing).not.toBeNull();
 	});
 
+	it("says No comment body for a comment with nothing written, as Conductor does (renderApp @8135916)", async () => {
+		test = createTestContainer();
+		const id = await addComment("src/a.ts", 4, "");
+		const workspace = Object.values(
+			test.container.services.workspace.store.getState().workspacesById,
+		)[0];
+		if (workspace === undefined) throw new Error("workspace missing");
+
+		render(
+			<ServicesProvider container={test.container}>
+				<CommentTab workspaceId={workspace.id} commentId={id} />
+			</ServicesProvider>,
+		);
+
+		expect(await screen.findByText("No comment body")).toBeTruthy();
+	});
+
 	it("shows the comment with its file and line and deletes it through the service", async () => {
 		test = createTestContainer();
 		const id = await addComment("src/a.ts", 12, "Please rename this");

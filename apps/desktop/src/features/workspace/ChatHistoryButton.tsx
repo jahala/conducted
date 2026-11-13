@@ -24,6 +24,7 @@ import { ClockIcon, SearchIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { relativeTime } from "../sidebar/WorkspaceRow.tsx";
+import { REOPEN_CHAT_FAILED } from "./chat-tab-messages.ts";
 import type { WorkspaceSearch } from "./workspace-search.ts";
 
 export interface ChatHistoryButtonProps {
@@ -57,7 +58,7 @@ export function ChatHistoryButton({ workspaceId, onSearchChange }: ChatHistoryBu
 	const reopen = async (session: Session) => {
 		const reopened = await actions.sessions.reopen(session.id);
 		if (!reopened.ok) {
-			toastError("Couldn't reopen the chat", reopened.error);
+			toastError(REOPEN_CHAT_FAILED, reopened.error);
 			return;
 		}
 		setMenuOpen(false);

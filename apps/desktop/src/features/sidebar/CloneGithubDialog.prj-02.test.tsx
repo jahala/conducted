@@ -141,6 +141,59 @@ describe("PRJ-02 Clone GitHub repo dialog", () => {
 		);
 	});
 
+	it("titles the folder picker as Conductor does", async () => {
+		const { container, renderDialog } = makeTest();
+		const pick = vi.fn(async () => "/code");
+		container.platform.dialogs.pickFolder = pick;
+		renderDialog();
+
+		fireEvent.click(screen.getByRole("button", { name: "Browse" }));
+
+		await waitFor(() =>
+			expect(pick).toHaveBeenCalledWith(
+				expect.objectContaining({ title: "Choose where to clone the repository" }),
+			),
+		);
+	});
+
+	it("describes itself in Conductor's words, for screen readers only", async () => {
+		const { renderDialog } = makeTest();
+		renderDialog();
+
+		const dialog = await screen.findByRole("dialog");
+		expect(dialog.getAttribute("aria-describedby")).not.toBeNull();
+		const description = screen.getByText("Choose a recent repo or paste a clone URL.");
+		expect(description.closest("[style]")?.getAttribute("style")).toContain("clip");
+		expect(
+			screen.queryByText("Clone a repository from GitHub and add it as a project."),
+		).toBeNull();
+	});
+
+	it("reads Cloning... on its button and above the clone's progress while git runs", async () => {
+		const { renderDialog } = makeTest();
+		let finish: (result: Result<{ exitCode: number; stdout: string; stderr: string }>) => void =
+			() => {};
+		test?.memory.controls.scriptShell((command) =>
+			command.program === "gh" && command.args[0] === "repo" && command.args[1] === "clone"
+				? new Promise((resolve) => {
+						finish = resolve;
+					})
+				: null,
+		);
+		renderDialog();
+
+		fireEvent.change(screen.getByLabelText("Repository URL"), {
+			target: { value: "git@github.com:octocat/alpha.git" },
+		});
+		fireEvent.change(screen.getByLabelText("Location"), { target: { value: "/code" } });
+		fireEvent.click(screen.getByRole("button", { name: "Clone repository" }));
+
+		expect(await screen.findByRole("button", { name: "Cloning..." })).toBeTruthy();
+		expect(screen.getByText("Cloning...", { selector: "p" })).toBeTruthy();
+		finish(err(appError("git_failed", "stopped by the test")));
+		await waitFor(() => expect(screen.queryByRole("button", { name: "Cloning..." })).toBeNull());
+	});
+
 	it("clones the repository into the chosen location", async () => {
 		const { container, renderDialog } = makeTest();
 		const clone = vi.spyOn(container.actions.projects, "clone").mockResolvedValue(ok(clonedRepo));

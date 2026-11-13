@@ -110,6 +110,19 @@ export const zErrorItem = z.object({
 	retryable: z.boolean(),
 });
 
+/**
+ * A task the agent started in the background, such as a long command it keeps watching, shown in
+ * the transcript as Conductor's "Background Task" row (main @1420230). `toolUseId` is the call that
+ * started it, when the agent says.
+ */
+export const zBackgroundTaskItem = z.object({
+	kind: z.literal("background_task"),
+	taskId: z.string(),
+	description: z.string().optional(),
+	prompt: z.string().optional(),
+	toolUseId: zToolUseId.optional(),
+});
+
 export const zAgentItem = z.discriminatedUnion("kind", [
 	zTextItem,
 	zThinkingItem,
@@ -119,6 +132,7 @@ export const zAgentItem = z.discriminatedUnion("kind", [
 	zUsageItem,
 	zNoticeItem,
 	zErrorItem,
+	zBackgroundTaskItem,
 ]);
 export type AgentItem = z.infer<typeof zAgentItem>;
 

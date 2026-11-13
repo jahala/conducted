@@ -23,6 +23,8 @@ vi.mock("../../core/hooks.ts", () => ({
 	useWorkspace: () => state.workspace,
 	useDraft: () => ({ text: "", attachmentPaths: [] }),
 	useSessions: () => ({ state: "ready", data: [] }),
+	useRepos: () => ({ state: "loading" }),
+	useSetupState: () => ({ state: "loading" }),
 	usePlans: () => ({ state: "ready", data: [] }),
 	useSetting: () => state.expand,
 	useLiveShortcut: () => null,
@@ -146,8 +148,8 @@ function view(turns: ChatTurn[]): ChatView {
 		openInteraction: null,
 		progress: null,
 		goal: null,
-		history: { olderTurnId: null, older: "idle" },
-		outline: outlineOf([], turns),
+		history: { olderTurnId: null, older: "idle", gaps: [] },
+		outline: outlineOf(undefined, turns),
 	};
 }
 

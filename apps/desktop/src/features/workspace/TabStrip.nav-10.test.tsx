@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } fr
 import { CommandRegistryProvider, createCommandRegistry } from "../../app/command-dispatcher.ts";
 import type { Loadable } from "../../core/api.ts";
 import type { DiffComment, Session } from "../../core/model.ts";
+import { Toaster } from "../../ui/Toast.tsx";
 import type { WorkspaceSearch } from "./workspace-search.ts";
 
 const state = vi.hoisted(() => {
@@ -384,6 +385,42 @@ describe("NAV-10 TabStrip", () => {
 		await waitFor(() =>
 			expect(onSearchChange).toHaveBeenCalledWith({ tab: "session", sessionId: "two" }),
 		);
+	});
+
+	describe("failures in Conductor's words (renderApp @10110444, @10074815, main @3636992)", () => {
+		const failed = { ok: false, error: { code: "db", message: "The disk is full." } };
+		const renderWithToasts = (search: WorkspaceSearch) => {
+			const rendered = renderStrip({ search, withRegistry: true });
+			render(createElement(Toaster));
+			return rendered;
+		};
+
+		it("a chat that fails to close says Failed to close chat. Try again.", async () => {
+			state.sessions = { state: "ready", data: [session("one", "One"), session("two", "Two")] };
+			state.close.mockResolvedValue(failed);
+			renderWithToasts({ tab: "session", sessionId: "one" });
+			fireEvent.click(screen.getByRole("button", { name: "Close One" }));
+			expect(await screen.findByText("Failed to close chat. Try again.")).toBeTruthy();
+		});
+
+		it("other chats that fail to close say Failed to close other chats. Try again.", async () => {
+			state.sessions = { state: "ready", data: [session("one", "One"), session("two", "Two")] };
+			state.close.mockResolvedValue(failed);
+			renderWithToasts({ tab: "session", sessionId: "one" });
+			fireEvent.contextMenu(screen.getByRole("tab", { name: "Two" }));
+			fireEvent.click(await screen.findByRole("menuitem", { name: "Close others" }));
+			expect(await screen.findByText("Failed to close other chats. Try again.")).toBeTruthy();
+		});
+
+		it("a closed chat that fails to reopen says Couldn't reopen chat. Try again.", async () => {
+			state.sessions = { state: "ready", data: [session("one", "One")] };
+			const { registry } = renderWithToasts({ tab: "session", sessionId: "one" });
+			fireEvent.click(screen.getByRole("button", { name: "Close One" }));
+			await waitFor(() => expect(state.close).toHaveBeenCalledWith("one"));
+			state.reopen.mockResolvedValue(failed);
+			registry.run("tab.reopenClosed");
+			expect(await screen.findByText("Couldn't reopen chat. Try again.")).toBeTruthy();
+		});
 	});
 
 	it("disables 'Close others' when it is the only tab", async () => {

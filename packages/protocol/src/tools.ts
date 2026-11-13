@@ -54,6 +54,8 @@ export const CANONICAL_TOOLS = [
 	"schedule_wakeup",
 	/** The agent sends a message to another chat. */
 	"send_message",
+	/** The agent starts or cleans up a team of agents (Claude's Teammate tool, a "swarm"). */
+	"teammate",
 	"app_tool",
 	"mcp",
 	"unknown",

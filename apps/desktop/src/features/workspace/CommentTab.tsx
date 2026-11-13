@@ -10,7 +10,8 @@
  * Not built here: a screen that opens the first comment tab. Today the tab opens from its own
  * previous and next controls and from the route; the diff's comment threads that should open it are
  * part of the File tab's diff pane (REV-08).
- * Must handle: Comment deleted while open ('Comment not found'); a suggested change block; resolved
+ * Must handle: Comment deleted while open ('Comment not found'); a comment with nothing written ('No
+ * comment body', renderApp @8135916); a suggested change block; resolved
  * and outdated flags; a comment by the agent or from GitHub (author label); previous and next
  * comment when the screen passes an opener; an edit that fails to save (the editor stays open).
  * Test first: A comment that no longer exists renders 'Comment not found'.
@@ -154,6 +155,7 @@ export function CommentTab({ workspaceId, commentId, onOpenComment }: CommentTab
 			</div>
 			<CommentCard
 				comment={comment}
+				emptyBody="No comment body"
 				editing={editing}
 				onStartEdit={() => setEditing(true)}
 				onSaveEdit={edit}

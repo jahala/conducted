@@ -41,7 +41,7 @@
 	},
 	"placeholder:R2623020": {
 		"status": "matched",
-		"state": "git-file-row-menu",
+		"state": "git-working-directories",
 		"via": "aria-label",
 		"role": "textbox",
 		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(1) > input",
@@ -135,19 +135,19 @@
 	},
 	"placeholder:R5685793": {
 		"status": "matched",
-		"state": "command-palette-workspaces",
-		"via": "aria-label",
+		"state": "composer-link-workspaces",
+		"via": "placeholder",
 		"role": "combobox",
 		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
 		"by": "seed"
 	},
 	"placeholder:R5692826": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-07",
-		"item": "Link workspaces and directories: 'Select working directories', 'Link a directory or workspace'",
-		"owner": "hand"
+		"status": "matched",
+		"state": "git-working-directories",
+		"via": "placeholder",
+		"role": "combobox",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"placeholder:R8148331": {
 		"status": "matched",
@@ -237,12 +237,10 @@
 		"owner": "hand"
 	},
 	"placeholder:R10195168": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-ui-text Projects and workspaces",
-		"backlog": "WS-01",
-		"item": "Prompt editor ('What do you want to work on?' or 'Describe what you want to build')",
-		"owner": "rule:quote"
+		"status": "decided",
+		"decision": "D025",
+		"note": "The prompt of an unstarted workspace on Conductor's hosted computer (its cloud backlog page, renderApp qwa). Conductor's hosted computers stay out (D025); our cloud has no backlog (D127).",
+		"by": "hand"
 	},
 	"placeholder:R10669494": {
 		"status": "matched",

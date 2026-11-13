@@ -18,6 +18,7 @@ const hooks = vi.hoisted(() => ({
 	markRead: vi.fn(),
 	markUnread: vi.fn(),
 	git: { state: "loading" } as Loadable<{ linesAdded: number; linesRemoved: number }>,
+	matrix: false,
 }));
 
 vi.mock("../composer/draft-sources.ts", () => ({
@@ -27,7 +28,7 @@ vi.mock("../composer/draft-sources.ts", () => ({
 vi.mock("../../core/hooks.ts", () => ({
 	useWorkspaceStatus: () => hooks.status,
 	useWorkspace: () => ({ state: "loading" }),
-	useSetting: () => "",
+	useSetting: (key: string) => (key === "internal_workspace_status_matrix" ? hooks.matrix : ""),
 	useGitHubAccess: () => ({ state: "loading" }),
 	useSessions: () => hooks.sessions,
 	useGitState: () => hooks.git,
@@ -156,6 +157,28 @@ describe("NAV-03 WorkspaceRow", () => {
 		const name = within(link).getByText("Fix login");
 		expect(name.className).toContain("font-book");
 		expect(name.className).not.toContain("font-medium");
+	});
+
+	it("draws the status matrix for a local workspace while its setting is on (WS-09)", async () => {
+		hooks.matrix = true;
+		hooks.status = { kind: "git", label: "merged" };
+		try {
+			renderRow(
+				<WorkspaceRow
+					workspace={workspace()}
+					repo={repo()}
+					selected={false}
+					shortcutIndex={null}
+				/>,
+			);
+			const row = await screen.findByTestId("left-sidebar-workspace-item");
+			expect(
+				row.querySelector('[data-testid="workspace-status-matrix-merged-pattern"]'),
+			).not.toBeNull();
+		} finally {
+			hooks.matrix = false;
+			hooks.status = null;
+		}
 	});
 
 	it("shows the live shortcut hint from the binding, not a hard-coded one", async () => {

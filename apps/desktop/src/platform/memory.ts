@@ -105,7 +105,13 @@ import {
 import { stripTerminalEscapes } from "./terminal-escapes.ts";
 
 /** A scripted answer for a shell command. Return null when the script does not know the command. */
-export type ShellScript = (command: ShellCommand) => Result<ShellOutput> | null;
+/**
+ * A scripted answer for a shell command. Return null when the script does not know the command. A
+ * promise holds the command running until it settles, as a slow clone or fetch does.
+ */
+export type ShellScript = (
+	command: ShellCommand,
+) => Result<ShellOutput> | Promise<Result<ShellOutput>> | null;
 
 /** A scripted answer for a cloud request. Return null when the script does not know the path. */
 export type CloudScript = (
@@ -234,6 +240,8 @@ export interface MemoryPlatformControls {
 	readonly dockBadge: number | null;
 	/** The last text written to the clipboard. */
 	readonly clipboardText: string | null;
+	/** Makes every later text written to the clipboard fail, as a clipboard another app holds would. */
+	refuseClipboard(): void;
 	/** Puts files on the clipboard, as if copied in Finder. */
 	setClipboardFilePaths(paths: readonly string[]): void;
 	/** Answers for dialogs, consumed in order. `savePath` is where the save dialog saves. */
@@ -1057,7 +1065,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 
 	// ---------------------------------------------------------------- shell
 
-	const scripted = (command: ShellCommand): Result<ShellOutput> => {
+	const scripted = (command: ShellCommand): Result<ShellOutput> | Promise<Result<ShellOutput>> => {
 		for (const script of shellScripts) {
 			const answer = script(command);
 			if (answer !== null) return answer;
@@ -1085,7 +1093,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 				holdNextStart = false;
 			} else {
 				const answer = scripted(command);
-				queueMicrotask(() => settle(answer));
+				if (answer instanceof Promise) void answer.then(settle);
+				else queueMicrotask(() => settle(answer));
 			}
 			const running: RunningCommand = {
 				id: ids.uuid(),
@@ -1364,8 +1373,10 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		appIcon: async () => ok(null),
 	};
 
+	let clipboardRefused = false;
 	const clipboard: Clipboard = {
 		writeText: async (text) => {
+			if (clipboardRefused) throw new Error("The clipboard refused the text.");
 			clipboardText = text;
 		},
 		writeImage: async () => {},
@@ -1944,6 +1955,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		get clipboardText() {
 			return clipboardText;
+		},
+		refuseClipboard: () => {
+			clipboardRefused = true;
 		},
 		setClipboardFilePaths: (paths) => {
 			clipboardFilePaths = [...paths];

@@ -84,9 +84,7 @@ describe("COMP-06 Enter on the open '/' menu", () => {
 		await screen.findByRole("option", { name: /\/add-dir/ });
 		fireEvent.keyDown(textbox, { key: "Enter" });
 
-		expect(
-			await screen.findByRole("heading", { name: "Link workspaces and directories" }),
-		).toBeTruthy();
+		expect(await screen.findByPlaceholderText("Search workspaces...")).toBeTruthy();
 		expect(editor().getText()).toBe("");
 		expect(send).not.toHaveBeenCalled();
 	});

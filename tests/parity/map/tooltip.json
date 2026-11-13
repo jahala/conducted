@@ -133,12 +133,10 @@
 		"by": "seed"
 	},
 	"tooltip:R9535913": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "inventory-controls Chat view",
-		"backlog": "CHAT-27",
-		"item": "Conductor shows \"Copy error details\" (tooltip, inventory-controls Chat view); ours has no counterpart yet (parity gap; owner by the nearby-strings rule).",
-		"owner": "rule:cite"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Shown only with Conductor's internal settings or developer mode on (renderApp Z4, internal_settings_enabled): a staff tool.",
+		"by": "hand"
 	},
 	"tooltip:R9587964": {
 		"status": "matched",

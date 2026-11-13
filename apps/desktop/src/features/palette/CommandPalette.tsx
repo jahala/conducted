@@ -5,7 +5,7 @@
  * Behaviour: ui-map.md 5.1 (dialog on cmdk; tabs all, workspaces, projects, actions, settings cycled
  * with Tab and Shift+Tab; the placeholder changes per tab; groups for recent workspaces, workspaces,
  * archived, projects, chats, workspace actions, actions, navigation, settings and open-in; empty
- * "No results found"; loading spinner in the heading), 5.4 (Cmd+E edits and Cmd+Backspace deletes a
+ * "No results found", and "No matching sections" on the section sub-page; loading spinner in the heading), 5.4 (Cmd+E edits and Cmd+Backspace deletes a
  * highlighted section).
  * The palette has no footer of key hints, as Conductor's has none (D098).
  * Our design choice: the palette's own keys (Tab, Shift+Tab, Cmd+E, Cmd+Backspace, or the user's
@@ -589,7 +589,7 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 					</Command.Group>
 				))}
 				<Command.Empty className="px-3 py-6 text-center text-sm text-fg-muted">
-					No results found
+					{subpage === "sections" ? "No matching sections" : "No results found"}
 				</Command.Empty>
 			</Command.List>
 			<button type="button" className="sr-only" onClick={close}>

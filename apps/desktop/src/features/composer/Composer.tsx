@@ -2,7 +2,7 @@
  * @feature COMP-01 Composer
  * Owns: The message box at the bottom of a chat: editor, toolbar (plus menu, model picker, mode
  * chips, ACP options, the Remote Control chip (RC-02), context wheel, MCP status) and the send or stop
- * button.
+ * button; above it, a local workspace's linked folders (LinkedDirectoryChips, WS-07).
  * Behaviour: ui-map.md 3.5 (Composer: TipTap editor, placeholder, toolbar, send or queue button,
  * stop button), 3.4 (send button icon and tooltip switch between 'Send message', 'Queue message'
  * and 'Save edit').
@@ -35,8 +35,8 @@
  * The editor loads the `@` trigger (COMP-04), the `#` trigger (COMP-05), the `/` trigger
  * (COMP-06) and the `§` snippet trigger (COMP-09) from this composer, so all read the chat's
  * service. The `@` menu lists the workspace's files and its linked folders, read again each time
- * the menu opens, and offers "Attach current terminal output" and "Select working directories"
- * (WS-07). The `#` menu lists the project's pull requests and issues
+ * the menu opens, and offers Conductor's "terminal" row ("Attach current terminal output") and its
+ * "add directory" row ("Link a directory or workspace", WS-07). The `#` menu lists the project's pull requests and issues
  * (core/services/mention-search.ts), writes the chosen item's context file and inserts a chip; a
  * failed write shows "Failed to save PR context". A slash command the user picks does what
  * `slashCommandAction` says: /clear opens a new
@@ -105,6 +105,7 @@ import { DictationButton } from "./DictationButton.tsx";
 import { FastModeUnavailableBanner } from "./FastModeUnavailableBanner.tsx";
 import { toastGoalError } from "./GoalBar.tsx";
 import { LinkDirectoriesDialog } from "./LinkDirectoriesDialog.tsx";
+import { LinkedDirectoryChips } from "./LinkedDirectoryChips.tsx";
 import { LinkIssueDialog } from "./LinkIssueDialog.tsx";
 import { ModeChips } from "./ModeChips.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
@@ -455,14 +456,17 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					],
 					onOpen: () => void loadFiles(),
 					actions: [
+						// Conductor's rows: a word to type, then what it does (renderApp @9083009, @9301900).
 						{
 							id: "terminal-output",
-							label: "Attach current terminal output",
+							label: "terminal",
+							detail: "Attach current terminal output",
 							onChoose: () => void attachTerminalOutput(),
 						},
 						{
 							id: "working-directories",
-							label: "Select working directories",
+							label: "add directory",
+							detail: "Link a directory or workspace",
 							onChoose: () => setLinkDialogOpen(true),
 						},
 					],
@@ -736,6 +740,10 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 				fastModeRequested={session?.config.fastMode === true}
 				fastModeAvailable={live?.fastModeAvailable ?? true}
 			/>
+			{/* Conductor shows the linked folders on local workspaces only (renderApp @9314568). */}
+			{workspaceRow.state === "ready" && workspaceRow.data.host.kind === "local" ? (
+				<LinkedDirectoryChips workspaceId={workspaceId} />
+			) : null}
 			<div
 				ref={containerRef}
 				className="relative min-h-[var(--composer-min-height)] cursor-text rounded-xl border border-border bg-muted pt-4 pr-4 pb-3 pl-[18px] shadow-xs"

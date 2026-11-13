@@ -62,36 +62,32 @@
 		"by": "hand"
 	},
 	"test_id:R10242215": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-09",
-		"item": "Animate the row icon when internal_workspace_status_matrix is on (moved from NAV-03 by the step-6 audit).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "sidebar-status-matrix",
+		"via": "testid",
+		"role": "path",
+		"selector": "[data-testid=\"workspace-status-matrix-merged-pattern\"]",
+		"by": "seed"
 	},
 	"test_id:R10242406": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-09",
-		"item": "Animate the row icon when internal_workspace_status_matrix is on (moved from NAV-03 by the step-6 audit).",
-		"owner": "hand"
+		"status": "matched",
+		"state": "sidebar-status-matrix",
+		"via": "testid",
+		"role": "path",
+		"selector": "[data-testid=\"workspace-status-matrix-error-pattern\"]",
+		"by": "seed"
 	},
 	"test_id:R10242632": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-09",
-		"item": "Animate the row icon when internal_workspace_status_matrix is on (moved from NAV-03 by the step-6 audit).",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D018",
+		"note": "The status matrix's overlay, drawn only for a routine's run (origin routine). Routines stay out (D018).",
+		"by": "hand"
 	},
 	"test_id:R10242893": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced",
-		"backlog": "WS-09",
-		"item": "Animate the row icon when internal_workspace_status_matrix is on (moved from NAV-03 by the step-6 audit).",
-		"owner": "hand"
+		"status": "decided",
+		"decision": "D018",
+		"note": "The status matrix's automation arrow, drawn only for a routine's run (origin routine). Routines stay out (D018).",
+		"by": "hand"
 	},
 	"test_id:R10432376": {
 		"status": "matched",

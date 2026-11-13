@@ -1,15 +1,17 @@
 /**
  * @feature catalogue States of review comments on arbor's diff
  * Owns: sign-in.ts's diff with a comment of the user's that suggests a change and the agent's
- * reply under it; the same comment in its own Comment tab; and the Comment tab for a comment that
- * was deleted; the comment resolved, its edit cancelled with changes, its edit refused, and its
- * Add to chat failing.
+ * reply under it; the same comment in its own Comment tab; the Comment tab for a comment that
+ * was deleted; the tab of a reviewer's comment with nothing written in it ("No comment body"); and
+ * the user's comment resolved, its edit cancelled with changes, its edit refused, and its Add to
+ * chat failing.
  * Behaviour: ui-map.md 3.2 (Comment tab, "Comment not found"), 3.6 (comment card: author You,
  * Edit comment, Delete comment, Suggested change); REV-03.
  * Test first: not applicable; the screenshot run opens every state.
  */
 
 import type { CommentId } from "@conducted/shared";
+import { DIFF_COMMENTS_SQL } from "../../core/db/diff-comments.ts";
 import { type Cast, refreshGit, seedCast, workspaceRoute } from "../cast.ts";
 import { click, fillIn, findField, shows } from "../dom.ts";
 import { must } from "../seeds.ts";
@@ -90,7 +92,40 @@ async function editComment(document: Document): Promise<void> {
 	);
 }
 
+/** A reviewer's comment from GitHub with nothing written in it, on the redirect line. */
+async function seedEmptyComment(world: World, cast: Cast): Promise<CommentId> {
+	return must(
+		await world.repositories.diffComments.add({
+			workspaceId: cast.arbor.id,
+			filePath: "src/auth/sign-in.ts",
+			line: 8,
+			endLine: null,
+			body: "",
+			author: { kind: "github", name: "mira-k", avatarUrl: null },
+			side: "additions",
+			threadId: "thread-empty",
+			replyToId: null,
+			suggestion: null,
+			suggestionBaseCode: null,
+		}),
+	).id;
+}
+
 export const COMMENT_STATES: CatalogueState[] = [
+	{
+		id: "comment-tab-no-body",
+		group: "Review comments",
+		title: "The tab of a reviewer's comment with nothing written in it",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			const comment = await seedEmptyComment(world, cast);
+			return {
+				route: workspaceRoute(cast.arbor, { tab: "comment", commentId: comment }),
+				after: ({ app }) => refreshGit(app, cast.arbor),
+				ready: (document) => shows(document, "No comment body"),
+			};
+		},
+	},
 	commentState(
 		"diff-comments",
 		"A file's diff with the user's suggested change and the agent's reply",
@@ -136,7 +171,7 @@ export const COMMENT_STATES: CatalogueState[] = [
 		"Failed to save comment",
 		async ({ document, world }) => {
 			await editComment(document);
-			await world.failWrites("diff_comments", "UPDATE");
+			world.failStatement(DIFF_COMMENTS_SQL.setBody);
 			await click(document, "fieldset button", "Save");
 		},
 	),

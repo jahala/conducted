@@ -66,6 +66,9 @@ function segmentsOf(turn: ChatTurn): string[] {
 			case "error":
 				segments.push(block.item.message);
 				break;
+			case "background_task":
+				segments.push(block.item.description ?? "", block.item.prompt ?? "");
+				break;
 		}
 	}
 	return segments.filter((segment) => segment.length > 0);

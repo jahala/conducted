@@ -2,7 +2,7 @@
  * @feature catalogue What an after-step does on the page, as a user would
  * Owns: finding a control by its role and accessible text, waiting for it to appear (up to the
  * catalogue's hang limit, HANG_MS in settle.ts), and clicking, pointing at, typing into or pressing
- * keys in it with real DOM events (Cmd and Alt modifiers included), so the app's own handlers run.
+ * keys in it with real DOM events (Cmd, Alt and Shift modifiers included), so the app's own handlers run.
  * Our design choice: each of those acts once the page has gone quiet, as a user acts on a loaded
  * screen. Until then the app may still move the focus (the composer takes it once it has loaded),
  * which would close a menu the step just opened. `find` and the `...On` helpers do not wait.
@@ -99,7 +99,7 @@ export function rightClickOn(element: HTMLElement): void {
 export function press(
 	document: Document,
 	key: string,
-	modifiers: { meta?: boolean; alt?: boolean } = {},
+	modifiers: { meta?: boolean; alt?: boolean; shift?: boolean } = {},
 	at?: string,
 ): boolean {
 	let target: HTMLElement = document.body;
@@ -117,6 +117,7 @@ export function press(
 		cancelable: true,
 		metaKey: modifiers.meta === true,
 		altKey: modifiers.alt === true,
+		shiftKey: modifiers.shift === true,
 	};
 	const down = new KeyboardEvent("keydown", init);
 	target.dispatchEvent(down);
@@ -200,13 +201,13 @@ export const shows = (document: Document, text: string): boolean =>
 export async function pressUntilTaken(
 	document: Document,
 	key: string,
-	modifiers: { meta?: boolean; alt?: boolean } = {},
+	modifiers: { meta?: boolean; alt?: boolean; shift?: boolean } = {},
 	at?: string,
 ): Promise<void> {
 	await waitForQuiet(document.body);
 	const taken = await poll(() => (press(document, key, modifiers, at) ? true : undefined));
 	if (taken !== undefined) return;
-	const chord = `${modifiers.meta === true ? "Cmd+" : ""}${modifiers.alt === true ? "Alt+" : ""}`;
+	const chord = `${modifiers.meta === true ? "Cmd+" : ""}${modifiers.alt === true ? "Alt+" : ""}${modifiers.shift === true ? "Shift+" : ""}`;
 	const where = at === undefined ? "" : ` in ${at}`;
 	throw new Error(`The app never took the key ${chord}${key}${where}.`);
 }

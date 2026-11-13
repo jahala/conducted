@@ -14,7 +14,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("../../core/hooks.ts", () => ({
 	useActions: () => ({ terminals: { create: vi.fn() } }),
-	useWorkspace: () => ({ state: "ready", data: { port: 0 } }),
+	useWorkspace: () => ({ state: "ready", data: { port: 0, host: { kind: "local" } } }),
 	useSessions: () => ({ state: "ready", data: [] }),
 	useSetting: () => false,
 }));

@@ -153,6 +153,31 @@ describe("WS-03 Setup tab", () => {
 		expect(screen.getByRole("button", { name: "Ask agent" })).toBeTruthy();
 	});
 
+	it("says so when Ask agent finds no chat to send to, as Conductor's tab does", async () => {
+		state.setup = {
+			state: "ready",
+			data: failed({ state: "idle", hasScript: false, terminalId: null, log: "missing" }),
+		};
+		state.sessions = { state: "ready", data: [] };
+		render(<SetupTab workspaceId={workspaceId} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "Ask agent" }));
+
+		expect(state.toast).toHaveBeenCalledWith("No active chat to send setup request to");
+		expect(state.send).not.toHaveBeenCalled();
+	});
+
+	it("says Couldn't load setup script settings when the repository's settings cannot be read", () => {
+		state.setup = {
+			state: "error",
+			error: appError("repo_config_invalid", "settings.toml: expected a table header"),
+		};
+		render(<SetupTab workspaceId={workspaceId} />);
+
+		expect(screen.getByText("Couldn't load setup script settings")).toBeTruthy();
+		expect(screen.queryByText("Setup is unavailable")).toBeNull();
+	});
+
 	it("disables the agent action without a chat", () => {
 		state.sessions = { state: "ready", data: [] };
 		render(<SetupTab workspaceId={workspaceId} />);

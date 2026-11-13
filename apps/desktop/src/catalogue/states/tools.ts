@@ -8,7 +8,7 @@
  * REPL and generates an image; a turn whose todo list is empty, started and done; a turn that
  * enters plan mode and proposes a plan, with the plan's menu open; two HTML visualizations the chat
  * cannot show; a reply with a
- * Mermaid diagram; and a background helper whose work
+ * Mermaid diagram, and one that does not parse; and a background helper whose work
  * arrives in the next turn, shown inside the card of the turn that started it (D129).
  * Behaviour: ui-map.md 3.3 (chat, tool cards); the cards are features/chat/tools/cards/.
  * Test first: not applicable; the screenshot run opens every state.
@@ -312,6 +312,31 @@ async function taskToolsChat(world: World): Promise<Scene> {
 		input: { chat: "Release checklist", message: "The banner is ready for the post." },
 		output: "Message sent.",
 	});
+	const watch = talk.tool(turn, {
+		tool: "bash",
+		rawName: "Bash",
+		input: { command: "pnpm test --watch", run_in_background: true },
+		output: "Command running in the background.",
+	});
+	talk.agent(turn, [
+		{
+			kind: "background_task",
+			taskId: "task-watch",
+			description: "Watch the release tests",
+			toolUseId: watch,
+		},
+	]);
+	talk.tool(turn, {
+		tool: "teammate",
+		rawName: "Teammate",
+		input: {
+			operation: "spawnTeam",
+			team_name: "release-check",
+			description: "Check every release step against the tests",
+			agent_type: "general-purpose",
+		},
+		output: "Team release-check started.",
+	});
 	talk.tool(turn, {
 		tool: "sub_agent",
 		rawName: "Task",
@@ -357,6 +382,8 @@ async function taskToolsChat(world: World): Promise<Scene> {
 			await openClosedRow(document, "Tasks");
 			await openClosedRow(document, "Preview image");
 			await openClosedRow(document, "Send message");
+			await openClosedRow(document, "Spawn swarm");
+			await openClosedRow(document, "Background Task");
 			await openClosedRow(document, "Subagent");
 			await openClosedRow(document, "Generated image");
 			await openRow(document, "Node REPL");
@@ -482,6 +509,35 @@ async function visualizationChat(world: World): Promise<Scene> {
 		ready: (document) =>
 			shows(document, "Visualization is outside the workspace:") &&
 			shows(document, "Couldn’t load visualization"),
+	};
+}
+
+/** A reply in arbor whose Mermaid diagram the agent got wrong: an arrow with no target. */
+async function brokenMermaidChat(world: World): Promise<Scene> {
+	const cast = await seedCast(world);
+	const chat = await addChat(world, cast.arbor, { title: "How the redirect works" });
+	const talk = conversation("arbor-mermaid-broken", CATALOGUE_NOW - 6 * MINUTE);
+	const turn = talk.user("Draw how a sign-in keeps the page the user asked for.");
+	talk.text(
+		turn,
+		[
+			"Here is the path a request takes now:",
+			"",
+			"```mermaid",
+			"sequenceDiagram",
+			"  Browser->>: GET /billing",
+			"```",
+		].join("\n"),
+	);
+	talk.end(turn);
+	await addEvents(world, chat.id, talk.events);
+	return {
+		route: chatRoute(cast.arbor, chat),
+		after: async ({ app }) => {
+			await animateCast(world, cast, app);
+			await refreshGit(app, cast.arbor);
+		},
+		ready: (document) => shows(document, "Failed to render diagram"),
 	};
 }
 
@@ -634,7 +690,8 @@ export const TOOL_STATES: CatalogueState[] = [
 	{
 		id: "chat-tool-cards-tasks",
 		group: "Workspace chat",
-		title: "A turn opened: a task created and read, a Node REPL and a generated image",
+		title:
+			"A turn opened: a task created and read, a swarm spawned, a Node REPL and a generated image",
 		seed: taskToolsChat,
 	},
 	{
@@ -660,6 +717,12 @@ export const TOOL_STATES: CatalogueState[] = [
 		group: "Workspace chat",
 		title: "A reply with a Mermaid sequence diagram",
 		seed: mermaidChat,
+	},
+	{
+		id: "chat-mermaid-failed",
+		group: "Workspace chat",
+		title: "A reply with a Mermaid diagram that does not parse",
+		seed: brokenMermaidChat,
 	},
 	{
 		id: "chat-subagent-late-work",
