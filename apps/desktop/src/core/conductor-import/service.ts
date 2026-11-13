@@ -21,7 +21,14 @@
  * never carries a secret value, because values never leave the Rust shell.
  * Test first: the dry run lists what comes over and what stays, and changes nothing.
  */
-import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	err,
+	ok,
+	type Result,
+	trimTrailingSlashes,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Database, Platform } from "../../platform/platform.ts";
 import { localSettingsFile, sharedSettingsFile } from "../app-paths.ts";
@@ -303,7 +310,8 @@ export class ConductorImportService {
 		const { rows } = parseConductorRows(snapshot.value);
 		const folders: Record<string, RepoFolder> = {};
 		for (const repo of rows.repos) {
-			const root = repo.root_path?.replace(/\/+$/, "");
+			const root =
+				typeof repo.root_path === "string" ? trimTrailingSlashes(repo.root_path) : undefined;
 			if (root === undefined || !root.startsWith("/") || folders[root] !== undefined) continue;
 			const folder = await this.#readFolder(root);
 			if (!folder.ok) return folder;

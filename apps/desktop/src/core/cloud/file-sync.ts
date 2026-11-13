@@ -42,6 +42,7 @@ import {
 	err,
 	ok,
 	type Result,
+	trimTrailingSlashes,
 	type WorkspaceId,
 	withinCloudReadLimit,
 } from "@conducted/shared";
@@ -133,7 +134,7 @@ export function mirrorPathFor(
 	workspaceId: WorkspaceId,
 ): string {
 	const safeRepo = repoName.replace(/[/:\\]/g, "-") || "repository";
-	return `${rootPath.replace(/\/+$/, "")}/${MIRROR_FOLDER}/${safeRepo}/${workspaceId}`;
+	return `${trimTrailingSlashes(rootPath)}/${MIRROR_FOLDER}/${safeRepo}/${workspaceId}`;
 }
 
 /**
@@ -192,7 +193,7 @@ function decodeBase64(value: string): Uint8Array {
 
 /** The relative path of an absolute sandbox entry under `root`, or null when outside it. */
 function relativeToRoot(root: string, path: string): string | null {
-	const base = root.replace(/\/+$/, "");
+	const base = trimTrailingSlashes(root);
 	if (path === base) return "";
 	const prefix = `${base}/`;
 	return path.startsWith(prefix) ? path.slice(prefix.length) : null;
@@ -348,7 +349,7 @@ export class FileSyncService {
 		const read = await this.#deps.fs.readBytes(sourcePath);
 		if (!read.ok) return read;
 		const text = textFromBytes(read.value);
-		const destination = `${workspace.value.path.replace(/\/+$/, "")}/${guarded.value}`;
+		const destination = `${trimTrailingSlashes(workspace.value.path)}/${guarded.value}`;
 		const answer = await cloudJson(
 			this.#deps.cloud,
 			workspace.value.host,
@@ -424,7 +425,7 @@ export class FileSyncService {
 		}
 		const answer = await cloudJson(this.#deps.cloud, workspace.value.host, "/files", {
 			operation: "readBytes",
-			path: `${workspace.value.path.replace(/\/+$/, "")}/${guarded.value}`,
+			path: `${trimTrailingSlashes(workspace.value.path)}/${guarded.value}`,
 		});
 		if (!answer.ok) return answer;
 		const value = answer.value as { base64?: unknown };
@@ -459,7 +460,7 @@ export class FileSyncService {
 		if (workspace.value.host.kind !== "cloud") return ok(false);
 		const answer = await cloudJson(this.#deps.cloud, workspace.value.host, "/files", {
 			operation: "exists",
-			path: `${workspace.value.path.replace(/\/+$/, "")}/${guarded.value}`,
+			path: `${trimTrailingSlashes(workspace.value.path)}/${guarded.value}`,
 		});
 		if (!answer.ok) return answer;
 		const value = answer.value as { exists?: unknown };

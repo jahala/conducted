@@ -127,6 +127,7 @@ import {
 	messageOf,
 	ok,
 	type Result,
+	trimTrailingSlashes,
 	type WorkspaceId,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
@@ -799,7 +800,7 @@ export function githubPullRequestContextFile(record: GithubPullRequestRecord): s
 }
 
 function absolutePath(root: string, relative: string): string {
-	return `${root.replace(/\/+$/, "")}/${relative}`;
+	return `${trimTrailingSlashes(root)}/${relative}`;
 }
 
 function matchesQuery(query: string, values: readonly string[]): boolean {

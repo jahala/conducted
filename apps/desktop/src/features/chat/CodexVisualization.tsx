@@ -24,7 +24,7 @@
  * Test first: a path outside the workspace root renders "Visualization is outside the workspace:"
  * with the path and loads no frame.
  */
-import type { SessionId, WorkspaceId } from "@conducted/shared";
+import { type SessionId, trimTrailingSlashes, type WorkspaceId } from "@conducted/shared";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useServices } from "../../core/context.tsx";
 import { workspaceRelativePath } from "../../core/git-text.ts";
@@ -58,7 +58,7 @@ function relativeInsideWorkspace(root: string, path: string, home: string): Reso
 		const checked = workspaceRelativePath(expanded);
 		return checked.ok ? { ok: true, relative: checked.value } : { ok: false };
 	}
-	const base = root === "/" ? "" : root.replace(/\/+$/, "");
+	const base = root === "/" ? "" : trimTrailingSlashes(root);
 	const prefix = base === "" ? "/" : `${base}/`;
 	if (!expanded.startsWith(prefix)) return { ok: false };
 	const checked = workspaceRelativePath(expanded.slice(prefix.length));

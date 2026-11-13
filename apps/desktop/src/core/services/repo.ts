@@ -68,6 +68,7 @@ import {
 	ok,
 	type RepoId,
 	type Result,
+	trimTrailingSlashes,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
@@ -154,12 +155,12 @@ export interface RepoState {
 /** Removes a trailing slash so `/code/app` and `/code/app/` are the same folder. */
 export function normaliseRootPath(path: string): string {
 	const trimmed = path.trim();
-	return trimmed.length > 1 ? trimmed.replace(/\/+$/, "") : trimmed;
+	return trimmed.length > 1 ? trimTrailingSlashes(trimmed) : trimmed;
 }
 
 /** Trims a remote URL and removes a trailing slash so the saved value is stable. */
 export function normaliseRemoteUrl(url: string): string {
-	return url.trim().replace(/\/+$/, "");
+	return trimTrailingSlashes(url.trim());
 }
 
 /** The local storage key that holds the shared run actions this user hid for one repository. */
@@ -256,7 +257,7 @@ export function projectNameFromPath(path: string): string {
  * and git's `user@host:owner/repo` form name the same folder. Null when the URL names no folder.
  */
 export function repoNameFromUrl(url: string): string | null {
-	const trimmed = url.trim().replace(/\/+$/, "");
+	const trimmed = trimTrailingSlashes(url.trim());
 	if (trimmed === "") return null;
 	const scp = /^[^@\s/]+@[^:\s/]+:(.+)$/.exec(trimmed);
 	let path: string;

@@ -16,13 +16,16 @@
  * table. A new table would need a new migration; files need none.
  * Test first: draftFile joins appData, "drafts" and "<sessionId>.json" with single slashes.
  */
+import { trimLeadingSlashes, trimTrailingSlashes } from "@conducted/shared";
 import type { FileSystem } from "../platform/platform.ts";
 
 export type AppPaths = FileSystem["paths"];
 
 const join = (...parts: string[]): string =>
 	parts
-		.map((part, index) => (index === 0 ? part.replace(/\/+$/, "") : part.replace(/^\/+|\/+$/g, "")))
+		.map((part, index) =>
+			index === 0 ? trimTrailingSlashes(part) : trimLeadingSlashes(trimTrailingSlashes(part)),
+		)
 		.join("/");
 
 /**
@@ -31,7 +34,7 @@ const join = (...parts: string[]): string =>
  * path cannot climb out of the folder by how it is spelled.
  */
 export const isInsideFolder = (folder: string, path: string): boolean => {
-	const base = folder.replace(/\/+$/, "");
+	const base = trimTrailingSlashes(folder);
 	if (base.length === 0 || path.includes("\u0000") || !path.startsWith(`${base}/`)) return false;
 	return path
 		.slice(base.length + 1)

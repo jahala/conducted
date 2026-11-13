@@ -21,7 +21,14 @@
  * There is no OAuth because there is no backend to run the callback.
  * Test first: a 401 moves the state to "key rejected" and a second call makes no request.
  */
-import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
+import {
+	appError,
+	err,
+	ok,
+	type Result,
+	trimTrailingSlashes,
+	type WorkspaceId,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSystem, Platform } from "../../platform/platform.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
@@ -603,7 +610,7 @@ export class LinearService {
 	/** Writes the context file for an issue into a workspace and returns its path. */
 	async attachAsContext(issue: LinearIssue, workspacePath: string): Promise<Result<string>> {
 		const relativePath = linearIssueContextPath(issue);
-		const root = workspacePath.replace(/\/+$/, "");
+		const root = trimTrailingSlashes(workspacePath);
 		if (root === "") {
 			return err(appError("linear_workspace_missing", "That workspace has no folder."));
 		}

@@ -55,7 +55,13 @@ function withoutStringLiterals(text: string): string {
 		.replace(/(?<!\w)'(?:[^'\\\n]|\\.)*'/g, blank);
 }
 
-const MARKERS: { pattern: RegExp; files: RegExp; message: string; skipStrings?: boolean }[] = [
+const MARKERS: {
+	pattern: RegExp;
+	files: RegExp;
+	message: string;
+	skipStrings?: boolean;
+	skipComments?: boolean;
+}[] = [
 	{
 		pattern: /\b(TODO|FIXME|XXX)\b/,
 		files: /\.(ts|tsx|rs|sh)$/,
@@ -72,6 +78,15 @@ const MARKERS: { pattern: RegExp; files: RegExp; message: string; skipStrings?: 
 		files: /\.sh$/,
 		message: "deletes with rm; move files to the Trash instead",
 	},
+	{
+		// The pattern takes time in proportion to the square of a run of slashes that does not end
+		// the text (CodeQL js/polynomial-redos). A test may still compare the helper with it.
+		pattern: /\\\/\+\$\//,
+		files: /(?<!\.test)\.tsx?$/,
+		message:
+			"trims slashes with the /\\/+$/ pattern; use trimTrailingSlashes (and trimLeadingSlashes) from @conducted/shared",
+		skipComments: true,
+	},
 ];
 
 const MARKER_SCOPE = /^(apps|packages)\/.+\/src\/|^(bin|scripts)\//;
@@ -84,7 +99,8 @@ export function checkMarkers(root: string): Problem[] {
 		const text = read(path);
 		for (const marker of MARKERS) {
 			if (!marker.files.test(file)) continue;
-			const lines = (marker.skipStrings === true ? withoutStringLiterals(text) : text).split("\n");
+			const read = marker.skipStrings === true ? withoutStringLiterals(text) : text;
+			const lines = (marker.skipComments === true ? withoutComments(read) : read).split("\n");
 			const at = lines.findIndex((line) => marker.pattern.test(line));
 			if (at !== -1)
 				problems.push({ guard: "markers", message: `${file}:${at + 1} ${marker.message}` });
