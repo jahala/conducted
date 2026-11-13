@@ -65,27 +65,26 @@ const SHIPPED_WORKSPACES: readonly { filter: string; part: Part }[] = [
 ];
 
 /** Build tools, installed as development dependencies, whose own code the build puts into a part. */
-const BUILD_TOOL_CODE: readonly { filter: string; name: string; part: Part; why: string }[] =
-	[
-		{
-			filter: "@conducted/desktop",
-			name: "tailwindcss",
-			part: "web UI",
-			why: "its base styles and theme are compiled into the stylesheet",
-		},
-		{
-			filter: "@conducted/desktop",
-			name: "vite",
-			part: "web UI",
-			why: "its module preload helper is in the bundle",
-		},
-		{
-			filter: "@conducted/desktop",
-			name: "rolldown",
-			part: "web UI",
-			why: "its runtime is in the bundle",
-		},
-	];
+const BUILD_TOOL_CODE: readonly { filter: string; name: string; part: Part; why: string }[] = [
+	{
+		filter: "@conducted/desktop",
+		name: "tailwindcss",
+		part: "web UI",
+		why: "its base styles and theme are compiled into the stylesheet",
+	},
+	{
+		filter: "@conducted/desktop",
+		name: "vite",
+		part: "web UI",
+		why: "its module preload helper is in the bundle",
+	},
+	{
+		filter: "@conducted/desktop",
+		name: "rolldown",
+		part: "web UI",
+		why: "its runtime is in the bundle",
+	},
+];
 
 /** The Geist fonts, kept in the repository (docs/design.md, Fonts). */
 const FONTS = {
