@@ -1,131 +1,99 @@
 {
 	"tauri_event:tauri://resize": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-23",
-		"owner": "hand",
-		"note": "The window's size, place, scale or theme changed."
+		"status": "matched",
+		"ours": "tauri://resize",
+		"by": "hand",
+		"note": "Tauri's own event when the window is resized; every Tauri 2 window sends it. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 240 calls through tauri://resize in 119 states."
 	},
 	"tauri_event:tauri://move": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-23",
-		"owner": "hand",
-		"note": "The window's size, place, scale or theme changed."
+		"status": "matched",
+		"ours": "tauri://move",
+		"by": "hand",
+		"note": "Tauri's own event when the window moves; every Tauri 2 window sends it. Conductor's frontend did not listen to it in the run; Tauri sends it to every window (TauriEvent in @tauri-apps/api, compared with our list by scripts/parity/ours.test.ts)."
 	},
 	"tauri_event:tauri://close-requested": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-15",
-		"owner": "hand",
-		"note": "The window asks to close: the quit hand-shake."
+		"status": "matched",
+		"ours": "tauri://close-requested",
+		"by": "hand",
+		"note": "Tauri's own event when the window asks to close; every Tauri 2 window sends it. Conductor's frontend did not listen to it in the run; Tauri sends it to every window (TauriEvent in @tauri-apps/api, compared with our list by scripts/parity/ours.test.ts)."
 	},
 	"tauri_event:tauri://drag-enter": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-33",
-		"owner": "hand",
-		"note": "Files dragged onto the window."
+		"status": "matched",
+		"ours": "tauri://drag-enter",
+		"by": "hand",
+		"note": "Tauri's own event for files dragged onto the window; ours listens through onDragDropEvent (platform/tauri.ts). In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 95 calls through tauri://drag-enter in 94 states."
 	},
 	"tauri_event:tauri://drag-over": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-33",
-		"owner": "hand",
-		"note": "Files dragged onto the window."
+		"status": "matched",
+		"ours": "tauri://drag-over",
+		"by": "hand",
+		"note": "Tauri's own event for a drag over the window; ours listens through onDragDropEvent (platform/tauri.ts). In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 95 calls through tauri://drag-over in 94 states."
 	},
 	"tauri_event:tauri://drag-drop": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-33",
-		"owner": "hand",
-		"note": "Files dragged onto the window."
+		"status": "matched",
+		"ours": "tauri://drag-drop",
+		"by": "hand",
+		"note": "Tauri's own event for files dropped on the window; ours listens through onDragDropEvent (platform/tauri.ts). In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 95 calls through tauri://drag-drop in 94 states."
 	},
 	"tauri_event:tauri://drag-leave": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-33",
-		"owner": "hand",
-		"note": "Files dragged onto the window."
+		"status": "matched",
+		"ours": "tauri://drag-leave",
+		"by": "hand",
+		"note": "Tauri's own event for a drag leaving the window; ours listens through onDragDropEvent (platform/tauri.ts). In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 95 calls through tauri://drag-leave in 94 states."
 	},
 	"tauri_event:tauri://focus": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-31",
-		"item": "tauri://focus and tauri://blur reach the UI through Platform.app, for polling only while focused.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "tauri://focus",
+		"by": "hand",
+		"note": "Tauri's own event when the window gains focus; ours listens to it too (platform/tauri.ts windowFocus). In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 240 calls through tauri://focus in 119 states."
 	},
 	"tauri_event:tauri://blur": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-31",
-		"item": "tauri://focus and tauri://blur reach the UI through Platform.app, for polling only while focused.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "tauri://blur",
+		"by": "hand",
+		"note": "Tauri's own event when the window loses focus; ours listens to it too (platform/tauri.ts windowBlur). In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 240 calls through tauri://blur in 119 states."
 	},
 	"tauri_event:tauri://scale-change": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-23",
-		"owner": "hand",
-		"note": "The window's size, place, scale or theme changed."
+		"status": "matched",
+		"ours": "tauri://scale-change",
+		"by": "hand",
+		"note": "Tauri's own event when the window's scale changes; every Tauri 2 window sends it. Conductor's frontend did not listen to it in the run; Tauri sends it to every window (TauriEvent in @tauri-apps/api, compared with our list by scripts/parity/ours.test.ts)."
 	},
 	"tauri_event:tauri://theme-changed": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-23",
-		"owner": "hand",
-		"note": "The window's size, place, scale or theme changed."
+		"status": "matched",
+		"ours": "tauri://theme-changed",
+		"by": "hand",
+		"note": "Tauri's own event when the system theme changes; every Tauri 2 window sends it. Conductor's frontend did not listen to it in the run; Tauri sends it to every window (TauriEvent in @tauri-apps/api, compared with our list by scripts/parity/ours.test.ts)."
 	},
 	"tauri_event:rpc_from_sidecar": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-09",
-		"item": "rpc_from_sidecar event delivers sidecar lines to the UI.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "sidecar://line",
+		"by": "hand",
+		"note": "Delivers the sidecar's lines to the UI. Ours is sidecar://line. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 120 calls through sidecar://line in 119 states."
 	},
 	"tauri_event:pty-ready": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-07",
-		"item": "pty-ready event tells the UI a terminal is ready; ours returns from the spawn call instead.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "tauri_command:pty_spawn",
+		"by": "hand",
+		"note": "A terminal is ready. Ours answers pty_spawn once the terminal runs, so the UI needs no event (pty.rs). No catalogue state runs a terminal in Conductor's frontend; ours is shown by pty.rs plat_07_spawn_starts_a_command_and_returns_its_exit."
 	},
 	"tauri_event:pty-data": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-07",
-		"item": "pty-data event delivers terminal output to the UI.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "tauri_command:pty_spawn",
+		"by": "hand",
+		"note": "Terminal output for the UI. Ours sends it on the Channel passed to pty_spawn, as base64 chunks with their byte length (pty.rs). No catalogue state runs a terminal in Conductor's frontend; ours is shown by pty.rs plat_07_output_chunks_are_base64_encoded."
 	},
 	"tauri_event:pty-exit": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-07",
-		"item": "pty-exit event tells the UI a terminal process ended.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "pty://exit",
+		"by": "hand",
+		"note": "A terminal's process ended. Ours is pty://exit. No catalogue state runs a terminal in Conductor's frontend; ours is shown by pty.rs plat_07_spawn_starts_a_command_and_returns_its_exit."
 	},
 	"tauri_event:raw-websocket-event": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-03",
-		"item": "raw-websocket-event delivers WebSocket messages.",
-		"owner": "rule:name"
+		"status": "decided",
+		"decision": "D025",
+		"note": "Messages of the WebSocket to Conductor's own server (main @2942811). Our cloud relay's lines are cloud://line (D018).",
+		"by": "hand"
 	},
 	"tauri_event:remote-file-sync-direct-info-request": {
 		"status": "decided",
@@ -140,179 +108,135 @@
 		"by": "hand"
 	},
 	"tauri_event:agent_binary_progress": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-28",
-		"item": "agent_binary_progress event reports download progress of an agent program.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "programs://status",
+		"by": "hand",
+		"note": "An agent program's download progress. Ours is programs://status. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 120 calls through programs://status in 119 states."
 	},
 	"tauri_event:port-forward-token-request": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-10",
-		"item": "port-forward-token-request asks for a forward token.",
-		"owner": "rule:name"
+		"status": "decided",
+		"decision": "D110",
+		"note": "D110: the pairing token stays in Rust, so the token-request event is not built.",
+		"by": "hand"
 	},
 	"tauri_event:port-forward-event": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-10",
-		"item": "port-forward-event reports port forward state.",
-		"owner": "rule:name"
+		"status": "decided",
+		"decision": "D110",
+		"note": "Reports a forward's state to the UI, which uses it for the SSH keepalive of Conductor's SSH-based forwarding (main @3870859). D110 forwards over one WebSocket per connection through the Worker, and the service reads the forwards itself.",
+		"by": "hand"
 	},
 	"tauri_event:deep-link://new-url": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-16",
-		"owner": "hand",
-		"note": "The OS hands a conducted:// link to the app."
+		"status": "matched",
+		"ours": "app://deep-link",
+		"by": "hand",
+		"note": "The OS hands the app a link. Ours is app://deep-link. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 253 calls through app://deep-link in 119 states."
 	},
 	"tauri_event:binary_verification_errors": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-34",
-		"item": "binary_verification_errors event reports agent programs that failed verification.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "programs://verification-errors",
+		"by": "hand",
+		"note": "Agent programs that failed verification. Ours is programs://verification-errors. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 120 calls through programs://verification-errors in 119 states."
 	},
 	"tauri_event:tauri://destroyed": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-02",
-		"owner": "hand",
-		"note": "Tauri's own window life-cycle events."
+		"status": "matched",
+		"ours": "tauri://destroyed",
+		"by": "hand",
+		"note": "Tauri's own event when a window closes; every Tauri 2 window sends it. Conductor's frontend did not listen to it in the run; Tauri sends it to every window (TauriEvent in @tauri-apps/api, compared with our list by scripts/parity/ours.test.ts)."
 	},
 	"tauri_event:tauri://error": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-02",
-		"owner": "hand",
-		"note": "Tauri's own window life-cycle events."
+		"status": "matched",
+		"ours": "tauri://error",
+		"by": "hand",
+		"note": "Tauri's own event when a window cannot be made; every Tauri 2 window sends it. Conductor's frontend did not listen to it in the run; Tauri sends it to every window (TauriEvent in @tauri-apps/api, compared with our list by scripts/parity/ours.test.ts)."
 	},
 	"tauri_event:open_settings_page": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-15",
-		"item": "open_settings_page opens the settings page from the menu.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "menu://command",
+		"by": "hand",
+		"note": "The app menu's Settings item. Ours sends the item's command id on menu://command. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 120 calls through menu://command in 119 states."
 	},
 	"tauri_event:open_keyboard_shortcuts_dialog": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-15",
-		"owner": "hand",
-		"note": "An app menu item sent to the UI."
+		"status": "matched",
+		"ours": "menu://command",
+		"by": "hand",
+		"note": "The app menu's Keyboard Shortcuts item. Ours sends the item's command id on menu://command. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 120 calls through menu://command in 119 states."
 	},
 	"tauri_event:open_feedback_dialog": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-15",
-		"owner": "hand",
-		"note": "An app menu item sent to the UI."
+		"status": "matched",
+		"ours": "menu://command",
+		"by": "hand",
+		"note": "The app menu's Send Feedback item. Ours sends the item's command id on menu://command. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 120 calls through menu://command in 119 states."
 	},
 	"tauri_event:open_documentation_url": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-15",
-		"owner": "hand",
-		"note": "An app menu item sent to the UI."
+		"status": "matched",
+		"ours": "menu://command",
+		"by": "hand",
+		"note": "The app menu's Documentation item. Ours sends the item's command id on menu://command. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 120 calls through menu://command in 119 states."
 	},
 	"tauri_event:open_best_practices_url": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-15",
-		"owner": "hand",
-		"note": "An app menu item sent to the UI."
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Help menu's Best Practices item opens Conductor's website, which D025 leaves out.",
+		"by": "hand"
 	},
 	"tauri_event:open_changelog_url": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-15",
-		"owner": "hand",
-		"note": "An app menu item sent to the UI."
+		"status": "matched",
+		"ours": "menu://command",
+		"by": "hand",
+		"note": "The app menu's Changelog item. Ours sends the item's command id on menu://command. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 120 calls through menu://command in 119 states."
 	},
 	"tauri_event:open_diagnostics_page": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-15",
-		"owner": "hand",
-		"note": "An app menu item sent to the UI."
+		"status": "matched",
+		"ours": "menu://command",
+		"by": "hand",
+		"note": "The app menu's Diagnostics item. Ours sends the item's command id on menu://command. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 120 calls through menu://command in 119 states."
 	},
 	"tauri_event:open_submit_prompt_dialog": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-15",
-		"owner": "hand",
-		"note": "An app menu item sent to the UI."
+		"status": "decided",
+		"decision": "D025",
+		"note": "The Help menu's Submit a Prompt item opens Conductor's prompt programme, which D025 leaves out.",
+		"by": "hand"
 	},
 	"tauri_event:toggle_left_sidebar": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-15",
-		"owner": "hand",
-		"note": "An app menu item sent to the UI."
+		"status": "matched",
+		"ours": "menu://command",
+		"by": "hand",
+		"note": "The View menu's left sidebar item. Ours sends the item's command id on menu://command. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 120 calls through menu://command in 119 states."
 	},
 	"tauri_event:toggle_right_sidebar": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-15",
-		"owner": "hand",
-		"note": "An app menu item sent to the UI."
+		"status": "matched",
+		"ours": "menu://command",
+		"by": "hand",
+		"note": "The View menu's right sidebar item. Ours sends the item's command id on menu://command. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 120 calls through menu://command in 119 states."
 	},
 	"tauri_event:manual_update_status": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-13",
-		"item": "The updater://status event (Conductor names it manual_update_status) reports update download state.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "updater://status",
+		"by": "hand",
+		"note": "The update's download state. Ours is updater://status. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 120 calls through updater://status in 119 states."
 	},
 	"tauri_event:notification-deep-link-click": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-11",
-		"owner": "hand",
-		"note": "A click on a native notification opens its link."
+		"status": "matched",
+		"ours": "notification://clicked",
+		"by": "hand",
+		"note": "A click on a native notification. Ours is notification://clicked. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 120 calls through notification://clicked in 119 states."
 	},
 	"tauri_event:quit_requested": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-15",
-		"item": "quit_requested event asks the UI to confirm quitting.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "app://quit-requested",
+		"by": "hand",
+		"note": "Asks the UI to confirm quitting. Ours is app://quit-requested. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 120 calls through app://quit-requested in 119 states."
 	},
 	"tauri_event:tauri://created": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-02",
-		"owner": "hand",
-		"note": "Tauri's own window life-cycle events."
+		"status": "matched",
+		"ours": "tauri://created",
+		"by": "hand",
+		"note": "Tauri's own event when a window is made; every Tauri 2 window sends it. Conductor's frontend did not listen to it in the run; Tauri sends it to every window (TauriEvent in @tauri-apps/api, compared with our list by scripts/parity/ours.test.ts)."
 	},
 	"tauri_event:network-changed": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-26",
-		"item": "network-changed event reports a network change.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "network://changed",
+		"by": "hand",
+		"note": "A network change. Ours is network://changed. In stage 2's run of 2026-11-13 on this branch (its first 200 states), Conductor's frontend listened to it and our app delivered 120 calls through network://changed in 119 states."
 	}
 }

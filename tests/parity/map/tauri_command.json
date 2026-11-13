@@ -6,12 +6,10 @@
 		"by": "hand"
 	},
 	"tauri_command:configure_http_proxy": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-30",
-		"owner": "hand",
-		"note": "HTTP from the native side, through the user's proxy."
+		"status": "decided",
+		"decision": "D025",
+		"note": "Points Conductor's native HTTP at the proxy in its Internal setting internal_tauri_http_proxy_url (main @2022870). Internal settings are staff tools, which stay out.",
+		"by": "hand"
 	},
 	"tauri_command:is_cef_runtime": {
 		"status": "decided",
@@ -20,92 +18,70 @@
 		"by": "hand"
 	},
 	"tauri_command:native_http_fetch_cancel": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-30",
-		"owner": "hand",
-		"note": "HTTP from the native side, through the user's proxy."
+		"status": "matched",
+		"ours": "http_cancel",
+		"by": "hand",
+		"note": "Cancels a native HTTP request. Ours is http_cancel. The run cuts the network off; ours is shown by http.rs plat_30_fetch_returns_the_status_headers_and_body (ours allows only its listed hosts)."
 	},
 	"tauri_command:native_http_fetch": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-30",
-		"owner": "hand",
-		"note": "HTTP from the native side, through the user's proxy."
+		"status": "matched",
+		"ours": "http_fetch",
+		"by": "hand",
+		"note": "An HTTP request from the native side. Ours is http_fetch. The run cuts the network off; ours is shown by http.rs plat_30_fetch_returns_the_status_headers_and_body (ours allows only its listed hosts)."
 	},
 	"tauri_command:native_http_upload_cancel": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-30",
-		"owner": "hand",
-		"note": "HTTP from the native side, through the user's proxy."
+		"status": "decided",
+		"decision": "D025",
+		"note": "Cancels an upload to Conductor's own server (main @2025953; the caller is the Roundhouse profile photo upload, renderApp @11079548). Conductor's service stays out.",
+		"by": "hand"
 	},
 	"tauri_command:native_http_upload_file": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-30",
-		"owner": "hand",
-		"note": "HTTP from the native side, through the user's proxy."
+		"status": "decided",
+		"decision": "D025",
+		"note": "Uploads a file to Conductor's own server: its one caller sends a profile photo to Roundhouse (renderApp @11079548). Conductor's service stays out.",
+		"by": "hand"
 	},
 	"tauri_command:materialize_local_path_attachment": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-20",
-		"item": "materialize_local_path_attachment copies a dropped file into the attachment store.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "attachment_materialize",
+		"by": "hand",
+		"note": "Copies a dropped file into the attachment store. Ours is attachment_materialize. No catalogue state drops a file on Conductor's composer; ours is shown by attachments.rs plat_20_materialize_copies_a_dropped_file_into_the_draft_folder."
 	},
 	"tauri_command:list_file_tree": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-06",
-		"item": "list_file_tree lists a workspace's files.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "search_list_tree",
+		"by": "hand",
+		"note": "Lists a workspace's files. Ours is search_list_tree. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 87 calls through search_list_tree in 86 states."
 	},
 	"tauri_command:list_workspace_artifacts": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "REV-10",
-		"item": "list_workspace_artifacts pages through the files of the workspace .context folder, with exclusions, for the Artifacts tab.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "search_list_artifacts",
+		"by": "hand",
+		"note": "Pages through a workspace's .context folder for the Artifacts tab. Ours is search_list_artifacts. Ours is shown by file_search.rs rev_10_list_artifacts_pages_through_the_context_folder."
 	},
 	"tauri_command:fuzzy_filter_files": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-06",
-		"item": "fuzzy_filter_files filters a file list by a fuzzy query.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "search_fuzzy",
+		"by": "hand",
+		"note": "Filters a workspace's files by a fuzzy query. Ours is search_fuzzy, and search_list_tree for an empty query. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 87 calls through search_list_tree in 86 states."
 	},
 	"tauri_command:grep_workspace": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-06",
-		"item": "grep_workspace searches file contents in a workspace.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "search_grep",
+		"by": "hand",
+		"note": "Searches file contents in a workspace. Ours is search_grep. Ours is shown by file_search.rs plat_06_grep_reports_line_column_and_preview."
 	},
 	"tauri_command:rpc_to_sidecar": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-09",
-		"item": "rpc_to_sidecar sends one JSON-RPC line to the sidecar.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "sidecar_send",
+		"by": "hand",
+		"note": "Sends one JSON-RPC line to the sidecar. Ours is sidecar_send. Stage 2 carries every sidecar line of Conductor's frontend through it to our sidecar_send (translator.ts tunnel), which getHarnessVersions and the other sidecar calls above answered through."
 	},
 	"tauri_command:send_native_notification": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-11",
-		"item": "send_native_notification shows a macOS notification.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "notify",
+		"by": "hand",
+		"note": "Shows a macOS notification. Ours is notify. The run's host refuses notifications (live-server.ts); ours is notify in notifications.rs."
 	},
 	"tauri_command:pty_spawn": {
 		"status": "matched",
@@ -128,12 +104,10 @@
 		"by": "seed"
 	},
 	"tauri_command:pty_ack_bytes": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-07",
-		"item": "pty_ack_bytes acknowledges output bytes for terminal flow control.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "pty_ack",
+		"by": "hand",
+		"note": "Acknowledges terminal output bytes for flow control. Ours is pty_ack. No catalogue state runs a terminal in Conductor's frontend; ours is shown by pty.rs plat_07_flow_control_pauses_at_high_water_and_wakes_below_low."
 	},
 	"tauri_command:pty_screen_snapshot": {
 		"status": "matched",
@@ -152,12 +126,10 @@
 		"by": "hand"
 	},
 	"tauri_command:pty_persist_terminal_history": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-08",
-		"item": "pty_persist_terminal_history saves terminal scrollback on exit.",
-		"owner": "rule:name"
+		"status": "decided",
+		"decision": "D150",
+		"note": "Conductor's UI asks Rust to save a terminal's scrollback. Ours saves it in Rust when the terminal's process ends (pty.rs exit watcher, terminal_history.rs), so there is no command.",
+		"by": "hand"
 	},
 	"tauri_command:pty_create_mirror": {
 		"status": "decided",
@@ -178,52 +150,40 @@
 		"by": "hand"
 	},
 	"tauri_command:raw_websocket_send_text": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-03",
-		"owner": "hand",
-		"note": "A WebSocket from the native side to the user's Worker."
+		"status": "decided",
+		"decision": "D025",
+		"note": "Sends on the WebSocket to Conductor's own server (main @2941513). Our cloud relay is cloud_relay_send to the user's Worker (D018).",
+		"by": "hand"
 	},
 	"tauri_command:raw_websocket_ping": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-03",
-		"owner": "hand",
-		"note": "A WebSocket from the native side to the user's Worker."
+		"status": "decided",
+		"decision": "D025",
+		"note": "Pings the WebSocket to Conductor's own server (main @2941513). Our cloud relay to the user's Worker is D018's.",
+		"by": "hand"
 	},
 	"tauri_command:raw_websocket_close": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-03",
-		"owner": "hand",
-		"note": "A WebSocket from the native side to the user's Worker."
+		"status": "decided",
+		"decision": "D025",
+		"note": "Closes the WebSocket to Conductor's own server (main @2941513). Our cloud relay is cloud_relay_close (D018).",
+		"by": "hand"
 	},
 	"tauri_command:raw_websocket_open": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-03",
-		"owner": "hand",
-		"note": "A WebSocket from the native side to the user's Worker."
+		"status": "decided",
+		"decision": "D025",
+		"note": "Opens the native WebSocket Conductor's client keeps to its own server's /ws route, signed in with the Conductor account's API token (main @1856019, @2941513). Our cloud relay is cloud_relay_open to the user's Worker (D018).",
+		"by": "hand"
 	},
 	"tauri_command:get_user_shell": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-04",
-		"owner": "hand",
-		"note": "The login shell and its PATH."
+		"status": "matched",
+		"ours": "shell_login_env",
+		"by": "hand",
+		"note": "The user's login shell. Ours is shell_login_env. native-and-sidecar-map A2 found no such command in Conductor's own binary, so its UI falls back to /bin/zsh; ours answers. The run never asked it; ours is shown by shell.rs plat_04_capture_uses_per_shell_flags_and_a_delimiter."
 	},
 	"tauri_command:pty_load_terminal_history": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-08",
-		"item": "pty_load_terminal_history loads saved terminal scrollback.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "pty_load_history",
+		"by": "hand",
+		"note": "Loads a terminal's saved scrollback. Ours is pty_load_history. No catalogue state restores a terminal in Conductor's frontend; ours is shown by terminal_history.rs plat_08_saved_history_reads_back_byte_for_byte."
 	},
 	"tauri_command:set_remote_file_sync_foreground": {
 		"status": "decided",
@@ -268,12 +228,10 @@
 		"by": "hand"
 	},
 	"tauri_command:get_path_env": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-04",
-		"owner": "hand",
-		"note": "The login shell and its PATH."
+		"status": "matched",
+		"ours": "shell_login_env",
+		"by": "hand",
+		"note": "The login shell's PATH. Ours is shell_login_env. native-and-sidecar-map A2 found no such command in Conductor's own binary, so its UI falls back; ours answers. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 120 calls through shell_login_env in 119 states."
 	},
 	"tauri_command:set_posthog_user_context": {
 		"status": "decided",
@@ -282,12 +240,10 @@
 		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:start_on_device_speech": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-12",
-		"item": "start_on_device_speech starts on-device dictation.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "speech_start",
+		"by": "hand",
+		"note": "Starts on-device dictation. Ours is speech_start. Ours is shown by speech.rs plat_12_availability_is_checked_on_every_call and the other PLAT-12 tests."
 	},
 	"tauri_command:get_deepgram_api_key": {
 		"status": "decided",
@@ -296,68 +252,52 @@
 		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:stop_on_device_speech": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-12",
-		"item": "stop_on_device_speech ends dictation and returns the text.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "speech_stop",
+		"by": "hand",
+		"note": "Ends dictation and returns the text. Ours is speech_stop. Ours is shown by speech.rs plat_12_availability_is_checked_on_every_call and the other PLAT-12 tests."
 	},
 	"tauri_command:cancel_on_device_speech": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-12",
-		"item": "cancel_on_device_speech cancels dictation.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "speech_cancel",
+		"by": "hand",
+		"note": "Cancels dictation. Ours is speech_cancel. Ours is shown by speech.rs plat_12_availability_is_checked_on_every_call and the other PLAT-12 tests."
 	},
 	"tauri_command:on_device_speech_available": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-12",
-		"owner": "hand",
-		"note": "On-device dictation."
+		"status": "matched",
+		"ours": "speech_available",
+		"by": "hand",
+		"note": "Whether on-device dictation can run. Ours is speech_available. native-and-sidecar-map A2 found no such command in Conductor's own binary, so its UI falls back to unavailable. Ours is shown by speech.rs plat_12_availability_is_checked_on_every_call and the other PLAT-12 tests."
 	},
 	"tauri_command:get_agent_binary_state": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-28",
-		"owner": "hand",
-		"note": "The agent program manager."
+		"status": "matched",
+		"ours": "programs_state",
+		"by": "hand",
+		"note": "The agent programs' download state. Ours is programs_state. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 120 calls through programs_state in 119 states."
 	},
 	"tauri_command:request_agent_binary_download": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-28",
-		"owner": "hand",
-		"note": "The agent program manager."
+		"status": "matched",
+		"ours": "program_install",
+		"by": "hand",
+		"note": "Downloads an agent program. Ours is program_install. No catalogue state starts a download; ours is shown by binaries.rs plat_28_a_second_install_of_the_same_program_is_joined."
 	},
 	"tauri_command:execute_shell_command_cancellable": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-03",
-		"item": "execute_shell_command_cancellable starts a cancellable shell command.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "shell_start",
+		"by": "hand",
+		"note": "Starts a shell command that cancel_shell_command can stop by id, and returns its output. Ours is shell_start with the id, ending in shell://done. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 939 calls through shell_start in 119 states."
 	},
 	"tauri_command:cancel_shell_command": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-03",
-		"item": "cancel_shell_command kills the command's whole process group.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "shell_cancel",
+		"by": "hand",
+		"note": "Kills a cancellable shell command's whole process group by its id. Ours is shell_cancel (shell.rs terminate_group). The run never cancels one (Conductor cancels only after its own timeout); ours is shown by shell.rs plat_03_finish_run_carries_the_cancel_to_the_done_payload."
 	},
 	"tauri_command:execute_shell_command": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-03",
-		"item": "execute_shell_command runs a shell command and returns its output.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "shell_run",
+		"by": "hand",
+		"note": "Runs a shell command and returns its output. Ours is shell_run. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 10967 calls through shell_run in 119 states."
 	},
 	"tauri_command:ensure_app_logger_started": {
 		"status": "decided",
@@ -390,12 +330,10 @@
 		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:configure_verbose_logging": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-18",
-		"item": "configure_verbose_logging switches the Rust log level at run time.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "log_set_level",
+		"by": "hand",
+		"note": "Switches the Rust log level at run time. Ours is log_set_level. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 120 calls through log_set_level in 119 states."
 	},
 	"tauri_command:configure_sidecar_internal_user": {
 		"status": "decided",
@@ -410,12 +348,10 @@
 		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:write_file_async": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-05",
-		"item": "write_file_async writes a file without blocking.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "fs_write_text_atomic",
+		"by": "hand",
+		"note": "Writes a file without blocking the UI. Ours is fs_write_text_atomic, which runs off the main thread. Ours is shown by files.rs plat_05_write_text_atomic_keeps_old_content_when_rename_fails."
 	},
 	"tauri_command:find_available_local_port": {
 		"status": "matched",
@@ -433,20 +369,16 @@
 		"by": "seed"
 	},
 	"tauri_command:resolve_port_forward_token": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-10",
-		"owner": "hand",
-		"note": "Port forwarding from a cloud workspace."
+		"status": "decided",
+		"decision": "D110",
+		"note": "D110: the pairing token stays in Rust, so the token round trip and this command are not built.",
+		"by": "hand"
 	},
 	"tauri_command:reject_port_forward_token": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CLOUD-10",
-		"owner": "hand",
-		"note": "Port forwarding from a cloud workspace."
+		"status": "decided",
+		"decision": "D110",
+		"note": "D110: the pairing token stays in Rust, so the token round trip and this command are not built.",
+		"by": "hand"
 	},
 	"tauri_command:list_port_forwards": {
 		"status": "matched",
@@ -454,60 +386,46 @@
 		"by": "seed"
 	},
 	"tauri_command:get_or_create_local_storage_encryption_key": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-10",
-		"owner": "hand",
-		"note": "Keychain read and write."
+		"status": "decided",
+		"decision": "D087",
+		"note": "Hands Conductor's UI the Keychain key it encrypts local entries with. D087: ours keeps that key inside Rust, which encrypts the saved scrollback itself, so the key never reaches the UI.",
+		"by": "hand"
 	},
 	"tauri_command:get_keychain_setting": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-10",
-		"owner": "hand",
-		"note": "Keychain read and write."
+		"status": "matched",
+		"ours": "keychain_get",
+		"by": "hand",
+		"note": "Reads a Keychain item. Ours is keychain_get. The run's host refuses the Keychain (live-server.ts); ours is shown by keychain.rs plat_10_set_get_and_delete_round_trip."
 	},
 	"tauri_command:set_keychain_setting": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-10",
-		"owner": "hand",
-		"note": "Keychain read and write."
+		"status": "matched",
+		"ours": "keychain_set",
+		"by": "hand",
+		"note": "Writes a Keychain item. Ours is keychain_set. The run's host refuses the Keychain (live-server.ts); ours is shown by keychain.rs plat_10_set_get_and_delete_round_trip."
 	},
 	"tauri_command:delete_keychain_setting": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-10",
-		"owner": "hand",
-		"note": "Keychain read and write."
+		"status": "matched",
+		"ours": "keychain_delete",
+		"by": "hand",
+		"note": "Deletes a Keychain item. Ours is keychain_delete. The run's host refuses the Keychain (live-server.ts); ours is shown by keychain.rs plat_10_set_get_and_delete_round_trip."
 	},
 	"tauri_command:submit_app_logs": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-18",
-		"item": "submit_app_logs sends UI log lines to the logger; ours is log_write in Rust.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "log_write",
+		"by": "hand",
+		"note": "Sends the UI's log records to the Rust logger, which writes the app's log files. Ours is log_write, one record per call. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 5671 calls through log_write in 119 states."
 	},
 	"tauri_command:fuzzy_match_files": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-06",
-		"item": "fuzzy_match_files ranks files for a fuzzy query.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "search_fuzzy",
+		"by": "hand",
+		"note": "Ranks files for a fuzzy query. Ours is search_fuzzy. Ours is shown by file_search.rs plat_06_fuzzy_filter_files_keeps_only_matching_files."
 	},
 	"tauri_command:get_file_metadata": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-05",
-		"item": "get_file_metadata returns a file's size and times.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "fs_stat",
+		"by": "hand",
+		"note": "A file's size and kind. Ours is fs_stat. Ours is shown by files.rs plat_05_stat_reports_size_symlink_and_time."
 	},
 	"tauri_command:set_dock_badge": {
 		"status": "matched",
@@ -515,156 +433,118 @@
 		"by": "seed"
 	},
 	"tauri_command:update_window_vibrancy": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-23",
-		"item": "update_window_vibrancy changes the window vibrancy (sidebar transparency).",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "window_set_vibrancy",
+		"by": "hand",
+		"note": "Turns the window's vibrancy on or off. Ours is window_set_vibrancy. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 120 calls through window_set_vibrancy in 119 states."
 	},
 	"tauri_command:open_devtools": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-15",
-		"item": "open_devtools opens the web inspector from the Help menu.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "window_toggle_inspector",
+		"by": "hand",
+		"note": "Opens the web inspector from the Help menu. Ours is window_toggle_inspector. No catalogue state opens the Help menu's inspector; ours is driven by app/command-handlers.test.ts."
 	},
 	"tauri_command:get_binary_verification_errors": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-34",
-		"item": "get_binary_verification_errors lists agent programs that failed verification.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "programs_verification_errors",
+		"by": "hand",
+		"note": "Agent programs that failed verification. Ours is programs_verification_errors. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 120 calls through programs_verification_errors in 119 states."
 	},
 	"tauri_command:write_encoded_image_to_clipboard": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-02",
-		"item": "write_encoded_image_to_clipboard puts an image on the clipboard.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "tauri_plugin_command:clipboard-manager|*",
+		"by": "hand",
+		"note": "Puts an image on the clipboard. Ours uses the clipboard plugin's writeImage (platform/tauri.ts decodes the bytes to RGBA first). The run's host refuses the clipboard (live-server.ts); ours is writeClipboardImage in platform/tauri.ts."
 	},
 	"tauri_command:sync_agent_path_overrides": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-28",
-		"item": "sync_agent_path_overrides mirrors a user-chosen executable into the overrides folder; the settings exist but no code path does.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "programs_sync_path_overrides",
+		"by": "hand",
+		"note": "Mirrors a user-chosen agent program into the overrides folder. Ours is programs_sync_path_overrides. No catalogue state chooses a program in Conductor's settings; system.set-13.test.ts shows our app calling it when a path changes."
 	},
 	"tauri_command:native_http_download_file": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-30",
-		"owner": "hand",
-		"note": "HTTP from the native side, through the user's proxy."
+		"status": "matched",
+		"ours": "http_download",
+		"by": "hand",
+		"note": "Downloads a file from the native side with progress. Ours is http_download. The run cuts the network off; ours is shown by http.rs plat_30_fetch_returns_the_status_headers_and_body (ours allows only its listed hosts)."
 	},
 	"tauri_command:get_resource_usage": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-14",
-		"item": "get_resource_usage returns CPU and memory per process.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "resource_usage",
+		"by": "hand",
+		"note": "CPU and memory per process, by workspace. Ours is resource_usage. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 120 calls through resource_usage in 119 states."
 	},
 	"tauri_command:export_app_logs": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-18",
-		"item": "export_app_logs exports logs to a file; ours is logs_export.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "logs_export",
+		"by": "hand",
+		"note": "Exports the app's logs to a file. Ours is logs_export. No catalogue state exports logs; ours is shown by logger.rs plat_18_an_export_contains_the_redacted_record_and_the_sidecar_log."
 	},
 	"tauri_command:prefetch_agent_binaries_from_updater_endpoint": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-28",
-		"owner": "hand",
-		"note": "The agent program manager."
+		"status": "matched",
+		"ours": "programs_prefetch",
+		"by": "hand",
+		"note": "Downloads the agent programs an update will need before it installs. Ours is programs_prefetch. No catalogue state installs an update; ours is shown by binaries.rs plat_28_prefetch_installs_only_the_programs_that_are_not_ready."
 	},
 	"tauri_command:get_installed_manual_update": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-13",
-		"item": "get_installed_manual_update returns the update that was just installed so its release notes can be shown.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "updater_installed_update",
+		"by": "hand",
+		"note": "The update that was just installed, for its release notes. Ours is updater_installed_update. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 120 calls through updater_installed_update in 119 states."
 	},
 	"tauri_command:check_for_updates": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-13",
-		"item": "check_for_updates checks for a new app version.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "updater_check",
+		"by": "hand",
+		"note": "Checks for a new app version from the Help menu. Ours is updater_check. The run cuts the network off; ours is shown by updater.rs plat_13_a_newer_signed_version_in_the_feed_is_an_update."
 	},
 	"tauri_command:check_codex_auth": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-15",
-		"item": "check_codex_auth reports Codex sign-in state; ours reads it through the sidecar agent detection instead of a Rust command.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "sidecar_call:getAgentInstalls",
+		"by": "hand",
+		"note": "Codex's sign-in state. Ours reads it from the sidecar's agent detection (getAgentInstalls), not a Rust command. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 120 calls through sidecar:getAgentInstalls in 119 states."
 	},
 	"tauri_command:get_openai_api_key_from_env": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-21",
-		"owner": "hand",
-		"note": "An agent key found in the environment."
+		"status": "decided",
+		"decision": "D086",
+		"note": "native-and-sidecar-map A2 found no such command in Conductor's own binary: the UI's call fails into its catch (renderApp @10917045). Ours reads the key from the login shell only when the user picks \"Use the key from this Mac\" (D033).",
+		"by": "hand"
 	},
 	"tauri_command:get_anthropic_api_key_from_env": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-21",
-		"owner": "hand",
-		"note": "An agent key found in the environment."
+		"status": "decided",
+		"decision": "D086",
+		"note": "native-and-sidecar-map A2 found no such command in Conductor's own binary: the UI's call fails into its catch (renderApp @10917045). Ours reads the key from the login shell only when the user picks \"Use the key from this Mac\" (D033).",
+		"by": "hand"
 	},
 	"tauri_command:check_full_disk_access": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-24",
-		"item": "check_full_disk_access reports whether the app has Full Disk Access.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "full_disk_access_check",
+		"by": "hand",
+		"note": "Whether the app has Full Disk Access. Ours is full_disk_access_check. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 12 calls through full_disk_access_check in 12 states."
 	},
 	"tauri_command:set_agent_binary_failure_injection": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-28",
-		"owner": "hand",
-		"note": "The agent program manager."
+		"status": "decided",
+		"decision": "D025",
+		"note": "A staff test hook on Conductor's Internal page that makes the next downloads fail (renderApp @11204939, \"Inject failures\"). Staff tools and test hooks stay out.",
+		"by": "hand"
 	},
 	"tauri_command:remove_agent_binary": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-28",
-		"owner": "hand",
-		"note": "The agent program manager."
+		"status": "matched",
+		"ours": "program_remove",
+		"by": "hand",
+		"note": "Removes a downloaded agent program. Ours is program_remove. No catalogue state presses Remove; ours is program_remove in binaries.rs, beside plat_28_install_writes_metadata_points_the_shim_and_prunes_the_old_version."
 	},
 	"tauri_command:redownload_agent_binary": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-28",
-		"owner": "hand",
-		"note": "The agent program manager."
+		"status": "matched",
+		"ours": "program_redownload",
+		"by": "hand",
+		"note": "Downloads an agent program again. Ours is program_redownload. No catalogue state presses Redownload; ours is program_redownload in binaries.rs, beside plat_28_install_writes_metadata_points_the_shim_and_prunes_the_old_version."
 	},
 	"tauri_command:check_sidecar_http_health": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-09",
-		"item": "check_sidecar_http_health asks the sidecar's HTTP health route; ours has no HTTP server.",
-		"owner": "rule:name"
+		"status": "decided",
+		"decision": "D028",
+		"note": "Asks the sidecar's HTTP health route. D028: our sidecar has no HTTP server and no health route.",
+		"by": "hand"
 	},
 	"tauri_command:crash_rust": {
 		"status": "decided",
@@ -673,36 +553,28 @@
 		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:get_sidecar_log_path": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-09",
-		"item": "get_sidecar_log_path returns the sidecar log file path.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "sidecar_log_path",
+		"by": "hand",
+		"note": "The sidecar's log file path. Ours is sidecar_log_path. Ours is driven by platform/tauri-sidecar.test.ts."
 	},
 	"tauri_command:update_traffic_light_position": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-23",
-		"item": "update_traffic_light_position moves the window's traffic-light buttons.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "window_set_traffic_lights",
+		"by": "hand",
+		"note": "Moves the window's traffic-light buttons. Ours is window_set_traffic_lights. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 120 calls through window_set_traffic_lights in 119 states."
 	},
 	"tauri_command:take_pending_notification_deep_links": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-11",
-		"item": "take_pending_notification_deep_links returns notification clicks queued during a cold start.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "notification_take_pending",
+		"by": "hand",
+		"note": "Notification clicks queued during a cold start. Ours is notification_take_pending. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 120 calls through notification_take_pending in 119 states."
 	},
 	"tauri_command:quit_app": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-15",
-		"item": "quit_app quits the app and sends a quit request to the UI first.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "app_quit",
+		"by": "hand",
+		"note": "Quits the app after asking the UI. Ours is app_quit. The run's host refuses quitting (live-server.ts); ours is driven by platform/tauri-platform.test.ts."
 	},
 	"tauri_command:set_quit_handler_ready": {
 		"status": "matched",
@@ -710,20 +582,16 @@
 		"by": "seed"
 	},
 	"tauri_command:get_db_version_warning": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-17",
-		"item": "get_db_version_warning reports a database newer than the app.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "db_version_check",
+		"by": "hand",
+		"note": "Reports a database newer than the app. Ours is db_version_check. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 120 calls through db_version_check in 119 states."
 	},
 	"tauri_command:is_running_under_rosetta": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-32",
-		"owner": "hand",
-		"note": "A system fact: the build's CPU."
+		"status": "matched",
+		"ours": "system_info",
+		"by": "hand",
+		"note": "Whether the build runs under Rosetta. Ours reads it from system_info's machine and build architectures. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 120 calls through system_info in 119 states."
 	},
 	"tauri_command:poll_app_action": {
 		"status": "decided",
@@ -744,11 +612,9 @@
 		"by": "rule:telemetry-backend"
 	},
 	"tauri_command:ensure_sidecar_started": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-09",
-		"item": "ensure_sidecar_started starts the sidecar if it is not running.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "sidecar_ensure_started",
+		"by": "hand",
+		"note": "Starts the sidecar if it is not running. Ours is sidecar_ensure_started. In stage 2's run of 2026-11-13 on this branch (its first 200 states), our backend answered 120 calls through ours in 119 states."
 	}
 }

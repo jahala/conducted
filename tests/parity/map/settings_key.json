@@ -295,12 +295,10 @@
 		"by": "seed"
 	},
 	"settings_key:claude_subscription_sign_in_enabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SET-09",
-		"owner": "hand",
-		"note": "Agent sign-in forms."
+		"status": "decided",
+		"decision": "D025",
+		"note": "A mirror of Conductor's PostHog feature flag `claude-subscription-sign-in` (main @370532: the flag-to-setting table RU), filled from PostHog's getFeatureFlag (main @3818870). Conductor's service and analytics stay out; with no flag the key is unset, as for a Conductor user the flag does not reach.",
+		"by": "hand"
 	},
 	"settings_key:client_instance_id": {
 		"status": "decided",
@@ -309,12 +307,10 @@
 		"by": "rule:telemetry-backend"
 	},
 	"settings_key:codex_goals_disabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "AGENT-13",
-		"owner": "hand",
-		"note": "Codex goals."
+		"status": "decided",
+		"decision": "D025",
+		"note": "A mirror of Conductor's PostHog feature flag `codex-goals-disabled` (main @370532: the flag-to-setting table RU), filled from PostHog's getFeatureFlag (main @3818870). Conductor's service and analytics stay out; with no flag the key is unset, as for a Conductor user the flag does not reach.",
+		"by": "hand"
 	},
 	"settings_key:code_theme": {
 		"status": "matched",
@@ -322,20 +318,16 @@
 		"by": "seed"
 	},
 	"settings_key:codex_api_key": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-15",
-		"item": "The codex_api_key and opencode_provider_api_keys have no page and no storage decision.",
-		"owner": "rule:name"
+		"status": "decided",
+		"decision": "D033",
+		"note": "Conductor keeps the Codex API key in its settings table. D033 keeps the keys entered in the forms in the Keychain (provider_keys names them), never in settings.",
+		"by": "hand"
 	},
 	"settings_key:codex_base_url": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-21",
-		"owner": "hand",
-		"note": "An agent setting that reaches the sidecar."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A user setting Conductor 0.92.1 registers in its settings schema (main @299755) that no frontend or sidecar code reads.",
+		"by": "hand"
 	},
 	"settings_key:color_vision": {
 		"status": "matched",
@@ -349,12 +341,10 @@
 		"by": "rule:hosted-computer-backend"
 	},
 	"settings_key:queue_messages_disabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "CHAT-04",
-		"owner": "hand",
-		"note": "The follow-up queue."
+		"status": "decided",
+		"decision": "D025",
+		"note": "A mirror of Conductor's PostHog feature flag `queue-messages-disabled` (main @370532: the flag-to-setting table RU), filled from PostHog's getFeatureFlag (main @3818870). Conductor's service and analytics stay out; with no flag the key is unset, as for a Conductor user the flag does not reach.",
+		"by": "hand"
 	},
 	"settings_key:routine_webhook_triggers_enabled": {
 		"status": "decided",
@@ -392,12 +382,10 @@
 		"by": "hand"
 	},
 	"settings_key:opencode_provider_api_keys": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-15",
-		"item": "The codex_api_key and opencode_provider_api_keys have no page and no storage decision.",
-		"owner": "rule:name"
+		"status": "decided",
+		"decision": "D033",
+		"note": "Conductor keeps OpenCode's provider keys in its settings table. D033 keeps the keys entered in the forms in the Keychain (provider_keys names them), never in settings.",
+		"by": "hand"
 	},
 	"settings_key:conductor_config_repo_root_migration_complete": {
 		"status": "decided",
@@ -432,12 +420,10 @@
 		"by": "seed"
 	},
 	"settings_key:default_thinking_enabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "AGENT-16",
-		"owner": "hand",
-		"note": "Chat options the settings offer."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A user setting Conductor 0.92.1 registers in its settings schema (main @300303) that no frontend or sidecar code reads.",
+		"by": "hand"
 	},
 	"settings_key:disable_external_logging": {
 		"status": "decided",
@@ -514,12 +500,10 @@
 		"by": "seed"
 	},
 	"settings_key:first_time_onboarding_step": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "DATA-05",
-		"item": "The onboarding_step and first_time_onboarding_step keys record onboarding progress; two keys exist for one flow.",
-		"owner": "rule:name"
+		"status": "matched",
+		"ours": "onboarding_step",
+		"by": "hand",
+		"note": "The step of Conductor's first-run onboarding (main @434365, default 1, 999 when done). Ours keeps the first-run guide's step in onboarding_step alone (OnboardingScreen.tsx, APP-02)."
 	},
 	"settings_key:garry_mode": {
 		"status": "matched",
@@ -620,12 +604,10 @@
 		"by": "seed"
 	},
 	"settings_key:http_proxy": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "PLAT-30",
-		"owner": "hand",
-		"note": "HTTP through the user's proxy."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A user setting Conductor 0.92.1 registers in its settings schema (main @301357) that no frontend or sidecar code reads. The proxy Conductor's native HTTP uses is the Internal setting internal_tauri_http_proxy_url (main @2022870), a staff tool D025 leaves out.",
+		"by": "hand"
 	},
 	"settings_key:internal_codex_message_log": {
 		"status": "decided",
@@ -789,12 +771,10 @@
 		"by": "seed"
 	},
 	"settings_key:local_repositories_without_github_enabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "GIT-14",
-		"owner": "hand",
-		"note": "Repos without GitHub."
+		"status": "decided",
+		"decision": "D025",
+		"note": "A mirror of Conductor's PostHog feature flag `local-repositories-without-github` (main @370532: the flag-to-setting table RU), filled from PostHog's getFeatureFlag (main @3818870). Conductor's service and analytics stay out; with no flag the key is unset, as for a Conductor user the flag does not reach.",
+		"by": "hand"
 	},
 	"settings_key:local_git_forge_enabled": {
 		"status": "matched",
@@ -817,12 +797,10 @@
 		"by": "seed"
 	},
 	"settings_key:model_catalog_cache": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "SIDE-14",
-		"owner": "hand",
-		"note": "The model catalog."
+		"status": "decided",
+		"decision": "D089",
+		"note": "Conductor's copy of its hosted model catalog (main @382352). D089: ours reads each agent's list from the agent program and keeps it in memory for an hour, so nothing is stored.",
+		"by": "hand"
 	},
 	"settings_key:keybinding_overrides_v1": {
 		"status": "matched",
@@ -881,12 +859,10 @@
 		"by": "seed"
 	},
 	"settings_key:onboarding_workspace_id": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "APP-02",
-		"owner": "hand",
-		"note": "First-run onboarding."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A user setting Conductor 0.92.1 registers in its settings schema (main @302918) that no frontend or sidecar code reads.",
+		"by": "hand"
 	},
 	"settings_key:open_url_template": {
 		"status": "matched",
@@ -921,12 +897,10 @@
 		"by": "rule:telemetry-backend"
 	},
 	"settings_key:review_thinking_enabled": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "AGENT-16",
-		"owner": "hand",
-		"note": "Chat options the settings offer."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A user setting Conductor 0.92.1 registers in its settings schema (main @303139) that no frontend or sidecar code reads.",
+		"by": "hand"
 	},
 	"settings_key:right_panel_visible": {
 		"status": "matched",
@@ -976,12 +950,10 @@
 		"by": "hand"
 	},
 	"settings_key:sample_project_onboarding_seed_status": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Backend",
-		"backlog": "APP-02",
-		"owner": "hand",
-		"note": "First-run onboarding."
+		"status": "decided",
+		"decision": "D086",
+		"note": "A user setting Conductor 0.92.1 registers in its settings schema (main @303499) that no frontend or sidecar code reads.",
+		"by": "hand"
 	},
 	"settings_key:sidebar_group_by": {
 		"status": "matched",
