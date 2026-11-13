@@ -451,12 +451,13 @@ export class ConductorImportService {
 
 	/** Writes one new settings file with the scripts, through the settings service's writer. */
 	async #writeSettingsFile(file: SettingsFileWrite): Promise<Result<void>> {
-		return this.#deps.settings.updateSettingsFile(file.path, "repo", (contents) => {
+		const written = await this.#deps.settings.updateSettingsFile(file.path, "repo", (contents) => {
 			for (const [key, value] of Object.entries(file.scripts.values)) {
 				contents.values[key as SettingKey] = value;
 			}
 			for (const action of file.scripts.actions) contents.actions[action.id] = action;
 		});
+		return written.ok ? ok(undefined) : written;
 	}
 
 	/**
