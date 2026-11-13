@@ -4,25 +4,23 @@
  * Behaviour: ui-map.md 8 (SimpleCopyButton); ui-map.md 3.3 (code blocks copy), 2 (diagnostics copy).
  * Our design choice: the caller supplies the copy action, so the kit never reaches the Platform itself. The
  * label changes from "Copy" to "Copied" for a moment (1.5s by default) and back. A copy that fails, by throwing
- * or by returning a failed `Result`, leaves the label alone and shows an error toast: a screen never claims
- * something the clipboard did not take, and the user is told it did not.
+ * or by returning a failed `Result`, leaves the label alone and shows Conductor's error toast, "Failed to
+ * copy" with "Please try again." (renderApp @1717306), or the caller's own words, such as the plan bar's
+ * "Failed to copy plan" (@9312315): a screen never claims something the clipboard did not take, and the
+ * user is told it did not.
  * Must handle: an asynchronous copy; a second copy inside the confirmation window (it restarts the timer);
  * unmounting while the timer runs (it is cleared); a caller that styles the button or gives it a name.
  * Test first: clicking calls onCopy with the button's text, shows "Copied", then returns to "Copy".
  */
-import { messageOf } from "@conducted/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, type ButtonProps } from "./Button.tsx";
 import { CheckIcon, CopyIcon } from "./icons.tsx";
-import { toastError } from "./Toast.tsx";
+import { toast } from "./Toast.tsx";
 
-/** The error of a copy that failed, or null when it worked. The copy action may return a `Result`. */
-function copyFailure(returned: unknown): { message: string } | null {
-	if (typeof returned !== "object" || returned === null) return null;
-	const candidate = returned as { ok?: unknown; error?: { message?: unknown } };
-	if (candidate.ok !== false) return null;
-	const message = candidate.error?.message;
-	return { message: typeof message === "string" ? message : "The clipboard refused the text." };
+/** True when the copy action returned a failed `Result`; it may return nothing. */
+function copyFailed(returned: unknown): boolean {
+	if (typeof returned !== "object" || returned === null) return false;
+	return (returned as { ok?: unknown }).ok === false;
 }
 
 export interface CopyButtonProps extends Omit<ButtonProps, "children" | "onClick" | "onCopy"> {
@@ -35,6 +33,8 @@ export interface CopyButtonProps extends Omit<ButtonProps, "children" | "onClick
 	copiedMs?: number;
 	/** Shows a copy icon (a check once copied) instead of the words; the words become its name. */
 	iconOnly?: boolean;
+	/** The toast when the copy fails, for a copy Conductor names (the plan bar's "Failed to copy plan"). */
+	failureTitle?: string;
 }
 
 export function CopyButton({
@@ -44,6 +44,7 @@ export function CopyButton({
 	copiedLabel = "Copied",
 	copiedMs = 1500,
 	iconOnly = false,
+	failureTitle,
 	variant = "ghost",
 	size = "sm",
 	...rest
@@ -62,15 +63,17 @@ export function CopyButton({
 
 	const handleCopy = async () => {
 		clearTimer();
-		let failure: { message: string } | null;
+		let failed: boolean;
 		try {
-			failure = copyFailure(await onCopy(text));
-		} catch (cause) {
-			failure = { message: messageOf(cause) };
+			failed = copyFailed(await onCopy(text));
+		} catch {
+			failed = true;
 		}
-		if (failure !== null) {
+		if (failed) {
 			setCopied(false);
-			toastError("Couldn't copy", failure);
+			if (failureTitle === undefined)
+				toast.error("Failed to copy", { description: "Please try again." });
+			else toast.error(failureTitle);
 			return;
 		}
 		setCopied(true);

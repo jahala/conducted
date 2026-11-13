@@ -68,6 +68,7 @@ export const TOOL_ICONS: Record<CanonicalTool, IconComponent> = {
 	tool_search: SearchIcon,
 	schedule_wakeup: ClockIcon,
 	send_message: SendIcon,
+	teammate: BotIcon,
 	app_tool: LaptopIcon,
 	mcp: WrenchIcon,
 	unknown: WrenchIcon,

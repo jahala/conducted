@@ -1557,7 +1557,7 @@
 	},
 	"literal:R3896817": {
 		"status": "matched",
-		"state": "chat-plan-review",
+		"state": "chat-plan-copy-failed",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > fieldset > div:nth-of-type(2) > div > button:nth-of-type(1) > span > span",
@@ -1890,7 +1890,7 @@
 		"state": "chat-tool-cards-tasks",
 		"via": "text",
 		"role": "span",
-		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(9) > div > div > span:nth-of-type(2)",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(12) > div > div > span:nth-of-type(2)",
 		"by": "seed"
 	},
 	"literal:R8820980": {
@@ -2079,7 +2079,7 @@
 	},
 	"literal:R9294548": {
 		"status": "matched",
-		"state": "chat-plan-review",
+		"state": "chat-plan-copy-failed",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"composer-editor\"] > span",
@@ -2237,10 +2237,10 @@
 	},
 	"literal:R9559666": {
 		"status": "matched",
-		"state": "settings-repo-add-action",
+		"state": "chat-tool-cards-tasks",
 		"via": "text",
-		"role": "label",
-		"selector": "div:nth-of-type(3) > div > div:nth-of-type(1) > div:nth-of-type(2) > label",
+		"role": "p",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(9) > div > div > div > p",
 		"by": "seed"
 	},
 	"literal:R9588439": {
@@ -2277,7 +2277,7 @@
 	},
 	"literal:R9744963": {
 		"status": "matched",
-		"state": "comment-tab",
+		"state": "comment-tab-no-body",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div > div > button:nth-of-type(1) > span",
@@ -2285,7 +2285,7 @@
 	},
 	"literal:R9745476": {
 		"status": "matched",
-		"state": "comment-tab",
+		"state": "comment-tab-no-body",
 		"via": "text",
 		"role": "span",
 		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div > div > button:nth-of-type(2) > span",

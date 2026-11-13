@@ -227,6 +227,9 @@ export interface ComposerServiceDeps {
 	) => Promise<Result<string>>;
 }
 
+/** Conductor's words when a file is attached with no chat open (renderApp @2520921). */
+const NO_ACTIVE_CHAT = "No active chat selected.";
+
 export class ComposerService {
 	readonly store: StoreApi<ComposerState>;
 	readonly #deps: ComposerServiceDeps;
@@ -482,17 +485,20 @@ export class ComposerService {
 		}
 	}
 
-	/** Backs `Actions.files.attachToChat`: adds workspace files to the active chat's draft. */
+	/**
+	 * Backs `Actions.files.attachToChat`: adds workspace files to the active chat's draft. With no
+	 * chat open it says so in Conductor's words (renderApp @2520921).
+	 */
 	async attachFilesToActiveChat(workspaceId: WorkspaceId, paths: string[]): Promise<Result<void>> {
 		const activeSessionOf = this.#deps.activeSessionOf;
 		if (activeSessionOf === undefined) {
-			return err(appError("no_active_chat", "Open a chat first."));
+			return err(appError("no_active_chat", NO_ACTIVE_CHAT));
 		}
 		const active = activeSessionOf(workspaceId);
 		if (!active.ok) return active;
 		const sessionId = active.value;
 		if (sessionId === null) {
-			return err(appError("no_active_chat", "Open a chat first."));
+			return err(appError("no_active_chat", NO_ACTIVE_CHAT));
 		}
 		for (const path of paths) {
 			const found = await this.#deps.platform.fs.exists(path);

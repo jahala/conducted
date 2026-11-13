@@ -2,8 +2,9 @@
 /**
  * @feature CHAT-06 Message list: a chat's history loads a few turns at a time
  * Reaches the chat's paging through the real composition root, the actions contract and a real
- * SQLite: the open reads the last five turns and lists every turn, older turns load one at a time
- * or back to a picked turn, and what a loaded turn shows is what a build of every turn shows.
+ * SQLite: the open reads the last five turns and lists every turn, older turns load one at a time,
+ * a picked turn loads alone and leaves a gap that fills one turn at a time from either side (#652),
+ * and what a loaded turn shows is what a build of every turn shows.
  * Test first: a chat of twelve turns opens on its last five and lists all twelve.
  */
 import type { AgentItem, SessionEvent } from "@conducted/protocol";
@@ -73,7 +74,7 @@ describe("CHAT-06 a chat's history loads a few turns at a time (#617)", () => {
 			const view = test.container.services.sessions.chatView(id);
 
 			expect(turnIds(test, id)).toEqual(range(7, 12).map((index) => `t${index}`));
-			expect(view?.history).toEqual({ olderTurnId: "t6", older: "idle" });
+			expect(view?.history).toEqual({ olderTurnId: "t6", older: "idle", gaps: [] });
 			expect(view?.outline.map((entry) => entry.turnId)).toEqual(range(0, 12).map((i) => `t${i}`));
 			// A turn that is not loaded shows the start of its message from the stored list.
 			expect(view?.outline[0]).toEqual({
@@ -88,28 +89,97 @@ describe("CHAT-06 a chat's history loads a few turns at a time (#617)", () => {
 		}
 	});
 
-	it("loads one older turn at a time, and every turn back to a picked one", async () => {
+	it("loads one older turn at a time, and a picked turn alone, leaving a gap that fills from either side (#652)", async () => {
 		const { test, id } = await chatWith(range(0, 12).flatMap(turn));
 		try {
 			const actions = test.container.actions.sessions;
-			must(await test.container.services.sessions.open(id));
+			const sessions = test.container.services.sessions;
+			must(await sessions.open(id));
 
 			must(await actions.loadOlder(id));
 			expect(turnIds(test, id)).toEqual(range(6, 12).map((index) => `t${index}`));
-			expect(test.container.services.sessions.chatView(id)?.history.olderTurnId).toBe("t5");
+			expect(sessions.chatView(id)?.history.olderTurnId).toBe("t5");
 
+			// The picked turn loads alone, as Conductor's revealTurn adds a range of its own.
 			must(await actions.revealTurn(id, "t2" as TurnId));
+			expect(turnIds(test, id)).toEqual(["t2", ...range(6, 12).map((index) => `t${index}`)]);
+			expect(sessions.chatView(id)?.history).toEqual({
+				olderTurnId: "t1",
+				older: "idle",
+				gaps: [{ beforeTurnId: "t6", state: "idle" }],
+			});
+			// The outline still lists every turn in order, the gap's turns from the stored list.
+			expect(sessions.chatView(id)?.outline.map((entry) => entry.turnId)).toEqual(
+				range(0, 12).map((index) => `t${index}`),
+			);
+
+			// The gap fills next to the earlier run, then next to the later one.
+			must(await actions.fillGap(id, "t6" as TurnId, "after-earlier"));
+			expect(turnIds(test, id)).toEqual(["t2", "t3", ...range(6, 12).map((index) => `t${index}`)]);
+			must(await actions.fillGap(id, "t6" as TurnId, "before-later"));
+			expect(turnIds(test, id)).toEqual(
+				range(2, 4)
+					.concat(range(5, 12))
+					.map((index) => `t${index}`),
+			);
+			expect(sessions.chatView(id)?.history.gaps).toEqual([{ beforeTurnId: "t5", state: "idle" }]);
+			// Its last turn closes it.
+			must(await actions.fillGap(id, "t5" as TurnId, "before-later"));
+			expect(turnIds(test, id)).toEqual(range(2, 12).map((index) => `t${index}`));
+			expect(sessions.chatView(id)?.history.gaps).toEqual([]);
+
+			// A gap that is gone, or a turn already loaded, loads nothing.
+			must(await actions.fillGap(id, "t5" as TurnId, "after-earlier"));
+			must(await actions.revealTurn(id, "t4" as TurnId));
 			expect(turnIds(test, id)).toEqual(range(2, 12).map((index) => `t${index}`));
 
 			must(await actions.revealTurn(id, "t0" as TurnId));
+			must(await actions.fillGap(id, "t2" as TurnId, "before-later"));
 			expect(turnIds(test, id)).toEqual(range(0, 12).map((index) => `t${index}`));
-			expect(test.container.services.sessions.chatView(id)?.history).toEqual({
+			expect(sessions.chatView(id)?.history).toEqual({
 				olderTurnId: null,
 				older: "idle",
+				gaps: [],
 			});
 			// Nothing older is left; a further load changes nothing.
 			must(await actions.loadOlder(id));
 			expect(turnIds(test, id)).toHaveLength(12);
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("a failed gap fill says so on its gap, and the next fill loads the turn", async () => {
+		let failing = false;
+		const { test, id } = await chatWith(range(0, 12).flatMap(turn), {
+			wrapDatabase: (database) =>
+				failingOnSelect(
+					database,
+					SESSION_EVENTS_SQL.listTurns,
+					new Error("The disk is gone."),
+					() => failing,
+				),
+		});
+		try {
+			const sessions = test.container.services.sessions;
+			must(await sessions.open(id));
+			must(await test.container.actions.sessions.revealTurn(id, "t2" as TurnId));
+			failing = true;
+			const failed = await test.container.actions.sessions.fillGap(
+				id,
+				"t7" as TurnId,
+				"after-earlier",
+			);
+			expect(failed.ok).toBe(false);
+			expect(sessions.chatView(id)?.history.gaps).toEqual([
+				{ beforeTurnId: "t7", state: "failed" },
+			]);
+
+			failing = false;
+			must(await test.container.actions.sessions.fillGap(id, "t7" as TurnId, "after-earlier"));
+			expect(turnIds(test, id)).toEqual(["t2", "t3", ...range(7, 12).map((index) => `t${index}`)]);
+			expect(sessions.chatView(id)?.history.gaps).toEqual([{ beforeTurnId: "t7", state: "idle" }]);
 		} finally {
 			await test.container.stop();
 			test.close();
@@ -201,9 +271,13 @@ describe("CHAT-06 a chat's history loads a few turns at a time (#617)", () => {
 			const ninth = shown.find((entry) => entry.turnId === "t9");
 			expect(ninth?.blocks).toEqual([{ kind: "text", text: "Reply 9" }]);
 
-			// Once turn 1 loads, its card holds the work, as in the build of every turn.
-			must(await test.container.actions.sessions.revealTurn(id, "t0" as TurnId));
-			expect(sessions.chatView(id)?.turns).toEqual(complete);
+			// Once turn 1 loads alone, its card holds the work, as in the build of every turn, and the
+			// gap after it holds nothing of it.
+			must(await test.container.actions.sessions.revealTurn(id, "t1" as TurnId));
+			const loaded = new Set(["t1", ...range(7, 12).map((i) => `t${i}`)]);
+			expect(sessions.chatView(id)?.turns).toEqual(
+				complete.filter((entry) => loaded.has(entry.turnId)),
+			);
 		} finally {
 			await test.container.stop();
 			test.close();
@@ -247,12 +321,20 @@ describe("CHAT-06 a chat's history loads a few turns at a time (#617)", () => {
 			failing = true;
 			const failed = await test.container.actions.sessions.loadOlder(id);
 			expect(failed.ok).toBe(false);
-			expect(sessions.chatView(id)?.history).toEqual({ olderTurnId: "t1", older: "failed" });
+			expect(sessions.chatView(id)?.history).toEqual({
+				olderTurnId: "t1",
+				older: "failed",
+				gaps: [],
+			});
 
 			failing = false;
 			must(await test.container.actions.sessions.loadOlder(id));
 			expect(turnIds(test, id)[0]).toBe("t1");
-			expect(sessions.chatView(id)?.history).toEqual({ olderTurnId: "t0", older: "idle" });
+			expect(sessions.chatView(id)?.history).toEqual({
+				olderTurnId: "t0",
+				older: "idle",
+				gaps: [],
+			});
 		} finally {
 			await test.container.stop();
 			test.close();

@@ -93,3 +93,17 @@ describe("COMP-04 terminal output attachment", () => {
 		expect(added.error.message).toBe("No terminal output available for this workspace");
 	});
 });
+
+describe("COMP-04 a file attached from the workspace with no chat open", () => {
+	it("says No active chat selected., as Conductor does (renderApp @2520921)", async () => {
+		const test = createTestContainer();
+		opened.push(test);
+		const workspace = await seedWorkspace(test.container);
+		const attached = await test.container.actions.files.attachToChat(workspace.id, [
+			`${workspace.path}/README.md`,
+		]);
+		expect(attached.ok).toBe(false);
+		if (attached.ok) return;
+		expect(attached.error.message).toBe("No active chat selected.");
+	});
+});

@@ -2,8 +2,8 @@
  * @feature catalogue The outside world one catalogue state runs in
  * Owns: building the in-memory Platform over a real SQLite with a fixed clock and counting ids, the
  * repositories the seeds write through, the scripted shell answers (with the git repositories they
- * describe), the pictures a state gives its image files, and the scripted sidecar that answers the app's requests and delivers the lines a state
- * needs.
+ * describe), the pictures a state gives its image files, the scripted sidecar that answers the app's requests and delivers the lines a state
+ * needs, and the SQL statements a state makes fail in the app, as a full disk would.
  * Behaviour: not applicable, a development tool. The memory Platform's controls (platform/memory.ts) are
  * the same ones the tests script; nothing here changes what the app does with an answer.
  * Our design choice: a request nobody scripted gets a JSON-RPC error that names the method, and a shell
@@ -69,6 +69,11 @@ export interface World {
 	holdSidecar(method: AppToSidecarRequest): void;
 	/** Answers every request for `method` with an error. */
 	failSidecar(method: AppToSidecarRequest): void;
+	/**
+	 * Makes every later run of this SQL statement in the app fail, as a full or locked disk fails a
+	 * write, so a state can show the app's own failure message. Seeds are not affected.
+	 */
+	failStatement(sql: string): void;
 	/** Delivers a notification from the sidecar to the app. */
 	notify(method: string, params: unknown): void;
 	/** Sends a request from the sidecar to the app, such as `requestInteraction`. */
@@ -174,6 +179,24 @@ const DEFAULT_ANSWERS: SidecarAnswers = {
 	listAcpConfigOptions: () => ({ options: [] }),
 };
 
+/** The app's view of the database: the same one, with the statements a state made fail. */
+function failingStatements(database: Database, failing: ReadonlySet<string>): Database {
+	const refuse = (sql: string): Error | null =>
+		failing.has(sql) ? new Error("The database could not be written: disk I/O error.") : null;
+	return {
+		execute: (sql, params) => {
+			const error = refuse(sql);
+			return error === null ? database.execute(sql, params) : Promise.reject(error);
+		},
+		select: <Row>(sql: string, params?: readonly unknown[]) => {
+			const error = refuse(sql);
+			return error === null ? database.select<Row>(sql, params) : Promise.reject(error);
+		},
+		transaction: <T>(work: (tx: Database) => Promise<T>) =>
+			database.transaction((tx) => work(failingStatements(tx, failing))),
+	};
+}
+
 /**
  * Builds a fresh world over a freshly migrated database: the Platform over it, and empty scripts. The
  * caller opens the database (sqlite.ts in the browser), so Bun tools can build the same world.
@@ -181,10 +204,11 @@ const DEFAULT_ANSWERS: SidecarAnswers = {
 export function createWorld(database: Database): World {
 	const clock: Clock = { now: () => CATALOGUE_NOW };
 	const ids = createTestIds("c");
+	const failing = new Set<string>();
 	const memory = createMemoryPlatform({
 		clock,
 		ids,
-		database,
+		database: failingStatements(database, failing),
 		version: "0.1.0",
 		channel: "dev",
 		home: HOME,
@@ -283,6 +307,7 @@ export function createWorld(database: Database): World {
 		answerSidecar: (answer) => answers.push(answer),
 		holdSidecar: (method) => held.set(method, "hold"),
 		failSidecar: (method) => held.set(method, "fail"),
+		failStatement: (sql) => failing.add(sql),
 		notify: (method, params) => emit({ jsonrpc: "2.0", method, params }),
 		request: (method, params) => emit({ jsonrpc: "2.0", id: nextRequestId++, method, params }),
 		showPicture: (path, url) => pictures.set(path, url),

@@ -97,6 +97,9 @@ function linesForBlock(block: ChatBlock, detail: "concise" | "full"): string[] {
 			return detail === "full" && block.item.text.trim().length > 0 ? [block.item.text] : [];
 		case "error":
 			return detail === "full" ? [`[error] ${block.item.message}`] : [];
+		case "background_task":
+			// The task's own output reaches the chat as its call's result; the row adds nothing to read.
+			return [];
 	}
 }
 

@@ -513,7 +513,7 @@
 	},
 	"aria_label:R9413717": {
 		"status": "matched",
-		"state": "chat-working",
+		"state": "chat-plan-copy-failed",
 		"via": "aria-label",
 		"role": "button",
 		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div > div:nth-of-type(2) > button",
