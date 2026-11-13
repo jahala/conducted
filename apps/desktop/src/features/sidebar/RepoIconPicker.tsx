@@ -6,7 +6,8 @@
  * repository icon), 4 (avatar sources), inventory toast rows 904, 905 and 907 for the upload
  * failures.
  * Must handle: a picked emoji or symbol; an upload with a bad type, one over 10 MB, or one that
- * fails to copy; clearing the icon back to the favicon, owner avatar or letter; a cancelled file
+ * fails to copy; clearing the icon back to the favicon or owner avatar, and a repository with
+ * neither ("No favicon detected"); a cancelled file
  * picker; the picker's own failure shown in the dialog.
  * Test first: searching for "rocket" and choosing the rocket stores an emoji icon.
  */
@@ -20,7 +21,7 @@ import { cn } from "../../ui/cn.ts";
 import { Dialog, DialogContent } from "../../ui/Dialog.tsx";
 import { Input } from "../../ui/Input.tsx";
 import { toastError } from "../../ui/Toast.tsx";
-import { repoIconSource } from "./repo-icon.ts";
+import { repoIconSource, repoLetter } from "./repo-icon.ts";
 
 type SourceTab = "icons" | "emoji" | "favicon" | "upload";
 
@@ -139,7 +140,12 @@ export function RepoIconPicker({ open, onOpenChange, repo }: RepoIconPickerProps
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent title="Change repository icon" size="md">
+			<DialogContent
+				title="Change repository icon"
+				description="Pick an icon, emoji, favicon, or uploaded image for this repository"
+				hideDescription
+				size="md"
+			>
 				<div role="tablist" aria-label="Icon sources" className="flex gap-1">
 					{TABS.map((entry) => (
 						<Button
@@ -225,17 +231,7 @@ export function RepoIconPicker({ open, onOpenChange, repo }: RepoIconPickerProps
 				) : null}
 
 				{tab === "favicon" ? (
-					<div className="flex flex-col gap-2">
-						<p className="text-sm text-fg-muted">
-							Use the favicon of the repository's remote, its owner avatar on GitHub, or its first
-							letter when there is no remote.
-						</p>
-						<div>
-							<Button variant="outline" size="sm" disabled={busy} onClick={() => void save(null)}>
-								Use favicon
-							</Button>
-						</div>
-					</div>
+					<FaviconSource repo={repo} busy={busy} onUse={() => void save(null)} />
 				) : null}
 
 				{tab === "upload" ? (
@@ -258,5 +254,39 @@ export function RepoIconPicker({ open, onOpenChange, repo }: RepoIconPickerProps
 				)}
 			</DialogContent>
 		</Dialog>
+	);
+}
+
+/**
+ * The Favicon source, as Conductor's picker draws it (renderApp @11285835): the image the
+ * repository falls back to without a saved icon, with "Use favicon" or "Use GitHub avatar" while
+ * another icon is saved and "Using ..." once it is in use, or its letter and "No favicon detected"
+ * when it has neither. Ours finds the favicon from the remote's host (repo-icon.ts).
+ */
+function FaviconSource({ repo, busy, onUse }: { repo: Repo; busy: boolean; onUse: () => void }) {
+	const fallback = repoIconSource({ ...repo, icon: null });
+	const saved = repo.icon !== null;
+	if (fallback.kind === "favicon" || fallback.kind === "owner") {
+		const label = fallback.kind === "favicon" ? "favicon" : "GitHub avatar";
+		return (
+			<div className="flex flex-col items-center gap-2 py-4">
+				<img
+					src={fallback.url}
+					alt={fallback.kind === "favicon" ? "Detected favicon" : "GitHub avatar"}
+					className="size-10 rounded-sm"
+				/>
+				<Button variant={saved ? "outline" : "secondary"} size="sm" disabled={busy} onClick={onUse}>
+					{saved ? `Use ${label}` : `Using ${label}`}
+				</Button>
+			</div>
+		);
+	}
+	return (
+		<div className="flex flex-col items-center gap-2 py-4">
+			<div className="flex size-10 items-center justify-center rounded-sm bg-muted text-base font-medium text-fg-muted">
+				{repoLetter(repo.name)}
+			</div>
+			<p className="text-sm text-fg-muted">No favicon detected</p>
+		</div>
 	);
 }
