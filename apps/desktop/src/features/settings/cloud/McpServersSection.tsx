@@ -596,7 +596,7 @@ export function CloudMcpServersSection({
 							placeholder="Search recommended MCPs"
 							value={recommendedQuery}
 							onChange={(event) => setRecommendedQuery(event.target.value)}
-							className="pl-8"
+							className="w-full pl-8"
 						/>
 					</div>
 					{importMatches || catalogue.length > 0 ? (
