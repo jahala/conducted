@@ -30,6 +30,7 @@
  * secret never shown once saved.
  * Test first: a new server starts on OAuth, and saving it opens the provider's sign-in.
  */
+import { trimTrailingSlashes } from "@conducted/shared";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
 	CLOUD_MCP_CONNECT_FAILED,
@@ -113,7 +114,7 @@ const CARD_BUTTON = `${CARD} transition-[background-color,scale] duration-100 ho
 function normalizedUrl(url: string): string | null {
 	try {
 		const parsed = new URL(url);
-		parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+		parsed.pathname = trimTrailingSlashes(parsed.pathname);
 		return parsed.href;
 	} catch {
 		return null;

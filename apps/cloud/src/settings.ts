@@ -22,6 +22,7 @@
  * its next git command (the desktop's own git calls read it then).
  * Test first: a reserved name is refused, and an identity becomes the four git environment names.
  */
+import { trimTrailingSlashes } from "@conducted/shared";
 import { z } from "zod";
 
 /** The name and email a cloud workspace commits with (services-map 4.2.7 `gitIdentity`). */
@@ -201,7 +202,7 @@ export function mcpServerPrefix(rawUrl: string): { path: string; segments: numbe
 		return null;
 	}
 	if (url.protocol !== "https:") return null;
-	const path = url.pathname === "" ? "/" : url.pathname.replace(/\/+$/, "") || "/";
+	const path = url.pathname === "" ? "/" : trimTrailingSlashes(url.pathname) || "/";
 	return { path, segments: path === "/" ? 0 : path.split("/").length - 1 };
 }
 
@@ -232,7 +233,7 @@ export function cloudMcpServerForUrl(
 		if (configured.host !== url.host) continue;
 		const prefix = mcpServerPrefix(server.url);
 		if (prefix === null) continue;
-		const path = url.pathname.replace(/\/+$/, "") || "/";
+		const path = trimTrailingSlashes(url.pathname) || "/";
 		const matches =
 			prefix.path === "/" ? true : path === prefix.path || path.startsWith(`${prefix.path}/`);
 		if (!matches) continue;

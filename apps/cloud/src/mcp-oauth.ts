@@ -27,7 +27,7 @@
  * 600 s; a disconnect, a deleted server or a changed one removes them (`prune`).
  * Test first: connects through the provider's metadata, a registered client and PKCE.
  */
-import { err, ok, type Result } from "@conducted/shared";
+import { err, ok, type Result, trimTrailingSlashes } from "@conducted/shared";
 import type { CloudMcpServer } from "./settings.ts";
 
 /** The callback the provider sends the browser back to. It carries no pairing token. */
@@ -160,11 +160,11 @@ function sameText(given: string, expected: string): boolean {
 export function canonicalResource(rawUrl: string): string {
 	const url = new URL(rawUrl);
 	url.hash = "";
-	const path = url.pathname.replace(/\/+$/, "");
+	const path = trimTrailingSlashes(url.pathname);
 	return `${url.origin}${path}${url.search}`;
 }
 
-const withoutSlash = (value: string): string => value.replace(/\/+$/, "");
+const withoutSlash = trimTrailingSlashes;
 
 /** One request to a provider, refused rather than hung when it takes too long. */
 async function send(deps: Fetching, request: Request): Promise<Response | null> {
@@ -193,11 +193,18 @@ async function getJson(deps: Fetching, url: string): Promise<Record<string, unkn
 	}
 }
 
-/** A parameter of a `WWW-Authenticate: Bearer` challenge. */
+/**
+ * A quoted parameter of a `WWW-Authenticate: Bearer` challenge, found with two searches rather
+ * than a pattern, so a long header costs time in proportion to its length.
+ */
 function challengeParam(header: string | null, name: string): string | undefined {
 	if (header === null) return undefined;
-	const match = new RegExp(`${name}="([^"]*)"`, "i").exec(header);
-	return match?.[1];
+	const opening = `${name.toLowerCase()}="`;
+	const start = header.toLowerCase().indexOf(opening);
+	if (start === -1) return undefined;
+	const valueStart = start + opening.length;
+	const end = header.indexOf('"', valueStart);
+	return end === -1 ? undefined : header.slice(valueStart, end);
 }
 
 /** What an unauthenticated MCP `initialize` says: whether it needs a token, and its challenge. */
@@ -236,7 +243,7 @@ async function probe(
 /** The protected resource metadata URLs to try, most specific first (RFC 9728 section 3.1). */
 function resourceMetadataUrls(serverUrl: string): string[] {
 	const url = new URL(serverUrl);
-	const path = url.pathname.replace(/\/+$/, "");
+	const path = trimTrailingSlashes(url.pathname);
 	const urls = [];
 	if (path !== "") urls.push(`${url.origin}/.well-known/oauth-protected-resource${path}`);
 	urls.push(`${url.origin}/.well-known/oauth-protected-resource`);
@@ -246,7 +253,7 @@ function resourceMetadataUrls(serverUrl: string): string[] {
 /** The authorization server metadata URLs to try (RFC 8414 section 3.1, then OpenID discovery). */
 function authServerMetadataUrls(issuer: string): string[] {
 	const url = new URL(issuer);
-	const path = url.pathname.replace(/\/+$/, "");
+	const path = trimTrailingSlashes(url.pathname);
 	if (path === "") {
 		return [
 			`${url.origin}/.well-known/oauth-authorization-server`,
