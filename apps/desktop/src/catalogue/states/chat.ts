@@ -8,8 +8,8 @@
  * found"); and a reply that uses every Markdown part (headings, lists, inline code, a code block, a
  * table, a quote, a callout, links and a rule); a long user message shortened with Show more; the reply just copied; the
  * plan review bar's three tooltips; and the toast
- * after copying a chat image; and Conductor's toasts when a chat tab, the other chat tabs or a closed
- * chat could not close or reopen.
+ * after copying a chat image; Conductor's toasts when a chat tab, the other chat tabs or a closed
+ * chat could not close or reopen; and the warning when a chat with no messages is copied.
  * Behaviour: ui-map.md 3.3 (chat), sessions-and-chats.md "Questions, approvals and plans".
  * Test first: not applicable; the screenshot run opens every state.
  */
@@ -366,6 +366,24 @@ export const CHAT_STATES: CatalogueState[] = [
 					await click(document, "[role=menuitem]", "Close others");
 				},
 				ready: (document) => shows(document, "Failed to close other chats. Try again."),
+			};
+		},
+	},
+	{
+		id: "chat-copy-empty",
+		group: "Workspace chat",
+		title: "Copy transcript on a chat with no messages: Conductor's warning",
+		seed: async (world): Promise<Scene> => {
+			const cast = await seedCast(world);
+			const chat = await addChat(world, cast.arbor, { title: "Untitled" });
+			return {
+				route: chatRoute(cast.arbor, chat),
+				after: async ({ app, document }) => {
+					await animateCast(world, cast, app);
+					await rightClick(document, "[role=tab]", "Untitled");
+					await click(document, "[role=menuitem]", "Copy concise transcript", { prefix: true });
+				},
+				ready: (document) => shows(document, "No chat content to copy"),
 			};
 		},
 	},

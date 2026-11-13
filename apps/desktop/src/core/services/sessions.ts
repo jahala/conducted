@@ -1872,17 +1872,23 @@ export class SessionsService implements AgentMessenger {
 	 * Backs `Actions.sessions.copyTranscript`: builds every turn of the chat from its stored events,
 	 * without keeping them, and writes the concise or full text to the clipboard.
 	 */
-	async copyTranscript(id: SessionId, detail: "concise" | "full"): Promise<Result<void>> {
+	async copyTranscript(
+		id: SessionId,
+		detail: "concise" | "full",
+	): Promise<Result<"copied" | "empty">> {
 		const found = await this.#session(id);
 		if (!found.ok) return found;
 		const turns = await this.completeTurns(id);
 		if (!turns.ok) return turns;
 		const text = formatTranscript(turns.value, detail);
+		// A chat with nothing to say copies nothing, and the caller says so (renderApp @10074989).
+		if (text.trim().length === 0) return ok("empty");
 		const copyText = this.#deps.copyText;
 		if (copyText === undefined) {
 			return err(appError("chat_copy_unavailable", "Copying is not available right now."));
 		}
-		return copyText(text);
+		const copied = await copyText(text);
+		return copied.ok ? ok("copied") : copied;
 	}
 
 	/**

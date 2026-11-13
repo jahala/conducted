@@ -579,7 +579,7 @@ export interface Actions {
 		revertTo: Act<[id: SessionId, turnId: TurnId]>;
 		forkFrom: Act<[id: SessionId, turnId: TurnId], Session>;
 		saveDraft: (id: SessionId, draft: Draft) => void;
-		copyTranscript: Act<[id: SessionId, detail: "concise" | "full"]>;
+		copyTranscript: Act<[id: SessionId, detail: "concise" | "full"], "copied" | "empty">;
 		/**
 		 * Sends an approved plan to a chat that carries it out ("Hand off"): the chosen one, or a new
 		 * chat when `target` is null. Returns that chat.

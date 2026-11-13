@@ -8,7 +8,8 @@
  * the choice (onClose); the tab strip closes the chat, so there is one close path and one error
  * toast. Copy session info is an internal item and is left out. Fork to new tab (CHAT-16) shows
  * only while the Experimental setting is on, and its action belongs to the tab strip. The two
- * transcript items copy the chat's stored turns (CHAT-17).
+ * transcript items copy the chat's stored turns (CHAT-17); a chat with nothing to copy warns "No chat
+ * content to copy" (renderApp @10074989).
  * Must handle: Fork hidden while the setting is off; Close others with one tab open is disabled by
  * leaving its callback out; items show shortcuts from the command registry.
  * Test first: 'Rename chat' calls sessions.rename with the typed name.
@@ -20,7 +21,8 @@ import { useActions, useLiveShortcut } from "../../core/hooks.ts";
 import type { Session } from "../../core/model.ts";
 import { buildDeepLink } from "../../core/notifications.ts";
 import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "../../ui/ContextMenu.tsx";
-import { toastError } from "../../ui/Toast.tsx";
+import { toast, toastError } from "../../ui/Toast.tsx";
+import { NO_CHAT_CONTENT } from "./chat-tab-messages.ts";
 import { RenameDialog } from "./RenameDialog.tsx";
 
 export interface TabContextMenuProps {
@@ -65,6 +67,7 @@ export function TabContextMenu({
 	const copyTranscript = async (detail: "concise" | "full") => {
 		const copied = await actions.sessions.copyTranscript(sessionId, detail);
 		if (!copied.ok) toastError("Couldn't copy the transcript", copied.error);
+		else if (copied.value === "empty") toast.warning(NO_CHAT_CONTENT);
 	};
 
 	const unread = (session?.unreadCount ?? 0) > 0;
