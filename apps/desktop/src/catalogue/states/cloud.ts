@@ -3,7 +3,8 @@
  * Owns: a cloud workspace open on its Ports tab with a forwarded port and a detected one, the
  * Forward ports popover, the Choose preview URL port picker, the Waiting for ports state, the
  * workspace actions menu's Pause port forwarding dialog, the file-sync states in the scripts
- * panel and the header popover (CLOUD-09, CLOUD-11), and a sandbox whose disk is nearly full.
+ * panel and the header popover (CLOUD-09, CLOUD-11), a sandbox whose disk is nearly full, and the
+ * Open in menu on a Mac with none of the remote editors.
  * Behaviour: ui-map.md 3.7 (the Ports tab, its popover and the file-sync states), 5.2 (the
  * workspace actions menu), 4 (the sidebar's Forwarding ports badge); the words are Conductor's.
  * Our design choice: the Worker answers the catalogue's cloud requests through the memory
@@ -235,6 +236,20 @@ const syncState = (
 });
 
 export const CLOUD_STATES: CatalogueState[] = [
+	{
+		id: "cloud-open-in-no-apps",
+		group: "Cloud",
+		title: "Cloud workspace's Open in menu on a Mac with none of the three remote editors",
+		seed: async (world): Promise<Scene> => {
+			const { scene } = await cloudWorkspace(world, "preview");
+			world.memory.platform.opener.installedApps = async () => ["Finder", "Ghostty", "Fork"];
+			return {
+				...scene,
+				after: ({ document }) => click(document, "button", "Open in menu"),
+				ready: (document) => shows(document, "No apps available"),
+			};
+		},
+	},
 	portsState(
 		"cloud-ports",
 		"Cloud workspace Ports tab: one forwarded port, a detected one and the preview URL row",

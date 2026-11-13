@@ -175,6 +175,23 @@ describe("WS-08 OpenInMenu", () => {
 		expect(main.getAttribute("title")).toBe("This workspace is archived.");
 	});
 
+	it("WS-08 says the workspace is still loading when its app is pressed before it loads", async () => {
+		const { workspace } = await setup({
+			installed: ["Finder", "Cursor"],
+			defaultApp: "Cursor",
+			recents: "Cursor",
+		});
+		if (test === undefined) throw new Error("Create the test container first.");
+		const openIn = vi.spyOn(test.container.actions.workspaces, "openIn");
+		test.container.services.workspace.store.setState({ loaded: false });
+		renderMenu(workspace.id);
+
+		fireEvent.click(await screen.findByRole("button", { name: /Cursor/ }));
+
+		expect(await screen.findByText("Workspace is still loading, try again")).toBeTruthy();
+		expect(openIn).not.toHaveBeenCalled();
+	});
+
 	it("WS-08 shows the toast title when the app cannot open the path", async () => {
 		const { workspace } = await setup({
 			installed: ["Finder", "Cursor"],
