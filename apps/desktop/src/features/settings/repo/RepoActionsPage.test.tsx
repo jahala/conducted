@@ -5,6 +5,7 @@ import { localSettingsFile, sharedSettingsFile } from "../../../core/app-paths.t
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { Repo } from "../../../core/model.ts";
 import { hiddenRunActionsStorageKey } from "../../../core/services/repo.ts";
+import { tomlCodec } from "../../../core/services/toml-codec.ts";
 import {
 	createTestContainer,
 	seedInvalidLocalSettings,
@@ -276,6 +277,110 @@ describe("SET-07 RepoActionsPage", () => {
 		);
 
 		fireEvent.click(await screen.findByRole("button", { name: "Reset" }));
+		const shown = await waitFor(() => {
+			const element = document.querySelector("[data-sonner-toast]");
+			expect(element).not.toBeNull();
+			return element as HTMLElement;
+		});
+		expect(shown.querySelector("[data-title]")?.textContent).toBe(
+			"Can't save setting because your settings file is invalid",
+		);
+		fireEvent.click(within(shown).getByRole("button", { name: "Overwrite file" }));
+
+		await waitFor(async () => {
+			const read = await container.services.settings.readSettingsFile(file);
+			expect(read.ok && read.value.values).toMatchObject({ archive_on_merge: true });
+			expect(read.ok && Object.keys(read.value.actions)).toEqual([]);
+		});
+	});
+});
+
+// Conductor saves one action at a time by its id (updateTask, main @405635, writing with M8e,
+// @356875), and an action's name is its id: a rename writes the action under the new id in the
+// old one's place (`replaceId`, renderApp @11014363). Issue #673.
+describe("SET-07 run actions are saved one at a time (issue #673)", () => {
+	async function renderWithLocalActions(toml: string) {
+		const testContainer = createTestContainer();
+		test = testContainer;
+		const container = testContainer.container;
+		const repo = await seedRepo(container);
+		testContainer.memory.controls.addFolder(`${repo.rootPath}/.conducted`);
+		must(await container.platform.fs.writeTextAtomic(localSettingsFile(repo.rootPath), toml));
+		render(
+			<ServicesProvider container={container}>
+				<RepoActionsPage repoId={repo.id} />
+				<Toaster />
+			</ServicesProvider>,
+		);
+		return { testContainer, repo, container, file: localSettingsFile(repo.rootPath) };
+	}
+
+	const parsedFile = (file: string) => {
+		const parsed = tomlCodec.parse(test?.memory.controls.files.get(file) ?? "");
+		return parsed.ok ? parsed.value : null;
+	};
+	const actionKeys = (file: string): string[] => {
+		const document = parsedFile(file) as { scripts?: { run?: Record<string, unknown> } } | null;
+		return Object.keys(document?.scripts?.run ?? {});
+	};
+
+	it("keeps both of two quick edits of different actions", async () => {
+		const { repo, container, file } = await renderWithLocalActions(
+			'[scripts.run.docs]\ncommand = "pnpm docs"\n\n[scripts.run.lint]\ncommand = "pnpm lint"\n',
+		);
+		const docs = await screen.findByRole("listitem", { name: "Docs" });
+		const lint = screen.getByRole("listitem", { name: "Lint" });
+
+		// The second save is issued before the first has landed and been read again.
+		fireEvent.click(within(docs).getByRole("button", { name: "Hide action" }));
+		fireEvent.click(within(lint).getByRole("button", { name: "Hide action" }));
+
+		await waitFor(() =>
+			expect(parsedFile(file)).toMatchObject({
+				scripts: { run: { docs: { hide: true }, lint: { hide: true } } },
+			}),
+		);
+		const saved = container.services.repo.store.getState().configs[repo.id];
+		expect(saved?.runScripts.map((action) => [action.id, action.hidden])).toEqual([
+			["docs", true],
+			["lint", true],
+		]);
+	});
+
+	it("saves a renamed action under its new name, in its place, and a reload keeps it", async () => {
+		const { repo, container, file } = await renderWithLocalActions(
+			'[scripts.run.docs]\ncommand = "pnpm docs"\n\n[scripts.run.lint]\ncommand = "pnpm lint"\n',
+		);
+		const docs = await screen.findByRole("listitem", { name: "Docs" });
+		fireEvent.click(within(docs).getByRole("button", { name: "Edit" }));
+		fireEvent.change(screen.getByLabelText("Action name"), { target: { value: "Docs site" } });
+		fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+		await waitFor(() =>
+			expect(actionKeys(file)).toEqual(["Docs-site", "lint"]),
+		);
+		must(await container.services.repo.loadConfig(repo.id));
+		expect(await screen.findByRole("listitem", { name: "Docs site" })).toBeTruthy();
+		expect(screen.queryByRole("listitem", { name: "Docs" })).toBeNull();
+		const reloaded = container.services.repo.store.getState().configs[repo.id];
+		expect(reloaded?.runScripts.map((action) => [action.id, action.label, action.command])).toEqual(
+			[
+				["Docs-site", "Docs site", "pnpm docs"],
+				["lint", "Lint", "pnpm lint"],
+			],
+		);
+	});
+
+	// An action's save goes through the settings writer, so an invalid file gets Conductor's toast
+	// with "Overwrite file" (updateTask's onForce, main @405635), as Reset does (issue #667).
+	it("offers Overwrite file when an action's save meets an invalid local settings file", async () => {
+		const { testContainer, repo, container, file } = await renderWithLocalActions(
+			'[scripts.run.docs]\ncommand = "pnpm docs"\n',
+		);
+		const docs = await screen.findByRole("listitem", { name: "Docs" });
+		await seedInvalidLocalSettings(testContainer, repo);
+		fireEvent.click(within(docs).getByRole("button", { name: "Delete action" }));
+
 		const shown = await waitFor(() => {
 			const element = document.querySelector("[data-sonner-toast]");
 			expect(element).not.toBeNull();
