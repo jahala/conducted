@@ -93,6 +93,8 @@ export function createActions(
 			close: (id) => services.sessions.close(id),
 			clear: (id) => services.sessions.clear(id),
 			reopen: (id) => services.sessions.reopen(id),
+			loadOlder: (id) => services.sessions.loadOlder(id),
+			revealTurn: (id, turnId) => services.sessions.revealTurn(id, turnId),
 			rename: (id, title) => services.sessions.rename(id, title),
 			send: (id, text, attachmentPaths, delivery) =>
 				services.sessions.send(id, text, attachmentPaths, delivery),

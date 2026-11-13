@@ -62,6 +62,20 @@ export interface StoredSessionEvent {
 	event: SessionEvent;
 }
 
+/**
+ * One turn the chat shows, as stored: a turn with at least one event that is not reverted, at the
+ * place of its first event (CHAT-06, #617). `preview` is the start of the message that began it,
+ * without leading blank space, or null when the agent began it.
+ */
+export interface StoredTurn {
+	turnId: TurnId;
+	startIdx: number;
+	preview: string | null;
+}
+
+/** How many characters of a turn's message `StoredTurn.preview` keeps: more than one line shows. */
+export const TURN_PREVIEW_CHARS = 200;
+
 /** The answer of an append. `duplicate` means the event id was already stored. */
 export type AppendOutcome = { kind: "appended"; idx: number } | { kind: "duplicate" };
 
@@ -233,6 +247,38 @@ export const SESSION_EVENTS_SQL = {
 		ORDER BY idx LIMIT $3`,
 	listByTurn: `SELECT ${COLUMNS} FROM session_events WHERE session_id = $1 AND turn_id = $2
 		ORDER BY idx`,
+	/** Every event of the turns `$2` names, a JSON list of turn ids, in log order (CHAT-06). */
+	listTurns: `SELECT ${COLUMNS} FROM session_events
+		WHERE session_id = $1 AND turn_id IN (SELECT value FROM json_each($2))
+		ORDER BY idx`,
+	/**
+	 * The turns the chat shows, in the order the turn builder puts them: by their first event. A
+	 * turn whose every event is reverted is hidden, so it is left out. The preview is the turn's
+	 * first message that started it and is not reverted, as the builder picks it, cut to
+	 * TURN_PREVIEW_CHARS after its leading blank space. Neither query reads an event's content
+	 * except a user message's, so the list costs little next to the history (CHAT-06, #617).
+	 */
+	storedTurns: `SELECT t.turn_id, t.start_idx,
+			(SELECT substr(ltrim(json_extract(u.content, '$.text'), ' ' || char(9, 10, 13)), 1, ${TURN_PREVIEW_CHARS})
+			FROM session_events u
+			WHERE u.session_id = $1 AND u.turn_id = t.turn_id AND u.type = 'user_message'
+				AND u.reverted_at IS NULL AND json_extract(u.content, '$.delivery') = 'new_turn'
+			ORDER BY u.idx LIMIT 1) AS preview
+		FROM (SELECT turn_id, MIN(idx) AS start_idx FROM session_events WHERE session_id = $1
+			GROUP BY turn_id HAVING SUM(reverted_at IS NULL) > 0) AS t
+		ORDER BY t.start_idx`,
+	/**
+	 * Which of the tool-use ids in `$3` (a JSON list) are calls that a live event outside the turns
+	 * in `$2` (a JSON list) makes. A loaded turn can hold a background helper's late work for a
+	 * call in a turn that is not loaded (D129); the chat shows that work in the call's card, so the
+	 * loaded turn must not show it (CHAT-06).
+	 */
+	callsOutsideTurns: `SELECT DISTINCT json_extract(item.value, '$.toolUseId') AS tool_use_id
+		FROM session_events e, json_each(e.content, '$.message.items') AS item
+		WHERE e.session_id = $1 AND e.type = 'agent' AND e.reverted_at IS NULL
+			AND e.turn_id NOT IN (SELECT value FROM json_each($2))
+			AND json_extract(item.value, '$.kind') = 'tool_call'
+			AND json_extract(item.value, '$.toolUseId') IN (SELECT value FROM json_each($3))`,
 	lastIdx: "SELECT MAX(idx) AS last_idx FROM session_events WHERE session_id = $1",
 	/**
 	 * Marks every live event from the first user message of the given turn onward. Events that are
@@ -312,6 +358,19 @@ export interface SessionEventRepository {
 	): Promise<Result<StoredSessionEvent[]>>;
 	/** SESSION_EVENTS_SQL.listByTurn, in idx order. */
 	listByTurn(sessionId: SessionId, turnId: TurnId): Promise<Result<StoredSessionEvent[]>>;
+	/** SESSION_EVENTS_SQL.listTurns: every event of these turns, in idx order. */
+	listTurns(
+		sessionId: SessionId,
+		turnIds: readonly TurnId[],
+	): Promise<Result<StoredSessionEvent[]>>;
+	/** SESSION_EVENTS_SQL.storedTurns: the turns the chat shows, oldest first. */
+	storedTurns(sessionId: SessionId): Promise<Result<StoredTurn[]>>;
+	/** SESSION_EVENTS_SQL.callsOutsideTurns: the ids among `toolUseIds` that are calls elsewhere. */
+	callsOutsideTurns(
+		sessionId: SessionId,
+		turnIds: readonly TurnId[],
+		toolUseIds: readonly string[],
+	): Promise<Result<string[]>>;
 	/** SESSION_EVENTS_SQL.lastIdx. `ok(null)` for a chat with no events. */
 	lastIdx(sessionId: SessionId): Promise<Result<number | null>>;
 	/**
@@ -429,6 +488,41 @@ export function createSessionEventRepository(
 			),
 		listByTurn: (sessionId, turnId) =>
 			list(SESSION_EVENTS_SQL.listByTurn, [sessionId, turnId], "Listing a turn's events"),
+		listTurns: async (sessionId, turnIds) => {
+			if (turnIds.length === 0) return ok([]);
+			const ids = stringifyJson(turnIds, "session_events turn ids");
+			if (!ids.ok) return err(ids.error);
+			return list(SESSION_EVENTS_SQL.listTurns, [sessionId, ids.value], "Listing turns' events");
+		},
+		storedTurns: async (sessionId) => {
+			const rows = await selectRows<{
+				turn_id: TurnId;
+				start_idx: number;
+				preview: string | null;
+			}>(db, SESSION_EVENTS_SQL.storedTurns, [sessionId], "Listing a chat's turns");
+			if (!rows.ok) return err(rows.error);
+			return ok(
+				rows.value.map((row) => ({
+					turnId: row.turn_id,
+					startIdx: Number(row.start_idx),
+					preview: row.preview,
+				})),
+			);
+		},
+		callsOutsideTurns: async (sessionId, turnIds, toolUseIds) => {
+			if (toolUseIds.length === 0) return ok([]);
+			const turns = stringifyJson(turnIds, "session_events turn ids");
+			if (!turns.ok) return err(turns.error);
+			const calls = stringifyJson(toolUseIds, "session_events tool-use ids");
+			if (!calls.ok) return err(calls.error);
+			const rows = await selectRows<{ tool_use_id: string }>(
+				db,
+				SESSION_EVENTS_SQL.callsOutsideTurns,
+				[sessionId, turns.value, calls.value],
+				"Finding calls in turns that are not loaded",
+			);
+			return rows.ok ? ok(rows.value.map((row) => row.tool_use_id)) : err(rows.error);
+		},
 		lastIdx: async (sessionId) => {
 			const rows = await selectRows<{ last_idx: number | null }>(
 				db,

@@ -976,6 +976,8 @@ async function batchChat(
 	for (const [idx, event] of events.entries()) {
 		test.container.services.sessions.applyStoredEvent(session.id, idx, event, event.at);
 	}
+	// The chat pane opens a chat it shows (CHAT-06); these tests show parts of it alone.
+	must(await test.container.services.sessions.open(session.id));
 	return session;
 }
 

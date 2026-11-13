@@ -1,6 +1,6 @@
 import { ok } from "@conducted/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { RepoConfig } from "../../../core/model.ts";
@@ -113,6 +113,25 @@ describe("SET-07 RepoGitPage", () => {
 
 		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
 		expect(updateConfig.mock.calls[0]?.[1]).toMatchObject({ remoteName: "upstream" });
+	});
+
+	// The project's config is read again when anything on the page saves (a switch here does), and
+	// each read is a new object with the same values. The field must keep what the user is typing
+	// until it is saved; it takes the stored value only when that value changes (issue #658).
+	it("keeps a remote name being typed when the config is read again with the same values", async () => {
+		const { repo, container } = await renderPage();
+		const remote = screen.getByLabelText("Remote origin") as HTMLInputElement;
+		await waitFor(() => expect(remote.disabled).toBe(false));
+
+		fireEvent.change(remote, { target: { value: "upstream" } });
+		act(() => {
+			container.services.repo.store.setState((state) => ({
+				...state,
+				configs: { ...state.configs, [repo.id]: { ...(state.configs[repo.id] as RepoConfig) } },
+			}));
+		});
+
+		expect(remote.value).toBe("upstream");
 	});
 
 	it("changes the branch new workspaces start from", async () => {

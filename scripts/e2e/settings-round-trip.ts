@@ -37,6 +37,9 @@ import {
 import { openRepoSettings, openUserSettings, openWorkspaceByLink } from "./screens.ts";
 import { startInWorld, type World } from "./world.ts";
 
+/** How long a row may take to load before a disabled control counts as not changeable. */
+const ROW_LOAD_MS = 5_000;
+
 /** Where a change was made and what the window showed after it. */
 interface Expected {
 	/** For the report: "general: theme" or "atlas/git: remote_name". */
@@ -314,7 +317,16 @@ export const settingsRoundTrip: Check = {
 					handled.add(`${page.scope}:${key}`);
 					reached.add(key);
 					if (key in NOT_COVERED) continue;
-					const reading = await readControl(app.browser, scope);
+					// A row is disabled while its value loads; it counts as not changeable only if it is
+					// still disabled once the page has had time to load (issue #658).
+					const reading = await until(
+						`${page.label}: ${key} usable`,
+						async () => {
+							const found = await readControl(app.browser, scope);
+							return found === null || found.disabled ? undefined : found;
+						},
+						ROW_LOAD_MS,
+					).catch(async () => await readControl(app.browser, scope));
 					if (reading?.disabled === true) {
 						disabled.push(`${page.label}: ${key} (${reading.note})`);
 						continue;

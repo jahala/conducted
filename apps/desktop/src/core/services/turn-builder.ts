@@ -315,9 +315,14 @@ function holderCall(
 function finalize(
 	draft: TurnDraft,
 	earlier: EarlierCalls,
+	callsNotLoaded: ReadonlySet<string>,
 	liveState: LiveState,
 	isLast: boolean,
 ): ChatTurn {
+	// A call of a turn the chat has not loaded holds its late work and its result in that turn's
+	// card, as a build of every turn would, so this turn shows neither (CHAT-06, D129).
+	const heldElsewhere = (toolUseId: string): boolean =>
+		!draft.calls.has(toolUseId) && !earlier.calls.has(toolUseId) && callsNotLoaded.has(toolUseId);
 	for (const [toolUseId, call] of draft.calls) {
 		const result = draft.results.get(toolUseId);
 		if (result !== undefined) call.result = result;
@@ -329,6 +334,7 @@ function finalize(
 	const blocks: ChatBlock[] = [];
 	for (const entry of draft.entries) {
 		if (entry.kind === "block" && entry.signInEcho === true && draft.claudeSignInResult) continue;
+		if (entry.parent !== undefined && heldElsewhere(entry.parent)) continue;
 		const selfId = entry.kind === "tool" ? entry.call.toolUseId : undefined;
 		const parent =
 			entry.parent === undefined ? undefined : holderCall(draft, earlier, entry.parent, selfId);
@@ -350,6 +356,7 @@ function finalize(
 			earlierCall.result = result;
 			continue;
 		}
+		if (heldElsewhere(toolUseId)) continue;
 		blocks.push({
 			kind: "notice",
 			item: {
@@ -384,12 +391,15 @@ function finalize(
 /**
  * Builds the chat's turns from its stored events. Pending sends are a second overlay: a message
  * whose `user_message` event has not been stored yet appears as a running turn at the end. A
- * pending steer is added to the last turn's steers instead, as not yet read.
+ * pending steer is added to the last turn's steers instead, as not yet read. When the events are
+ * the chat's last turns only (CHAT-06), `callsNotLoaded` names the calls of the earlier turns
+ * that the events refer to, so their late work stays in those turns as in a build of every turn.
  */
 export function buildTurns(
 	events: readonly StoredEvent[],
 	liveState: LiveState,
 	pendingSends: readonly PendingSend[] = [],
+	callsNotLoaded: ReadonlySet<string> = NO_CALLS,
 ): ChatTurn[] {
 	const drafts = new Map<string, TurnDraft>();
 	const order: TurnDraft[] = [];
@@ -419,7 +429,13 @@ export function buildTurns(
 	const liveTurns = order.filter((draft) => draft.liveEvents > 0);
 	const earlier: EarlierCalls = { calls: new Map(), parents: new Map() };
 	const turns = liveTurns.map((draft, index) => {
-		const turn = finalize(draft, earlier, liveState, index === liveTurns.length - 1);
+		const turn = finalize(
+			draft,
+			earlier,
+			callsNotLoaded,
+			liveState,
+			index === liveTurns.length - 1,
+		);
 		rememberCalls(earlier, draft);
 		return turn;
 	});
@@ -460,6 +476,31 @@ export function buildTurns(
 	}
 
 	return turns;
+}
+
+const NO_CALLS: ReadonlySet<string> = new Set();
+
+/**
+ * The tool-use ids the events name, as a parent or as a result, that none of their own calls has.
+ * When the events are a chat's last turns, these may be calls of an earlier turn (CHAT-06, D129).
+ */
+export function callsNamedButMissing(events: readonly StoredEvent[]): string[] {
+	const calls = new Set<string>();
+	const named = new Set<string>();
+	for (const row of events) {
+		if (row.revertedAt !== null || row.event.type !== "agent") continue;
+		const message = row.event.message;
+		if (message.parentToolUseId !== undefined) named.add(message.parentToolUseId);
+		for (const item of message.items) {
+			if (item.kind === "tool_call") {
+				calls.add(item.toolUseId);
+				if (item.parentToolUseId !== undefined) named.add(item.parentToolUseId);
+			} else if (item.kind === "tool_result") {
+				named.add(item.toolUseId);
+			}
+		}
+	}
+	return [...named].filter((id) => !calls.has(id));
 }
 
 /**

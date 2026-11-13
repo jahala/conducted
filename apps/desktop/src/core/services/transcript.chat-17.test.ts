@@ -2,7 +2,12 @@
 import type { SessionEvent } from "@conducted/protocol";
 import type { MessageId, ToolUseId, TurnId } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
+import {
+	createTestContainer,
+	seedSessionEvent,
+	seedWorkspace,
+	type TestContainer,
+} from "../../test/container.ts";
 import { createRepositories } from "../db/repositories.ts";
 import { agentEvent, sampleSession, userMessageEvent } from "../db/test-fixtures.ts";
 import type { ChatBlock, ChatTurn, ToolCallView } from "../model.ts";
@@ -282,9 +287,8 @@ describe("CHAT-17 searchHistory", () => {
 			userMessageEvent("e1", "turn-1", 100),
 			agentEvent("e2", "turn-1", 110, [{ kind: "text", text: "The login bug is fixed." }]),
 		];
-		for (const [idx, event] of events.entries()) {
-			sessions.applyStoredEvent(chat.id, idx, event, event.at);
-		}
+		// Stored as the ingest stores them: the copy reads every turn from the database.
+		for (const event of events) await seedSessionEvent(test.container, chat.id, event, event.at);
 
 		must(await sessions.copyTranscript(chat.id, "concise"));
 		const copied = test.memory.controls.clipboardText ?? "";
@@ -316,9 +320,8 @@ describe("CHAT-17 searchHistory", () => {
 			agentEvent("e4", "turn-2", 205, [{ kind: "text", text: "Own reply in turn two." }]),
 			{ ...late, message: { ...late.message, parentToolUseId: "task-1" as ToolUseId } },
 		];
-		for (const [idx, event] of events.entries()) {
-			sessions.applyStoredEvent(chat.id, idx, event, event.at);
-		}
+		// Stored as the ingest stores them: the copy reads every turn from the database.
+		for (const event of events) await seedSessionEvent(test.container, chat.id, event, event.at);
 
 		must(await sessions.copyTranscript(chat.id, "concise"));
 		const copied = test.memory.controls.clipboardText ?? "";

@@ -554,6 +554,10 @@ export interface Actions {
 		/** `/clear`: starts a replacement chat, makes it active and hides the old one. */
 		clear: Act<[id: SessionId], Session>;
 		reopen: Act<[id: SessionId]>;
+		/** Loads the turn just before the chat's first loaded one, when the list's top is near (CHAT-06). */
+		loadOlder: Act<[id: SessionId]>;
+		/** Loads every turn back to this one, so the outline can scroll to it (CHAT-06, CHAT-25). */
+		revealTurn: Act<[id: SessionId, turnId: TurnId]>;
 		rename: Act<[id: SessionId, title: string]>;
 		/** Sends now, queues, or steers, depending on state and the follow-up setting. */
 		send: Act<
