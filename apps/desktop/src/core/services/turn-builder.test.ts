@@ -808,17 +808,20 @@ describe("CHAT-07 a long chat with background helpers (D129)", () => {
 			}
 			return proxy as T;
 		};
-		const lookups = [
+		const lookups: [object, string][] = [
 			[Map.prototype, "get"],
 			[Map.prototype, "has"],
 			[Set.prototype, "has"],
-		] as const;
-		const originals = lookups.map(([proto, name]) => proto[name]);
+		];
+		const originals = lookups.map(([proto, name]) => {
+			const descriptor = Object.getOwnPropertyDescriptor(proto, name);
+			if (descriptor === undefined) throw new Error(`no ${name} to count`);
+			return descriptor;
+		});
 		lookups.forEach(([proto, name], index) => {
-			const original = originals[index] as (this: unknown, ...args: unknown[]) => unknown;
+			const original = originals[index]?.value as (this: unknown, ...args: unknown[]) => unknown;
 			Object.defineProperty(proto, name, {
-				configurable: true,
-				writable: true,
+				...originals[index],
 				value: function (this: unknown, ...args: unknown[]) {
 					work += 1;
 					return original.apply(this, args);
@@ -829,11 +832,8 @@ describe("CHAT-07 a long chat with background helpers (D129)", () => {
 			buildTurns(watch(events), live({ status: "working" }));
 		} finally {
 			lookups.forEach(([proto, name], index) => {
-				Object.defineProperty(proto, name, {
-					configurable: true,
-					writable: true,
-					value: originals[index],
-				});
+				const descriptor = originals[index];
+				if (descriptor !== undefined) Object.defineProperty(proto, name, descriptor);
 			});
 		}
 		return work;
