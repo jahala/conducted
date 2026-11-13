@@ -231,29 +231,75 @@ describe("CHAT-12 plan review bar", () => {
 		expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
 	});
 
-	// This test typed in the bar's feedback box and clicked "Reject plan". Conductor takes the
-	// feedback in the composer, so it is typed there and sent with Enter.
-	it("rejects the plan with the feedback sent from the composer", async () => {
+	// Conductor's composer send while a plan waits (its onSubmit, renderApp @9393948, passed at
+	// @9396815) answers the plan as not approved with no feedback (@9394185), then sends the text as
+	// an ordinary message with the chat's send mode and the composer's attachments. Plan mode stays
+	// as it is. Ours sent the text as the plan's feedback and no message (issue #651).
+	it("answers the plan as not approved, then sends the composer's text and files as a message", async () => {
 		const { test, session } = await setup();
 		const answer = vi
 			.spyOn(test.container.services.sessions, "answer")
 			.mockResolvedValue(ok(undefined));
-		const send = vi.spyOn(test.container.services.sessions, "send");
+		const send = vi
+			.spyOn(test.container.services.sessions, "send")
+			.mockResolvedValue(ok(undefined));
+		const updateConfig = vi.spyOn(test.container.services.sessions, "updateConfig");
+		test.memory.controls.files.set("/tmp/notes.md", "notes");
 
 		const editor = await renderBarAndComposer(test, session);
+		test.memory.controls.emitFileDrop({ kind: "drop", paths: ["/tmp/notes.md"], x: 10, y: 10 });
+		await waitFor(() =>
+			expect(test.container.services.composer.draftOf(session.id).attachmentPaths).toHaveLength(1),
+		);
+		const attached = test.container.services.composer.draftOf(session.id).attachmentPaths;
 		act(() => {
 			editor.commands.insertContent("Use the existing tokenizer instead.");
 		});
 		fireEvent.keyDown(screen.getByRole("textbox", { name: "composer" }), { key: "Enter" });
 
-		expect(send).not.toHaveBeenCalled();
 		await waitFor(() =>
-			expect(answer).toHaveBeenCalledWith(session.id, interactionId, {
-				kind: "plan_approval",
-				approved: false,
-				feedback: "Use the existing tokenizer instead.",
-			}),
+			expect(send).toHaveBeenCalledWith(
+				session.id,
+				"Use the existing tokenizer instead.",
+				attached,
+				"auto",
+			),
 		);
+		expect(answer).toHaveBeenCalledTimes(1);
+		expect(answer).toHaveBeenCalledWith(session.id, interactionId, {
+			kind: "plan_approval",
+			approved: false,
+		});
+		expect(answer.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0] ?? 0);
+		expect(updateConfig).not.toHaveBeenCalled();
+		await waitFor(() => expect(editor.getText()).toBe(""));
+	});
+
+	// Conductor's composer can send files with no text while a plan waits (Dca, renderApp @9279453,
+	// has no plan case). Ours wanted text then (issue #651).
+	it("sends files with no text while a plan waits, after answering the plan", async () => {
+		const { test, session } = await setup();
+		const answer = vi
+			.spyOn(test.container.services.sessions, "answer")
+			.mockResolvedValue(ok(undefined));
+		const send = vi
+			.spyOn(test.container.services.sessions, "send")
+			.mockResolvedValue(ok(undefined));
+		test.memory.controls.files.set("/tmp/notes.md", "notes");
+
+		await renderBarAndComposer(test, session);
+		test.memory.controls.emitFileDrop({ kind: "drop", paths: ["/tmp/notes.md"], x: 10, y: 10 });
+		await waitFor(() =>
+			expect(test.container.services.composer.draftOf(session.id).attachmentPaths).toHaveLength(1),
+		);
+		const attached = test.container.services.composer.draftOf(session.id).attachmentPaths;
+		fireEvent.keyDown(screen.getByRole("textbox", { name: "composer" }), { key: "Enter" });
+
+		await waitFor(() => expect(send).toHaveBeenCalledWith(session.id, "", attached, "auto"));
+		expect(answer).toHaveBeenCalledWith(session.id, interactionId, {
+			kind: "plan_approval",
+			approved: false,
+		});
 	});
 
 	// This test checked the bar's Reject button. The bar now has no feedback box or reject button.
