@@ -48,6 +48,10 @@
 //!   Cloudflare's API with wrangler's own login: only the bucket named exactly as the Worker, in
 //!   the one account that holds it, page by page, skipping an object already gone. It says what it
 //!   removed. The login stays in a request header and is never logged or returned.
+//! - wrangler's OAuth token can expire while the bucket empties (issue #675). A refused login (401,
+//!   or 403 with code 9109) asks wrangler for its login again and repeats that one call only with
+//!   a new login. A login Cloudflare still refuses is `cloud_login_refused`. A failure at the bucket says what is already deleted and
+//!   that the bucket is left, so the user knows a second uninstall removes the rest.
 //! - The SSH tunnel URL (CLOUD-12) is `wss://<worker>/w/<name>/ssh`, with no port query: the route
 //!   reaches only the sandbox's loopback port 22.
 //!
@@ -982,6 +986,9 @@ const ACCOUNTS_PER_PAGE: u32 = 50;
 const EMPTY_ROUNDS: usize = 3;
 /// Cloudflare's error code for deleting a bucket that still holds objects.
 const BUCKET_NOT_EMPTY: i64 = 10008;
+/// Cloudflare's error code for a token it does not accept. An expired wrangler token met it as
+/// 403 on the account list; the R2 routes answer 401 instead.
+const INVALID_ACCESS_TOKEN: i64 = 9109;
 /// How long one call to Cloudflare's API may take.
 const API_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -1027,6 +1034,7 @@ pub struct CloudUninstallPayload {
 
 /// The login wrangler holds, as `wrangler auth token --json` gives it. It has no `Debug`, so it
 /// cannot be printed or logged by accident.
+#[derive(PartialEq, Eq)]
 enum ApiLogin {
     /// An OAuth token from `wrangler login`, or `CLOUDFLARE_API_TOKEN`.
     Token(String),
@@ -1060,7 +1068,8 @@ fn parse_login(stdout: &str) -> Option<ApiLogin> {
 }
 
 /// Asks wrangler for the login it uses, so the API calls run as the same user as its commands.
-/// wrangler refreshes an expired OAuth token first.
+/// wrangler refreshes its OAuth token only once the token has expired, and hands back the stored
+/// one until then without saying when it expires (issue #675).
 fn wrangler_login(wrangler: &Wrangler, cwd: &Path) -> CommandResult<ApiLogin> {
     let output = wrangler.run(
         &[
@@ -1134,6 +1143,12 @@ impl ApiAnswer {
             && self.body.get("success").and_then(|value| value.as_bool()) != Some(false)
     }
 
+    /// Cloudflare did not accept the login: 401 on the R2 routes, 403 with code 9109 on the
+    /// account list.
+    fn login_refused(&self) -> bool {
+        self.status == 401 || (self.status == 403 && self.has_code(INVALID_ACCESS_TOKEN))
+    }
+
     fn has_code(&self, code: i64) -> bool {
         self.body
             .get("errors")
@@ -1145,7 +1160,8 @@ impl ApiAnswer {
             })
     }
 
-    /// The user's message for a call that failed, with Cloudflare's own words and codes.
+    /// The user's message for a call that failed, with Cloudflare's own words and codes. A refused
+    /// login is one Cloudflare refused even after wrangler was asked for it again.
     fn failure(&self, doing: &str) -> CommandError {
         let said: Vec<String> = self
             .body
@@ -1172,6 +1188,15 @@ impl ApiAnswer {
         } else {
             said.join("; ")
         };
+        if self.login_refused() {
+            return refused(
+                "cloud_login_refused",
+                format!(
+                    "Cloudflare refused your login to {doing}: HTTP {}, {said}. Run `wrangler login` and remove the deployment again.",
+                    self.status
+                ),
+            );
+        }
         refused(
             "cloud_api_failed",
             format!(
@@ -1179,6 +1204,58 @@ impl ApiAnswer {
                 self.status
             ),
         )
+    }
+}
+
+/// The uninstall's calls to Cloudflare's API, with wrangler's login. wrangler's OAuth token is
+/// short-lived, and `wrangler auth token` hands back the stored one until it has expired, so a token
+/// read before the bucket is emptied can expire partway through (issue #675). Cloudflare then
+/// refuses the login. The session asks wrangler for its login again and repeats the call once,
+/// only when wrangler hands back a different login. The same login is reported, never retried.
+struct ApiSession<'a> {
+    client: reqwest::Client,
+    wrangler: &'a Wrangler,
+    cwd: &'a Path,
+    login: ApiLogin,
+}
+
+impl<'a> ApiSession<'a> {
+    /// Starts with the login wrangler holds now.
+    fn start(wrangler: &'a Wrangler, cwd: &'a Path) -> CommandResult<Self> {
+        let login = wrangler_login(wrangler, cwd)?;
+        let client = reqwest::Client::builder()
+            .timeout(API_TIMEOUT)
+            .build()
+            .map_err(|error| {
+                refused(
+                    "cloud_api_failed",
+                    format!("The HTTP client did not start: {error}"),
+                )
+            })?;
+        Ok(Self {
+            client,
+            wrangler,
+            cwd,
+            login,
+        })
+    }
+
+    /// One call. A refused login reads wrangler's login again; a new one repeats the call once.
+    async fn call(
+        &mut self,
+        method: reqwest::Method,
+        url: reqwest::Url,
+    ) -> CommandResult<ApiAnswer> {
+        let answer = api_call(&self.client, &self.login, method.clone(), url.clone()).await?;
+        if !answer.login_refused() {
+            return Ok(answer);
+        }
+        let fresh = wrangler_login(self.wrangler, self.cwd)?;
+        if fresh == self.login {
+            return Ok(answer);
+        }
+        self.login = fresh;
+        api_call(&self.client, &self.login, method, url).await
     }
 }
 
@@ -1226,9 +1303,8 @@ fn api_url(api: &CloudflareApi, path: &str) -> CommandResult<reqwest::Url> {
 
 /// Every account the login reaches, page by page.
 async fn api_accounts(
-    client: &reqwest::Client,
+    session: &mut ApiSession<'_>,
     api: &CloudflareApi,
-    login: &ApiLogin,
 ) -> CommandResult<Vec<String>> {
     let mut ids = Vec::new();
     let mut page = 1u64;
@@ -1237,7 +1313,7 @@ async fn api_accounts(
         url.query_pairs_mut()
             .append_pair("page", &page.to_string())
             .append_pair("per_page", &ACCOUNTS_PER_PAGE.to_string());
-        let answer = api_call(client, login, reqwest::Method::GET, url).await?;
+        let answer = session.call(reqwest::Method::GET, url).await?;
         if !answer.succeeded() {
             return Err(answer.failure("list your accounts"));
         }
@@ -1271,21 +1347,20 @@ async fn api_accounts(
 /// accounts with the same bucket name are refused, so the uninstall never empties a bucket of
 /// the wrong account.
 async fn bucket_account(
-    client: &reqwest::Client,
+    session: &mut ApiSession<'_>,
     api: &CloudflareApi,
-    login: &ApiLogin,
     bucket: &str,
 ) -> CommandResult<Option<String>> {
     let accounts = match &api.account {
         Some(account) => vec![account.clone()],
-        None => api_accounts(client, api, login).await?,
+        None => api_accounts(session, api).await?,
     };
     let mut holders = Vec::new();
     let mut unreadable = 0usize;
     for account in accounts {
         checked_account_id(&account)?;
         let url = api_url(api, &format!("/accounts/{account}/r2/buckets/{bucket}"))?;
-        let answer = api_call(client, login, reqwest::Method::GET, url).await?;
+        let answer = session.call(reqwest::Method::GET, url).await?;
         match answer.status {
             _ if answer.succeeded() => holders.push(account),
             404 => {}
@@ -1314,9 +1389,8 @@ async fn bucket_account(
 /// Deletes every object in the bucket, page by page, and counts the ones it deleted. An object
 /// that is gone by the time its delete arrives is skipped.
 async fn empty_bucket(
-    client: &reqwest::Client,
+    session: &mut ApiSession<'_>,
     api: &CloudflareApi,
-    login: &ApiLogin,
     account: &str,
     bucket: &str,
 ) -> CommandResult<usize> {
@@ -1332,7 +1406,7 @@ async fn empty_bucket(
                 query.append_pair("cursor", after);
             }
         }
-        let answer = api_call(client, login, reqwest::Method::GET, url).await?;
+        let answer = session.call(reqwest::Method::GET, url).await?;
         if answer.status == 404 {
             return Ok(deleted);
         }
@@ -1361,7 +1435,7 @@ async fn empty_bucket(
                 )
             })?;
             let url = api_url(api, &format!("{objects}/{path}"))?;
-            let answer = api_call(client, login, reqwest::Method::DELETE, url).await?;
+            let answer = session.call(reqwest::Method::DELETE, url).await?;
             match answer.status {
                 _ if answer.succeeded() => deleted += 1,
                 404 => {}
@@ -1396,19 +1470,18 @@ async fn empty_bucket(
 /// and how many objects were. A bucket no account holds is skipped, so a second uninstall
 /// succeeds.
 async fn remove_bucket(
-    client: &reqwest::Client,
+    session: &mut ApiSession<'_>,
     api: &CloudflareApi,
-    login: &ApiLogin,
     bucket: &str,
 ) -> CommandResult<(bool, usize)> {
-    let Some(account) = bucket_account(client, api, login, bucket).await? else {
+    let Some(account) = bucket_account(session, api, bucket).await? else {
         return Ok((false, 0));
     };
     let url = api_url(api, &format!("/accounts/{account}/r2/buckets/{bucket}"))?;
     let mut objects = 0usize;
     for _ in 0..EMPTY_ROUNDS {
-        objects += empty_bucket(client, api, login, &account, bucket).await?;
-        let answer = api_call(client, login, reqwest::Method::DELETE, url.clone()).await?;
+        objects += empty_bucket(session, api, &account, bucket).await?;
+        let answer = session.call(reqwest::Method::DELETE, url.clone()).await?;
         if answer.succeeded() {
             return Ok((true, objects));
         }
@@ -1740,21 +1813,56 @@ pub fn uninstall_worker(
     }
 
     // The Worker is gone by now, so nothing writes to the bucket while it is emptied.
-    let login = wrangler_login(wrangler, resources)?;
-    let client = reqwest::Client::builder()
-        .timeout(API_TIMEOUT)
-        .build()
-        .map_err(|error| {
-            refused(
-                "cloud_api_failed",
-                format!("The HTTP client did not start: {error}"),
-            )
-        })?;
-    let (bucket, objects) =
-        tauri::async_runtime::block_on(remove_bucket(&client, api, &login, worker))?;
+    let (bucket, objects) = ApiSession::start(wrangler, resources)
+        .and_then(|mut session| {
+            tauri::async_runtime::block_on(remove_bucket(&mut session, api, worker))
+        })
+        .map_err(|error| bucket_left(error, &removed, worker))?;
     removed.bucket = bucket;
     removed.objects = objects;
     Ok(removed)
+}
+
+/// A failure while the bucket is emptied or deleted, told with what the uninstall already deleted
+/// and what is still on the account. A second uninstall skips what is gone, so it removes the rest.
+fn bucket_left(error: CommandError, removed: &CloudUninstallPayload, bucket: &str) -> CommandError {
+    let CommandError::Failed { code, message } = error else {
+        return error;
+    };
+    let mut gone = Vec::new();
+    if removed.worker {
+        gone.push(String::from("the Worker"));
+    }
+    if removed.container {
+        gone.push(String::from("the container application"));
+    }
+    match removed.images {
+        0 => {}
+        1 => gone.push(String::from("1 image")),
+        count => gone.push(format!("{count} images")),
+    }
+    let left = format!("the bucket {bucket} is still on your account");
+    let state = match gone.split_last() {
+        None => format!("The bucket {bucket} is still on your account."),
+        Some((last, [])) => {
+            let verb = if removed.images > 1 { "are" } else { "is" };
+            format!("{} {verb} deleted, but {left}.", capitalised(last))
+        }
+        Some((last, rest)) => format!(
+            "{} and {last} are deleted, but {left}.",
+            capitalised(&rest.join(", "))
+        ),
+    };
+    refused(code, format!("{state} {message}"))
+}
+
+/// The text with its first letter in upper case.
+fn capitalised(text: &str) -> String {
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
 }
 
 /// Deletes what a deploy made, in the order that stops billing: the Worker, its container
@@ -2411,6 +2519,8 @@ mod tests {
 
     /// A stand-in `wrangler` for the uninstall: it records each call, lists one container and one
     /// image, and gives its login as `wrangler auth token --json` prints it, after a warning line.
+    /// The login is the one in `RECORD.login` when that file exists, as wrangler gives the token it
+    /// last stored, and `the-login` otherwise.
     const UNINSTALL_WRANGLER: &str = "#!/bin/sh\n\
          echo \"$*\" >> RECORD\n\
          if [ \"$1\" = \"containers\" ] && [ \"$2\" = \"list\" ]; then\n\
@@ -2418,8 +2528,9 @@ mod tests {
          if [ \"$1\" = \"containers\" ] && [ \"$2\" = \"images\" ] && [ \"$3\" = \"list\" ]; then\n\
            echo '[{\"name\":\"conducted-cloud-workspace-sandbox\",\"tags\":[\"wrangler-a\"]}]'; exit 0; fi\n\
          if [ \"$1\" = \"auth\" ] && [ \"$2\" = \"token\" ]; then\n\
+           login=the-login; [ -f 'RECORD.login' ] && login=$(cat 'RECORD.login')\n\
            echo 'A newer version of wrangler is available.'\n\
-           printf '{\\n    \"type\": \"oauth\",\\n    \"token\": \"the-login\"\\n}\\n'; exit 0; fi\n\
+           printf '{\\n    \"type\": \"oauth\",\\n    \"token\": \"%s\"\\n}\\n' \"$login\"; exit 0; fi\n\
          exit 0\n";
 
     /// What the stand-in Cloudflare holds: accounts, their buckets and the keys in each, and every
@@ -2431,6 +2542,23 @@ mod tests {
         requests: Vec<String>,
         /// A key another writer deletes just after a listing first returns it.
         vanishes: Option<String>,
+        /// The login Cloudflare accepts now. None is `the-login`.
+        accepted: Option<String>,
+        /// How many requests carried a login Cloudflare did not accept.
+        refused: usize,
+        /// The login expires once this many requests were answered.
+        expiry: Option<LoginExpiry>,
+    }
+
+    /// An OAuth login that expires partway through an uninstall, as wrangler's short-lived token does
+    /// (issue #675). From then on Cloudflare answers the old token with 401, code 10000.
+    struct LoginExpiry {
+        after_requests: usize,
+        /// The token that replaces it.
+        next: String,
+        /// Where wrangler stores the refreshed token, so `wrangler auth token` hands it out. None is
+        /// a login wrangler cannot refresh, which it keeps handing out.
+        stored: Option<PathBuf>,
     }
 
     /// A stand-in for Cloudflare's API on this Mac. It answers the calls the uninstall makes as
@@ -2528,12 +2656,33 @@ mod tests {
             let mut parts = request_line.split_whitespace();
             let method = parts.next().unwrap_or("").to_string();
             let target = parts.next().unwrap_or("").to_string();
-            let (status, body) = if authorization != "bearer the-login" {
-                (401, Self::failed(10000, "Authentication error"))
-            } else {
+            let (status, body) = {
                 let mut state = lock(state);
-                state.requests.push(format!("{method} {target}"));
-                Self::route(&mut state, &method, &target)
+                if state
+                    .expiry
+                    .as_ref()
+                    .is_some_and(|expiry| state.requests.len() >= expiry.after_requests)
+                    && let Some(expiry) = state.expiry.take()
+                {
+                    if let Some(stored) = &expiry.stored {
+                        std::fs::write(stored, &expiry.next).expect("the refreshed login");
+                    }
+                    state.accepted = Some(expiry.next);
+                }
+                let accepted = state.accepted.as_deref().unwrap_or("the-login");
+                if authorization != format!("bearer {accepted}") {
+                    state.refused += 1;
+                    // As Cloudflare answered an expired wrangler token on 2026-11-13: the account
+                    // list with 403 and code 9109, the R2 routes with 401 and code 10000.
+                    if target.starts_with("/client/v4/accounts?") {
+                        (403, Self::failed(9109, "Invalid access token"))
+                    } else {
+                        (401, Self::failed(10000, "Authentication error"))
+                    }
+                } else {
+                    state.requests.push(format!("{method} {target}"));
+                    Self::route(&mut state, &method, &target)
+                }
             };
             let text = body.to_string();
             let response = format!(
@@ -2783,6 +2932,118 @@ mod tests {
         );
         // The bucket goes through the API only; wrangler is never asked to delete it.
         assert!(!calls.contains("r2 bucket delete"));
+    }
+
+    /// How many times the uninstall asked wrangler for its login.
+    fn login_reads(record: &Path) -> usize {
+        std::fs::read_to_string(record)
+            .expect("the record")
+            .lines()
+            .filter(|line| *line == "auth token --json")
+            .count()
+    }
+
+    #[test]
+    fn a_login_that_expires_while_the_bucket_empties_is_read_again() {
+        // The token wrangler handed out expires before the account list (answered 403, code
+        // 9109), or after the first object listing, between two object deletes (401, code 10000).
+        // Either way wrangler stores the refreshed one.
+        for after_requests in [0, 600] {
+            let (folder, wrangler, record) = fake_wrangler(UNINSTALL_WRANGLER);
+            let resources = resources_folder(&folder);
+            let cloudflare = CloudflareStandIn::start(
+                &["acc1"],
+                &[("acc1", "conducted-cloud", filled_bucket())],
+            );
+            lock(&cloudflare.state).expiry = Some(LoginExpiry {
+                after_requests,
+                next: String::from("the-refreshed-login"),
+                stored: Some(PathBuf::from(format!("{}.login", record.display()))),
+            });
+            let removed = uninstall_worker(
+                &wrangler,
+                &cloudflare.api(None),
+                &resources,
+                "conducted-cloud",
+            )
+            .unwrap_or_else(|error| panic!("an uninstall expiring at {after_requests}: {error}"));
+            assert_eq!((removed.bucket, removed.objects), (true, 1207));
+            assert_eq!(cloudflare.keys("acc1", "conducted-cloud"), None);
+            // One call met the expired token; the login was read again once and the call repeated.
+            assert_eq!(lock(&cloudflare.state).refused, 1);
+            assert_eq!(login_reads(&record), 2);
+        }
+    }
+
+    #[test]
+    fn a_login_cloudflare_still_refuses_is_reported_with_what_is_left() {
+        let (folder, wrangler, record) = fake_wrangler(UNINSTALL_WRANGLER);
+        let resources = resources_folder(&folder);
+        let cloudflare =
+            CloudflareStandIn::start(&["acc1"], &[("acc1", "conducted-cloud", filled_bucket())]);
+        // The token stops working and wrangler cannot refresh it, so it hands out the same one.
+        lock(&cloudflare.state).expiry = Some(LoginExpiry {
+            after_requests: 600,
+            next: String::from("a-login-this-mac-lacks"),
+            stored: None,
+        });
+        let error = uninstall_worker(
+            &wrangler,
+            &cloudflare.api(None),
+            &resources,
+            "conducted-cloud",
+        )
+        .expect_err("a refused login");
+        assert_eq!(error.code(), "cloud_login_refused");
+        let message = error.to_string();
+        assert!(message.contains("HTTP 401"), "{message}");
+        assert!(message.contains("code 10000"), "{message}");
+        // It says what is gone, what is left, and how to remove the rest.
+        assert!(
+            message.starts_with(
+                "The Worker, the container application and 1 image are deleted, but the bucket conducted-cloud is still on your account. Cloudflare refused your login to delete the object"
+            ),
+            "{message}"
+        );
+        assert!(
+            message.ends_with("Run `wrangler login` and remove the deployment again."),
+            "{message}"
+        );
+        assert!(cloudflare.keys("acc1", "conducted-cloud").is_some());
+        // The login was read again once, and the same login was never sent again.
+        assert_eq!(login_reads(&record), 2);
+        assert_eq!(lock(&cloudflare.state).refused, 1);
+    }
+
+    #[test]
+    fn a_failure_at_the_bucket_says_what_is_deleted_and_what_is_left() {
+        let said = |removed: CloudUninstallPayload| {
+            bucket_left(
+                refused("cloud_api_failed", "Cloudflare refused."),
+                &removed,
+                "b",
+            )
+            .to_string()
+        };
+        assert_eq!(
+            said(CloudUninstallPayload::default()),
+            "The bucket b is still on your account. Cloudflare refused."
+        );
+        assert_eq!(
+            said(CloudUninstallPayload {
+                images: 2,
+                ..CloudUninstallPayload::default()
+            }),
+            "2 images are deleted, but the bucket b is still on your account. Cloudflare refused."
+        );
+        assert_eq!(
+            said(CloudUninstallPayload {
+                worker: true,
+                container: true,
+                ..CloudUninstallPayload::default()
+            }),
+            "The Worker and the container application are deleted, but the bucket b is still on your account. Cloudflare refused."
+        );
     }
 
     #[test]

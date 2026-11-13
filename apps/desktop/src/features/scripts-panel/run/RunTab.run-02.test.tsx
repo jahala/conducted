@@ -30,7 +30,7 @@ const dev: RunAction = {
 };
 
 const config = (spotlightTesting: boolean): RepoConfigPatch => ({
-	runScripts: [dev],
+	runActions: [{ kind: "set", action: dev }],
 	spotlightTesting,
 });
 

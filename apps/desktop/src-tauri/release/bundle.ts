@@ -10,6 +10,9 @@
  * with a team identity, hardened runtime, notarised).
  * It also fails a bundle whose app binary carries the embedded WebDriver server of the end-to-end
  * test build (the `e2e` Cargo feature, issue #564): any local process could drive that window.
+ * And it fails a bundle whose `Contents/Resources` lacks the third-party notices, or holds a copy
+ * that differs from the repository's (issue #577, D148): the licences of what the app ships ask
+ * for their notices to travel with it.
  * Must handle: a missing signing identity or notarisation credential (an error value that names
  * the missing variable, never a build that ships unsigned; an empty variable counts as missing);
  * the sidecar signed before the app, with the JIT entitlements, because Bun needs them and the app
@@ -71,6 +74,21 @@ export const ENTITLEMENTS_PATH = join(
 	"Entitlements.plist",
 );
 
+/** The one CPU target a release builds for (an arm64 app; native-and-sidecar-map.md A1). */
+export const RELEASE_TARGET = "aarch64-apple-darwin";
+
+/** The third-party notices file: its name in the repository and in the bundle's `Contents/Resources`. */
+export const NOTICES_FILE_NAME = "THIRD-PARTY-NOTICES.txt";
+
+/** The repository's notices, which `bun scripts/notices/generate.ts` writes. */
+export const NOTICES_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", NOTICES_FILE_NAME);
+
+/**
+ * How the bundle's notices compare with the repository's: the same bytes, different bytes, or a
+ * file `cmp` could not read (missing from the bundle, most often).
+ */
+export type NoticesState = "current" | "stale" | "unreadable";
+
 /** Runs a command line tool such as `codesign` or `xcrun`. Never a shell string. */
 export type RunTool = (
 	program: string,
@@ -91,6 +109,9 @@ export interface BundleReport {
 	sidecarSigned: boolean;
 	sidecarMissingEntitlements: string[];
 	notarised: boolean;
+	notices: NoticesState;
+	/** What `cmp` said when it could not read a file, so the problem names the file. */
+	noticesError: string;
 }
 
 interface ToolOutput {
@@ -517,6 +538,19 @@ export async function verifyBundle(run: RunTool, appPath: string): Promise<Resul
 	const staple = await runToolOutput(run, "xcrun", ["stapler", "validate", appPath]);
 	if (!staple.ok) return staple;
 
+	// `cmp` exits 0 for the same bytes, 1 for different bytes and 2 when it cannot read a file.
+	const notices = await runToolOutput(run, "cmp", [
+		join(appPath, "Contents", "Resources", NOTICES_FILE_NAME),
+		NOTICES_PATH,
+	]);
+	if (!notices.ok) return notices;
+	const noticesState: NoticesState =
+		notices.value.exitCode === 0
+			? "current"
+			: notices.value.exitCode === 1
+				? "stale"
+				: "unreadable";
+
 	return ok({
 		bundleIdentifier,
 		hasWebDriver: webDriver,
@@ -534,6 +568,11 @@ export async function verifyBundle(run: RunTool, appPath: string): Promise<Resul
 			(key) => !sidecarSignature.value.entitlements.includes(key),
 		),
 		notarised: staple.value.exitCode === 0,
+		notices: noticesState,
+		noticesError:
+			noticesState === "unreadable"
+				? textOf(notices.value) || `cmp exited ${notices.value.exitCode}`
+				: "",
 	});
 }
 
@@ -588,6 +627,15 @@ export function bundleProblems(report: BundleReport, expected: ExpectedBundle): 
 	}
 	if (expected.notarised && !report.notarised)
 		problems.push("The app has no stapled notarisation ticket.");
+	if (report.notices === "unreadable") {
+		problems.push(
+			`The bundle's ${NOTICES_FILE_NAME} is missing or unreadable: ${report.noticesError}`,
+		);
+	} else if (report.notices === "stale") {
+		problems.push(
+			`The bundle's ${NOTICES_FILE_NAME} differs from ${NOTICES_FILE_NAME} in the repository; build again.`,
+		);
+	}
 	return problems;
 }
 

@@ -47,7 +47,8 @@
  * key only when it differs from the shared value. A key that matches is removed, so a later edit
  * to the shared file reaches the user again. A save is a patch: it writes only the fields it
  * names, applied under the file's write lock to the file as it stands, so two quick saves of
- * different fields both land (issue #670, D146).
+ * different fields both land (issue #670, D146). Run actions change one at a time by id, and a
+ * rename moves an action to its new id in its place, as Conductor's M8e does (issue #673).
  * Gaps against services-map.md 4.2: the workspace-level shared file is not read. Keeping
  * `settings.local.toml` out of git is DATA-05's; linking it into every worktree is WS-01's.
  * Also owns the per-user hidden run action ids (SET-07, services-map.md 5A.1.6): they live in
@@ -101,7 +102,14 @@ import {
 import { githubRepoClone, githubRepoCreate, githubRepoUrl } from "../git/gh-commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { isGithubRemoteUrl } from "../github-text.ts";
-import type { Repo, RepoConfig, RepoConfigPatch, RepoIconChoice, RunAction } from "../model.ts";
+import type {
+	Repo,
+	RepoConfig,
+	RepoConfigPatch,
+	RepoIconChoice,
+	RunAction,
+	RunActionChange,
+} from "../model.ts";
 import {
 	GSTACK_TEMPLATE_URL,
 	isProjectTemplate,
@@ -629,33 +637,75 @@ function actionsMatch(left: RunAction, right: RunAction): boolean {
 	);
 }
 
+/** The table the local file holds for an action. */
+function settingActionFrom(action: RunAction): SettingAction {
+	return {
+		id: action.id,
+		command: action.command,
+		args: [...action.args],
+		cwd: action.cwd,
+		isDefault: action.isDefault,
+		hidden: action.hidden,
+		icon: action.icon,
+		// The file leaves the field out when the action runs everywhere, which is its default.
+		...(availableEverywhere(action.availableIn) ? {} : { availableIn: [...action.availableIn] }),
+	};
+}
+
 /**
- * The local action tables an update writes: actions defined locally or changed from a shared one.
- * A change that leaves an action equal to its shared version is left out, so the shared definition
- * keeps winning.
+ * Applies one action's change to the local file's actions by id, as Conductor's M8e does (main
+ * @356875): a delete removes the action; a set replaces it in its place, or the action named by
+ * `replaceId` (a rename), and otherwise adds it last, or first when its id is "run". Every other
+ * action stays as the file has it. A set that leaves an action equal to its shared version removes
+ * the local one, so the shared definition keeps winning. Returns the file keys it touched.
  */
-function localActionsFrom(
-	actions: readonly RunAction[],
+function applyRunActionChange(
+	contents: SettingsFileContents,
+	change: RunActionChange,
 	sharedActions: readonly RunAction[],
-): Record<string, SettingAction> {
-	const result: Record<string, SettingAction> = {};
-	for (const action of actions) {
-		if (action.origin === "shared") continue;
-		const shared = sharedActions.find((candidate) => actionIdsEqual(candidate.id, action.id));
-		if (shared !== undefined && actionsMatch(action, shared)) continue;
-		result[action.id] = {
-			id: action.id,
-			command: action.command,
-			args: [...action.args],
-			cwd: action.cwd,
-			isDefault: action.isDefault,
-			hidden: action.hidden,
-			icon: action.icon,
-			// The file leaves the field out when the action runs everywhere, which is its default.
-			...(availableEverywhere(action.availableIn) ? {} : { availableIn: [...action.availableIn] }),
-		};
+): string[] {
+	const id = change.kind === "set" ? change.action.id : change.id;
+	const keyOf = (wanted: string | undefined) =>
+		wanted === undefined
+			? undefined
+			: Object.keys(contents.actions).find((key) => actionIdsEqual(key, wanted));
+	const existing = keyOf(id);
+	const replaced = change.kind === "set" ? keyOf(change.replaceId) : undefined;
+	const touched = [id, existing, replaced].filter((key): key is string => key !== undefined);
+	const shared =
+		change.kind === "set"
+			? sharedActions.find((candidate) => actionIdsEqual(candidate.id, id))
+			: undefined;
+	if (change.kind === "delete" || (shared !== undefined && actionsMatch(change.action, shared))) {
+		for (const key of touched) delete contents.actions[key];
+		return touched;
 	}
-	return result;
+	const table = settingActionFrom(change.action);
+	const others = Object.entries(contents.actions).filter(([key]) => !touched.includes(key));
+	const target = replaced ?? existing;
+	if (id.toLowerCase() === "run") {
+		contents.actions = Object.fromEntries([[id, table], ...others]);
+	} else if (target !== undefined) {
+		const next: Record<string, SettingAction> = {};
+		for (const [key, value] of Object.entries(contents.actions)) {
+			if (key === target) next[id] = table;
+			else if (!touched.includes(key)) next[key] = value;
+		}
+		contents.actions = next;
+	} else {
+		contents.actions = { ...contents.actions, [id]: table };
+	}
+	return touched;
+}
+
+/** Whether a raw entry kept for writes, or a dropped value, belongs to one of these actions. */
+function underActions(keys: readonly string[]): (path: string) => boolean {
+	return (path) => {
+		if (path === "scripts.run") return true;
+		if (!path.startsWith("scripts.run.")) return false;
+		const key = path.slice("scripts.run.".length).split(".")[0] ?? "";
+		return keys.some((candidate) => actionIdsEqual(candidate, key));
+	};
 }
 
 /**
@@ -702,14 +752,21 @@ function applyRepoConfigPatch(
 	][]) {
 		text(key, patch.prompts?.[field], shared.prompts[field]);
 	}
-	if (patch.runScripts !== undefined) {
+	const actionKeys: string[] = [];
+	if (patch.runActions !== undefined && patch.runActions.length > 0) {
+		// A legacy `scripts.run` string is already the action "run", so the tables replace it,
+		// as Conductor's writer migrates legacy actions on a task write (main @405635).
 		delete contents.values.run_script;
-		contents.actions = localActionsFrom(patch.runScripts, shared.runScripts);
-		written.push("run_script");
+		for (const change of patch.runActions) {
+			actionKeys.push(...applyRunActionChange(contents, change, shared.runScripts));
+		}
 	}
 	const replaced = underKeys(written);
-	contents.preserved = contents.preserved.filter((entry) => !replaced(entry.path));
-	contents.dropped = contents.dropped.filter((entry) => !replaced(entry.key));
+	const replacedAction = underActions(actionKeys);
+	const kept = (path: string) =>
+		!replaced(path) && !(actionKeys.length > 0 && replacedAction(path));
+	contents.preserved = contents.preserved.filter((entry) => kept(entry.path));
+	contents.dropped = contents.dropped.filter((entry) => kept(entry.key));
 }
 
 /** The sidebar order: visible repositories by display order, then name and id. */
@@ -1677,22 +1734,20 @@ export class RepoService {
 
 	/**
 	 * Backs `Actions.projects.resetRunAction`: drops this Mac's change to a shared action by
-	 * rewriting the local file without that action, then forgets that it was hidden. It starts from
-	 * the config the page shows, so an invalid local file is refused by the write, which can then be
-	 * forced with `overwrite`, as Conductor's updateTask is (main @405338).
+	 * deleting that one action from the local file, then forgets that it was hidden. The write
+	 * reads the file, so an invalid local file is refused, and the delete can then be forced with
+	 * `overwrite`, as Conductor's updateTask is (main @405635).
 	 */
 	async resetRunAction(
 		repoId: RepoId,
 		actionId: string,
 		options: SetOptions = {},
 	): Promise<Result<void>> {
-		const known = this.store.getState().configs[repoId];
-		const loaded = known === undefined ? await this.loadConfig(repoId) : ok(known);
-		if (!loaded.ok) return loaded;
-		const remaining = loaded.value.runScripts.filter(
-			(action) => !actionIdsEqual(action.id, actionId),
+		const saved = await this.updateConfig(
+			repoId,
+			{ runActions: [{ kind: "delete", id: actionId }] },
+			options,
 		);
-		const saved = await this.updateConfig(repoId, { runScripts: remaining }, options);
 		if (!saved.ok) return saved;
 		return this.setRunActionHidden(repoId, actionId, false);
 	}

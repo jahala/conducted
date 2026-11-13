@@ -16,6 +16,8 @@ import {
 	ENTITLEMENTS_PATH,
 	hasWebDriver,
 	NOTARY_PROFILE_ENV,
+	NOTICES_FILE_NAME,
+	NOTICES_PATH,
 	notariseBundle,
 	notariseDiskImage,
 	REQUIRED_ENTITLEMENTS,
@@ -92,6 +94,8 @@ function bundleRun(overrides: {
 	staplerExitCode?: number;
 	/** The app binary carries the end-to-end tests' WebDriver server. */
 	webDriver?: boolean;
+	/** What `cmp` answers for the bundled notices against the repository's: its exit code and words. */
+	notices?: Output;
 }): { run: RunTool; calls: Call[] } {
 	const info = overrides.info ?? INFO;
 	return scripted((program, args) => {
@@ -115,6 +119,9 @@ function bundleRun(overrides: {
 		}
 		if (program === "grep") {
 			return ok({ stdout: "", stderr: "", exitCode: overrides.webDriver === true ? 0 : 1 });
+		}
+		if (program === "cmp") {
+			return ok(overrides.notices ?? { stdout: "", stderr: "", exitCode: 0 });
 		}
 		if (program === "ls") {
 			return ok({
@@ -189,6 +196,7 @@ describe("PLAT-25 release bundle", () => {
 		expect(result.value.hardenedRuntime).toBe(true);
 		expect(result.value.sidecarSigned).toBe(true);
 		expect(result.value.notarised).toBe(true);
+		expect(result.value.notices).toBe("current");
 	});
 
 	it("PLAT-25 verifyBundle reports a universal binary, a Frameworks folder and a missing ticket", async () => {
@@ -235,6 +243,39 @@ describe("PLAT-25 release bundle", () => {
 			"-e",
 			"tauri-plugin-webdriver is ready",
 			`${APP}/Contents/MacOS/Conducted`,
+		]);
+	});
+
+	it("PLAT-25 bundleProblems refuses a bundle without the third-party notices", async () => {
+		const bundled = `${APP}/Contents/Resources/${NOTICES_FILE_NAME}`;
+		const { run, calls } = bundleRun({
+			notices: { stdout: "", stderr: `cmp: ${bundled}: No such file or directory`, exitCode: 2 },
+		});
+
+		const result = await verifyBundle(run, APP);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.notices).toBe("unreadable");
+		expect(bundleProblems(result.value, EXPECTED_NOTARISED)).toEqual([
+			`The bundle's ${NOTICES_FILE_NAME} is missing or unreadable: cmp: ${bundled}: No such file or directory`,
+		]);
+		const compared = calls.find((call) => call.program === "cmp");
+		expect(compared?.args).toEqual([bundled, NOTICES_PATH]);
+	});
+
+	it("PLAT-25 bundleProblems refuses a bundle whose notices are not the repository's", async () => {
+		const { run } = bundleRun({
+			notices: { stdout: "differ: char 120, line 4", stderr: "", exitCode: 1 },
+		});
+
+		const result = await verifyBundle(run, APP);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.notices).toBe("stale");
+		expect(bundleProblems(result.value, EXPECTED_NOTARISED)).toEqual([
+			`The bundle's ${NOTICES_FILE_NAME} differs from ${NOTICES_FILE_NAME} in the repository; build again.`,
 		]);
 	});
 
@@ -464,6 +505,7 @@ describe("PLAT-25 release bundle", () => {
 			}
 			if (program === "ls") return ok({ stdout: "MacOS\nResources\n", stderr: "", exitCode: 0 });
 			if (program === "grep") return ok({ stdout: "", stderr: "", exitCode: 1 });
+			if (program === "cmp") return ok({ stdout: "", stderr: "", exitCode: 0 });
 			if (program === "codesign") {
 				return ok({ stdout: "", stderr: completeSignature(REQUIRED_ENTITLEMENTS), exitCode: 0 });
 			}
@@ -503,6 +545,7 @@ describe("PLAT-25 release bundle", () => {
 				return ok({ stdout: "MacOS\nResources\n", stderr: "", exitCode: 0 });
 			}
 			if (program === "grep") return ok({ stdout: "", stderr: "", exitCode: 1 });
+			if (program === "cmp") return ok({ stdout: "", stderr: "", exitCode: 0 });
 			if (program === "codesign") {
 				return ok({
 					stdout: "",
@@ -521,6 +564,12 @@ describe("PLAT-25 release bundle", () => {
 		const attach = calls.find((call) => call.program === "hdiutil" && call.args[0] === "attach");
 		const mountPoint = attach?.args[4];
 		expect(mountPoint).toBeDefined();
+		// The notices compared are the copy inside the image a person downloads.
+		const compared = calls.find((call) => call.program === "cmp");
+		expect(compared?.args).toEqual([
+			`${mountPoint}/${basename(APP)}/Contents/Resources/THIRD-PARTY-NOTICES.txt`,
+			NOTICES_PATH,
+		]);
 		expect(
 			calls.some(
 				(call) =>
@@ -573,6 +622,7 @@ describe("PLAT-25 release bundle", () => {
 		const tauri = JSON.parse(readFileSync(join(HERE, "..", "tauri.conf.json"), "utf8")) as {
 			bundle: {
 				macOS: { entitlements: string; infoPlist: string; hardenedRuntime: boolean };
+				resources: Record<string, string>;
 			};
 		};
 		const release = JSON.parse(
@@ -589,6 +639,10 @@ describe("PLAT-25 release bundle", () => {
 			infoPlist: "Info.plist",
 			hardenedRuntime: true,
 		});
+		// Every build copies the notices to Contents/Resources under the name the release check reads.
+		expect(tauri.bundle.resources["THIRD-PARTY-NOTICES.txt"]).toBe("THIRD-PARTY-NOTICES.txt");
+		expect(NOTICES_PATH).toBe(join(HERE, "..", "THIRD-PARTY-NOTICES.txt"));
+		expect(readFileSync(NOTICES_PATH, "utf8")).toContain("Third-party notices for Conducted");
 		for (const key of REQUIRED_ENTITLEMENTS) {
 			expect(entitlements).toContain(`<key>${key}</key>`);
 		}

@@ -46,6 +46,7 @@ Each one fails a check when it is broken.
 - **Conductor's code never enters the repo** (D002): no bundle file, copy of one, or stretch of its code (`pnpm guards`; the reference run is in `docs/engineering.md`).
 - **The Rust command list, the program allowlist and the migration list match the TypeScript that uses them** (`pnpm guards`). A command with no handler carries its backlog id in a comment in `COMMANDS`.
 - **Structure baselines only shrink** (D055): `scripts/guards/structure-baseline.json` counts tests that assert placeholders, exports only tests use, and optional dependencies a composition root leaves out unmarked (`// unwired: <ID>`). A fix lowers the baseline in the same change.
+- **Every shipped package is credited** in `apps/desktop/src-tauri/THIRD-PARTY-NOTICES.txt`, which the app bundle carries. After a dependency change, run `bun scripts/notices/generate.ts` (`pnpm guards`, `scripts/notices/bundles.build.test.ts`, the release check; D148).
 - **A run leaves nothing behind:** `pnpm test` fails if anything is left in the run's temp folder.
 
 ## Commands and tests
