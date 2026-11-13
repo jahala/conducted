@@ -702,7 +702,7 @@ Chosen:
 Left out, and where each item goes:
 
 1. **Port range and forwarding strategy.** "Couldn't update the local port range" and "Couldn't update the forwarding strategy" belong to cloud port forwarding. CLOUD-10 (#252, D110) built them as local settings on the Connections page.
-2. **MCP servers for the sandbox.** Installing them with none, OAuth, bearer token or custom headers, the "Import from local" list, and their override of a local server of the same name are Conductor's org MCP page (ui-map 6 Organization). The sandbox-side install stays with CLOUD-17 (#259), still open; the org page stays out under D004 and D018.
+2. **MCP servers for the sandbox.** Installing them with none, OAuth, bearer token or custom headers, the "Import from local" list, and their override of a local server of the same name are Conductor's org MCP page (ui-map 6 Organization). Built later by CLOUD-17 on the paired Worker (D121, D147): the personal servers, their OAuth, the import and the Recommended catalogue, on an MCP page where Conductor puts it; the organisation's shared servers stay out under D004 and D018.
 3. **The cloud GitHub token entry form.** D104 already records it as the org GitHub page, kept out; the Worker secret exists and the outbound handler swaps it.
 4. **Image extras and build status.** Conductor's org Cloud computer page; CLOUD-04 recorded the software setting as out, and the deploy's build is CLOUD-08/D109.
 
@@ -829,7 +829,7 @@ Context: the rest of CLOUD-17 (#259) is "MCP servers in the cloud sandbox": inst
 
 Chosen:
 
-- **One personal list in the Worker.** The settings object at `settings/user.json` gains `mcpServers: Record<name, {url, authType: "none" | "bearer" | "headers", bearerToken?, headers?}>`, beside `gitIdentity` and `envVars`, read and written through the same `GET|POST /settings` route. An object written before this row reads as having no servers. This is the personal home D113 gave the other cloud settings; a server list on the Mac's database would not reach a sandbox start.
+- **One personal list in the Worker.** The settings object at `settings/user.json` gains `mcpServers: Record<name, {url, authType: "none" | "oauth" | "bearer" | "headers", bearerToken?, headers?, oauthClientId?, oauthClientSecret?}>` (OAuth since D147), beside `gitIdentity` and `envVars`, read and written through the same `GET|POST /settings` route. An object written before this row reads as having no servers. This is the personal home D113 gave the other cloud settings; a server list on the Mac's database would not reach a sandbox start.
 - **Servers are remote and HTTPS only.** Conductor's MCP form has a URL, not a command, so a cloud server is an HTTP MCP endpoint; the research shows no stdio form for its cloud page. A URL must be `https:`, with no username or password. Names are 1 to 64 letters, numbers, hyphens or underscores; `conductor` and our own `conducted` are reserved because they would shadow the app tools.
 - **The sandbox gets placeholders, never a secret.** At each container start the Worker adds `CONDUCTED_CLOUD_MCP_SERVERS_JSON` to the container environment: for each server, its name, URL, and headers whose values are `provided-by-worker`. The sidecar reads it and gives the servers to every runner: Claude's `Options.mcpServers` as an HTTP server, Codex's `--config mcp_servers.<name>.url` and `http_headers`, Cursor's `mcpServers`, and ACP's `session/new` HTTP servers. Claude's entry sets `alwaysLoad: true` so its tools are in the first turn's prompt; the SDK caps that wait at 5 seconds per server.
 - **A cloud server overrides a local one of the same name.** Cursor's local map is merged before the SDK starts, the cloud entry replacing the local one; Codex's later `--config` wins over `config.toml`; Claude's and ACP's session-provided entries take precedence over the agent's own config. The other local servers stay.
@@ -838,16 +838,15 @@ Chosen:
   - None: the host is allowed and no header is touched.
   - Bearer token: the sandbox holds `authorization: Bearer provided-by-worker`; the Worker sets `authorization: Bearer <token>`.
   - Custom headers: the sandbox holds every configured header with the placeholder; the Worker replaces each with the real value.
-  - OAuth: not built. Conductor completes it through its hosted service's callback URL and token store, which D004, D018 and D025 keep out, and the research describes no self-hosted OAuth flow. The add panel therefore offers None, Bearer token and Custom headers only, and the gap is reported rather than invented.
+  - OAuth: the sandbox holds `authorization: Bearer provided-by-worker`, as for a bearer token; the Worker sets the current access token from its token store (D147).
 - **"Import from local" is a personal action.** It scans this Mac's Claude Code config (`~/.claude.json`: its own servers, each project's servers and each project's `.mcp.json`), Claude Code plugins under `~/.claude/plugins`, Claude Desktop's `claude_desktop_config.json`, Cursor (`~/.cursor/mcp.json` and each project's `.cursor/mcp.json`), OpenCode (`~/.config/opencode/opencode.json` and each project's `opencode.json`) and Codex (`~/.codex/config.toml`). Only remote HTTPS servers are offered; a stdio server, a plain-HTTP one, an entry holding a `${...}` variable, or a Codex entry whose credential comes from the environment is counted and left out. Duplicates (same URL and sorted headers) fold into one candidate naming every source, and the import gives each a unique valid name and saves the chosen ones in one request. The scan registers the Cursor, OpenCode and Codex folders with the Platform's file commands, because they are outside the app's default file scope.
-- **The section is Conductor's MCP page, on our Cloud page.** It sits on the Cloud page (D113) and uses Conductor's words and layout, read from its bundle on 2026-11-12 (offsets in `McpServersSection.tsx`): the "MCP" heading; the Installed and Recommended tabs; "Search installed MCPs", "No MCP servers installed" and "No installed MCPs match your search"; newest-first rows that show the name and an actions menu with Edit and Delete; the "Add MCP server"/"Edit MCP server" dialog with its Name, URL and Authentication fields, its choices in Conductor's order (Bearer token, Custom headers, None), its placeholders and messages; the Recommended tab's search and "Import from local" card; and the "Select MCP servers" dialog, which starts with every server chosen. Failed saves toast Conductor's titles ("Couldn't add this MCP server" and its update and delete forms). Our own words are gone. What differs, and why: OAuth is not offered, so a new server starts on None; the Recommended tab holds only the import card; a row's icon is Conductor's fallback initial, because its logos are its assets and its favicons come from Google's service; and an edited bearer server stays on Bearer token, where Conductor, which stores a bearer token as a header, shows Custom headers.
+- **The section is Conductor's MCP page.** Since D147 it is its own settings page, "MCP", where Conductor lists it. It uses Conductor's words and layout, read from its bundle on 2026-11-12 (offsets in `McpServersSection.tsx`): the "MCP" heading; the Installed and Recommended tabs; "Search installed MCPs", "No MCP servers installed" and "No installed MCPs match your search"; newest-first rows that show the name and an actions menu with Edit and Delete; the "Add MCP server"/"Edit MCP server" dialog with its Name, URL and Authentication fields, its choices in Conductor's order (Bearer token, Custom headers, None), its placeholders and messages; the Recommended tab's search and "Import from local" card; and the "Select MCP servers" dialog, which starts with every server chosen. Failed saves toast Conductor's titles ("Couldn't add this MCP server" and its update and delete forms). Our own words are gone. Since D147 the dialog offers OAuth first and a new server starts on it, an edited bearer server reopens as Custom headers as Conductor's does, and the Recommended tab holds Conductor's catalogue. What still differs is in D147.
 - **A changed list applies at the next start.** The settings are read once when a stopped sandbox starts, as the environment must be fixed then; a running sandbox keeps the list it started with.
 
 Left out, and why:
 
-1. **The organisation MCP page, its servers "Used in your organization", and the Recommended catalogue.** D004 and D018 keep organisations out. The catalogue is a list in Conductor's bundle, and 22 of its 24 servers need OAuth.
-2. **OAuth.** Conductor's hosted OAuth callback, token exchange, refresh and `oauth_tokens` store have no self-hosted equivalent in our Worker, and the research does not describe the flow. Building it would mean inventing a security-sensitive protocol, so it is named rather than made up (D002).
-3. **Member and "Added by" data.** It belongs to an organisation's members (D004).
+1. **The servers "Used in your organization".** D004 and D018 keep organisations out. (The Recommended catalogue and OAuth were left out here at first; D147 builds both.)
+2. **Member and "Added by" data.** It belongs to an organisation's members (D004).
 
 Why: this is the smallest design that makes a cloud workspace's agents use MCP servers, keeps every secret in the Worker exactly as CLOUD-05 does for the model keys and GitHub token, and puts what Conductor offers only through its organisation and hosted service outside the app without inventing a replacement.
 
@@ -1153,7 +1152,7 @@ Context: the Rust test `git_16_every_program_the_ui_starts_is_allowed` in `shell
 
 Chosen: the `programs` guard in `scripts/guards/structure.ts` already ran the same scan on Linux on every pull request. It now also checks the programs the UI starts through a variable (zsh and the three helper scripts), and fails when the scan finds no `program: "git"`, so a scan of the wrong folder cannot pass. The Rust UI scan is gone; `git_16_allows_the_xcode_licence_programs`, which reads only Rust, stays. `MACOS_JOB` names only the desktop files the job reads: the two the Rust tests read (`platform/tauri.ts`, `core/app-paths.ts`), the macOS tests, the Vitest setup files and what they import. Replayed over main's last 80 merges, 38 skip the job, up from 10.
 
-Why not a TypeScript test: it would repeat the guard's scan, and the guard runs on every pull request whatever changed. Why not compute the macOS tests' imports when `scripts/macos-job.ts` runs: it would end the list's drift, but the list is short and `scripts/macos-job.test.ts` fails on main when a macOS test starts importing a file the list misses. D147 later computes them.
+Why not a TypeScript test: it would repeat the guard's scan, and the guard runs on every pull request whatever changed. Why not compute the macOS tests' imports when `scripts/macos-job.ts` runs: it would end the list's drift, but the list is short and `scripts/macos-job.test.ts` fails on main when a macOS test starts importing a file the list misses. D148 later computes them.
 
 ## D142. "Overwrite file" saves over the file as the last save left it (2026-11-12)
 
@@ -1201,6 +1200,21 @@ Why: the owner's rule. The chat behaves as Conductor's does, and opening it cost
 
 The tests: `apps/desktop/src/core/services/sessions.chat-06-memory.container.test.ts` (the bound), `sessions.chat-06.container.test.ts` and `features/chat/MessageList.chat-06.test.tsx` (the behaviour), and the measure's bound on the open in `scripts/conductor-import/measure.test.ts`.
 
+## D145. Stage 2 runs the end-to-end test app, and the navigation guard follows the page Tauri opens (2026-11-13)
+
+Decided by the agent fixing issue #624, under the lead's brief ("Build and start the same debug app bundle the e2e harness builds ... sharing that build instead of copying it"; "stage 2 must use the same build, so it opens behind too").
+
+Context: stage 2 (`live.ts`, D099) built a bare debug binary into a target folder under /tmp. Tauri takes the folder beside a debug binary as its resources folder only when that binary sits in a Cargo folder named `target` (`tauri-utils` `resource_dir_from`). The run's folder had another name, so Tauri looked for `../Resources`, found none, and every call that needs the resources folder or the app's paths failed ("unknown path"): the sidecar never started. The bare binary also opened as a normal app: a Dock icon, and the active app on each launch, about a hundred times in a full run. The end-to-end test app (D135) has neither problem: it is a debug `.app` bundle with its resources and the release config's bundled sidecar, and it opens behind the owner's work (#633). It is built with `tauri build`, which serves a built UI rather than a dev server.
+
+Chosen:
+
+- **One build.** `buildTestApp` (`scripts/e2e/harness.ts`) takes a target folder and a config merged after its own. `live.ts` calls it with the stage 2 override, into its own target folder, never the e2e run's: there the override would replace the bundle the e2e checks clone.
+- **The override points `frontendDist` at the bridge page.** A built app opens a `frontendDist` URL as its own page, and Tauri gives that page the app's IPC (`AppManager::get_app_url`). The override no longer sets `devUrl`, which a built app ignores.
+- **The navigation guard keeps the window on the origin Tauri loads the UI from** (`app_origin` in `navigation.rs`): the dev server in a dev build, a `frontendDist` URL in a built one, else `tauri://localhost`. It had a fixed list per build kind, which would have sent the bridge page to the owner's browser. Our configs give the same origins as before, which a test reads from `tauri.conf.json`; `checkAppConfig` still fails when one of them names the bridge.
+- **The app's WebKit storage stays in the scratch home** (`CFFIXED_USER_HOME`, as in the e2e run), and the test build's WebDriver server gets a free port.
+
+Why not name the run's target folder `target`: the resources would be found, but the app would still take the owner's screen on every launch, and it would not be the build the e2e run checks.
+
 ## D146. A project config save is a patch, applied to the local file as it stands (2026-11-13)
 
 Decided by the agent fixing issue #670, which the owner filed. The owner's ruling: "Match Conductor. Nothing made up; gaps are reported."
@@ -1218,7 +1232,33 @@ Why not read the files again after the write, as Conductor does: for a cloud pro
 
 Not covered: run actions are one field, the whole list. Conductor's updateTask changes one task by id, so two quick edits of different actions on the Actions page can still undo each other here. And a renamed action keeps its id, while its typed name was only ever kept in the store; with the store showing the file, the name reverts to the id's label at once rather than at the next read.
 
-## D147. The macOS job's selection walks the macOS tests' imports when it runs (2026-11-13)
+## D147. The user's Worker is the OAuth broker for cloud MCP servers, and the MCP page is Conductor's (2026-11-13)
+
+Proposed by the CLOUD-17 OAuth PR, under the owner's rule "Match Conductor. Nothing made up; gaps are reported."; not yet ruled on by the owner. Replaces D121's "OAuth: not built" and its left-out catalogue.
+
+Context: Conductor signs a cloud MCP server in through its hosted callback and token store (main-BE1h_1MP.js `listMcpServers` to `disconnectMcpServer` @903202, `oauth_tokens` @160222). We host nothing (D018). Conductor's server code is not in its bundle, so its page and its API's shapes are the spec, and the protocol is the MCP specification's authorization flow.
+
+Chosen:
+
+- **The Worker does the protocol** (`apps/cloud/src/mcp-oauth.ts`): protected resource metadata (RFC 9728), or the server's origin as issuer when there is none (MCP 2025-03-26); authorization server metadata (RFC 8414, then OpenID discovery); dynamic client registration (RFC 7591) or the user's own client ID and secret; PKCE with S256; the `resource` parameter (RFC 8707); the `iss` check (RFC 9207). A provider that registers no clients needs a client ID, and says so.
+- **The callback is the Worker's** (`GET /mcp-oauth/callback`), the one route without the pairing token: the 32-byte state is the proof, and a sign-in waits 600 s, as Conductor's page does. Its page is our own short text, because Conductor's is on its server. The callback URL is the Worker's own origin, shown under "Advanced client identity" for users who register their own app.
+- **Tokens live in one Durable Object, `McpOAuth`**, never in the sandbox and never in an answer to the desktop. One object because a rotated refresh token can be spent once: it refreshes an expiring token once however many requests ask. A refused refresh marks the server `needs_reauth`; a 401 from the server makes the next request refresh. A token is sent only to its server's origin and client. Saving settings drops the records of a server that is gone, no longer OAuth, or whose origin or client changed, as Conductor's page disconnects first (`pGo`, `FPa`). The deploy carries every Durable Object binding (`prepare-deploy.ts`, `cloud.rs`).
+- **The routes are Conductor's** under `/mcp-oauth`: the list (callback URL and each server's `active` or `needs_reauth` credential), connect (`authorizationUrl`, `state`), status (`pending`, `failed`, `absent`), cancel, disconnect, and detect, which an import of a server without headers asks, as Conductor's `detectAuth` does.
+- **The MCP page matches Conductor's**: OAuth first in the dialog; a saved bearer server reopens as Custom headers; an OAuth row's status, Authenticate, Re-authenticate, Stop waiting and Disconnect with their toasts; a server added in the app connects at once; an app-wide notice for a server that needs re-auth; the Recommended catalogue of 24 in Conductor's order, with its Asana, Slack, Snowflake and Datadog setup dialogs. Offsets are in `McpServersSection.tsx` and `core/cloud-mcp-catalogue.ts`.
+- **Where it sits**: its own settings entry, "MCP", under Agents & environment, listed only while the switcher's active entry is the paired Worker, as Conductor lists it only for a cloud organisation (D127).
+
+What differs from Conductor, and why:
+
+- Conductor has first-party OAuth apps for some servers; we have none, so Asana, Slack and Snowflake always ask for the user's own client. Slack's guide link is Slack's own page, because Conductor's is its own guide.
+- Marks: Conductor's glyphs are Simple Icons and are drawn from `simple-icons` with its colours as tokens; its bitmap logos are its own art (D131), so a brand Simple Icons has is its glyph in the text colour, and the others, with Conductor's own drawings (Exa, Firecrawl, Granola, Honeycomb, Neon), show the initial. Favicons are not fetched: Conductor asks Google's favicon service, which would learn every server a user adds.
+- Renaming a connected OAuth server disconnects it: ours saves a rename as a new server and a removal, where Conductor keeps the server's id.
+- Conductor's MCP page is not listed in its settings search; ours is not either.
+
+Why: it is Conductor's page and API on the user's own Worker, and the one store makes the refresh safe without a second home for the tokens.
+
+Live verification: see `docs/research/cloud-spike-2026-11-06.md` (CLOUD-17 OAuth).
+
+## D148. The macOS job's selection walks the macOS tests' imports when it runs (2026-11-13)
 
 Decided by the agent fixing issue #650, which the owner filed.
 

@@ -229,6 +229,19 @@
 	--color-file-yellow-400: oklch(85.2% 0.199 91.936);
 	--color-file-yellow-600: oklch(68.1% 0.162 75.834);
 
+	/* MCP server brand colours: the glyph colour Conductor 0.92.1 gives a known MCP server's mark
+	   (renderApp `lqo` @8713023; the marks are in features/settings/cloud/McpServerIcon.tsx). They are
+	   the brands' own colours, the same in light and dark mode, as Conductor's are. */
+	--color-brand-canva: #00c4cc;
+	--color-brand-cloudflare: #f38020;
+	--color-brand-figma: #f24e1e;
+	--color-brand-gmail: #ea4335;
+	--color-brand-google-calendar: #4285f4;
+	--color-brand-snowflake: #29b5e8;
+	--color-brand-stripe: #635bff;
+	--color-brand-supabase: #3fcf8e;
+	--color-brand-zoom: #0b5cff;
+
 	/* Two families. */
 	--font-sans: "Geist", system-ui, sans-serif;
 	--font-mono: "Geist Mono", ui-monospace, monospace;

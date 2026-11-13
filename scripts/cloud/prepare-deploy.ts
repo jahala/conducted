@@ -8,7 +8,8 @@
  * user's Docker from the shipped Dockerfile and build output.
  * Must handle: a missing or invalid `apps/cloud/wrangler.jsonc`; a bundling run that fails (stop
  * and leave the previous output untouched, so a release never ships a half folder); a config with
- * no container, no Durable Object binding or no R2 binding.
+ * no container, no Durable Object binding for the container's class, or no R2 binding. Every
+ * Durable Object binding is carried, so the MCP OAuth store (CLOUD-17) deploys beside the sandbox.
  * Our design choice: the Worker is bundled once, at release time, with `wrangler deploy --dry-run`
  * against a copy of the config that has no containers, so the dry run does not try to build the
  * image. At deploy time the user's wrangler uploads that bundle with `no_bundle: true`.
@@ -36,15 +37,23 @@ export const DEPLOY_FACT_FILE = "deploy.json";
 /** The pre-bundled Worker the app uploads. Rust's `DEPLOY_WORKER_FILE` is the same name. */
 export const DEPLOY_WORKER_FILE = "worker.js";
 
+/** One Durable Object class the Worker exports, and the binding it is reached by. */
+export interface DeployObject {
+	className: string;
+	binding: string;
+}
+
 /** The facts a deploy needs, read from the Worker's own `wrangler.jsonc`. */
 export interface DeployFacts {
 	name: string;
 	compatibilityDate: string;
 	compatibilityFlags: string[];
 	instance: string;
+	/** The container's class, which is one of `objects`. */
 	className: string;
 	imageKey: string;
-	objectBinding: string;
+	/** Every Durable Object binding: the sandbox's and the MCP OAuth store's (CLOUD-17). */
+	objects: DeployObject[];
 	backupBinding: string;
 }
 
@@ -113,7 +122,7 @@ export function readDeployFacts(text: string): DeployFacts {
 		compatibility_flags?: unknown;
 		vars?: { INSTANCE_TYPE?: unknown };
 		containers?: { class_name?: unknown; images?: Record<string, unknown> }[];
-		durable_objects?: { bindings?: { name?: unknown }[] };
+		durable_objects?: { bindings?: { class_name?: unknown; name?: unknown }[] };
 		r2_buckets?: { binding?: unknown }[];
 	};
 	const container = config.containers?.[0];
@@ -128,10 +137,11 @@ export function readDeployFacts(text: string): DeployFacts {
 		instance: typeof config.vars?.INSTANCE_TYPE === "string" ? config.vars.INSTANCE_TYPE : "",
 		className: typeof container?.class_name === "string" ? container.class_name : "",
 		imageKey,
-		objectBinding:
-			typeof config.durable_objects?.bindings?.[0]?.name === "string"
-				? (config.durable_objects?.bindings?.[0]?.name as string)
-				: "",
+		objects: (config.durable_objects?.bindings ?? []).flatMap((binding) =>
+			typeof binding.class_name === "string" && typeof binding.name === "string"
+				? [{ className: binding.class_name, binding: binding.name }]
+				: [],
+		),
 		backupBinding:
 			typeof config.r2_buckets?.[0]?.binding === "string"
 				? (config.r2_buckets?.[0]?.binding as string)
@@ -143,7 +153,9 @@ export function readDeployFacts(text: string): DeployFacts {
 		facts.instance === "" ? "vars.INSTANCE_TYPE" : null,
 		facts.className === "" ? "containers[0].class_name" : null,
 		facts.imageKey === "" ? "containers[0].images" : null,
-		facts.objectBinding === "" ? "durable_objects.bindings[0].name" : null,
+		facts.className !== "" && !facts.objects.some((object) => object.className === facts.className)
+			? "a durable_objects binding for containers[0].class_name"
+			: null,
 		facts.backupBinding === "" ? "r2_buckets[0].binding" : null,
 	].filter((field): field is string => field !== null);
 	if (missing.length > 0) {
@@ -160,8 +172,18 @@ export function bundlingConfig(facts: DeployFacts, main: string): Record<string,
 		compatibility_date: facts.compatibilityDate,
 		compatibility_flags: facts.compatibilityFlags,
 		vars: { INSTANCE_TYPE: facts.instance },
-		durable_objects: { bindings: [{ class_name: facts.className, name: facts.objectBinding }] },
-		exports: { [facts.className]: { type: "durable-object", storage: "sqlite" } },
+		durable_objects: {
+			bindings: facts.objects.map((object) => ({
+				class_name: object.className,
+				name: object.binding,
+			})),
+		},
+		exports: Object.fromEntries(
+			facts.objects.map((object) => [
+				object.className,
+				{ type: "durable-object", storage: "sqlite" },
+			]),
+		),
 		r2_buckets: [{ binding: facts.backupBinding, bucket_name: facts.name }],
 	};
 }

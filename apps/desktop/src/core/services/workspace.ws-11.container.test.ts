@@ -12,7 +12,6 @@ import { describe, expect, it } from "vitest";
 import { createTestContainer, seedRepo } from "../../test/container.ts";
 import { sessionConfig } from "../db/test-fixtures.ts";
 import { NO_READY_REPOSITORY_MESSAGE } from "../workspace-helpers.ts";
-import { WorkspaceService } from "./workspace.ts";
 
 describe("WS-11 a backlog draft outlives its project", () => {
 	it("keeps the draft when its project is removed, refuses Start, and takes a new project", async () => {
