@@ -1,7 +1,7 @@
 /**
  * @feature catalogue States of the Git panel and the pull request header
  * Owns: the Changes tab with files, a file's diff and its View options menu, the workspace header's
- * actions menu, a chat tab's context menu, the diff scope menu with the branch's commits, the
+ * actions menu, a chat tab's context menu and its Rename chat dialog, the diff scope menu with the branch's commits, the
  * All files tab, the Checks tab, the header with no pull request, an open one, a draft, one with a
  * failed check, one ready to merge and a merged one, the Changes tab when the tree is clean and when git fails,
  * the Changes tab as a folder tree with a filter that matches nothing, the tab strip's new tab menu,
@@ -256,6 +256,19 @@ export const GIT_STATES: CatalogueState[] = [
 		seed: arborScene({
 			after: ({ document }) => rightClick(document, "[role=tab]", "Fix the login redirect"),
 			ready: (document) => shows(document, "Rename chat"),
+		}),
+	},
+	{
+		id: "chat-rename",
+		group: "Workspace chat",
+		title: "The Rename chat dialog, from a chat tab's context menu",
+		seed: arborScene({
+			after: async ({ document }) => {
+				await rightClick(document, "[role=tab]", "Fix the login redirect");
+				await click(document, "[role=menuitem]", "Rename chat");
+			},
+			ready: (document) =>
+				document.querySelector('[role=dialog] input[value="Fix the login redirect"]') !== null,
 		}),
 	},
 	{

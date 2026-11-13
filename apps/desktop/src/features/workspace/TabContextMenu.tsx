@@ -3,7 +3,8 @@
  * Owns: The right-click menu of a chat tab.
  * Behaviour: ui-map.md 3.2 (chat tab menu: Mark as read or unread, Rename chat, Fork to new tab,
  * Copy concise transcript, Copy full transcript, Copy link, Close tab, Close others).
- * Our design choice: The rename form is RenameDialog, the one rename dialog. 'Close tab' only reports
+ * Our design choice: The rename form is RenameDialog, the one rename dialog; it reads Conductor's
+ * hint "Enter a new name for this chat" to a screen reader (renderApp @11542973). 'Close tab' only reports
  * the choice (onClose); the tab strip closes the chat, so there is one close path and one error
  * toast. Copy session info is an internal item and is left out. Fork to new tab (CHAT-16) shows
  * only while the Experimental setting is on, and its action belongs to the tab strip. The two
@@ -124,6 +125,7 @@ export function TabContextMenu({
 				open={renaming}
 				onOpenChange={setRenaming}
 				title="Rename chat"
+				description={<span className="sr-only">Enter a new name for this chat</span>}
 				initialName={session?.title ?? ""}
 				onSubmit={(name) => actions.sessions.rename(sessionId, name)}
 			/>

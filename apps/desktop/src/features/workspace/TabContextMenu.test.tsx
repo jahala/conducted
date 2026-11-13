@@ -111,6 +111,15 @@ describe("CHAT-01 chat tab context menu; CHAT-17 copy transcript", () => {
 		await waitFor(() => expect(state.rename).toHaveBeenCalledWith(sessionId, "New name"));
 	});
 
+	it("the rename dialog reads Conductor's hint to a screen reader", async () => {
+		await openMenu();
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Rename chat" }));
+		const dialog = await screen.findByRole("dialog", { name: "Rename chat" });
+		expect(dialog.getAttribute("aria-describedby")).not.toBeNull();
+		const hint = document.getElementById(dialog.getAttribute("aria-describedby") ?? "");
+		expect(hint?.textContent).toBe("Enter a new name for this chat");
+	});
+
 	it("copies a deep link to the chat", async () => {
 		await openMenu();
 		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy link" }));
