@@ -1107,9 +1107,11 @@ Context: Remove deployment (`uninstall_worker`) deleted the Worker, its containe
 
 Chosen:
 
-- **Cloudflare's API, with the login wrangler already holds.** After the Worker, container and images are gone, the shell asks `wrangler auth token --json` for its login (an OAuth token, which wrangler refreshes first, or the `CLOUDFLARE_API_TOKEN` or API key it was given) and calls `https://api.cloudflare.com/client/v4` itself. The login goes in a request header only; it is never logged, returned to the web view or put in an error.
+- **Cloudflare's API, with the login wrangler already holds.** After the Worker, container and images are gone, the shell asks `wrangler auth token --json` for its login (an OAuth token, or the `CLOUDFLARE_API_TOKEN` or API key it was given) and calls `https://api.cloudflare.com/client/v4` itself. The login goes in a request header only; it is never logged, returned to the web view or put in an error.
 - **Only the bucket the deploy made.** The bucket is the one named exactly as the Worker (D109), looked up by that name with `GET /accounts/{account}/r2/buckets/{name}`; no bucket list is matched by prefix. The account is the one `CLOUDFLARE_ACCOUNT_ID` names, which wrangler also obeys. Without it, the shell asks every account the login reaches and uses the one that holds a bucket of that name. Two accounts that both hold one are refused (`cloud_bucket_account_unclear`), and nothing is deleted.
 - **Emptied page by page, then deleted.** The objects are listed 1,000 at a time with Cloudflare's cursor and deleted one by one. An object that is gone when its delete arrives is skipped. The Worker is deleted first, so nothing writes to the bucket meanwhile. If Cloudflare still answers 10008, the bucket is emptied again, up to three rounds. A key with a `.` or `..` segment is refused, because a URL parser folds it into another key.
+- **A login that expires partway is read again (issue #675, 2026-11-13).** wrangler's OAuth token is short-lived; its expiry comes from the `expires_in` of Cloudflare's token answer. `wrangler auth token --json` refreshes it only once wrangler's stored expiry has passed, hands back the stored token until then, and gives no expiry (read in wrangler 4.159's source). So a token can expire while the bucket empties. Measured on 2026-11-13, Cloudflare then answers the R2 routes 401 with code 10000 and the account list 403 with code 9109, and `wrangler auth token` hands back a new, working token within seconds. Every call in the bucket phase goes through one session: a refused login asks wrangler for its login again, and only a different login repeats that one call. The same login is reported as `cloud_login_refused`, which says to run `wrangler login`; nothing is retried blindly.
+- **A failure at the bucket says what is left.** The error names what was already deleted (the Worker, the container application, the images) and says the bucket is still on the account. A second Remove deployment skips what is gone and removes the rest.
 - **The uninstall says what it removed.** `cloud_uninstall` returns whether the Worker, the container application and the bucket were deleted, how many images and how many objects. The Cloud page's toast names them, with the bucket's file count.
 
 Why not the Worker: the Worker has the bucket binding and could empty it, but it must still be running to do so. A retry after a half-finished uninstall would then find no Worker and could never empty the bucket, and a sandbox could write a backup between the emptying and the Worker's delete.
@@ -1215,7 +1217,7 @@ Chosen:
 
 Why not name the run's target folder `target`: the resources would be found, but the app would still take the owner's screen on every launch, and it would not be the build the e2e run checks.
 
-## D146. A project config save is a patch, applied to the local file as it stands (2026-11-13)
+## D146. A project config save is a patch, applied to the local file as it stands, and run actions by id (2026-11-13)
 
 Decided by the agent fixing issue #670, which the owner filed. The owner's ruling: "Match Conductor. Nothing made up; gaps are reported."
 
@@ -1230,7 +1232,10 @@ Chosen:
 
 Why not read the files again after the write, as Conductor does: for a cloud project that is a second git fetch per save, and the written contents are already what the read would return. Why not a queue of whole configs in each page: the pages would still each start from what they last read, and two pages (the Actions page holds the prompt rows) would still undo each other.
 
-Not covered: run actions are one field, the whole list. Conductor's updateTask changes one task by id, so two quick edits of different actions on the Actions page can still undo each other here. And a renamed action keeps its id, while its typed name was only ever kept in the store; with the store showing the file, the name reverts to the id's label at once rather than at the next read.
+- **Run actions change one at a time, by id** (issue #673, added 2026-11-13). The patch carries `runActions`, a list of changes: set an action, or delete one, by its id. Conductor's updateTask writes one task the same way (main @405635, through M8e @356875). A set replaces the action with the same id in its place, adds a new one last, and puts an action named "run" first. Every other action, and every other action's invalid entry, stays as the file has it. A set that leaves an action equal to its shared version removes the local one, as before. A Reset is a delete of that id. "Make default" sets each action whose flag changes.
+- **An action's name is its id.** The dialog's name field shows the id's label, and the typed name, normalised, is saved as the id, as Conductor's draft does (renderApp W$a @11010494). A rename sets the action under its new id with `replaceId`, the old id, so it keeps its place in the file (renderApp @11014363). A rename of a shared action, or of a shared action changed on this Mac, writes a local action under the new name, and the shared one shows again under its own name, as Conductor's writer leaves it. An edit that keeps the name can change the id's case ("dev" saved as "Dev"), as Conductor's does; ids compare without case.
+
+Not covered: Conductor moves a shared action's per-user hidden flag to the new id on a rename (updateActionHidden with `previousTaskId`). Here the hidden flag of a shared action stays with the shared action, because the renamed copy is a local action, whose hidden flag lives in the file.
 
 ## D147. The user's Worker is the OAuth broker for cloud MCP servers, and the MCP page is Conductor's (2026-11-13)
 
@@ -1257,3 +1262,24 @@ What differs from Conductor, and why:
 Why: it is Conductor's page and API on the user's own Worker, and the one store makes the refresh safe without a second home for the tokens.
 
 Live verification: see `docs/research/cloud-spike-2026-11-06.md` (CLOUD-17 OAuth).
+
+## D148. The app bundle carries a generated third-party notices file, and a check fails anything shipped uncredited (2026-11-13)
+
+Decided by the lead under the owner's rule "Match Conductor. Nothing made up; gaps are reported." It settles where the credits show, which D131 left to the owner (#577): Conductor's frontend has no credits or acknowledgements screen, so ours has none either, and the notices travel in the app bundle as one file.
+
+Context: the app ships code and art under licences that ask for their notice to go with every copy: the Material Icon Theme, Font Awesome and codicons through react-icons, Devicons, and most other dependencies. No notice appeared anywhere.
+
+Chosen:
+
+- **One generated file.** `apps/desktop/src-tauri/THIRD-PARTY-NOTICES.txt` is written by `bun scripts/notices/generate.ts`, committed, and copied by every build to `Contents/Resources`. Each entry gives the package's name and version, the licence its manifest declares, the parts of the app it ships in, and every licence and notice file in the package's root, word for word, plus the file a `SEE LICENSE IN` or Cargo's `license-file` names. A package with no such file says so; nothing is filled in. A text several packages carry word for word, such as the Apache licence, is given once at the end under an id taken from its SHA-256, so ids stay put as packages come and go. That keeps the file at 1.6 MB instead of 4.9 MB.
+- **The package managers' own data.** npm: `pnpm licenses list --prod` for the desktop, the sidecar and the cloud package (the Worker and the sandbox entry the app carries). Rust: `cargo metadata --filter-platform aarch64-apple-darwin`, walked from the app's crate along normal dependencies, procedural macros included, build and dev dependencies not; the `e2e` feature is off, as in a release. A package whose manifest names an `os` or `cpu` is left out: pnpm installs it on some machines only, so the file would differ between the Mac and CI, and no bundle takes one (the Claude Agent SDK's native program package is the only one today).
+- **What the build itself adds.** Three build tools put their own code into the web UI and are listed with a note saying why: Tailwind CSS (its base styles and theme are in the stylesheet), Vite (its preload helper) and Rolldown (its runtime). Two items no package manager lists are added by hand: Bun's runtime, which every compiled sidecar program carries, with Bun's `LICENSE.md` for the version in `.bun-version` kept as `scripts/notices/bun-<version>-LICENSE.md` (the generator stops and names the file to fetch when Bun moves), and the Geist fonts with their `OFL.txt`.
+- **Three checks.** `pnpm guards` (`notices`) collects again and names each package that ships but is missing, is listed but no longer ships, or whose licence or files changed. `scripts/notices/bundles.build.test.ts` runs the four real bundlers (Vite with the app's config, Bun for the sidecar and the sandbox entry, wrangler for the Worker) and fails when any package they took is not listed, which catches a development dependency imported by shipped code. The release check (`verifyBundle`) fails a bundle whose notices are missing or differ from the repository's.
+
+Gaps, reported:
+
+- 17 crates (the `objc2` family, `block2`, `dispatch2`, `mac-notification-sys`, `selectors`, `alloc-stdlib`) and 3 npm packages (`lru_map`, `react-remove-scroll-bar`, `standardwebhooks`) carry no licence file. Their entries give the declared licence and say the package carries no file.
+- Bun's `LICENSE.md` names the libraries Bun links (JavaScriptCore under LGPL-2, BoringSSL, ICU and others) with links, not their texts. Bun links JavaScriptCore statically, and LGPL-2 also asks that a user can relink it; a notices file does not meet that part.
+- Rust's standard library, compiled into the binary under MIT or Apache-2.0, is not listed: its licence files come with the toolchain, not with Cargo's data.
+
+Why: the owner's rule. No screen that Conductor lacks, the notices the licences ask for in the file that travels with the app, and a check for each way a package could ship without them.

@@ -116,11 +116,22 @@ export interface RepoConfig {
 }
 
 /**
- * A project config save. Only the fields it names change, each prompt on its own, and the service
- * applies them to the local file as it stands, so two saves of different fields both land.
+ * One run action's change, saved by its id as Conductor's updateTask saves one task. An action's
+ * name is its id, so a rename sets the action under its new id with `replaceId`, the id it had,
+ * and the action keeps its place in the file.
  */
-export type RepoConfigPatch = Partial<Omit<RepoConfig, "prompts">> & {
+export type RunActionChange =
+	| { kind: "set"; action: RunAction; replaceId?: string }
+	| { kind: "delete"; id: string };
+
+/**
+ * A project config save. Only the fields it names change, each prompt on its own, and each run
+ * action by its id. The service applies them to the local file as it stands, so two saves of
+ * different fields or different actions both land.
+ */
+export type RepoConfigPatch = Partial<Omit<RepoConfig, "prompts" | "runScripts">> & {
 	prompts?: Partial<RepoConfig["prompts"]>;
+	runActions?: readonly RunActionChange[];
 };
 
 export type WorkspaceState = "initializing" | "ready" | "failed" | "archiving" | "archived";

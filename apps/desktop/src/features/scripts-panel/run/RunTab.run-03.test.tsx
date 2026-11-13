@@ -45,7 +45,7 @@ const dev: RunAction = {
 };
 
 const config = (previewUrls: PreviewUrlEntry[]): RepoConfigPatch => ({
-	runScripts: [dev],
+	runActions: [{ kind: "set", action: dev }],
 	previewUrls,
 });
 

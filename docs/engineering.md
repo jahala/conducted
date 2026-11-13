@@ -145,6 +145,8 @@ Pushing the tag runs `.github/workflows/release.yml` on a GitHub-hosted macOS ru
 
 The steps live in `scripts/release-ci.ts`, `scripts/release/` and `apps/desktop/src-tauri/release/bundle.ts`. Credentials reach them from one edge: the keychain on the Mac, environment variables from repository secrets in CI. A missing credential names itself and stops the run, so CI never publishes a signed build that was not notarised. The secrets are named in `.github/workflows/release.yml`; set their values by piping, never on a command line.
 
+Every build copies `apps/desktop/src-tauri/THIRD-PARTY-NOTICES.txt` into the app's `Contents/Resources`, and the release check fails a bundle without it or with a copy that differs (D148). The file lists every package the app ships with its licence and notice files. `bun scripts/notices/generate.ts` writes it from pnpm's and Cargo's data; run it after any dependency change, because `pnpm guards` fails until the file matches, and `scripts/notices/bundles.build.test.ts` fails when a bundle takes a package the file does not list.
+
 After the release exists, the same workflow updates the Homebrew cask in `jahala/homebrew-tap`: it hashes the published disk image, writes `Casks/conducted.rb` with `scripts/release/cask.ts`, and pushes it with a deploy key that may write only to that tap. A pre-release leaves the cask on the newest stable release (PLAT-42).
 
 Anyone can check that a published file came from this repository's code:
