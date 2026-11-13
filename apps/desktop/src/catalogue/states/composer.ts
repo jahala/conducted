@@ -758,4 +758,21 @@ export const COMPOSER_STATES: CatalogueState[] = [
 			};
 		},
 	},
+	{
+		id: "composer-mcp-refreshed",
+		group: "Composer",
+		title: "/mcp run in the composer's terminal and marked done: the configuration refreshed",
+		seed: (world) => {
+			world.memory.controls.holdNextPty();
+			return newChat(
+				world,
+				async ({ document }) => {
+					await submitSlash(document, "/mcp");
+					await find(document, "p, span, div", "Complete /mcp below, then click done");
+					await click(document, "button", "Done");
+				},
+				(document) => shows(document, "Configuration refreshed."),
+			);
+		},
+	},
 ];

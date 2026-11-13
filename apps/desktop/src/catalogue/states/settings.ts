@@ -272,6 +272,53 @@ async function seedEnvVar(world: World, name: string, value: string | null): Pro
 	if (!stored.ok) throw new Error(stored.error.message);
 }
 
+/** Codex installed and signed out on the Agents page, its device-code sign-in started, then `then`. */
+const codexLogin = (
+	id: string,
+	title: string,
+	then: (document: Document) => Promise<void>,
+	ready: (document: Document) => boolean,
+	options: { codeLater?: boolean } = {},
+): CatalogueState => ({
+	id,
+	group: "Settings",
+	title,
+	seed: async (world) => {
+		await seedCast(world);
+		world.answerSidecar({
+			getAgentInstalls: () => ({
+				agents: [
+					{
+						agent: "codex",
+						installed: true,
+						path: "/Users/sam/Library/Application Support/Conducted/bin/codex",
+						source: "managed",
+						version: "0.98.0",
+						authenticated: false,
+					},
+				],
+			}),
+			// Codex can start the sign-in before it has printed its device code.
+			startAgentLogin: () => ({
+				loginId: "catalogue-codex",
+				url: "https://auth.openai.com/codex/device",
+				...(options.codeLater === true ? {} : { userCode: "ABCD-1234" }),
+				verificationUrl: "https://auth.openai.com/codex/device",
+				instructions: "Enter the code on OpenAI's page.",
+			}),
+		});
+		world.holdSidecar("finishAgentLogin");
+		return {
+			route: "/settings/user/agents",
+			after: async ({ document }) => {
+				await click(document, "button", "Run codex login", { prefix: true });
+				await then(document);
+			},
+			ready,
+		};
+	},
+});
+
 export const SETTINGS_STATES: CatalogueState[] = [
 	page("settings-general", "General", "general", "General"),
 	// Settings search results, which draw Conductor's search copy for a setting or page.
@@ -1665,6 +1712,80 @@ export const SETTINGS_STATES: CatalogueState[] = [
 					await click(document, "[role=dialog] button", "Remove repository");
 				},
 				ready: (document) => shows(document, "Repository removed successfully"),
+			};
+		},
+	},
+	codexLogin(
+		"settings-agents-codex-login-starting",
+		"Agents: Codex's device-code sign-in while its code is still on its way",
+		async () => {},
+		(document) => shows(document, "Starting device code authorization..."),
+		{ codeLater: true },
+	),
+	codexLogin(
+		"settings-agents-codex-code-copied",
+		"Agents: Codex's device code copied from its sign-in steps",
+		(document) => click(document, "button", "Copy Codex verification code"),
+		(document) => shows(document, "Copied Codex verification code."),
+	),
+	codexLogin(
+		"settings-agents-codex-login-business",
+		"Agents: Codex's device-code sign-in for a Business plan",
+		(document) => click(document, "button", "Business plan"),
+		(document) => has(document, "button", "Open ChatGPT admin settings"),
+	),
+	{
+		id: "settings-agents-claude-login-browser",
+		group: "Settings",
+		title: "Agents: Claude Code's sign-in started in the browser, which can be opened again",
+		seed: async (world) => {
+			await seedCast(world);
+			world.answerSidecar({
+				getAgentInstalls: () => ({
+					agents: [
+						{
+							agent: "claude",
+							installed: true,
+							path: "/Users/sam/Library/Application Support/Conducted/bin/claude",
+							source: "managed",
+							version: "2.1.30",
+							authenticated: false,
+						},
+					],
+				}),
+				startAgentLogin: () => ({
+					loginId: "catalogue-claude",
+					url: "https://claude.ai/oauth/authorize?code=true",
+					instructions: "Finish signing in in your browser.",
+				}),
+			});
+			world.holdSidecar("finishAgentLogin");
+			return {
+				route: "/settings/user/agents",
+				after: ({ document }) => click(document, "button", "Run claude /login", { prefix: true }),
+				ready: (document) => has(document, "button", "Open browser again"),
+			};
+		},
+	},
+	selectOpen(
+		"settings-account-codex-approvals-menu",
+		"Account, the Codex tool approvals menu open",
+		"account",
+		"Codex tool approvals",
+	),
+	{
+		id: "settings-advanced-claude-path",
+		group: "Settings",
+		title: "Advanced, a custom Claude Code program path and its warning",
+		seed: async (world) => {
+			await seedCast(world);
+			world.memory.controls.addFile(
+				`${world.memory.platform.fs.paths.home}/.conducted/settings.toml`,
+				'claude_code_executable_path = "/opt/homebrew/bin/claude"\n',
+			);
+			return {
+				route: "/settings/user/advanced",
+				ready: (document) => shows(document, "Changing this may cause issues"),
 			};
 		},
 	},
