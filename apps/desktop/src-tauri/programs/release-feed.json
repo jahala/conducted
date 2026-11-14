@@ -1,31 +1,31 @@
 {
 	"claude": {
-		"version": "2.1.322",
+		"version": "2.1.325",
 		"darwinArm64": {
-			"url": "https://downloads.claude.ai/claude-code-releases/2.1.322/darwin-arm64/claude",
-			"size": 323702464,
-			"sha256": "a9d237949db816a0b7afd88a9a8e1df36b3a597a30f5a41d1c0539eb180a3450",
+			"url": "https://downloads.claude.ai/claude-code-releases/2.1.325/darwin-arm64/claude",
+			"size": 347406976,
+			"sha256": "84590fefe6338be9087f5814b61f9a54c5f21524163a4c127cb5a808e31009f2",
 			"format": "raw"
 		},
 		"darwinX64": {
-			"url": "https://downloads.claude.ai/claude-code-releases/2.1.322/darwin-x64/claude",
-			"size": 338400544,
-			"sha256": "b513d15117cbf1bb05095dab41963fd394ff40de1fa99dcc6d7d1033bf292e9b",
+			"url": "https://downloads.claude.ai/claude-code-releases/2.1.325/darwin-x64/claude",
+			"size": 362162560,
+			"sha256": "af9760c59f947044e2a0d5072343de563f31efb68bd18ccee4f43c5240570de7",
 			"format": "raw"
 		}
 	},
 	"codex": {
-		"version": "0.167.1",
+		"version": "0.169.0",
 		"darwinArm64": {
-			"url": "https://github.com/openai/codex/releases/download/rust-v0.167.1/codex-aarch64-apple-darwin.zst",
-			"size": 77535807,
-			"sha256": "c4c2695799c9d9d3681dfcb58d4ff5e8b383c0e92c984096cbb616376faeb2b8",
+			"url": "https://github.com/openai/codex/releases/download/rust-v0.169.0/codex-aarch64-apple-darwin.zst",
+			"size": 80879502,
+			"sha256": "0fcd047383b9be970883153020d7ad3fe2a4c07e65f88f8d7185e0d2b126c604",
 			"format": "zstd"
 		},
 		"darwinX64": {
-			"url": "https://github.com/openai/codex/releases/download/rust-v0.167.1/codex-x86_64-apple-darwin.zst",
-			"size": 84943319,
-			"sha256": "0168963577ca59779cb7ff9e00bfd08e7c7fcd6ef7d6b8609a684c7f89a730b5",
+			"url": "https://github.com/openai/codex/releases/download/rust-v0.169.0/codex-x86_64-apple-darwin.zst",
+			"size": 88717149,
+			"sha256": "f087178dd3eb1c51090a41e9c0dfa28199ecc7505b7a06fee61464b56f65792d",
 			"format": "zstd"
 		}
 	},

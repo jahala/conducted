@@ -721,8 +721,8 @@ pub const EVENT_PROGRAM_STATUS: &str = "programs://status";
 /// watchexec). The release feed shipped with the app must serve them.
 pub fn pinned_version(program: ManagedProgram) -> &'static str {
     match program {
-        ManagedProgram::Claude => "2.1.322",
-        ManagedProgram::Codex => "0.167.1",
+        ManagedProgram::Claude => "2.1.325",
+        ManagedProgram::Codex => "0.169.0",
         ManagedProgram::Gh => "2.100.0",
         ManagedProgram::Watchexec => "2.3.2",
         // The latest @cursor/sdk on registry.npmjs.org on 2026-11-06, which the owner ruled is

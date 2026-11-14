@@ -38,12 +38,12 @@ export const IMAGE = {
 	ripgrepVersion: "14.1.1-1+b4",
 	programs: {
 		claude: {
-			version: "2.1.322",
-			source: "npm:@anthropic-ai/claude-code-linux-x64@2.1.322",
+			version: "2.1.325",
+			source: "npm:@anthropic-ai/claude-code-linux-x64@2.1.325",
 		},
 		codex: {
-			version: "0.167.1",
-			source: "github:openai/codex rust-v0.167.1 codex-x86_64-unknown-linux-musl.tar.gz",
+			version: "0.169.0",
+			source: "github:openai/codex rust-v0.169.0 codex-x86_64-unknown-linux-musl.tar.gz",
 		},
 		gh: {
 			version: "2.100.0",
